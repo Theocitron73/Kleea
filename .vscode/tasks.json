@@ -1,0 +1,41 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Lancer Projet Complet",
+            "dependsOn": [
+                "run-backend",
+                "run-frontend"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "runOptions": {
+                "runOn": "folderOpen"
+            }
+        },
+        {
+            "label": "run-backend",
+            "type": "shell",
+            "command": "cd 'D:\\App finance\\3.0\\backend'; .\\venv\\Scripts\\activate; uvicorn main:app --reload",
+            "isBackground": true,
+            "presentation": {
+                "group": "server-group",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "run-frontend",
+            "type": "shell",
+            "command": "cd 'D:\\App finance\\3.0\\frontend'; npm run dev",
+            "isBackground": true,
+            "presentation": {
+                "group": "server-group",
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

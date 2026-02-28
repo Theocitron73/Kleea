@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+sqlalchemy
+pandas
+python-dotenv
+pydantic[email]
+passlib[bcrypt]
+fastapi-mail
+fpdf
+python-multipart
+cryptography
+psycopg2-binary
