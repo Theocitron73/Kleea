@@ -1,6 +1,6 @@
 import { useState, useEffect,useMemo,useRef,forwardRef} from 'react'
 
-import axios from 'axios'
+
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
   AreaChart, Area, CartesianGrid, Legend, Cell,LabelList
@@ -20,8 +20,8 @@ import fr from 'date-fns/locale/fr';
 registerLocale('fr', fr); // Pour avoir le calendrier en français
 import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut de ton fichier
 import { createPortal } from 'react-dom';
+import api from './api';
 
-const SITE_URL = `${import.meta.env.VITE_API_URL}`
 
 
 
@@ -2107,7 +2107,7 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
 
     // 2. Sauvegarde en BDD
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/save-user-theme`, {
+      await api.post('/save-user-theme', {
         user: user,
         element: key,
         couleur: hex
@@ -2192,12 +2192,12 @@ const NotePad = ({ user }) => {
   // Charger la note au montage
   useEffect(() => {
     if (user) {
-      axios.get(`${import.meta.env.VITE_API_URL}/note/${user}`).then(res => setNote(res.data.texte));
+      api.get(`/note/${user}`).then(res => setNote(res.data.texte));
     }
   }, [user]);
 
   const handleSave = () => {
-    axios.post(`${import.meta.env.VITE_API_URL}/note`, { utilisateur: user, texte: note });
+    api.post(`/note`, { utilisateur: user, texte: note });
   };
 
   return (
@@ -2371,7 +2371,7 @@ const [editingIndex, setEditingIndex] = useState(null);
 const loadProjets = async () => {
   try {
     // On utilise filters.profil pour être raccord avec le reste de ton app
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/get-projets/${filters.profil}`);
+    const res = await api.get(`/get-projets/${filters.profil}`);
     setProjets(res.data);
   } catch (err) {
     console.error("Erreur lors du chargement des projets:", err);
@@ -2441,7 +2441,7 @@ const handleAdd = async (e) => {
 
     console.log("Envoi des données :", projetData); // Petit check dans la console F12
 
-    const res = await axios.post(`${import.meta.env.VITE_API_URL}/save-projet`, projetData);
+    const res = await api.post(`/save-projet`, projetData);
 
     if (res.status === 200 || res.status === 201) {
       // Reset du formulaire
@@ -2462,7 +2462,7 @@ const handleDelete = async (nomProjet) => {
   // On retire le window.confirm d'ici car la confirmation 
   // est maintenant gérée par l'overlay visuel dans le composant
   try {
-    await axios.delete(`${import.meta.env.VITE_API_URL}/delete-projet/${nomProjet}/${filters.profil}`);
+    await api.delete(`/delete-projet/${nomProjet}/${filters.profil}`);
     
     // On ferme l'overlay de confirmation
     setItemToDelete(null); 
@@ -2479,7 +2479,7 @@ const handleDelete = async (nomProjet) => {
 const [tempProjet, setTempProjet] = useState({});
 const handleUpdate = async (p, oldName) => {
   try {
-    await axios.post(`${import.meta.env.VITE_API_URL}/update-projet?old_name=${encodeURIComponent(oldName)}`, {
+    await api.post(`/update-projet?old_name=${encodeURIComponent(oldName)}`, {
       nom: p.nom,
       cout: parseFloat(p.cout),
       capa: parseFloat(p.capa || 0),
@@ -2530,9 +2530,9 @@ const [userTheme, setUserTheme] = useState({
     try {
       // ON AJOUTE L'UTILISATEUR À L'URL POUR CORRESPONDRE AU BACKEND
       // URL attendue : /config-comptes/{nom}/{utilisateur}
-      const url = `${import.meta.env.VITE_API_URL}/config-comptes/${encodeURIComponent(deleteModal.accountName)}/${encodeURIComponent(user)}`;
+      const url = `/config-comptes/${encodeURIComponent(deleteModal.accountName)}/${encodeURIComponent(user)}`;
       
-      await axios.delete(url);
+      await api.delete(url);
       
       // Rafraîchir la liste après suppression
       fetchComptes();
@@ -2559,7 +2559,7 @@ const [userTheme, setUserTheme] = useState({
 const fetchUserTheme = async (username) => {
   try {
     // 1. Charge le thème du site (Variables CSS)
-    const resTheme = await axios.get(`${import.meta.env.VITE_API_URL}/get-theme/${username}`);
+    const resTheme = await api.get(`/get-theme/${username}`);
     if (resTheme.data) {
 
       
@@ -2570,7 +2570,7 @@ const fetchUserTheme = async (username) => {
     }
 
     // 2. Charge les couleurs des graphiques (Table 'theme')
-    const resColors = await axios.get(`${import.meta.env.VITE_API_URL}/get-user-theme/${username}`);
+    const resColors = await api.get(`/get-user-theme/${username}`);
     
     if (resColors.data && Object.keys(resColors.data).length > 0) {
       // On met à jour l'état pour que userTheme.color_revenus etc. soient définis
@@ -2595,7 +2595,7 @@ const [notification2, setNotification2] = useState({ show: false, message: '', t
   };
 
   try {
-    await axios.post(`${import.meta.env.VITE_API_URL}/save-theme`, themeData);
+    await api.post(`/save-theme`, themeData);
     showNotify("Configuration propagée avec succès ! 🚀", 'success');
   } catch (err) {
     console.error(err);
@@ -2614,7 +2614,7 @@ const showNotify = (msg, type) => {
   const fetchComptes = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/config-comptes/${user}`);
+      const res = await api.get(`/config-comptes/${user}`);
       setComptes(res.data);
     } catch (err) {
       console.error("Erreur chargement comptes", err);
@@ -2636,7 +2636,7 @@ const showNotify = (msg, type) => {
     };
 
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/config-comptes`, nouveauCompte);
+      await api.post(`/config-comptes`, nouveauCompte);
       e.target.reset(); 
       setNewCompteColor("#6366f1"); // On remet la couleur par défaut après l'ajout
       setShowAddPicker(false);
@@ -2654,7 +2654,7 @@ const showNotify = (msg, type) => {
     try {
       // On nettoie le nom pour l'URL au cas où
       const compteName = compteModifie.compte.trim(); 
-      await axios.put(`${import.meta.env.VITE_API_URL}/config-comptes/${compteName}`, compteModifie);
+      await api.put(`/config-comptes/${compteName}`, compteModifie);
       fetchComptes(); // Optionnel : rafraîchir pour être sûr d'avoir les données du serveur
     } catch (err) {
       console.error("Erreur de sauvegarde automatique", err);
@@ -2665,7 +2665,7 @@ const showNotify = (msg, type) => {
 
 const fetchTransactions = async () => {
   try {
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/transactions/${user}`);
+    const res = await api.get(`/transactions/${user}`);
     // Plus besoin de map complexe, on prend directement les données
     setToutesLesTransactions(res.data);
   } catch (err) {
@@ -2687,7 +2687,7 @@ const handleLogin = async (e) => {
     e.preventDefault()
     try {
       // On envoie maintenant le nom ET le mot de passe au serveur
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/login`, { 
+      const res = await api.post(`/login`, { 
         nom: loginName,
         password: loginPassword // Assure-toi que l'état loginPassword est bien lié à l'input
       })
@@ -2723,7 +2723,7 @@ const handleLogin = async (e) => {
 const handleRegister = async (e) => {
   e.preventDefault();
   try {
-    const res = await axios.post(`${import.meta.env.VITE_API_URL}/register`, { 
+    const res = await api.post(`/register`, { 
       nom: loginName, 
       email: loginEmail, // Ajout de l'email ici
       password: loginPassword,
@@ -2743,7 +2743,7 @@ const handleRegister = async (e) => {
 const handleResetRequest = async (e) => {
   e.preventDefault();
   try {
-    await axios.post(`${import.meta.env.VITE_API_URL}forgot-password`, { email: resetEmail });
+    await api.post(`forgot-password`, { email: resetEmail });
     alert("Si cet email existe, un lien a été envoyé.");
     setIsForgotPassword(false);
   } catch (err) {
@@ -2755,7 +2755,7 @@ const handleResetRequest = async (e) => {
 const deleteTransaction = async (id) => {
   if (window.confirm("Supprimer cette transaction ?")) {
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/transactions/${id}`);
+      await api.delete(`/transactions/${id}`);
       // Mise à jour locale immédiate sans refetch
       setToutesLesTransactions(prev => prev.filter(t => t.id !== id));
     } catch (err) {
@@ -2768,7 +2768,7 @@ const deleteTransaction = async (id) => {
 
     useEffect(() => {
       const fetchPeriods = async () => {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/dashboard/periodes/${user}`);
+        const res = await api.get(`/dashboard/periodes/${user}`);
         setAvailablePeriods(res.data);
         
         // Optionnel : Sélectionner par défaut la période la plus récente
@@ -3221,10 +3221,10 @@ const loadBudgets = async (fetchAll = false) => {
   try {
     // Si fetchAll est true, on ne passe PAS le mois à l'URL Python
     const url = fetchAll 
-      ? `${import.meta.env.VITE_API_URL}/get-budgets/${user}` 
-      : `${import.meta.env.VITE_API_URL}/get-budgets/${user}/${filters.mois}`;
+      ? `/get-budgets/${user}` 
+      : `/get-budgets/${user}/${filters.mois}`;
       
-    const res = await axios.get(url);
+    const res = await api.get(url);
     setBudgets(res.data); // React mettra à jour l'interface ici
   } catch (err) {
     console.error("Erreur lors du chargement des budgets :", err);
@@ -3247,7 +3247,7 @@ const handleAddBudget = async (e) => {
   };
 
   try {
-    const res = await axios.post(`${import.meta.env.VITE_API_URL}/save-budget`, budgetData);
+    const res = await api.post(`/save-budget`, budgetData);
     if (res.status === 200) {
       setFormBudget({ ...formBudget, nom: '', somme: '' });
       loadBudgets();
@@ -3267,7 +3267,7 @@ const executeDeleteBudget = async () => {
   if (!budgetToDelete) return;
   
   try {
-    await axios.delete(`${import.meta.env.VITE_API_URL}/delete-budget/${encodeURIComponent(budgetToDelete)}/${user}/${filters.mois}`);
+    await api.delete(`/delete-budget/${encodeURIComponent(budgetToDelete)}/${user}/${filters.mois}`);
     loadBudgets();
     setBudgetToDelete(null); // Ferme la modale
   } catch (err) {
@@ -3306,8 +3306,8 @@ const handleUpdateBudget = async (updatedBudget, oldName) => {
       somme: parseFloat(updatedBudget.somme)
     };
 
-    const url = `${import.meta.env.VITE_API_URL}/update-budget?old_name=${encodeURIComponent(oldName)}`;
-    await axios.post(url, payload);
+    const url = `/update-budget?old_name=${encodeURIComponent(oldName)}`;
+    await api.post(url, payload);
 
     // 3. Rechargement propre depuis le serveur (le Python filtrera correctement maintenant)
     await loadBudgets(true); 
@@ -3486,13 +3486,13 @@ const updateCell = async (id, field, value) => {
 
   try {
     // 1. Sauvegarde SQL
-    await axios.put(`${import.meta.env.VITE_API_URL}/transactions/${id}`, updatedData);
+    await api.put(`/transactions/${id}`, updatedData);
     
     // 2. LOGIQUE D'APPRENTISSAGE
     if (field === 'categorie' && isApprendreActive) {
       console.log("🧠 Apprentissage activé pour :", transactionActive.nom);
       
-      await axios.post(`${import.meta.env.VITE_API_URL}/memoire`, {
+      await api.post(`/memoire`, {
         nom: transactionActive.nom,
         categorie: value,
         utilisateur: user
@@ -3556,7 +3556,7 @@ const handleDeleteSelected = async () => {
 
   try {
     // Envoi de la liste d'IDs au backend
-    const res = await axios.delete(`${import.meta.env.VITE_API_URL}/transactions/batch`, { 
+    const res = await api.delete(`/transactions/batch`, { 
       data: selectedIds 
     });
 
@@ -3589,7 +3589,7 @@ const addCategory = async (fullName) => {
 
   try {
     // 1. Appel au backend
-    await axios.post(`${import.meta.env.VITE_API_URL}/api/categories`, {
+    await api.post(`/api/categories`, {
       nom: fullName,
       utilisateur: user
     });
@@ -3628,8 +3628,8 @@ const confirmDeletecat = async () => {
     // Encodage pour les emojis et espaces
     const encodedName = encodeURIComponent(catToDelete);
     
-    const response = await axios.delete(
-      `${import.meta.env.VITE_API_URL}/api/categories/${user}/${encodedName}`
+    const response = await api.delete(
+      `/api/categories/${user}/${encodedName}`
     );
 
     if (response.data.status === "success" || response.data.status === "deleted") {
@@ -3664,7 +3664,7 @@ const toggleVisibility = async (catName) => {
   
   setMasquees(nouvelleListe); 
   
-  // Utilise fetch si tu n'as pas axios
+
   await fetch(`${import.meta.env.VITE_API_URL}/api/categories_masquees/${user}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -3730,7 +3730,7 @@ const submitQuickTransaction = async () => {
   };
 
   try {
-    const res = await axios.post(`${import.meta.env.VITE_API_URL}/transactions`, fullTransaction);
+    const res = await api.post(`/transactions`, fullTransaction);
     
     if (res.data && res.data.status === "success") {
       // ON CRÉE UN OBJET COMPATIBLE AVEC TON TABLEAU REACT
@@ -3820,8 +3820,8 @@ const handleFileUpload = async (file) => {
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
 
   try {
-    const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/import-csv?utilisateur=${nomUtilisateur}&compte=${selectedCompte}`, 
+    const response = await api.post(
+      `/import-csv?utilisateur=${nomUtilisateur}&compte=${selectedCompte}`, 
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
@@ -3878,7 +3878,7 @@ const [notification, setNotification] = useState(null);
 const confirmBatchImport = async () => {
   try {
     // 1. Envoi au backend (qui attend 'annee' sans accent)
-    const response = await axios.post(`${import.meta.env.VITE_API_URL}/transactions/batch`, tempTransactions);
+    const response = await api.post(`/transactions/batch`, tempTransactions);
     
     // 2. Préparation des transactions pour l'affichage immédiat
     // On s'assure que chaque transaction possède les deux clés (accent et sans accent)
@@ -3921,7 +3921,7 @@ const [categoriesConfig, setCategoriesConfig] = useState([]);
 // 2. Définition de la fonction de chargement (ACCESSIBLE PARTOUT)
 const fetchCategoriesConfig = async () => {
   try {
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/config-categories`);
+    const res = await api.get(`/config-categories`);
     console.log("Données reçues de l'API :", res.data);
     setCategoriesConfig(res.data);
   } catch (err) {
@@ -3952,7 +3952,7 @@ const handleAddKeyword = async (catName, newKeyword) => {
   const updatedKeywords = [...existingKeywords, cleanKeyword];
 
   try {
-    await axios.put(`${import.meta.env.VITE_API_URL}/config-categories/update`, {
+    await api.put(`/config-categories/update`, {
       categorie: catName,
       keywords: updatedKeywords
     });
@@ -3972,7 +3972,7 @@ const handleRemoveKeyword = async (catName, keywordToRemove) => {
   const updatedKeywords = targetCat.mots_cles.filter(k => k !== keywordToRemove);
 
   try {
-    await axios.put(`${import.meta.env.VITE_API_URL}/config-categories/update`, {
+    await api.put(`/config-categories/update`, {
       categorie: catName,
       keywords: updatedKeywords
     });
@@ -4025,11 +4025,11 @@ const loadPrevisions = async () => {
     // 1. On utilise la route 'previsions' (pas get-budgets)
     // 2. On passe 'ALL' pour avoir toute l'année d'un coup
     // 3. On passe l'année dynamiquement
-    const url = `${import.meta.env.VITE_API_URL}/previsions/${user}/ALL/${filters.annee}`;
+    const url = `/previsions/${user}/ALL/${filters.annee}`;
     
     console.log("Tentative de récupération :", url);
     
-    const res = await axios.get(url);
+    const res = await api.get(url);
     
     if (res.data) {
       console.log("Données reçues :", res.data.length, "lignes");
@@ -4181,7 +4181,7 @@ const handleAddPrevision = async () => {
   };
 
   try {
-    await axios.post(`${import.meta.env.VITE_API_URL}/previsions`, payload);
+    await api.post(`/previsions`, payload);
     setNewPrevi({ ...newPrevi, nom: '', montant: '' }); // On garde la date et le compte
     loadPrevisions();
   } catch (err) {
@@ -4215,7 +4215,7 @@ const updatePrevision = async (id, field, value) => {
     const payload = { [field]: finalValue, ...extraData };
 
     // Envoi à l'API
-    await axios.put(`${import.meta.env.VITE_API_URL}/previsions/${id}`, payload);
+    await api.put(`/previsions/${id}`, payload);
     
     loadPrevisions();
   } catch (err) {
@@ -4251,7 +4251,7 @@ const handleDeleteSelected2 = async () => {
   try {
     // On peut soit faire une boucle, soit créer une route backend DELETE avec un body [ids]
     await Promise.all(selectedIds2.map(id => 
-      axios.delete(`${import.meta.env.VITE_API_URL}/previsions/${id}`)
+      api.delete(`/previsions/${id}`)
     ));
     
     setSelectedIds2([]);
@@ -4369,7 +4369,7 @@ const loadAvailablePreviPeriods = async () => {
   try {
     // Il te faudrait une route dédiée ou charger TOUTES les prévisions 
     // (sans filtre mois/annee) juste pour extraire les dates
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/previsions/${user}`);
+    const res = await api.get(`/previsions/${user}`);
     setMoisAvecPrevisions(res.data); // Format attendu : [{mois: 3, annee: 2024}, ...]
   } catch (err) {
     console.error(err);
@@ -4406,7 +4406,7 @@ const resteAVentiler = soldeGlobal - sommeAllocations;
 const fetchAllocations = async () => {
     if (!filters.profil) return;
     try {
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/get-allocations/${filters.profil}`);
+        const response = await api.get(`/get-allocations/${filters.profil}`);
         // C'est ce setAllocations qui va déclencher la mise à jour du solde global
         setAllocations(response.data);
     } catch (error) {
@@ -4433,7 +4433,7 @@ const handleSaveAllocation = async (nomEnveloppe, montant) => {
   };
 
   try {
-    const res = await axios.post(`${import.meta.env.VITE_API_URL}/save-allocation`, data);
+    const res = await api.post(`/save-allocation`, data);
     if (res.data.status === "success") {
       // On reset tout après le succès
       setMontantAiguillage("");
@@ -4501,7 +4501,7 @@ useEffect(() => {
     fetchTransactions();
     fetchComptes(); // <--- N'oublie pas d'appeler la fonction ici
     fetchUserTheme(user); // <--- Charge le thème SQL ici
-    axios.get(`${import.meta.env.VITE_API_URL}/note/${user}`).then(res => setNote(res.data.texte));
+    api.get(`/note/${user}`).then(res => setNote(res.data.texte));
   }
 }, [user]);
 
@@ -6147,7 +6147,7 @@ if (!user) {
                       onBlur={async (e) => {
                         const val = parseFloat(e.target.value);
                         if (val !== totalAlloue) {
-                          await axios.put(`${import.meta.env.VITE_API_URL}/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
+                          await api.put(`/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
                           fetchAllocations();
                         }
                       }}
@@ -8543,7 +8543,7 @@ if (!user) {
           </button>
           <button 
             onClick={async () => {
-              await axios.delete(`${SITE_URL}/delete-enveloppe/${deleteModal3.projetNom}?profil=${filters.profil}`);
+              await api.delete(`/delete-enveloppe/${deleteModal3.projetNom}?profil=${filters.profil}`);
               fetchAllocations();
               setDeleteModal3({ show: false, projetNom: null });
             }}
