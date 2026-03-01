@@ -24,13 +24,16 @@ socket.gethostname = lambda: "localhost"
 load_dotenv()
 app = FastAPI()
 
-
+origins = [
+    "http://localhost:5173",          # Pour tes tests locaux
+    "https://kleea.vercel.app",        # Ton URL Vercel
+]
 
 # LE BLOC INDISPENSABLE :
 # 3. Activation du Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # En développement, on autorise tout
+    allow_origins=origins,             # Autorise ces domaines
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
