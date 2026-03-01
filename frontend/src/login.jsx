@@ -21,7 +21,7 @@ registerLocale('fr', fr); // Pour avoir le calendrier en français
 import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut de ton fichier
 import { createPortal } from 'react-dom';
 
-const SITE_URL = 'http://localhost:8000'
+const SITE_URL = `${import.meta.env.VITE_API_URL}`
 
 
 
@@ -42,7 +42,7 @@ const TricountManager = ({ userId }) => {
 
   const fetchGroupes = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/get-groups/${userId}`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/get-groups/${userId}`);
       const data = await response.json();
       setGroupes(data);
     } catch (err) {
@@ -56,7 +56,7 @@ const TricountManager = ({ userId }) => {
     if (groupes.length > 0 && groupes[activeTab]) {
       const groupName = groupes[activeTab].nom;
       try {
-        const response = await fetch(`http://localhost:8000/get-tricount/${userId}/${groupName}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/get-tricount/${userId}/${groupName}`);
         const data = await response.json();
         setGroupData(data);
       } catch (err) {
@@ -83,7 +83,7 @@ const TricountManager = ({ userId }) => {
     };
 
     try {
-      await fetch('http://localhost:8000/save-tricount', {
+      await fetch(`${import.meta.env.VITE_API_URL}/save-tricount`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nouvelleTransactionVide)
@@ -100,7 +100,7 @@ const TricountManager = ({ userId }) => {
   const handleDeleteGroup = async () => {
     if (!groupToDelete) return;
     try {
-      await fetch(`http://localhost:8000/delete-group/${userId}/${groupToDelete}`, { method: 'DELETE' });
+      await fetch(`${import.meta.env.VITE_API_URL}/delete-group/${userId}/${groupToDelete}`, { method: 'DELETE' });
       await fetchGroupes();
       setActiveTab(0);
       setIsDeleteModalOpen(false);
@@ -121,7 +121,7 @@ const TricountManager = ({ userId }) => {
     try {
       // On envoie la demande au backend (Assure-tu d'avoir cette route côté FastAPI)
       // Sinon, on peut le faire en mettant à jour les transactions du groupe
-      await fetch(`http://localhost:8000/rename-group`, {
+      await fetch(`${import.meta.env.VITE_API_URL}/rename-group`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -149,7 +149,7 @@ const handleDownloadPDF = async (sujet = null) => {
   const groupName = groupes[activeTab].nom;
   
   // 2. Construction de l'URL (le '?' gère le cas optionnel du sujet)
-  let url = `http://localhost:8000/download-pdf/${userId}/${groupName}`;
+  let url = `${import.meta.env.VITE_API_URL}/download-pdf/${userId}/${groupName}`;
   if (sujet) {
     url += `?sujet=${encodeURIComponent(sujet)}`;
   }
@@ -198,7 +198,7 @@ const handleUpdateTransaction = async () => {
       .join(',');
 
     // 2. On envoie le tout au serveur
-    await fetch(`http://localhost:8000/update-transaction`, {
+    await fetch(`${import.meta.env.VITE_API_URL}/update-transaction`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -224,7 +224,7 @@ const [deletingId, setDeletingId] = useState(null);
 
 const executeDelete = async (id) => {
   try {
-    await fetch(`http://localhost:8000/delete-transaction/${id}`, { method: 'DELETE' });
+    await fetch(`${import.meta.env.VITE_API_URL}/delete-transaction/${id}`, { method: 'DELETE' });
     fetchDetailsGroupe();
     setDeletingId(null);
   } catch (err) {
@@ -380,7 +380,7 @@ const handleCreateTransaction = async () => {
       emoji: emojiPayeur // On ajoute l'emoji ici !
     };
 
-    const response = await fetch(`http://localhost:8000/save-tricount`, {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/save-tricount`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -493,7 +493,7 @@ const handleSetEmoji = async (nom, emoji) => {
 
   // 2. Mise à jour de la base de données (Synchro)
   try {
-    const response = await fetch('http://localhost:8000/update-member-emoji', {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/update-member-emoji`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2107,7 +2107,7 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
 
     // 2. Sauvegarde en BDD
     try {
-      await axios.post("http://localhost:8000/save-user-theme", {
+      await axios.post(`${import.meta.env.VITE_API_URL}/save-user-theme`, {
         user: user,
         element: key,
         couleur: hex
@@ -2192,12 +2192,12 @@ const NotePad = ({ user }) => {
   // Charger la note au montage
   useEffect(() => {
     if (user) {
-      axios.get(`http://localhost:8000/note/${user}`).then(res => setNote(res.data.texte));
+      axios.get(`${import.meta.env.VITE_API_URL}/note/${user}`).then(res => setNote(res.data.texte));
     }
   }, [user]);
 
   const handleSave = () => {
-    axios.post("http://localhost:8000/note", { utilisateur: user, texte: note });
+    axios.post(`${import.meta.env.VITE_API_URL}/note`, { utilisateur: user, texte: note });
   };
 
   return (
@@ -2371,7 +2371,7 @@ const [editingIndex, setEditingIndex] = useState(null);
 const loadProjets = async () => {
   try {
     // On utilise filters.profil pour être raccord avec le reste de ton app
-    const res = await axios.get(`http://localhost:8000/get-projets/${filters.profil}`);
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/get-projets/${filters.profil}`);
     setProjets(res.data);
   } catch (err) {
     console.error("Erreur lors du chargement des projets:", err);
@@ -2388,8 +2388,8 @@ useEffect(() => {
     try {
       // On lance les deux requêtes en parallèle
       const [resCats, resMasquees] = await Promise.all([
-        fetch(`http://localhost:8000/api/categories/${user}`),
-        fetch(`http://localhost:8000/api/categories_masquees/${user}`)
+        fetch(`${import.meta.env.VITE_API_URL}/api/categories/${user}`),
+        fetch(`${import.meta.env.VITE_API_URL}/api/categories_masquees/${user}`)
       ]);
 
       const dataCats = await resCats.json();
@@ -2441,7 +2441,7 @@ const handleAdd = async (e) => {
 
     console.log("Envoi des données :", projetData); // Petit check dans la console F12
 
-    const res = await axios.post("http://localhost:8000/save-projet", projetData);
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/save-projet`, projetData);
 
     if (res.status === 200 || res.status === 201) {
       // Reset du formulaire
@@ -2462,7 +2462,7 @@ const handleDelete = async (nomProjet) => {
   // On retire le window.confirm d'ici car la confirmation 
   // est maintenant gérée par l'overlay visuel dans le composant
   try {
-    await axios.delete(`http://localhost:8000/delete-projet/${nomProjet}/${filters.profil}`);
+    await axios.delete(`${import.meta.env.VITE_API_URL}/delete-projet/${nomProjet}/${filters.profil}`);
     
     // On ferme l'overlay de confirmation
     setItemToDelete(null); 
@@ -2479,7 +2479,7 @@ const handleDelete = async (nomProjet) => {
 const [tempProjet, setTempProjet] = useState({});
 const handleUpdate = async (p, oldName) => {
   try {
-    await axios.post(`http://localhost:8000/update-projet?old_name=${encodeURIComponent(oldName)}`, {
+    await axios.post(`${import.meta.env.VITE_API_URL}/update-projet?old_name=${encodeURIComponent(oldName)}`, {
       nom: p.nom,
       cout: parseFloat(p.cout),
       capa: parseFloat(p.capa || 0),
@@ -2530,7 +2530,7 @@ const [userTheme, setUserTheme] = useState({
     try {
       // ON AJOUTE L'UTILISATEUR À L'URL POUR CORRESPONDRE AU BACKEND
       // URL attendue : /config-comptes/{nom}/{utilisateur}
-      const url = `http://localhost:8000/config-comptes/${encodeURIComponent(deleteModal.accountName)}/${encodeURIComponent(user)}`;
+      const url = `${import.meta.env.VITE_API_URL}/config-comptes/${encodeURIComponent(deleteModal.accountName)}/${encodeURIComponent(user)}`;
       
       await axios.delete(url);
       
@@ -2559,7 +2559,7 @@ const [userTheme, setUserTheme] = useState({
 const fetchUserTheme = async (username) => {
   try {
     // 1. Charge le thème du site (Variables CSS)
-    const resTheme = await axios.get(`http://localhost:8000/get-theme/${username}`);
+    const resTheme = await axios.get(`${import.meta.env.VITE_API_URL}/get-theme/${username}`);
     if (resTheme.data) {
 
       
@@ -2570,7 +2570,7 @@ const fetchUserTheme = async (username) => {
     }
 
     // 2. Charge les couleurs des graphiques (Table 'theme')
-    const resColors = await axios.get(`http://localhost:8000/get-user-theme/${username}`);
+    const resColors = await axios.get(`${import.meta.env.VITE_API_URL}/get-user-theme/${username}`);
     
     if (resColors.data && Object.keys(resColors.data).length > 0) {
       // On met à jour l'état pour que userTheme.color_revenus etc. soient définis
@@ -2595,7 +2595,7 @@ const [notification2, setNotification2] = useState({ show: false, message: '', t
   };
 
   try {
-    await axios.post('http://localhost:8000/save-theme', themeData);
+    await axios.post(`${import.meta.env.VITE_API_URL}/save-theme`, themeData);
     showNotify("Configuration propagée avec succès ! 🚀", 'success');
   } catch (err) {
     console.error(err);
@@ -2614,7 +2614,7 @@ const showNotify = (msg, type) => {
   const fetchComptes = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`http://localhost:8000/config-comptes/${user}`);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/config-comptes/${user}`);
       setComptes(res.data);
     } catch (err) {
       console.error("Erreur chargement comptes", err);
@@ -2636,7 +2636,7 @@ const showNotify = (msg, type) => {
     };
 
     try {
-      await axios.post('http://localhost:8000/config-comptes', nouveauCompte);
+      await axios.post(`${import.meta.env.VITE_API_URL}/config-comptes`, nouveauCompte);
       e.target.reset(); 
       setNewCompteColor("#6366f1"); // On remet la couleur par défaut après l'ajout
       setShowAddPicker(false);
@@ -2654,7 +2654,7 @@ const showNotify = (msg, type) => {
     try {
       // On nettoie le nom pour l'URL au cas où
       const compteName = compteModifie.compte.trim(); 
-      await axios.put(`http://localhost:8000/config-comptes/${compteName}`, compteModifie);
+      await axios.put(`${import.meta.env.VITE_API_URL}/config-comptes/${compteName}`, compteModifie);
       fetchComptes(); // Optionnel : rafraîchir pour être sûr d'avoir les données du serveur
     } catch (err) {
       console.error("Erreur de sauvegarde automatique", err);
@@ -2665,7 +2665,7 @@ const showNotify = (msg, type) => {
 
 const fetchTransactions = async () => {
   try {
-    const res = await axios.get(`http://localhost:8000/transactions/${user}`);
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/transactions/${user}`);
     // Plus besoin de map complexe, on prend directement les données
     setToutesLesTransactions(res.data);
   } catch (err) {
@@ -2687,7 +2687,7 @@ const handleLogin = async (e) => {
     e.preventDefault()
     try {
       // On envoie maintenant le nom ET le mot de passe au serveur
-      const res = await axios.post('http://localhost:8000/login', { 
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/login`, { 
         nom: loginName,
         password: loginPassword // Assure-toi que l'état loginPassword est bien lié à l'input
       })
@@ -2723,7 +2723,7 @@ const handleLogin = async (e) => {
 const handleRegister = async (e) => {
   e.preventDefault();
   try {
-    const res = await axios.post('http://localhost:8000/register', { 
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/register`, { 
       nom: loginName, 
       email: loginEmail, // Ajout de l'email ici
       password: loginPassword,
@@ -2743,7 +2743,7 @@ const handleRegister = async (e) => {
 const handleResetRequest = async (e) => {
   e.preventDefault();
   try {
-    await axios.post('http://127.0.0.1:8000/forgot-password', { email: resetEmail });
+    await axios.post(`${import.meta.env.VITE_API_URL}forgot-password`, { email: resetEmail });
     alert("Si cet email existe, un lien a été envoyé.");
     setIsForgotPassword(false);
   } catch (err) {
@@ -2755,7 +2755,7 @@ const handleResetRequest = async (e) => {
 const deleteTransaction = async (id) => {
   if (window.confirm("Supprimer cette transaction ?")) {
     try {
-      await axios.delete(`http://localhost:8000/transactions/${id}`);
+      await axios.delete(`${import.meta.env.VITE_API_URL}/transactions/${id}`);
       // Mise à jour locale immédiate sans refetch
       setToutesLesTransactions(prev => prev.filter(t => t.id !== id));
     } catch (err) {
@@ -2768,7 +2768,7 @@ const deleteTransaction = async (id) => {
 
     useEffect(() => {
       const fetchPeriods = async () => {
-        const res = await axios.get(`http://localhost:8000/dashboard/periodes/${user}`);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/dashboard/periodes/${user}`);
         setAvailablePeriods(res.data);
         
         // Optionnel : Sélectionner par défaut la période la plus récente
@@ -3221,8 +3221,8 @@ const loadBudgets = async (fetchAll = false) => {
   try {
     // Si fetchAll est true, on ne passe PAS le mois à l'URL Python
     const url = fetchAll 
-      ? `http://localhost:8000/get-budgets/${user}` 
-      : `http://localhost:8000/get-budgets/${user}/${filters.mois}`;
+      ? `${import.meta.env.VITE_API_URL}/get-budgets/${user}` 
+      : `${import.meta.env.VITE_API_URL}/get-budgets/${user}/${filters.mois}`;
       
     const res = await axios.get(url);
     setBudgets(res.data); // React mettra à jour l'interface ici
@@ -3247,7 +3247,7 @@ const handleAddBudget = async (e) => {
   };
 
   try {
-    const res = await axios.post("http://localhost:8000/save-budget", budgetData);
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/save-budget`, budgetData);
     if (res.status === 200) {
       setFormBudget({ ...formBudget, nom: '', somme: '' });
       loadBudgets();
@@ -3267,7 +3267,7 @@ const executeDeleteBudget = async () => {
   if (!budgetToDelete) return;
   
   try {
-    await axios.delete(`http://localhost:8000/delete-budget/${encodeURIComponent(budgetToDelete)}/${user}/${filters.mois}`);
+    await axios.delete(`${import.meta.env.VITE_API_URL}/delete-budget/${encodeURIComponent(budgetToDelete)}/${user}/${filters.mois}`);
     loadBudgets();
     setBudgetToDelete(null); // Ferme la modale
   } catch (err) {
@@ -3306,7 +3306,7 @@ const handleUpdateBudget = async (updatedBudget, oldName) => {
       somme: parseFloat(updatedBudget.somme)
     };
 
-    const url = `http://localhost:8000/update-budget?old_name=${encodeURIComponent(oldName)}`;
+    const url = `${import.meta.env.VITE_API_URL}/update-budget?old_name=${encodeURIComponent(oldName)}`;
     await axios.post(url, payload);
 
     // 3. Rechargement propre depuis le serveur (le Python filtrera correctement maintenant)
@@ -3486,13 +3486,13 @@ const updateCell = async (id, field, value) => {
 
   try {
     // 1. Sauvegarde SQL
-    await axios.put(`http://localhost:8000/transactions/${id}`, updatedData);
+    await axios.put(`${import.meta.env.VITE_API_URL}/transactions/${id}`, updatedData);
     
     // 2. LOGIQUE D'APPRENTISSAGE
     if (field === 'categorie' && isApprendreActive) {
       console.log("🧠 Apprentissage activé pour :", transactionActive.nom);
       
-      await axios.post(`http://localhost:8000/memoire`, {
+      await axios.post(`${import.meta.env.VITE_API_URL}/memoire`, {
         nom: transactionActive.nom,
         categorie: value,
         utilisateur: user
@@ -3556,7 +3556,7 @@ const handleDeleteSelected = async () => {
 
   try {
     // Envoi de la liste d'IDs au backend
-    const res = await axios.delete('http://localhost:8000/transactions/batch', { 
+    const res = await axios.delete(`${import.meta.env.VITE_API_URL}/transactions/batch`, { 
       data: selectedIds 
     });
 
@@ -3589,7 +3589,7 @@ const addCategory = async (fullName) => {
 
   try {
     // 1. Appel au backend
-    await axios.post("http://localhost:8000/api/categories", {
+    await axios.post(`${import.meta.env.VITE_API_URL}/api/categories`, {
       nom: fullName,
       utilisateur: user
     });
@@ -3629,7 +3629,7 @@ const confirmDeletecat = async () => {
     const encodedName = encodeURIComponent(catToDelete);
     
     const response = await axios.delete(
-      `http://localhost:8000/api/categories/${user}/${encodedName}`
+      `${import.meta.env.VITE_API_URL}/api/categories/${user}/${encodedName}`
     );
 
     if (response.data.status === "success" || response.data.status === "deleted") {
@@ -3665,7 +3665,7 @@ const toggleVisibility = async (catName) => {
   setMasquees(nouvelleListe); 
   
   // Utilise fetch si tu n'as pas axios
-  await fetch(`http://localhost:8000/api/categories_masquees/${user}`, {
+  await fetch(`${import.meta.env.VITE_API_URL}/api/categories_masquees/${user}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(nouvelleListe)
@@ -3730,7 +3730,7 @@ const submitQuickTransaction = async () => {
   };
 
   try {
-    const res = await axios.post('http://localhost:8000/transactions', fullTransaction);
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/transactions`, fullTransaction);
     
     if (res.data && res.data.status === "success") {
       // ON CRÉE UN OBJET COMPATIBLE AVEC TON TABLEAU REACT
@@ -3821,7 +3821,7 @@ const handleFileUpload = async (file) => {
 
   try {
     const response = await axios.post(
-      `http://localhost:8000/import-csv?utilisateur=${nomUtilisateur}&compte=${selectedCompte}`, 
+      `${import.meta.env.VITE_API_URL}/import-csv?utilisateur=${nomUtilisateur}&compte=${selectedCompte}`, 
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
@@ -3878,7 +3878,7 @@ const [notification, setNotification] = useState(null);
 const confirmBatchImport = async () => {
   try {
     // 1. Envoi au backend (qui attend 'annee' sans accent)
-    const response = await axios.post('http://localhost:8000/transactions/batch', tempTransactions);
+    const response = await axios.post(`${import.meta.env.VITE_API_URL}/transactions/batch`, tempTransactions);
     
     // 2. Préparation des transactions pour l'affichage immédiat
     // On s'assure que chaque transaction possède les deux clés (accent et sans accent)
@@ -3921,7 +3921,7 @@ const [categoriesConfig, setCategoriesConfig] = useState([]);
 // 2. Définition de la fonction de chargement (ACCESSIBLE PARTOUT)
 const fetchCategoriesConfig = async () => {
   try {
-    const res = await axios.get('http://localhost:8000/config-categories');
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/config-categories`);
     console.log("Données reçues de l'API :", res.data);
     setCategoriesConfig(res.data);
   } catch (err) {
@@ -3952,7 +3952,7 @@ const handleAddKeyword = async (catName, newKeyword) => {
   const updatedKeywords = [...existingKeywords, cleanKeyword];
 
   try {
-    await axios.put('http://localhost:8000/config-categories/update', {
+    await axios.put(`${import.meta.env.VITE_API_URL}/config-categories/update`, {
       categorie: catName,
       keywords: updatedKeywords
     });
@@ -3972,7 +3972,7 @@ const handleRemoveKeyword = async (catName, keywordToRemove) => {
   const updatedKeywords = targetCat.mots_cles.filter(k => k !== keywordToRemove);
 
   try {
-    await axios.put('http://localhost:8000/config-categories/update', {
+    await axios.put(`${import.meta.env.VITE_API_URL}/config-categories/update`, {
       categorie: catName,
       keywords: updatedKeywords
     });
@@ -4025,7 +4025,7 @@ const loadPrevisions = async () => {
     // 1. On utilise la route 'previsions' (pas get-budgets)
     // 2. On passe 'ALL' pour avoir toute l'année d'un coup
     // 3. On passe l'année dynamiquement
-    const url = `http://localhost:8000/previsions/${user}/ALL/${filters.annee}`;
+    const url = `${import.meta.env.VITE_API_URL}/previsions/${user}/ALL/${filters.annee}`;
     
     console.log("Tentative de récupération :", url);
     
@@ -4181,7 +4181,7 @@ const handleAddPrevision = async () => {
   };
 
   try {
-    await axios.post('http://localhost:8000/previsions', payload);
+    await axios.post(`${import.meta.env.VITE_API_URL}/previsions`, payload);
     setNewPrevi({ ...newPrevi, nom: '', montant: '' }); // On garde la date et le compte
     loadPrevisions();
   } catch (err) {
@@ -4215,7 +4215,7 @@ const updatePrevision = async (id, field, value) => {
     const payload = { [field]: finalValue, ...extraData };
 
     // Envoi à l'API
-    await axios.put(`http://localhost:8000/previsions/${id}`, payload);
+    await axios.put(`${import.meta.env.VITE_API_URL}/previsions/${id}`, payload);
     
     loadPrevisions();
   } catch (err) {
@@ -4251,7 +4251,7 @@ const handleDeleteSelected2 = async () => {
   try {
     // On peut soit faire une boucle, soit créer une route backend DELETE avec un body [ids]
     await Promise.all(selectedIds2.map(id => 
-      axios.delete(`http://localhost:8000/previsions/${id}`)
+      axios.delete(`${import.meta.env.VITE_API_URL}/previsions/${id}`)
     ));
     
     setSelectedIds2([]);
@@ -4369,7 +4369,7 @@ const loadAvailablePreviPeriods = async () => {
   try {
     // Il te faudrait une route dédiée ou charger TOUTES les prévisions 
     // (sans filtre mois/annee) juste pour extraire les dates
-    const res = await axios.get(`http://localhost:8000/previsions/${user}`);
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/previsions/${user}`);
     setMoisAvecPrevisions(res.data); // Format attendu : [{mois: 3, annee: 2024}, ...]
   } catch (err) {
     console.error(err);
@@ -4406,7 +4406,7 @@ const resteAVentiler = soldeGlobal - sommeAllocations;
 const fetchAllocations = async () => {
     if (!filters.profil) return;
     try {
-        const response = await axios.get(`http://localhost:8000/get-allocations/${filters.profil}`);
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/get-allocations/${filters.profil}`);
         // C'est ce setAllocations qui va déclencher la mise à jour du solde global
         setAllocations(response.data);
     } catch (error) {
@@ -4433,7 +4433,7 @@ const handleSaveAllocation = async (nomEnveloppe, montant) => {
   };
 
   try {
-    const res = await axios.post("http://localhost:8000/save-allocation", data);
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/save-allocation`, data);
     if (res.data.status === "success") {
       // On reset tout après le succès
       setMontantAiguillage("");
@@ -4501,7 +4501,7 @@ useEffect(() => {
     fetchTransactions();
     fetchComptes(); // <--- N'oublie pas d'appeler la fonction ici
     fetchUserTheme(user); // <--- Charge le thème SQL ici
-    axios.get(`http://localhost:8000/note/${user}`).then(res => setNote(res.data.texte));
+    axios.get(`${import.meta.env.VITE_API_URL}/note/${user}`).then(res => setNote(res.data.texte));
   }
 }, [user]);
 
@@ -6147,7 +6147,7 @@ if (!user) {
                       onBlur={async (e) => {
                         const val = parseFloat(e.target.value);
                         if (val !== totalAlloue) {
-                          await axios.put(`http://localhost:8000/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
+                          await axios.put(`${import.meta.env.VITE_API_URL}/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
                           fetchAllocations();
                         }
                       }}
