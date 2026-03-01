@@ -3219,15 +3219,18 @@ const [showBudgetDetails, setShowBudgetDetails] = useState(false);
 // 2. Fonction modifiée pour accepter un mode "tout"
 const loadBudgets = async (fetchAll = false) => {
   try {
-    // Si fetchAll est true, on ne passe PAS le mois à l'URL Python
     const url = fetchAll 
       ? `/get-budgets/${user}` 
       : `/get-budgets/${user}/${filters.mois}`;
       
     const res = await api.get(url);
-    setBudgets(res.data); // React mettra à jour l'interface ici
+    
+    // On ne met à jour que si on a reçu des données valides
+    if (Array.isArray(res.data)) {
+        setBudgets(res.data);
+    }
   } catch (err) {
-    console.error("Erreur lors du chargement des budgets :", err);
+    console.error("Erreur chargement :", err);
   }
 };
 
@@ -3236,7 +3239,6 @@ const loadBudgets = async (fetchAll = false) => {
 const handleAddBudget = async (e) => {
   if (e) e.preventDefault();
   
-  // On s'assure que les valeurs ne sont pas undefined
   const budgetData = {
     utilisateur: String(user || "theo"), 
     mois: String(formBudget.mois || filters.mois), 
@@ -3250,11 +3252,14 @@ const handleAddBudget = async (e) => {
     const res = await api.post(`/save-budget`, budgetData);
     if (res.status === 200) {
       setFormBudget({ ...formBudget, nom: '', somme: '' });
-      loadBudgets();
+      
+      // ✅ LA CORRECTION ICI : 
+      // On recharge selon l'onglet actif pour garder la cohérence
+      const fetchAll = activeTab === 'gerer';
+      await loadBudgets(fetchAll); 
     }
   } catch (err) {
-    // Regarde bien ici dans ta console F12 pour voir le message du serveur
-    console.error("Détails de l'erreur:", err.response?.data);
+    console.error("Erreur lors de l'ajout :", err.response?.data);
   }
 };
 
