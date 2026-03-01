@@ -3259,17 +3259,20 @@ const handleAddBudget = async (e) => {
 };
 
 const [budgetToDelete, setBudgetToDelete] = useState(null);
-const confirmDelete2 = (nomBudget) => {
-  setBudgetToDelete(nomBudget);
+const confirmDelete2 = (budgetObj) => {
+  setBudgetToDelete(budgetObj); // On stocke l'objet {nom, mois, compte...}
 };
 
 const executeDeleteBudget = async () => {
   if (!budgetToDelete) return;
   
   try {
-    await api.delete(`/delete-budget/${encodeURIComponent(budgetToDelete)}/${user}/${filters.mois}`);
-    loadBudgets();
-    setBudgetToDelete(null); // Ferme la modale
+    // On utilise les données précises de l'objet à supprimer
+    const { nom, mois } = budgetToDelete; 
+    await api.delete(`/delete-budget/${encodeURIComponent(nom)}/${user}/${mois}`);
+    
+    loadBudgets(activeTab === 'gerer'); // Recharge avec le bon mode
+    setBudgetToDelete(null); 
   } catch (err) {
     console.error("Erreur suppression budget:", err);
   }
@@ -4380,12 +4383,6 @@ useEffect(() => {
   loadAvailablePreviPeriods();
 }, [user]);
 
-
-console.log({
-  total_recu_api: allPrevisionsAnnee.length,
-  mois_selectionne: filters.mois,
-  resultat_filtrage: previsionsFiltrees.length
-});
 
 // --- 1. Tes States (Assure-toi que l'ordre est respecté) ---
 const [allocations, setAllocations] = useState([]);
@@ -7179,7 +7176,7 @@ if (!user) {
                                         <Edit3 size={12} />
                                       </button>
                                       <button 
-                                        onClick={() => confirmDelete2(b.nom)}
+                                        onClick={() => confirmDelete2(b)} // On passe 'b' (l'objet) et pas juste 'b.nom'
                                         className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
                                       >
                                         <Trash2 size={12} />
@@ -8396,7 +8393,7 @@ if (!user) {
 
           {/* MODALE DE CONFIRMATION DE SUPPRESSION */}
 {budgetToDelete && (
-  <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
     {/* Overlay sombre et flou */}
     <div 
       className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
@@ -8413,7 +8410,7 @@ if (!user) {
         <div>
           <h3 className="text-[var(--text-main)] text-sm font-black uppercase tracking-widest">Supprimer le budget ?</h3>
           <p className="text-[10px] text-[var(--text-main)]/40 font-bold uppercase mt-2 px-4">
-            Voulez-vous vraiment retirer le budget <span className="text-rose-400">"{budgetToDelete}"</span> ?
+            Voulez-vous vraiment retirer le budget <span className="text-rose-400">"{budgetToDelete?.nom}"</span> ?
           </p>
         </div>
 
