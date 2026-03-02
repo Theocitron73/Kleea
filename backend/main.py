@@ -25,7 +25,9 @@ load_dotenv()
 app = FastAPI()
 
 origins = [
-    "http://localhost:5173",          # Pour tes tests locaux
+    "http://localhost:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",    # Pour tes tests locaux
     "https://kleea.vercel.app",        # Ton URL Vercel
 ]
 

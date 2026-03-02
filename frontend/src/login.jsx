@@ -2766,22 +2766,31 @@ const deleteTransaction = async (id) => {
 };
 
 
-    useEffect(() => {
-      const fetchPeriods = async () => {
-        const res = await api.get(`/dashboard/periodes/${user}`);
-        setAvailablePeriods(res.data);
-        
-        // Optionnel : Sélectionner par défaut la période la plus récente
-        if (res.data.length > 0) {
-          setFilters(prev => ({
-            ...prev,
-            annee: res.data[0].annee,
-            mois: res.data[0].mois
-          }));
-        }
-      };
-      fetchPeriods();
-    }, [user]);
+useEffect(() => {
+  const fetchPeriods = async () => {
+    try {
+      const res = await api.get(`/dashboard/periodes/${user}`);
+      setAvailablePeriods(res.data);
+      
+      // On évite de forcer les filtres si l'utilisateur a déjà choisi un mois
+      if (res.data.length > 0 && !filters.mois) {
+        setFilters(prev => ({
+          ...prev,
+          annee: res.data[0].annee,
+          mois: res.data[0].mois
+        }));
+      }
+    } catch (err) {
+      console.error("Erreur périodes:", err);
+    }
+  };
+
+  if (user) {
+    fetchPeriods();
+  }
+  // ✅ On ajoute toutesLesTransactions ici : dès qu'une ligne est ajoutée/supprimée, 
+  // la liste des mois se met à jour.
+}, [user, toutesLesTransactions]);
 
 
   const menuItems = [
@@ -3797,13 +3806,31 @@ const transactionsFiltrées = useMemo(() => {
 }, [toutesLesTransactions, filters, selectedCompte, comptes]); 
 // Ajoute bien 'comptes' dans les dépendances ici !
 
-// Calcul des totaux pour le Quick Status
 const statsFiltrées = useMemo(() => {
   return transactionsFiltrées.reduce((acc, t) => {
+    const cat = String(t.categorie || "");
+    
+    // Détection des transferts :
+    // 1. On cherche l'emoji 🔄 (peu importe ce qu'il y a après)
+    // 2. On cherche le mot "Virement" ou "Transfert"
+    // 3. On garde ton exception pour le Compte Commun 👫
+    const estUnTransfert = 
+      cat.includes("🔄") || 
+      cat.toLowerCase().includes("VERS") ||
+      cat.toLowerCase().includes("transfert");
+
+    if (estUnTransfert) {
+      return acc; // On ignore cette transaction dans le calcul des revenus/dépenses
+    }
+
     const val = parseFloat(t.montant);
-    if (val > 0) acc.revenus += val;
-    else acc.depenses += Math.abs(val);
-    acc.solde = acc.revenus - acc.depenses;
+    if (!isNaN(val)) {
+      if (val > 0) acc.revenus += val;
+      else acc.depenses += Math.abs(val);
+      
+      acc.solde = acc.revenus - acc.depenses;
+    }
+    
     return acc;
   }, { revenus: 0, depenses: 0, solde: 0 });
 }, [transactionsFiltrées]);
@@ -6428,7 +6455,7 @@ if (!user) {
                   <tbody className="before:content-[''] before:block before:h-2">
                     {previsionsFiltrees.map((prev) => {
                       const isSelected = selectedIds2.includes(prev.id);
-                      const isTransfert = (prev.categorie?.includes("🔄") || prev.nom?.toUpperCase().includes("VERS"));
+                      const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
                       
                       return (
                         <tr 
