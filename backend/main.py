@@ -804,27 +804,35 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
             
         lines = [l.strip() for l in decoded.splitlines() if l.strip()]
         
-        # 1. RECHERCHE DE L'ENTÊTE
+        # --- 1. DÉTECTION DU FORMAT (REVOLUT VS CLASSIQUE) ---
+        # On vérifie si les mots clés Revolut sont présents dans la 1ère ligne
+        is_revolut = "Date de début" in lines[0] or "Type,Produit" in lines[0]
+        separator = ',' if is_revolut else ';'
+        
         start_line = 0
         for i, line in enumerate(lines[:20]):
             l = line.lower()
-            if any(k in l for k in ['date', 'le ']) and any(k in l for k in ['libell', 'montant', 'débit', 'opéra', 'nom']):
+            # Pour la Banque Postale, on cherche "date;libellé"
+            # Pour Revolut, on cherche "date de début"
+            if (any(k in l for k in ['date', 'le ']) and any(k in l for k in ['libell', 'montant', 'débit', 'description'])):
                 start_line = i
                 break
         
-        # 2. CHARGEMENT DU CSV (On force le séparateur ; détecté dans tes logs)
+        # 2. CHARGEMENT DU CSV
         csv_data = "\n".join(lines[start_line:])
-        df = pd.read_csv(io.StringIO(csv_data), sep=';', engine='python', on_bad_lines='skip')
+        df = pd.read_csv(io.StringIO(csv_data), sep=separator, engine='python', on_bad_lines='skip')
         df.columns = [c.strip().lower() for c in df.columns]
+
+        # 3. IDENTIFICATION DES COLONNES
+        col_date = next((c for c in df.columns if any(k in c for k in ['date de début', 'start date', 'date operation', 'date'])), None)
+        col_nom = next((c for c in df.columns if any(k in c for k in ['description', 'libelle simplifie', 'nom', 'libell'])), None)
+        col_montant = next((c for c in df.columns if any(k in c for k in ['montant', 'amount', 'valeur'])), None)
         
-        # 3. IDENTIFICATION PRÉCISE DES COLONNES (basé sur ton CSV)
-        col_date = next((c for c in df.columns if any(k in c for k in ['date de comptabilisation', 'date operation', 'date'])), None)
-        col_nom = next((c for c in df.columns if any(k in c for k in ['libelle simplifie', 'libelle operation', 'nom', 'libell'])), None)
         col_debit = next((c for c in df.columns if 'debit' in c or 'débit' in c), None)
         col_credit = next((c for c in df.columns if 'credit' in c or 'crédit' in c), None)
-        col_montant = next((c for c in df.columns if 'montant' in c or 'valeur' in c), None)
+        col_etat = next((c for c in df.columns if any(k in c for k in ['état', 'status', 'state'])), None)
 
-        # Chargement des règles de catégorisation
+        # (Le reste du code pour les règles SQL et la mémoire reste identique)
         mots_cles_rules = []
         try:
             with engine.connect() as conn:
@@ -840,52 +848,50 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
         transactions_pretes = []
         mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
 
-       # Identification de la colonne info (spécifique à ton nouveau CSV)
+        # Identification de la colonne info (Banque Postale)
         col_info = next((c for c in df.columns if any(k in c for k in ['informations complementaires', 'info'])), None)
 
         # 4. BOUCLE DE TRAITEMENT
         for _, row in df.iterrows():
             if pd.isna(row[col_date]): continue
             
+            # Filtre Revolut
+            if col_etat and pd.notna(row[col_etat]):
+                if str(row[col_etat]).upper() not in ['TERMINÉ', 'COMPLETED', 'FINI']:
+                    continue
+
             try:
-                # --- LOGIQUE MONTANT ---
                 def clean_val(val):
-                    if pd.isna(val): return ""
-                    return str(val).replace('+', '').replace(',', '.').replace('\xa0', '').replace(' ', '').strip()
+                    if pd.isna(val) or val == "": return "0"
+                    # On nettoie les espaces insécables et symboles
+                    res = str(val).replace('+', '').replace('\xa0', '').replace(' ', '').strip()
+                    # IMPORTANT : Pour la Banque Postale, le montant est souvent "-24,99"
+                    # On ne remplace la virgule que si ce n'est pas un CSV Revolut (qui utilise déjà la virgule comme séparateur)
+                    return res.replace(',', '.')
 
                 montant_float = 0.0
                 if col_debit or col_credit:
-                    d_val, c_val = clean_val(row[col_debit]), clean_val(row[col_credit])
+                    d_val = clean_val(row.get(col_debit)) if col_debit else "0"
+                    c_val = clean_val(row.get(col_credit)) if col_credit else "0"
                     if d_val and d_val not in ["0", "0.00"]: montant_float = float(d_val)
                     elif c_val and c_val not in ["0", "0.00"]: montant_float = float(c_val)
-                    else: continue
                 elif col_montant:
                     montant_float = float(clean_val(row[col_montant]))
 
-                # --- PRÉPARATION DU TEXTE POUR DÉTECTION ---
                 nom_t = str(row[col_nom]).strip()
                 info_t = str(row[col_info]) if col_info and pd.notna(row[col_info]) else ""
                 texte_integral = (nom_t + " " + info_t).upper()
 
+                # --- CATEGORISATION ---
                 cat = "❓ Autre"
+                mes_comptes = ["LIVRET A", "LDDS", "COMPTE CHEQUES", "COMMUN", "CCP", "REVOLUT"]
+                if any(k in texte_integral for k in ["VERS", "VIR MME FONTA AUDE", "TO "]):
+                    if "LIVRET A" in texte_integral: cat = "🔄 Virement : CCP vers Livret A"
+                    elif any(c in texte_integral for c in ["COMPTE CHEQUES", "CCP"]): cat = "🔄 Virement : Livret A vers CCP"
+                    elif any(c in texte_integral for c in mes_comptes): cat = "🔄 Transfert Interne"
 
-                # --- ÉTAPE A : DÉTECTION DES TRANSFERTS INTERNES (🔄) ---
-                mes_comptes = ["LIVRET A", "LDDS", "COMPTE CHEQUES", "COMMUN", "CCP"]
-                
-                if "VERS" in texte_integral or "VIR MME FONTA AUDE" in texte_integral:
-                    if "LIVRET A" in texte_integral: 
-                        cat = "🔄 Virement : CCP vers Livret A"
-                    elif any(c in texte_integral for c in ["COMPTE CHEQUES", "CCP"]): 
-                        cat = "🔄 Virement : Livret A vers CCP"
-                    elif any(c in texte_integral for c in mes_comptes): 
-                        cat = "🔄 Transfert Interne"
-
-                # --- ÉTAPE B : MÉMOIRE & MOTS-CLÉS SQL (Si pas encore catégorisé) ---
                 if cat == "❓ Autre":
-                    # 1. Mémoire Neon
                     cat = memoire.get(nom_t, "❓ Autre")
-                    
-                    # 2. Mots-clés SQL
                     if cat == "❓ Autre":
                         nom_t_lower = nom_t.lower()
                         for rule in mots_cles_rules:
@@ -893,8 +899,10 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
                                 cat = rule["categorie"]
                                 break
 
-                # --- GESTION DATE & FINALISATION ---
-                dt = pd.to_datetime(row[col_date], dayfirst=True, errors='coerce')
+                # --- DATE ---
+                date_str = str(row[col_date]).split(' ')[0]
+                # La Banque Postale est en JJ/MM/AAAA, Revolut en AAAA-MM-JJ
+                dt = pd.to_datetime(date_str, dayfirst=True, errors='coerce')
                 if pd.isna(dt): continue
                 
                 transactions_pretes.append({
@@ -907,9 +915,10 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
                     "mois": mois_fr[dt.month - 1],
                     "annee": int(dt.year)
                 })
-            except: continue
+            except Exception as e: 
+                print(f"Erreur ligne: {e}")
+                continue
             
-        print(f"DEBUG: {len(transactions_pretes)} transactions préparées")
         return transactions_pretes
 
     except Exception as e:

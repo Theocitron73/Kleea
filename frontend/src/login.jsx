@@ -2030,27 +2030,39 @@ const SortableAccountCard = ({ c }) => {
 };
 
 const TransactionCard = ({ t, color, bg }) => {
-  // Logique d'extraction pour le format ISO (YYYY-MM-DD...)
   let day = '??';
   let month = '??';
 
   if (t.date) {
-    // Si la date contient le "T" du format ISO
-    if (t.date.includes('T')) {
-      const dateSeule = t.date.split('T')[0]; // On récupère "2026-01-28"
-      const parties = dateSeule.split('-');   // On découpe par le tiret
-      day = parties[2];   // "28"
-      month = parties[1]; // "01"
+    // 1. On tente de parser la date avec l'objet Date natif (le plus sûr)
+    const dateObj = new Date(t.date);
+
+    // Si la date est valide (n'est pas "Invalid Date")
+    if (!isNaN(dateObj.getTime())) {
+      day = dateObj.getDate().toString().padStart(2, '0');
+      month = (dateObj.getMonth() + 1).toString().padStart(2, '0'); 
     } 
-    // Au cas où certaines dates seraient encore au format DD/MM/YYYY
-    else if (t.date.includes('/')) {
-      const parties = t.date.split('/');
-      day = parties[0];
-      month = parties[1];
+    // 2. Fallback manuel si l'objet Date échoue (format spécifique)
+    else {
+      const dateStr = t.date.toString();
+      if (dateStr.includes('-')) {
+        const parties = dateStr.split(' ')[0].split('-'); // Gère "YYYY-MM-DD HH:mm"
+        // Si format YYYY-MM-DD
+        if (parties[0].length === 4) {
+          day = parties[2];
+          month = parties[1];
+        } else { // Si format DD-MM-YYYY
+          day = parties[0];
+          month = parties[1];
+        }
+      } else if (dateStr.includes('/')) {
+        const parties = dateStr.split('/');
+        day = parties[0];
+        month = parties[1];
+      }
     }
   }
 
-  // Petit dictionnaire pour convertir le numéro du mois en texte
   const moisNoms = {
     '01': 'JAN', '02': 'FEV', '03': 'MAR', '04': 'AVR', 
     '05': 'MAI', '06': 'JUIN', '07': 'JUIL', '08': 'AOUT', 
@@ -2059,8 +2071,6 @@ const TransactionCard = ({ t, color, bg }) => {
 
   return (
     <div className={`px-3 py-1.5 rounded-xl ${bg} border border-white/5 group hover:bg-white/10 transition-all flex items-center gap-3`}>
-      
-      {/* Badge Date Adapté */}
       <div className="flex flex-col items-center justify-center min-w-[34px] h-9 bg-black/30 rounded-lg border border-white/5 shadow-inner">
          <span className={`text-[11px] font-black leading-none ${color}`}>
            {day}
@@ -2070,7 +2080,6 @@ const TransactionCard = ({ t, color, bg }) => {
          </span>
       </div>
 
-      {/* Reste du contenu (Détails transaction) */}
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-center gap-2">
           <p className="text-[var(--text-main)]/90 font-bold text-[11px] truncate leading-tight">
@@ -2771,15 +2780,7 @@ useEffect(() => {
     try {
       const res = await api.get(`/dashboard/periodes/${user}`);
       setAvailablePeriods(res.data);
-      
-      // On évite de forcer les filtres si l'utilisateur a déjà choisi un mois
-      if (res.data.length > 0 && !filters.mois) {
-        setFilters(prev => ({
-          ...prev,
-          annee: res.data[0].annee,
-          mois: res.data[0].mois
-        }));
-      }
+      // Suppression du setFilters d'ici pour éviter les doublons de logique
     } catch (err) {
       console.error("Erreur périodes:", err);
     }
@@ -2788,10 +2789,104 @@ useEffect(() => {
   if (user) {
     fetchPeriods();
   }
-  // ✅ On ajoute toutesLesTransactions ici : dès qu'une ligne est ajoutée/supprimée, 
-  // la liste des mois se met à jour.
 }, [user, toutesLesTransactions]);
 
+const initialSelectionDone = useRef(false);
+
+// 1. Reset du verrou au changement d'utilisateur
+useEffect(() => {
+  // 1. On autorise à nouveau la sélection automatique
+  initialSelectionDone.current = false;
+
+  // 2. IMPORTANT : On vide les données de l'ancien utilisateur 
+  // pour éviter que le useEffect d'initialisation ne tourne avec les mauvaises infos
+  setAvailablePeriods([]);
+  setComptes([]);
+
+  // 3. On remet les filtres à un état neutre
+  setFilters({
+    profil: '',
+    annee: new Date().getFullYear().toString(),
+    mois: moisListe[new Date().getMonth()].v 
+  });
+  
+  console.log("Cleaning data for new user...");
+}, [user]);
+
+
+// 2. Initialisation intelligente
+useEffect(() => {
+  // On attend d'avoir les périodes ET les comptes
+  if (availablePeriods.length > 0 && comptes.length > 0 && !initialSelectionDone.current) {
+    
+    // --- TRI CHRONOLOGIQUE DES PÉRIODES ---
+    const periodesTriees = [...availablePeriods].sort((a, b) => {
+      // Conversion forcée en nombre pour la comparaison
+      const yearA = parseInt(a.annee);
+      const yearB = parseInt(b.annee);
+      
+      if (yearB !== yearA) {
+        return yearB - yearA; // Tri décroissant (2024 avant 2023)
+      }
+      
+      // Si même année, on compare l'index des mois
+      const indexA = moisListe.findIndex(m => m.v === a.mois);
+      const indexB = moisListe.findIndex(m => m.v === b.mois);
+      return indexB - indexA;
+    });
+
+    const dernierePeriode = periodesTriees[0];
+
+    // --- EXTRACTION DU PROFIL ---
+    const groupesUniques = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
+    
+    if (groupesUniques.length > 0) {
+      const premierProfil = groupesUniques[0];
+
+      console.log("🎯 Initialisation auto :", {
+        profil: premierProfil,
+        mois: dernierePeriode.mois,
+        annee: dernierePeriode.annee
+      });
+
+      setFilters({
+        profil: premierProfil,
+        annee: dernierePeriode.annee.toString(),
+        mois: dernierePeriode.mois
+      });
+
+      initialSelectionDone.current = true;
+    }
+  }
+}, [availablePeriods, comptes, user]); // user ajouté en dépendance pour plus de sécurité
+
+
+useEffect(() => {
+  // Si on n'a pas encore de données ou d'année sélectionnée, on ne fait rien
+  if (availablePeriods.length === 0 || !filters.annee) return;
+
+  // 1. On regarde quels mois sont dispos pour l'année choisie
+  const moisDisposPourAnnee = availablePeriods.filter(
+    p => p.annee.toString() === filters.annee.toString()
+  );
+
+  // 2. On vérifie si le mois actuellement sélectionné existe dans cette année
+  const moisToujoursValide = moisDisposPourAnnee.some(p => p.mois === filters.mois);
+
+  // 3. Si le mois n'est plus valide, on force le mois le plus récent de cette année
+  if (!moisToujoursValide && moisDisposPourAnnee.length > 0) {
+    const moisTries = [...moisDisposPourAnnee].sort((a, b) => {
+      const indexA = moisListe.findIndex(m => m.v === a.mois);
+      const indexB = moisListe.findIndex(m => m.v === b.mois);
+      return indexB - indexA; // Décroissant pour avoir le plus récent en [0]
+    });
+
+    setFilters(prev => ({
+      ...prev,
+      mois: moisTries[0].mois
+    }));
+  }
+}, [filters.annee, availablePeriods]); // Se déclenche quand l'année change
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -2809,7 +2904,6 @@ useEffect(() => {
     }
     return true;
   });
-
 
 
 
@@ -3063,11 +3157,23 @@ const handleDragEnd2 = (event) => {
 };
 
 const recapAnnuelStats = useMemo(() => {
-  const maintenant = new Date();
-  const moisActuelIdx = maintenant.getMonth();
-  const anneeActuelle = maintenant.getFullYear();
   const anneeFiltre = parseInt(filters.annee);
   
+  // 1. DÉTERMINER LE DERNIER MOIS RÉELLEMENT CONTENU DANS LES DONNÉES
+  // Cela remplace la détection basée sur la date système qui créait les chutes à zéro.
+  const dernierMoisDonneesIdx = (() => {
+    const transactionsAnnee = (toutesLesTransactions || []).filter(
+      t => t.année?.toString().trim() === filters.annee.toString().trim()
+    );
+    if (transactionsAnnee.length === 0) return -1;
+
+    const indices = transactionsAnnee.map(t => 
+      moisListe.findIndex(m => m.v.toLowerCase() === String(t.mois).toLowerCase().trim())
+    );
+    return Math.max(...indices);
+  })();
+
+  // 2. PRÉPARATION DE LA CONFIGURATION DES COMPTES
   const configMap = {};
   comptes.forEach(c => {
     configMap[c.compte.trim().toUpperCase()] = {
@@ -3081,17 +3187,22 @@ const recapAnnuelStats = useMemo(() => {
   );
   const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
 
+  // 3. CALCUL MOIS PAR MOIS
   return moisListe.map((moisObj, indexMoisCible) => {
     const nomMoisCible = moisObj.v.toLowerCase().trim();
+    
+    // Initialisation des soldes avec les valeurs de base
     let soldesCourantsMois = {};
     Object.keys(configMap).forEach(nom => {
       soldesCourantsMois[nom] = configMap[nom].soldeInitial;
     });
 
+    // Parcours de toutes les transactions pour calculer le solde progressif
     (toutesLesTransactions || []).forEach(t => {
       const anneeT = parseInt(t.année);
       const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === String(t.mois).toLowerCase().trim());
       
+      // On ne prend que ce qui est antérieur ou égal au mois cible
       if (anneeT > anneeFiltre || (anneeT === anneeFiltre && indexMoisT > indexMoisCible)) return;
 
       const montant = parseFloat(t.montant) || 0;
@@ -3104,16 +3215,12 @@ const recapAnnuelStats = useMemo(() => {
         soldesCourantsMois[compteSrc] += montant;
       }
 
-      // ... à l'intérieur du loop des transactions dans recapAnnuelStats ...
-
+      // GESTION DES TRANSFERTS INTERNES (Logique miroir)
       if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
         const groupeSource = configMap[compteSrc]?.groupe;
         if (!groupeSource) return;
 
         let meilleurMatch = null;
-        
-        // On trie les noms de comptes par longueur (le plus long d'abord) 
-        // pour éviter que "LIVRET A" match avec "LIVRET" si tu as les deux
         const nomsCandidats = Object.keys(configMap)
           .filter(nom => nom !== compteSrc && configMap[nom].groupe === groupeSource)
           .sort((a, b) => b.length - a.length);
@@ -3122,20 +3229,16 @@ const recapAnnuelStats = useMemo(() => {
           const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE"];
           const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
 
-          // TEST 1 : Le nom exact du compte est-il dans le libellé ? (ex: "VERS LEP")
           const matchNomExact = texteIntegral.includes(nomDest);
-          
-          // TEST 2 : Un mot clé unique est-il présent ? (ex: "LEP")
           const matchMotCle = motsCompte.length > 0 && motsCompte.every(m => texteIntegral.includes(m));
 
           if (matchNomExact || matchMotCle) {
             meilleurMatch = nomDest;
-            break; // On a trouvé le compte le plus probable
+            break;
           }
         }
 
         if (meilleurMatch) {
-          // On vérifie si la transaction inverse n'existe pas déjà pour éviter de doubler le montant
           const dejaPresent = toutesLesTransactions.some(t2 => 
             t2.année === t.année && t2.mois === t.mois && 
             t2.compte?.trim().toUpperCase() === meilleurMatch && 
@@ -3143,12 +3246,13 @@ const recapAnnuelStats = useMemo(() => {
           );
 
           if (!dejaPresent) {
-            soldesCourantsMois[meilleurMatch] -= montant; // Soustraire un montant négatif revient à ajouter
+            soldesCourantsMois[meilleurMatch] -= montant; 
           }
         }
       }
     });
 
+    // 4. CALCUL DES TOTAUX DU MOIS CIBLE
     const soldeTotalFinMois = nomsComptesProfil.reduce((acc, nom) => acc + (soldesCourantsMois[nom] || 0), 0);
 
     const transactionsDuMois = (toutesLesTransactions || []).filter(t => 
@@ -3168,27 +3272,24 @@ const recapAnnuelStats = useMemo(() => {
     const dep = transactionsDuMois.filter(t => parseFloat(t.montant) < 0 && !estUnTransfert(t))
       .reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
 
-    // --- CORRECTION DES VARIABLES ---
     const epargneCalculée = rev - dep;
-    const estFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMoisCible > moisActuelIdx);
+
+    // 5. VALIDATION SI LE MOIS DOIT ÊTRE AFFICHÉ
+    // Si l'index du mois est supérieur au dernier mois où on a trouvé des data, on renvoie null
+    const estSansDonnees = indexMoisCible > dernierMoisDonneesIdx;
+
     const detailComptes = {};
-      nomsComptesProfil.forEach(nom => {
-        // 'nom' est déjà en MAJUSCULES grâce au map au début du useMemo
-        detailComptes[nom] = estFutur ? null : soldesCourantsMois[nom];
-      });
+    nomsComptesProfil.forEach(nom => {
+      detailComptes[nom] = estSansDonnees ? null : soldesCourantsMois[nom];
+    });
 
-      
-      
-
-
-          return {
+    return {
       nom: moisObj.l,
-      // Si c'est le futur, on renvoie null pour que Recharts connectNulls prenne le relais
-      revenus: estFutur ? null : rev,
-      depenses: estFutur ? null : dep,
-      epargne: estFutur ? null : epargneCalculée,
-      soldeTotal: estFutur ? null : soldeTotalFinMois,
-      ...detailComptes // On injecte dynamiquement : { "COURANT": 1200, "LIVRET A": 5000, ... }
+      revenus: estSansDonnees ? null : rev,
+      depenses: estSansDonnees ? null : dep,
+      epargne: estSansDonnees ? null : epargneCalculée,
+      soldeTotal: estSansDonnees ? null : soldeTotalFinMois,
+      ...detailComptes 
     };
   });
 }, [toutesLesTransactions, comptes, filters.annee, filters.profil, moisListe]);
@@ -4524,6 +4625,15 @@ const [note, setNote] = useState(""); // Initialise avec une chaîne vide
 
 
 
+const handleInput = (e) => {
+  const element = e.target;
+  // On réinitialise la hauteur pour calculer le scrollHeight réel
+  element.style.height = "auto";
+  // On applique la nouvelle hauteur basée sur le contenu
+  element.style.height = `${element.scrollHeight}px`;
+};
+
+
 
 useEffect(() => {
   if (user) {
@@ -4869,21 +4979,26 @@ if (!user) {
           
           {/* 1. LA BARRE DE FILTRES (On la ferme bien à la fin) */}
           <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-white/5 backdrop-blur-xl rounded-[var(--radius)] border border-white/10">
-            {/* SECTION PROFIL */}
+           {/* SECTION PROFIL */}
             <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
-              {['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => (
-                <button
-                  key={p}
-                  onClick={() => setFilters({...filters, profil: p})}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                    filters.profil === p 
-                    ? 'bg-white text-slate-900 shadow-sm' 
-                    : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
+              {['Tous', ...new Set(comptes.map(c => c.groupe).filter(Boolean))].map(p => {
+                // On vérifie si c'est sélectionné de manière insensible à la casse pour le test
+                const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
+
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setFilters({...filters, profil: p})}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                      isSelected 
+                      ? 'bg-white text-slate-900 shadow-sm' 
+                      : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="hidden md:block w-px h-6 bg-white/10" />
@@ -4891,7 +5006,9 @@ if (!user) {
             {/* SECTION MOIS */}
             <div className="flex items-center gap-1 no-scrollbar">
               {moisListe.map(m => {
-                const hasData = availablePeriods.some(p => p.mois === m.v && p.annee === filters.annee);
+                const hasData = availablePeriods.some(p => 
+                  p.mois === m.v && p.annee.toString() === filters.annee?.toString()
+                );
                 if (!hasData) return null;
                 return (
                   <button
@@ -4913,18 +5030,22 @@ if (!user) {
 
             {/* SECTION ANNÉE */}
             <div className="flex items-center gap-1">
-              {[...new Set(availablePeriods.map(p => p.annee))].map(year => (
-                <button
-                  key={year}
-                  onClick={() => setFilters({...filters, annee: year})}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                    filters.annee === year 
-                    ? 'bg-emerald-500 text-[var(--text-main)]' 
-                    : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
-                  }`}
-                >
-                  {year}
-                </button>
+              {[...new Set(availablePeriods.map(p => p.annee))]
+                .sort((a, b) => parseInt(a) - parseInt(b)) // Garde le tri croissant pour l'affichage (gauche à droite)
+                .map(year => (
+                  <button
+                    key={year}
+                    // On enregistre en string ici aussi
+                    onClick={() => setFilters({...filters, annee: year.toString()})}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                      // Comparaison sécurisée : on transforme les deux en String pour le test
+                      filters.annee?.toString() === year.toString() 
+                      ? 'bg-emerald-500 text-[var(--text-main)] shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+                      : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    {year}
+                  </button>
               ))}
             </div>
           </div> {/* <--- ON FERME LA BARRE DE FILTRES ICI */}
@@ -4989,51 +5110,48 @@ if (!user) {
               <div className="flex-1 grid grid-cols-12 gap-4 min-h-0 mb-4 h-auto lg:h-full">
                 
                 {/* --- COLONNE 1 : LE JOURNAL --- */}
-                <div className="col-span-12 lg:col-span-4 flex flex-col h-[400px] lg:h-full min-h-0 gap-4">
-                  
-                  {/* CE BLOC CI-DESSOUS GÈRE LE FOND ET LA BORDURE UNIQUE */}
-                  <div className="flex flex-col flex-1 min-h-0 bg-white/5 rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-md overflow-hidden min-[2000px]:p-4">
-                    
-                    {/* --- PARTIE 1 : TRANSACTIONS (Scrollable) --- */}
-                    <div className="flex flex-col min-[2000px]:flex-[1.5] min-h-[450px] overflow-hidden">
-                      <div className="p-4 shrink-0 border-b border-white/5">
-                      
-                        <div className="flex flex-col">
-                          {/* Titre avec dégradé et année en retrait vertical */}
-                          <div className="flex items-baseline gap-3">
-                            <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-                              Flux mensuel
-                            </h3>
-                            
-                            {/* Séparateur vertical et infos temporelles */}
-                            <div className="border-l border-white/10 pl-3 flex flex-col">
-                              <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
-                                {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
-                              </span>
-                              
+                  <div className="col-span-12 lg:col-span-4 flex flex-col h-[400px] lg:h-full min-h-0 gap-4">
+
+                    {/* CONTENEUR PRINCIPAL */}
+                    <div className="flex flex-col flex-1 min-h-0 bg-white/5 rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-md overflow-hidden min-[2000px]:p-4">
+
+                      {/* --- PARTIE 1 : TRANSACTIONS (Scrollable) --- */}
+                      <div className="flex flex-col min-[2000px]:flex-[1.5] min-h-[450px] overflow-hidden">
+                        
+                        {/* HEADER DU FLUX */}
+                        <div className="p-4 shrink-0 border-b border-white/5">
+                          <div className="flex flex-col">
+                            <div className="flex items-baseline gap-3">
+                              <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+                                Flux mensuel
+                              </h3>
+                              <div className="border-l border-white/10 pl-3 flex flex-col">
+                                <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
+                                  {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
+                                </span>
+                              </div>
                             </div>
+                            <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
+                          </div>
+                        </div>
+
+                        {/* TABS DE NAVIGATION */}
+                        <div className="px-4 pt-4">
+                          <div className="flex bg-black/40 p-1 rounded-2xl mb-4">
+                            {['revenus', 'depenses', 'transferts', 'Catégories'].map((tab) => (
+                              <button
+                                key={tab}
+                                onClick={() => setTabActive(tab)}
+                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                  tabActive === tab ? 'bg-white/10 text-[var(--text-main)] shadow-lg' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]/60'
+                                } ${tab === 'Catégories' ? 'min-[2000px]:hidden' : 'block'}`}
+                              >
+                                {tab}
+                              </button>
+                            ))}
                           </div>
 
-                          {/* La barre décorative émeraude */}
-                          <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-                        </div>
-                        </div>
-                        
-                    
-                        
-                        <div className="flex bg-black/40 p-1 rounded-2xl mb-4">
-                          {['revenus', 'depenses', 'transferts', 'Catégories'].map((tab) => (
-                            <button
-                              key={tab}
-                              onClick={() => setTabActive(tab)}
-                              className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                tabActive === tab ? 'bg-white/10 text-[var(--text-main)] shadow-lg' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]/60'
-                              } ${tab === 'Catégories' ? 'min-[2000px]:hidden' : 'block'}`}
-                            >
-                              {tab}
-                            </button>
-                          ))}
-                        </div>
+                          {/* RÉSUMÉ RAPIDE (TOTAL) */}
                           {tabActive !== 'Catégories' && (
                             <div className="flex justify-between items-end px-1 pb-1">
                               <div className="flex flex-col gap-1">
@@ -5041,7 +5159,6 @@ if (!user) {
                                   <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
                                     Total {tabActive}
                                   </span>
-                                  {/* Badge indicateur sexy */}
                                   <span className="flex items-center justify-center bg-white/5 border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-sm">
                                     {(financeData.journal[tabActive] || []).length} transactions
                                   </span>
@@ -5065,37 +5182,61 @@ if (!user) {
                               </div>
                             </div>
                           )}
-                      
+                        </div>
 
-                      <div className="flex-1 overflow-y-auto min-h-0 p-3 custom-scrollbar">
-                        {tabActive === 'Catégories' && (
-                          <div className="h-full min-[2000px]:hidden">
-                            <CategoriesView 
-                              statsCategories={statsCategories}
-                              chartData={chartData}
-                              hiddenCategories={hiddenCategories}
-                              toggleCategory={toggleCategory}
-                            />
-                          </div>
-                        )}
-
-                        <div className={`${tabActive === 'Catégories' ? 'hidden min-[2000px]:block' : 'block'} space-y-1.5 h-full`}>
-                          {[...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])]
-                            .sort((a, b) => new Date(b.date) - new Date(a.date))
-                            .map((t, i) => (
-                              <TransactionCard 
-                                key={i} 
-                                t={t} 
-                                color={tabActive === 'revenus' ? 'text-emerald-400' : tabActive === 'depenses' ? 'text-rose-400' : 'text-[var(--primary)]'}
-                                bg={tabActive === 'revenus' ? 'bg-emerald-400/5' : tabActive === 'depenses' ? 'bg-rose-400/5' : 'bg-[var(--primary)]/5'}
+                        {/* ZONE SCROLLABLE (LISTE OU MESSAGE VIDE) */}
+                        <div className="flex-1 overflow-y-auto min-h-0 p-3 custom-scrollbar">
+                          {tabActive === 'Catégories' && (
+                            <div className="h-full min-[2000px]:hidden">
+                              <CategoriesView 
+                                statsCategories={statsCategories}
+                                chartData={chartData}
+                                hiddenCategories={hiddenCategories}
+                                toggleCategory={toggleCategory}
                               />
-                            ))}
+                            </div>
+                          )}
+
+                          <div className={`${tabActive === 'Catégories' ? 'hidden min-[2000px]:block' : 'block'} space-y-1.5 h-full`}>
+                            {(() => {
+                              const currentTransactions = [...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])];
+                              
+                              if (currentTransactions.length > 0) {
+                                return currentTransactions
+                                  .sort((a, b) => new Date(b.date) - new Date(a.date))
+                                  .map((t, i) => (
+                                    <TransactionCard 
+                                      key={i} 
+                                      t={t} 
+                                      color={tabActive === 'revenus' ? 'text-emerald-400' : tabActive === 'depenses' ? 'text-rose-400' : 'text-[var(--primary)]'}
+                                      bg={tabActive === 'revenus' ? 'bg-emerald-400/5' : tabActive === 'depenses' ? 'bg-rose-400/5' : 'bg-[var(--primary)]/5'}
+                                    />
+                                  ));
+                              } 
+                              
+                              // État vide si aucune transaction
+                              if (tabActive !== 'Catégories') {
+                                return (
+                                  <div className="h-full flex flex-col items-center justify-center py-12 px-6 text-center">
+                                    <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4">
+                                      <span className="text-2xl opacity-20">📑</span>
+                                    </div>
+                                    <h4 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.2em] opacity-40">
+                                      Aucun flux détecté
+                                    </h4>
+                                    <p className="text-[var(--text-main)]/20 text-[9px] font-bold uppercase tracking-widest mt-2 max-w-[200px]">
+                                      Il n'y a aucune transaction enregistrée ici pour ce mois.
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })()}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* --- PARTIE 2 : GRAPHE (Seulement visible > 2000px) --- */}
-                      {/* On limite sa hauteur avec max-h pour qu'il ne mange pas tout l'espace vertical */}
+                      {/* --- PARTIE 2 : GRAPHE (Seulement visible > 2000px) --- */}
                       <div className="hidden min-[2000px]:flex basis-[300px] max-h-[350px] bg-white/5 rounded-[var(--radius)] border border-white/5 p-3 my-4 flex-col overflow-hidden shrink-0">
                         <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4">
                           Analyse par Catégorie
@@ -5110,58 +5251,77 @@ if (!user) {
                         </div>
                       </div>
 
-                    {/* --- PARTIE 3 : JAUGES (Maintenant à l'intérieur du bloc principal) --- */}
-                    <div className="shrink-0 p-2 bg-white/[0.02] border-t border-white/5 min-[2000px]:bg-transparent min-[2000px]:border-none">
-                      <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em] mb-1">
-                        Objectifs Budgétaires
-                      </h3>
-                    
-                      <div className="grid grid-cols-5 gap-y-10 gap-x-2">
-                        {budgetGauges.map((bg, i) => {
-                          const radius = 30;
-                          const circumference = Math.PI * radius;
-                          const strokeDashoffset = circumference - (bg.pourcentage / 100) * circumference;
+                      {/* --- PARTIE 3 : OBJECTIFS BUDGÉTAIRES --- */}
+                      <div className="shrink-0 p-2 bg-white/[0.02] border-t border-white/5 min-[2000px]:bg-transparent min-[2000px]:border-none">
+                        <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em] mb-1">
+                          Objectifs Budgétaires
+                        </h3>
 
-                          return (
-                            <div key={i} className="flex flex-col items-center">
-                              <div className="relative w-20 h-10">
-                                <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
-                                  <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
-                                  <path
-                                    d="M 10,40 A 30,30 0 0 1 70,40"
-                                    fill="none"
-                                    stroke={bg.depasse ? '#fb7185' : '#34d399'}
-                                    strokeWidth="6"
-                                    strokeDasharray={circumference}
-                                    strokeDashoffset={strokeDashoffset}
-                                    strokeLinecap="round"
-                                    className="transition-all duration-1000 ease-out"
-                                    style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
-                                  />
-                                </svg>
-                                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-sm mb-[-2px]">
-                                  {bg.nom.split(' ')[0]}
-                                </div>
-                                <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
-                                  <span className="text-[8px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
-                                  <span className="text-[8px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
-                                </div>
-                              </div>
+                        {budgetGauges.length > 0 ? (
+                          /* GRILLE DES JAUGES SI DES OBJECTIFS EXISTENT */
+                          <div className="grid grid-cols-5 gap-y-10 gap-x-2">
+                            {budgetGauges.map((bg, i) => {
+                              const radius = 30;
+                              const circumference = Math.PI * radius;
+                              const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
 
-                              <div className="text-center mt-7">
-                                <p className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-16 leading-none">
-                                  {bg.nom.split(' ').slice(1).join(' ')}
-                                </p>
-                                <p className={`text-[11px] font-black mt-1 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
-                                  {bg.pourcentage}%
-                                </p>
-                              </div>
+                              return (
+                                <div key={i} className="flex flex-col items-center">
+                                  <div className="relative w-20 h-10">
+                                    <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
+                                      <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
+                                      <path
+                                        d="M 10,40 A 30,30 0 0 1 70,40"
+                                        fill="none"
+                                        stroke={bg.depasse ? '#fb7185' : '#34d399'}
+                                        strokeWidth="6"
+                                        strokeDasharray={circumference}
+                                        strokeDashoffset={strokeDashoffset}
+                                        strokeLinecap="round"
+                                        className="transition-all duration-1000 ease-out"
+                                        style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
+                                      />
+                                    </svg>
+                                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-sm mb-[-2px]">
+                                      {bg.nom.split(' ')[0]}
+                                    </div>
+                                    <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
+                                      <span className="text-[8px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
+                                      <span className="text-[8px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="text-center mt-7">
+                                    <p className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-16 leading-none">
+                                      {bg.nom.split(' ').slice(1).join(' ')}
+                                    </p>
+                                    <p className={`text-[11px] font-black mt-1 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
+                                      {bg.pourcentage}%
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          /* MESSAGE SI AUCUN OBJECTIF DÉFINI */
+                          <div className="py-6 px-4 flex items-center justify-between bg-white/[0.01] border border-dashed border-white/5 rounded-2xl mt-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-lg opacity-30">🎯</span>
+                              <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest leading-tight">
+                                Aucune limite de budget définie ce mois-ci <br/> pour vos catégories.
+                              </p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    
+                            <button 
+                              onClick={() => setActiveTab('gerer')}
+                              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all border border-white/5"
+                            >
+                              Limites →
+                            </button>
+                          </div>
+                        )}
+                        </div>
+      
                   </div>
                 </div>
                   
@@ -5382,7 +5542,8 @@ if (!user) {
                         return (
                     <div className="flex-1 flex flex-col min-h-0">
                       <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 p-4 shadow-2xl backdrop-blur-md mb-3">
-                        <div className="flex justify-between items-center mb-4">
+                        {/* EN-TÊTE : Toujours présent, mais contenu variable */}
+                        <div className="flex justify-between items-start mb-4">
                           <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center border border-amber-500/20">
                               <span className="text-xl">🏆</span>
@@ -5391,53 +5552,76 @@ if (!user) {
                               <h4 className="text-[var(--text-main)]/40 text-[10px] font-black uppercase tracking-[0.2em] leading-tight">
                                 Objectif Épargne Annuel {filters.annee}
                               </h4>
-                              <p className="text-[var(--text-main)] font-black text-xl leading-tight">
-                                {Math.floor(epargneCumuleeAnnuelle).toLocaleString('fr-FR')} € 
-                                <span className="text-[var(--text-main)]/20 text-xs font-medium ml-2 uppercase">
-                                  / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
-                                </span>
-                              </p>
+                              
+                              {/* On n'affiche les chiffres que si l'objectif est défini */}
+                              {objectifAnnuelGlobal > 0 ? (
+                                <p className="text-[var(--text-main)] font-black text-xl leading-tight">
+                                  {Math.floor(epargneCumuleeAnnuelle).toLocaleString('fr-FR')} € 
+                                  <span className="text-[var(--text-main)]/20 text-xs font-medium ml-2 uppercase">
+                                    / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
+                                  </span>
+                                </p>
+                              ) : (
+                                <p className="text-[var(--text-main)]/20 font-black text-sm uppercase tracking-widest leading-tight mt-1">
+                                  Non défini
+                                </p>
+                              )}
                             </div>
                           </div>
                           
-                          <div className={`text-xs font-black px-3 py-1.5 rounded-xl border ${
-                            pourcentageAnnuel >= 100 
-                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                              : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                          }`}>
-                            {pourcentageAnnuel}%
-                          </div>
-                        </div>
-
-                        {/* Jauge de progression */}
-                        <div className="relative h-4 w-full bg-black/40 rounded-full overflow-hidden p-[3px] border border-white/5 shadow-inner">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-1000 ease-out relative ${
+                          {/* Badge de pourcentage : Uniquement si objectif > 0 */}
+                          {objectifAnnuelGlobal > 0 && (
+                            <div className={`text-xs font-black px-3 py-1.5 rounded-xl border ${
                               pourcentageAnnuel >= 100 
-                                
-                            }`}
-                            style={{ 
-                                width: `${pourcentageAnnuel}%`,
-                                // On crée un dégradé qui part de ta couleur SQL
-                                background: `linear-gradient(90deg, ${userTheme.color_jauge || '#f1c40f'}90, ${userTheme.color_jauge || '#f1c40f'})`,
-                                boxShadow: `0 0 15px ${(userTheme.color_jauge || '#f1c40f')}44` // Petit halo de la couleur de la jauge
-                              }}
-                            >
-                            {/* Reflet brillant pour le look "glass" */}
-                            <div className="absolute inset-0 bg-white/20 w-full h-[1px] top-0 rounded-full" />
-                          </div>
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            }`}>
+                              {pourcentageAnnuel}%
+                            </div>
+                          )}
                         </div>
 
-                        <div className="flex justify-between mt-3 px-1">
-                          <span className="text-[9px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest">
-                            {pourcentageAnnuel < 100 
-                              ? `Épargne totale accumulée sur l'année ${filters.annee}`
-                              : 'Félicitations, objectif annuel atteint !'}
-                          </span>
-                          <span className="text-[9px] font-bold text-[var(--text-main)]/50 uppercase italic">
-                            {filters.profil}
-                          </span>
-                        </div>
+                        {/* SECTION BASSE : Jauge OU Message d'aide */}
+                        {objectifAnnuelGlobal > 0 ? (
+                          <>
+                            <div className="relative h-4 w-full bg-black/40 rounded-full overflow-hidden p-[3px] border border-white/5 shadow-inner">
+                              <div 
+                                className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                                style={{ 
+                                  width: `${Math.min(pourcentageAnnuel, 100)}%`,
+                                  background: `linear-gradient(90deg, ${userTheme.color_jauge || '#f1c40f'}90, ${userTheme.color_jauge || '#f1c40f'})`,
+                                  boxShadow: `0 0 15px ${(userTheme.color_jauge || '#f1c40f')}44`
+                                }}
+                              >
+                                <div className="absolute inset-0 bg-white/20 w-full h-[1px] top-0 rounded-full" />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between mt-3 px-1">
+                              <span className="text-[9px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest">
+                                {pourcentageAnnuel < 100 
+                                  ? `Épargne totale accumulée sur l'année ${filters.annee}`
+                                  : 'Félicitations, objectif annuel atteint !'}
+                              </span>
+                              <span className="text-[9px] font-bold text-[var(--text-main)]/50 uppercase italic">
+                                {filters.profil}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          /* État vide : Message plus visuel pour remplacer la jauge */
+                          <div className="mt-2 py-1 px-2 rounded-2xl bg-white/[0.02] border border-dashed border-white/10 flex items-center justify-between">
+                            <p className="text-[var(--text-main)]/40 text-[10px] font-medium leading-tight">
+                              Définissez un montant d'épargne pour suivre votre progression.
+                            </p>
+                            <button 
+                              onClick={() => setActiveTab('comptes')}
+                              className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[var(--primary)] text-[9px] font-black uppercase tracking-widest transition-all border border-white/5"
+                            >
+                              Configurer →
+                            </button>
+                          </div>
+                        )}
                       </div>
                       {/* Évolution */}
                       <div className="flex-1 bg-white/5 rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-md min-h-0">
@@ -6425,7 +6609,7 @@ if (!user) {
         <div className="flex flex-row gap-6 flex-1 min-h-0">
           
           <div className="flex-[3] flex flex-col min-h-0 relative group">
-            {/* Effet de lueur diffuse derrière le tableau (optionnel pour le look premium) */}
+            {/* Effet de lueur diffuse derrière le tableau */}
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 to-fuchsia-500/5 rounded-[var(--radius)] blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
 
             <div className="relative h-full flex flex-col bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[var(--radius)] shadow-2xl">
@@ -6434,7 +6618,6 @@ if (!user) {
               <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
                 <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed">
                   <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
-                    {/* On ajoute un fond flouté uniquement sous les titres pour le scroll */}
                     <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
                       <th className="px-4 py-3 w-12 text-center backdrop-blur-md bg-black/20">
                         <input 
@@ -6453,93 +6636,103 @@ if (!user) {
                   </thead>
 
                   <tbody className="before:content-[''] before:block before:h-2">
-                    {previsionsFiltrees.map((prev) => {
-                      const isSelected = selectedIds2.includes(prev.id);
-                      const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
-                      
-                      return (
-                        <tr 
-                          key={prev.id} 
-                          className={`
-                            group transition-all duration-300
-                            ${isSelected 
-                              ? 'bg-emerald-500/15 shadow-[inset_3px_0_0_0_#10b981]' 
-                              : 'bg-white/[0.03] hover:bg-white/[0.08]'
-                            }
-                            ${isTransfert ? 'opacity-100 grayscale-[0]' : 'opacity-100'}
-                          `}
-                        >
-                          {/* Cellules avec bordures très fines pour l'effet vitre */}
-                          <td className="p-3 border-y border-l border-white/5 text-center">
-                            <input 
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSelect2(prev.id)}
-                              className="w-4 h-4 border-white/20 bg-white/10 text-emerald-500 cursor-pointer"
-                            />
-                          </td>
-                          
-                          <td className="px-2 py-2 border-y border-white/5">
-                            <input 
-                              className="bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
-                              defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                              onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                            />
-                          </td>
-
-                          <td className="px-2 py-2 border-y border-white/5 overflow-visible">
-                            <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
-                          </td>
-
-                          <td className="px-2 py-2 border-y border-white/5 overflow-visible">
-                            <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
-                          </td>
-
-                          <td className="px-2 py-2 border-y border-white/5">
-                            <div className="flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300 group-hover:bg-white/[0.08] group-hover:border-white/20">
+                    {previsionsFiltrees.length > 0 ? (
+                      previsionsFiltrees.map((prev) => {
+                        const isSelected = selectedIds2.includes(prev.id);
+                        const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+                        
+                        return (
+                          <tr 
+                            key={prev.id} 
+                            className={`
+                              group transition-all duration-300
+                              ${isSelected 
+                                ? 'bg-emerald-500/15 shadow-[inset_3px_0_0_0_#10b981]' 
+                                : 'bg-white/[0.03] hover:bg-white/[0.08]'
+                              }
+                            `}
+                          >
+                            <td className="p-3 border-y border-l border-white/5 text-center">
                               <input 
-                                type="number"
-                                className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
-                                style={{ 
-                                  color: isTransfert 
-                                    ? '#6d00fc' // Fuchsia pour les transferts
-                                    : prev.montant > 0 
-                                      ? `${userTheme.color_revenus}e6` // Revenus thème @ 90%
-                                      : `${userTheme.color_depenses}e6` // Dépenses thème @ 90%
-                                }}
-                                defaultValue={prev.montant}
-                                onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelect2(prev.id)}
+                                className="w-4 h-4 border-white/20 bg-white/10 text-emerald-500 cursor-pointer"
                               />
-                              <span 
-                                className="ml-1 text-[9px] font-bold opacity-20 italic transition-opacity group-hover:opacity-40"
-                                style={{ 
-                                  color: isTransfert 
-                                    ? '#6d00fc' 
-                                    : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses 
-                                }}
-                              >
-                                €
-                              </span>
-                            </div>
-                          </td>
+                            </td>
+                            
+                            <td className="px-2 py-2 border-y border-white/5">
+                              <input 
+                                className="bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
+                                defaultValue={prev.nom.replace('[PRÉVI] ', '')}
+                                onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
+                              />
+                            </td>
 
-                          <td className="px-4 py-2 rounded-[var(--radius)] border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50">
-                            <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
-                              <Calendar size={12} className="text-[var(--text-main)]/30" />
-                              <DatePicker
-                                selected={prev.date ? new Date(prev.date) : null}
-                                onChange={(date) => updatePrevision(prev.id, 'date', date)}
-                                dateFormat="dd/MM/yyyy"
-                                // L'astuce est ici : portalId
-                                // Cela téléporte le CALENDRIER (pas l'input) à la racine du site
-                                portalId="root" 
-                                className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
-                              />
+                            <td className="px-2 py-2 border-y border-white/5 overflow-visible">
+                              <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
+                            </td>
+
+                            <td className="px-2 py-2 border-y border-white/5 overflow-visible">
+                              <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
+                            </td>
+
+                            <td className="px-2 py-2 border-y border-white/5">
+                              <div className="flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300 group-hover:bg-white/[0.08] group-hover:border-white/20">
+                                <input 
+                                  type="number"
+                                  className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
+                                  style={{ 
+                                    color: isTransfert 
+                                      ? '#6d00fc' 
+                                      : prev.montant > 0 
+                                        ? `${userTheme.color_revenus}e6` 
+                                        : `${userTheme.color_depenses}e6` 
+                                  }}
+                                  defaultValue={prev.montant}
+                                  onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                                />
+                                <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
+                              </div>
+                            </td>
+
+                            <td className="px-4 py-2 rounded-[var(--radius)] border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50">
+                              <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
+                                <Calendar size={12} className="text-[var(--text-main)]/30" />
+                                <DatePicker
+                                  selected={prev.date ? new Date(prev.date) : null}
+                                  onChange={(date) => updatePrevision(prev.id, 'date', date)}
+                                  dateFormat="dd/MM/yyyy"
+                                  portalId="root" 
+                                  className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
+                                />
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      /* --- ÉTAT VIDE : SI AUCUNE PRÉVISION --- */
+                      <tr>
+                        <td colSpan="6" className="py-24">
+                          <div className="flex flex-col items-center justify-center text-center">
+                            <div className="relative mb-6">
+                                <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
+                                <div className="relative w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center">
+                                  <Calendar size={28} className="text-[var(--primary)]/40" />
+                                </div>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
+                              Calendrier de prévisions vide
+                            </h3>
+                            <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic">
+                              Aucun mouvement programmé pour cette période. 
+                              <br/>Ajouter des prévisions pour anticiper vos dépenses.
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -7527,204 +7720,186 @@ if (!user) {
 
                 
                 
-                {/* Conteneur de scroll interne */}
-               <div className="flex-1 overflow-auto custom-scrollbar">
-                <table className="w-full text-left border-separate border-spacing-0">
-                    <thead>
-                      <tr className="bg-[var(--bg-site)] sticky top-0 z-40 border-b border-white/10 shadow-sm">
+{/* Conteneur de scroll interne */}
+<div className="flex-1 overflow-auto custom-scrollbar">
+  <table className="w-full text-left border-separate border-spacing-0">
+    <thead>
+      <tr className="bg-[var(--bg-site)] sticky top-0 z-40 border-b border-white/10 shadow-sm">
+        <th className="p-4 w-12 border-b border-white/10">
+          <div className="flex items-center justify-center">
+            <input 
+              type="checkbox"
+              checked={transactionsAAfficher.length > 0 && selectedIds.length === transactionsAAfficher.length}
+              onChange={toggleAll}
+              ref={(el) => {
+                if (el) {
+                  el.indeterminate = selectedIds.length > 0 && selectedIds.length < transactionsAAfficher.length;
+                }
+              }}
+              className="w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
+            />
+          </div>
+        </th>
 
-                      <th className="p-4 w-12 border-b border-white/10">
-                        <div className="flex items-center justify-center">
-                          <input 
-                            type="checkbox"
-                            // État coché seulement si TOUT est sélectionné
-                            checked={transactionsAAfficher.length > 0 && selectedIds.length === transactionsAAfficher.length}
-                            onChange={toggleAll}
-                            // Style optionnel : mettre un tiret si une partie seulement est sélectionnée
-                            ref={(el) => {
-                              if (el) {
-                                el.indeterminate = selectedIds.length > 0 && selectedIds.length < transactionsAAfficher.length;
-                              }
-                            }}
-                            className="w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
-                          />
-                        </div>
-                      </th>
+        <th className="p-4 w-20 cursor-pointer hover:bg-white/5" onClick={() => handleSort('jour')}>
+          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
+            Date {sortConfig.key === 'jour' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
+          </div>
+        </th>
+        
+        <th className="p-4 w-[300px] cursor-pointer hover:bg-white/5" onClick={() => handleSort('nom')}>
+          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
+            Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
+          </div>
+        </th>
 
+        <th className="p-4 w-32 cursor-pointer hover:bg-white/5 text-right" onClick={() => handleSort('montant')}>
+          <div className="flex items-center justify-end gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
+            Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
+          </div>
+        </th>
 
-                        <th className="p-4 w-20 cursor-pointer hover:bg-white/5" onClick={() => handleSort('jour')}>
-                          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-                            Date {sortConfig.key === 'jour' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-                          </div>
-                        </th>
-                        
-                        {/* On réduit un peu le libellé pour laisser une colonne "invisible" au tri montant */}
-                        <th className="p-4 w-[300px] cursor-pointer hover:bg-white/5" onClick={() => handleSort('nom')}>
-                          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-                            Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-                          </div>
-                        </th>
+        <th className="p-4 hidden md:table-cell w-44 cursor-pointer hover:bg-white/5" onClick={() => handleSort('categorie')}>
+          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
+            Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
+          </div>
+        </th>
+        <th className="p-4 w-32 text-[10px] font-black text-[var(--text-main)]/40 uppercase">Mois Affecté</th>
+      </tr>
+    </thead>
 
-                        {/* Colonne de tri pour le montant (même si l'affichage est dans la cellule précédente) */}
-                        <th className="p-4 w-32 cursor-pointer hover:bg-white/5 text-right" onClick={() => handleSort('montant')}>
-                          <div className="flex items-center justify-end gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-                            Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-                          </div>
-                        </th>
+    <tbody 
+      key={`${sortConfig.key}-${sortConfig.direction}`} 
+      className="divide-y divide-white/5"
+    >
+      {transactionsAAfficher.length > 0 ? (
+        transactionsAAfficher.map((t) => {
+          const isSelected = selectedIds.includes(t.id);
+          return (
+            <tr 
+              key={t.id} 
+              className={`group transition-all duration-300 ${
+                isSelected 
+                  ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
+                  : 'hover:bg-white/[0.03]'
+              }`}
+            >
+              <td className="p-4 w-12 border-b border-white/[0.05]">
+                <div className="flex items-center justify-center">
+                  <input 
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect(t.id)}
+                    className={`w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--primary)] transition-all cursor-pointer ${
+                      isSelected ? 'scale-110 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'scale-100'
+                    }`}
+                  />
+                </div>
+              </td>
 
-                        <th className="p-4 hidden md:table-cell w-44">
-                          <span className="text-[10px] font-black text-[var(--text-main)]/40 uppercase">Catégorie</span>
-                        </th>
-                        <th className="p-4 w-32 text-[10px] font-black text-[var(--text-main)]/40 uppercase">Mois Affecté</th>
-                      
-                      </tr>
-                    </thead>
-                  {/* On ajoute une key au tbody pour forcer le repaint si le tri change */}
-                  <tbody 
-                    key={`${sortConfig.key}-${sortConfig.direction}`} 
-                    className="divide-y divide-white/5"
-                  >
-                    {transactionsAAfficher.map((t) => {
-                      const isSelected = selectedIds.includes(t.id);
-                      return (
-                        <tr 
-                          key={t.id} 
-                          className={`group transition-all duration-300 ${
-                            isSelected 
-                              ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
-                              : 'hover:bg-white/[0.03]'
-                          }`}
-                        >
-                          {/* CHECKBOX INDIVIDUELLE */}
-                          <td className="p-4 w-12 border-b border-white/[0.05]">
-                            <div className="flex items-center justify-center">
-                              <input 
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleSelect(t.id)}
-                                className={`w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--primary)] transition-all cursor-pointer ${
-                                  isSelected ? 'scale-110 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'scale-100'
-                                }`}
-                              />
-                            </div>
-                          </td>
-                        
-                        
-                        
-                          {/* 1. DATE (Affichage simple sans interaction) */}
-                          <td className="p-4 border-b border-white/[0.05]">
-                            <div className="pointer-events-none"> {/* Désactive les clics si besoin */}
-                              <CustomBadgeDate t={t} />
-                            </div>
-                          </td>
+              <td className="p-4 border-b border-white/[0.05]">
+                <div className="pointer-events-none">
+                  <CustomBadgeDate t={t} />
+                </div>
+              </td>
 
-                        {/* 2. LIBELLÉ avec indicateur de type */}
-                          <td className="p-4 pr-0 group/name border-b border-white/[0.05] max-w-[300px]">
-                            <div 
-                              className={`flex flex-col border-l-4 transition-all pl-3 py-1 ${
-                                (t.categorie && t.categorie.includes("🔄 Virement")) 
-                                  ? "border-[var(--primary)]/50 group-hover/name:border-[var(--primary)]" 
-                                  : parseFloat(t.montant) > 0 
-                                    ? "border-emerald-500/50 group-hover/name:border-emerald-400" 
-                                    : "border-rose-500/50 group-hover/name:border-rose-400"
-                              }`}
-                            >
-                              <div className="flex items-start gap-2">
-                                {/* Ajout d'un fond permanent (bg-white/[0.03]) et d'une bordure très fine */}
-                                <textarea
-                                  rows="1"
-                                  defaultValue={t.nom}
-                                  onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      e.target.blur();
-                                    }
-                                  }}
-                                  className="bg-white/[0.03] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20"
-                                  placeholder="Modifier le libellé..."
-                                />
-                                
-                                <div className="mt-2 shrink-0">
-                                  <Pencil 
-                                    size={12} 
-                                    className="text-[var(--text-main)]/10 group-hover/name:text-[var(--text-main)]/40 transition-colors" 
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Petit badge textuel optionnel */}
-                              <div className="flex items-center gap-2 mt-1.5 ml-1">
-                                <span className="text-[9px] text-[var(--text-main)]/20 uppercase font-black tracking-tighter">
-                                  {t.compte}
-                                </span>
-                                
-                                <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${
-                                  (t.categorie && t.categorie.includes("🔄 Virement"))
-                                    ? "bg-[var(--primary)]/10 text-[var(--primary)]/70"
-                                    : parseFloat(t.montant) > 0 
-                                      ? "bg-emerald-500/10 text-emerald-400/70"
-                                      : "bg-rose-500/10 text-rose-400/70"
-                                }`}>
-                                  {(t.categorie && t.categorie.includes("🔄 Virement")) ? "Transfert" : parseFloat(t.montant) > 0 ? "Revenu" : "Dépense"}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* 4. MONTANT (Aligné à droite avec logique tricolore) */}
-                            <td className="p-4 pl-0 text-right border-b border-white/[0.05] w-32">
-                              <span className={`text-[13px] font-black tabular-nums transition-colors ${
-                                // 1. Priorité au Transfert (Indigo)
-                                (t.categorie && t.categorie.includes("🔄 Virement"))
-                                  ? 'text-[var(--primary)]'
-                                  // 2. Sinon, on regarde si c'est positif ou négatif
-                                  : parseFloat(t.montant) < 0 
-                                    ? 'text-rose-400' 
-                                    : 'text-emerald-400'
-                              }`}>
-                                {/* Affichage du signe + pour les revenus pour renforcer le visuel */}
-                                {parseFloat(t.montant) > 0 && !(t.categorie && t.categorie.includes("🔄 Virement")) ? '+' : ''}
-                                {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                              </span>
-                            </td>
-
-                        {/* 3. CATÉGORIE - Utilisation du CustomSelect */}
-                          <td className="p-4 hidden md:table-cell group/cat border-b border-white/[0.05] w-70">
-                            <div className="relative">
-                              <CustomSelect 
-                                // On n'affiche pas de label dans le tableau pour gagner de la place
-                                value={t.categorie || "❓ Autre"}
-                                icon={Tag} // N'oublie pas d'importer Tag de lucide-react
-                                
-                                // Transformation du tableau ["Cat1", "Cat2"] -> [{v: "Cat1", l: "Cat1"}, ...]
-                                options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
-                                
-                                onChange={(val) => updateCell(t.id, 'categorie', val)}
-                              />
-                            </div>
-                          </td>
-
-                          {/* 1. MOIS AFFECTÉ */}
-                          <td className="p-4 group/month border-b border-white/[0.05] w-40">
-                            <div className="relative">
-                              <CustomSelect 
-                                value={t.mois || "À définir"}
-                                icon={Calendar} // Ou une autre icône de lucide-react
-                                options={moisListe}
-                                onChange={(val) => updateCell(t.id, 'mois', val)}
-                              />
-                            </div>
-                          </td>
-
-                        
-                      </tr>
-                    );})}
-                  </tbody>
-                    </table>
-
-                    
+              <td className="p-4 pr-0 group/name border-b border-white/[0.05] max-w-[300px]">
+                <div className={`flex flex-col border-l-4 transition-all pl-3 py-1 ${
+                  (t.categorie && t.categorie.includes("🔄 Virement")) 
+                    ? "border-[var(--primary)]/50 group-hover/name:border-[var(--primary)]" 
+                    : parseFloat(t.montant) > 0 
+                      ? "border-emerald-500/50 group-hover/name:border-emerald-400" 
+                      : "border-rose-500/50 group-hover/name:border-rose-400"
+                }`}>
+                  <div className="flex items-start gap-2">
+                    <textarea
+                      rows="1"
+                      defaultValue={t.nom}
+                      onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
+                      onInput={handleInput}
+                      ref={(el) => {
+                        if (el) {
+                          el.style.height = "auto";
+                          el.style.height = `${el.scrollHeight}px`;
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.target.blur();
+                        }
+                      }}
+                      className="bg-white/[0.03] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20"
+                      placeholder="Modifier le libellé..."
+                    />
+                    <div className="mt-2 shrink-0">
+                      <Pencil size={12} className="text-[var(--text-main)]/10 group-hover/name:text-[var(--text-main)]/40 transition-colors" />
+                    </div>
                   </div>
+                  <div className="flex items-center gap-2 mt-1.5 ml-1">
+                    <span className="text-[9px] text-[var(--text-main)]/20 uppercase font-black tracking-tighter">{t.compte}</span>
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${
+                      (t.categorie && t.categorie.includes("🔄 Virement"))
+                        ? "bg-[var(--primary)]/10 text-[var(--primary)]/70"
+                        : parseFloat(t.montant) > 0 ? "bg-emerald-500/10 text-emerald-400/70" : "bg-rose-500/10 text-rose-400/70"
+                    }`}>
+                      {(t.categorie && t.categorie.includes("🔄 Virement")) ? "Transfert" : parseFloat(t.montant) > 0 ? "Revenu" : "Dépense"}
+                    </span>
+                  </div>
+                </div>
+              </td>
+
+              <td className="p-4 pl-0 text-right border-b border-white/[0.05] w-32">
+                <span className={`text-[13px] font-black tabular-nums transition-colors ${
+                  (t.categorie && t.categorie.includes("🔄 Virement")) ? 'text-[var(--primary)]' : parseFloat(t.montant) < 0 ? 'text-rose-400' : 'text-emerald-400'
+                }`}>
+                  {parseFloat(t.montant) > 0 && !(t.categorie && t.categorie.includes("🔄 Virement")) ? '+' : ''}
+                  {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                </span>
+              </td>
+
+              <td className="p-4 hidden md:table-cell group/cat border-b border-white/[0.05] w-70">
+                <CustomSelect 
+                  value={t.categorie || "❓ Autre"}
+                  icon={Tag} 
+                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                  onChange={(val) => updateCell(t.id, 'categorie', val)}
+                />
+              </td>
+
+              <td className="p-4 group/month border-b border-white/[0.05] w-40">
+                <CustomSelect 
+                  value={t.mois || "À définir"}
+                  icon={Calendar} 
+                  options={moisListe}
+                  onChange={(val) => updateCell(t.id, 'mois', val)}
+                />
+              </td>
+            </tr>
+          );
+        })
+      ) : (
+        /* --- ÉTAT VIDE : SI AUCUNE TRANSACTION --- */
+        <tr>
+          <td colSpan="6" className="py-20">
+            <div className="flex flex-col items-center justify-center text-center px-4">
+              <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4 shadow-inner">
+                <span className="text-2xl opacity-20">📂</span>
+              </div>
+              <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">
+                Journal vide pour {selectedCompte === 'tous' ? 'Tous les comptes' : selectedCompte}, {filters.mois} {filters.annee} 
+              </h3>
+              <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-widest mt-2  leading-relaxed">
+                Aucune transaction ne correspond à vos filtres actuels.
+                Ajouter des transactions manuellement ou importer un fichier .CSV
+              </p>
+            </div>
+          </td>
+        </tr>
+      )}
+    </tbody>
+  </table>
+</div>
                 </div>
               </div>
                   
@@ -7999,159 +8174,172 @@ if (!user) {
     </div>
 
     {/* FORMULAIRE : RÉINTÉGRATION DU GROUPE + INDICATEUR COULEUR */}
-<div className="z-[900] bg-white/5 backdrop-blur-xl p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
-  <form onSubmit={handleAddCompte} className="flex items-center gap-4">
-    
-    {/* TITRE DU FORMULAIRE */}
-    <div className="flex flex-col border-r border-white/10 pr-4">
-      <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-tighter">Nouveau</span>
-      <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
-    </div>
-
-    <input type="text" placeholder="NOM DU COMPTE" className="flex-[1.5] bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
-    
-    <input type="text" placeholder="GROUPE (PERSO, COMMUN...)" className="flex-1 bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
-    
-    <input type="number" step="0.01" placeholder="SOLDE" className="w-20 bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" />
-    
-    <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10">
-      <button
-        type="button"
-        onClick={() => setShowAddPicker(!showAddPicker)}
-        className="p-0.5 bg-white/10 rounded-lg border border-white/20 hover:scale-110 transition-transform relative"
-      >
-        <div className="w-7 h-7 rounded-md shadow-inner" style={{ backgroundColor: newCompteColor }} />
-      </button>
-      <span className="text-[7px] font-black text-[var(--text-main)]/30 uppercase">Teinte</span>
-    </div>
-    
-    <button type="submit" className="px-6 py-2.5 bg-white text-black rounded-[var(--radius)] font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-[var(--text-main)] transition-all shadow-lg active:scale-95">
-      Créer
-    </button>
-
-    {showAddPicker && (
-      <div className="absolute z-[1001] top-full mt-2 right-10 shadow-2xl animate-in zoom-in-95">
-        <div className="fixed inset-0" onClick={() => setShowAddPicker(false)} />
-        <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
-          <SketchPicker color={newCompteColor} onChange={(color) => setNewCompteColor(color.hex)} disableAlpha />
-        </div>
-      </div>
-    )}
-  </form>
-</div>
-
-{/* GRILLE DE CARTES */}
-<div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
-  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-    {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
-      <div 
-        key={c.compte} 
-        /* AJOUT : z-50 si le picker est ouvert pour passer au-dessus des voisins */
-        className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col gap-4 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
-        style={{ 
-          backgroundColor: `${c.couleur}80`,
-          backdropFilter: 'blur(12px)',
-        }}
-      >
-        {/* LIGNE 1 : INFOS ET ACTIONS */}
-        <div className="flex justify-between items-start relative">
-          <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
-            
-            {/* GROUPE : ÉDITION TRÈS VISIBLE */}
-            <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1.5 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
-              <Pencil size={10} className="text-[var(--primary)]" />
-              <input 
-                className="bg-transparent text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-28"
-                value={c.groupe}
-                onChange={(e) => {
-                  const newComptes = [...comptes];
-                  newComptes[i].groupe = e.target.value;
-                  setComptes(newComptes);
-                }}
-                onBlur={() => handleBlurUpdate(c)}
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-4 items-start">
-            {/* COLOR PICKER AVEC TEXTE EXPLICITE */}
-            <div className="flex flex-col items-center gap-1.5">
-              <button 
-                onClick={() => setShowPicker(showPicker === i ? null : i)}
-                className="w-7 h-7 rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90"
-                style={{ backgroundColor: c.couleur }}
-              />
-              <span className="text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
-            </div>
-
-            {/* SUPPRESSION TRÈS PRONONCÉE */}
-            <button 
-              onClick={() => openDeleteModal(c.compte)} 
-              className="p-2.5 rounded-[var(--radius)] bg-rose-500/20 text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-[var(--text-main)] transition-all duration-300 shadow-xl border border-rose-500/40"
-              title="Supprimer le compte"
-            >
-              <Trash2 size={18} />
-            </button>
-          </div>
+    <div className="z-[900] bg-white/5 backdrop-blur-xl p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
+      <form onSubmit={handleAddCompte} className="flex items-center gap-4">
+        <div className="flex flex-col border-r border-white/10 pr-4">
+          <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-tighter">Nouveau</span>
+          <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
         </div>
 
-        {/* LIGNE 2 : DATA */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-black/40 backdrop-blur-md p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
-            <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Solde initial</p>
-            <div className="flex items-center gap-1">
-              <input 
-                type="number"
-                className="bg-transparent text-sm font-black text-[var(--text-main)] outline-none w-full"
-                value={c.solde}
-                onChange={(e) => {
-                  const newComptes = [...comptes];
-                  newComptes[i].solde = parseFloat(e.target.value) || 0;
-                  setComptes(newComptes);
-                }}
-                onBlur={() => handleBlurUpdate(c)}
-              />
-              <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
-            </div>
-          </div>
-          
-          <div className="bg-white/10 p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
-            <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
-            <div className="flex items-center gap-1">
-              <input 
-                type="number"
-                className="bg-transparent text-sm font-black text-[var(--text-main)]/70 outline-none w-full"
-                value={c.objectif}
-                onChange={(e) => {
-                  const newComptes = [...comptes];
-                  newComptes[i].objectif = parseFloat(e.target.value) || 0;
-                  setComptes(newComptes);
-                }}
-                onBlur={() => handleBlurUpdate(c)}
-              />
-              <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
-            </div>
-          </div>
+        <input type="text" placeholder="NOM DU COMPTE" className="flex-[1.5] bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
+        <input type="text" placeholder="GROUPE (PERSO, COMMUN...)" className="flex-1 bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
+        <input type="number" step="0.01" placeholder="SOLDE" className="w-20 bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" />
+        
+        <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10">
+          <button
+            type="button"
+            onClick={() => setShowAddPicker(!showAddPicker)}
+            className="p-0.5 bg-white/10 rounded-lg border border-white/20 hover:scale-110 transition-transform relative"
+          >
+            <div className="w-7 h-7 rounded-md shadow-inner" style={{ backgroundColor: newCompteColor }} />
+          </button>
+          <span className="text-[7px] font-black text-[var(--text-main)]/30 uppercase">Teinte</span>
         </div>
+        
+        <button type="submit" className="px-6 py-2.5 bg-white text-black rounded-[var(--radius)] font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-[var(--text-main)] transition-all shadow-lg active:scale-95">
+          Créer
+        </button>
 
-        {/* PICKER CORRIGÉ : Positionné pour survoler les voisins */}
-        {showPicker === i && (
-          <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
-            <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
-            <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
-              <SketchPicker 
-                color={c.couleur} 
-                onChange={(color) => handleColorChange(i, color)} 
-                disableAlpha 
-              />
+        {showAddPicker && (
+          <div className="absolute z-[1001] top-full mt-2 right-10 shadow-2xl animate-in zoom-in-95">
+            <div className="fixed inset-0" onClick={() => setShowAddPicker(false)} />
+            <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+              <SketchPicker color={newCompteColor} onChange={(color) => setNewCompteColor(color.hex)} disableAlpha />
             </div>
           </div>
         )}
-      </div>
-    ))}
-  </div>
-</div>
+      </form>
+    </div>
+
+    {/* GRILLE DE CARTES OU MESSAGE VIDE */}
+    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
+      {comptes.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
+            <div 
+              key={c.compte} 
+              className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col gap-4 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
+              style={{ 
+                backgroundColor: `${c.couleur}80`,
+                backdropFilter: 'blur(12px)',
+              }}
+            >
+              {/* LIGNE 1 : INFOS ET ACTIONS */}
+              <div className="flex justify-between items-start relative">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
+                  <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1.5 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
+                    <Pencil size={10} className="text-[var(--primary)]" />
+                    <input 
+                      className="bg-transparent text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-28"
+                      value={c.groupe}
+                      onChange={(e) => {
+                        const newComptes = [...comptes];
+                        newComptes[i].groupe = e.target.value;
+                        setComptes(newComptes);
+                      }}
+                      onBlur={() => handleBlurUpdate(c)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-4 items-start">
+                  <div className="flex flex-col items-center gap-1.5">
+                    <button 
+                      onClick={() => setShowPicker(showPicker === i ? null : i)}
+                      className="w-7 h-7 rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90"
+                      style={{ backgroundColor: c.couleur }}
+                    />
+                    <span className="text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
+                  </div>
+
+                  <button 
+                    onClick={() => openDeleteModal(c.compte)} 
+                    className="p-2.5 rounded-[var(--radius)] bg-rose-500/20 text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-[var(--text-main)] transition-all duration-300 shadow-xl border border-rose-500/40"
+                    title="Supprimer le compte"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* LIGNE 2 : DATA */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-black/40 backdrop-blur-md p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
+                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Solde initial</p>
+                  <div className="flex items-center gap-1">
+                    <input 
+                      type="number"
+                      className="bg-transparent text-sm font-black text-[var(--text-main)] outline-none w-full"
+                      value={c.solde}
+                      onChange={(e) => {
+                        const newComptes = [...comptes];
+                        newComptes[i].solde = parseFloat(e.target.value) || 0;
+                        setComptes(newComptes);
+                      }}
+                      onBlur={() => handleBlurUpdate(c)}
+                    />
+                    <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
+                  </div>
+                </div>
+                
+                <div className="bg-white/10 p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
+                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
+                  <div className="flex items-center gap-1">
+                    <input 
+                      type="number"
+                      className="bg-transparent text-sm font-black text-[var(--text-main)]/70 outline-none w-full"
+                      value={c.objectif}
+                      onChange={(e) => {
+                        const newComptes = [...comptes];
+                        newComptes[i].objectif = parseFloat(e.target.value) || 0;
+                        setComptes(newComptes);
+                      }}
+                      onBlur={() => handleBlurUpdate(c)}
+                    />
+                    <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
+                  </div>
+                </div>
+              </div>
+
+              {showPicker === i && (
+                <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
+                  <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
+                  <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
+                    <SketchPicker 
+                      color={c.couleur} 
+                      onChange={(color) => handleColorChange(i, color)} 
+                      disableAlpha 
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* --- ÉTAT VIDE : SI AUCUN COMPTE --- */
+        <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
+            <div className="relative w-20 h-20 rounded-3xl bg-white/[0.03] border border-white/10 flex items-center justify-center shadow-2xl">
+              <Wallet size={32} className="text-[var(--primary)]/80" />
+            </div>
+          </div>
+          <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">
+            Aucun compte configuré
+          </h3>
+          <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
+            Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
+          </p>
+          <div className="mt-8 flex gap-2 items-center text-[var(--text-main)]/10">
+             <div className="h-[1px] w-8 bg-current"></div>
+             <span className="text-[8px] font-black uppercase tracking-[0.4em]">En attente de data</span>
+             <div className="h-[1px] w-8 bg-current"></div>
+          </div>
+        </div>
+      )}
+    </div>
 
     <style>{`
       .custom-scrollbar::-webkit-scrollbar { width: 3px; }
@@ -8161,7 +8349,7 @@ if (!user) {
 )}
 
 
-        {activeTab === 'theme' && user === 'theo' && (
+{activeTab === 'theme' && user === 'theo' && (
   <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-6 duration-700">
     <div className="bg-[#0f172a] border border-white/10 rounded-[var(--radius)] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
       
