@@ -2692,6 +2692,19 @@ const [firstName, setFirstName] = useState('');
 const [lastName, setLastName] = useState('');
 const [isForgotPassword, setIsForgotPassword] = useState(false);
 const [resetEmail, setResetEmail] = useState('');
+
+const [toast, setToast] = useState({ show: false, message: '', type: '' });
+
+// Fonction utilitaire pour afficher l'alerte
+const showAlert = (message, type = 'error') => {
+  setToast({ show: true, message, type });
+  // Disparition automatique après 4 secondes
+  setTimeout(() => setToast({ show: false, message: '', type: '' }), 4000);
+};
+
+
+
+
 const handleLogin = async (e) => {
     e.preventDefault()
     try {
@@ -2710,11 +2723,11 @@ const handleLogin = async (e) => {
     } catch (err) {
       // Gestion d'erreur plus précise
       if (err.response && err.response.status === 401) {
-        alert("Mot de passe incorrect.")
+        showAlert("Mot de passe incorrect.")
       } else if (err.response && err.response.status === 404) {
-        alert("Utilisateur inconnu.")
+        showAlert("Utilisateur inconnu.")
       } else {
-        alert("Erreur de connexion au serveur.")
+        showAlert("Erreur de connexion au serveur.")
       }
     }
   }
@@ -2740,12 +2753,12 @@ const handleRegister = async (e) => {
       last_name: lastName
     });
 
-    alert("Compte créé ! Bienvenue chez Kleea.");
+    showAlert("Compte créé ! Bienvenue chez Kleea.");
     const usernameClean = loginName.toLowerCase();
     localStorage.setItem('user', usernameClean);
     setUser(usernameClean);
   } catch (err) {
-    alert(err.response?.data?.detail || "Erreur lors de l'inscription.");
+    showAlert(err.response?.data?.detail || "Erreur lors de l'inscription.");
   }
 };
 
@@ -2753,10 +2766,10 @@ const handleResetRequest = async (e) => {
   e.preventDefault();
   try {
     await api.post(`forgot-password`, { email: resetEmail });
-    alert("Si cet email existe, un lien a été envoyé.");
+    showAlert("Si cet email existe, un lien a été envoyé.", "success");
     setIsForgotPassword(false);
   } catch (err) {
-    alert("Erreur lors de la demande.");
+    showAlert("Erreur lors de la demande.");
   }
 };
 
@@ -4834,6 +4847,35 @@ if (!user) {
           {isForgotPassword ? "Retour à la connexion" : (isRegistering ? "Déjà un compte ? Se connecter" : "Nouveau ici ? Créer un compte")}
         </button>
       </div>
+
+    {/* COMPOSANT TOAST PERSONNALISÉ */}
+    {toast.show && (
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
+        <div className={`
+          px-6 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl flex items-center gap-3
+          ${toast.type === 'success' 
+            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+            : 'bg-red-500/10 border-red-500/20 text-red-400'}
+        `}>
+          {/* Petit indicateur visuel */}
+          <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+          
+          <p className="text-[11px] font-black uppercase tracking-[0.15em]">
+            {toast.message}
+          </p>
+
+          <button 
+            onClick={() => setToast({ ...toast, show: false })}
+            className="ml-2 hover:opacity-50 transition-opacity"
+          >
+            <span className="text-lg">×</span>
+          </button>
+        </div>
+      </div>
+    )}
+
+
+
     </div>
   )
 }
@@ -8806,6 +8848,8 @@ if (!user) {
     </div>
   </div>
 )}
+
+
 
 <style jsx>{`
   @keyframes progress {

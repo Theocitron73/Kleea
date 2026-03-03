@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Lock, ArrowLeft } from 'lucide-react';
 import axios from 'axios';
+import api from './api';
 
 const ResetPassword = () => {
     const [searchParams] = useSearchParams();
@@ -20,10 +21,12 @@ const ResetPassword = () => {
         }
 
         try {
-            await axios.post('http://127.0.0.1:8000/reset-password-confirm', {
+            // UTILISE "api.post" et non "axios.post" avec une URL en dur
+            await api.post('/reset-password-confirm', {
                 token: token,
                 new_password: newPassword
             });
+            
             setMessage({ type: 'success', text: 'Mot de passe mis à jour ! Redirection...' });
             setTimeout(() => navigate('/'), 3000);
         } catch (err) {

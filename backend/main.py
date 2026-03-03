@@ -19,7 +19,10 @@ from fastapi import Response
 import uuid
 
 
-socket.gethostname = lambda: "localhost"
+def get_ascii_hostname():
+    return "localhost"
+
+socket.gethostname = get_ascii_hostname
 
 load_dotenv()
 app = FastAPI()
@@ -55,6 +58,8 @@ conf = ConnectionConfig(
     VALIDATE_CERTS = True
 )
 
+
+FRONTEND_URL="https://kleea.vercel.app"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 engine = create_engine(os.getenv("DATABASE_URL"))
@@ -258,8 +263,8 @@ async def forgot_password(req: ResetRequest):
             conn.execute(update_query, {"t": token, "e": req.email})
             # Pas besoin de conn.commit() avec engine.begin()
 
-       # 4. ENVOYER LE MAIL RÉEL
-        reset_link = f"http://localhost:5173/reset-password?token={token}"
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        reset_link = f"{frontend_url}/reset-password?token={token}"
         
         # On évite les accents dans les chaînes f-string complexes pour le test
         html_content = f"""
