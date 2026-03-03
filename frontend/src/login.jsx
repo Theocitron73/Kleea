@@ -4647,7 +4647,7 @@ useEffect(() => {
   if (user) {
     fetchTransactions();
     fetchComptes(); // <--- N'oublie pas d'appeler la fonction ici
-    fetchUserTheme(user); // <--- Charge le thème SQL ici
+    fetchUserTheme("theo"); // <--- Charge le thème SQL ici
     api.get(`/note/${user}`).then(res => setNote(res.data.texte));
   }
 }, [user]);
