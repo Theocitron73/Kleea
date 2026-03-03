@@ -19,7 +19,6 @@ from fastapi import Response
 import uuid
 import resend
 
-resend.api_key = os.getenv("re_6g2nixuF_Dg43VbkYQXyXYnkCACyM8aCC")
 
 
 
@@ -268,7 +267,8 @@ async def forgot_password(req: ResetRequest):
     # 4. Préparer le lien (Vercel ou Localhost)
     frontend_url = os.getenv("FRONTEND_URL", "https://kleea.vercel.app")
     reset_link = f"{frontend_url}/reset-password?token={token}"
-    
+
+    resend.api_key = os.getenv("RESEND_API_KEY")
     # 5. Envoyer le mail via l'API Resend (Port 443 - Jamais bloqué)
     try:
         html_content = f"""
