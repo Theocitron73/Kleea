@@ -17,6 +17,10 @@ from datetime import date
 from fpdf import FPDF
 from fastapi import Response
 import uuid
+import resend
+
+resend.api_key = os.getenv("re_6g2nixuF_Dg43VbkYQXyXYnkCACyM8aCC")
+
 
 
 def get_ascii_hostname():
@@ -242,60 +246,63 @@ class ResetRequest(BaseModel):
 
 @app.post("/forgot-password")
 async def forgot_password(req: ResetRequest):
+    # 1. Vérifier si l'email existe
     with engine.connect() as conn:
-        # 1. Vérifier si l'email existe
         query = text("SELECT username FROM users WHERE email = :email")
         user = conn.execute(query, {"email": req.email}).fetchone()
         
-        # Sécurité : On répond toujours la même chose pour éviter le "User Enumeration"
+        # Réponse générique pour la sécurité
         response_msg = {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
         
         if not user:
             return response_msg
             
-        # 2. Générer un token unique
-        token = secrets.token_urlsafe(32)
-        
-        # 3. SAUVEGARDER LE TOKEN EN BASE (OBLIGATOIRE POUR QUE LE LIEN MARCHE)
-        with engine.begin() as conn: # Utilise .begin() pour un commit automatique
-            update_query = text("UPDATE users SET reset_token = :t WHERE email = :e")
-            conn.execute(update_query, {"t": token, "e": req.email})
-            # Pas besoin de conn.commit() avec engine.begin()
+    # 2. Générer un token unique
+    token = secrets.token_urlsafe(32)
+    
+    # 3. Sauvegarder le token en base
+    with engine.begin() as conn:
+        update_query = text("UPDATE users SET reset_token = :t WHERE email = :e")
+        conn.execute(update_query, {"t": token, "e": req.email})
 
-        # Au lieu de mettre l'URL en dur dans le code, on s'assure de la priorité
-        frontend_url = os.getenv("FRONTEND_URL")
-        if not frontend_url:
-            frontend_url = "https://kleea.vercel.app" # Ton URL de secours en dur
-
-        reset_link = f"{frontend_url}/reset-password?token={token}"
-        
-        # On évite les accents dans les chaînes f-string complexes pour le test
+    # 4. Préparer le lien (Vercel ou Localhost)
+    frontend_url = os.getenv("FRONTEND_URL", "https://kleea.vercel.app")
+    reset_link = f"{frontend_url}/reset-password?token={token}"
+    
+    # 5. Envoyer le mail via l'API Resend (Port 443 - Jamais bloqué)
+    try:
         html_content = f"""
         <html>
             <body style="font-family: sans-serif;">
-                <h2>Reinitialisation demandee</h2>
+                <h2 style="color: #10b981;">Reinitialisation demandee</h2>
                 <p>Bonjour,</p>
-                <p>Pour changer votre mot de passe Kleea, cliquez sur le lien :</p>
-                <a href="{reset_link}">Changer mon mot de passe</a>
+                <p>Pour changer votre mot de passe Kleea, cliquez sur le bouton ci-dessous :</p>
+                <a href="{reset_link}" 
+                   style="background-color: #ffffff; color: #000000; padding: 12px 24px; 
+                          text-decoration: none; border-radius: 8px; font-weight: bold; 
+                          display: inline-block; border: 1px solid #e5e7eb;">
+                   Changer mon mot de passe
+                </a>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 20px;">
+                    Si vous n'avez pas demandé ce changement, ignorez ce mail.
+                </p>
             </body>
         </html>
         """
 
-        message = MessageSchema(
-            subject="Kleea - Recuperation de votre acces", # Sujet sans accent
-            recipients=[req.email],
-            body=html_content,
-            subtype=MessageType.html
-        )
+        # Envoi via l'API Resend
+        resend.Emails.send({
+            "from": "Kleea <onboarding@resend.dev>", # Utilise cette adresse exacte pour le test gratuit
+            "to": [req.email],
+            "subject": "Kleea - Recuperation de votre acces",
+            "html": html_content
+        })
 
-        fm = FastMail(conf)
-        try:
-                await fm.send_message(message)
-        except Exception as e:
-                import traceback
-                traceback.print_exc() # Cela va afficher TOUT le chemin de l'erreur dans la console
-                raise HTTPException(status_code=500, detail=str(e))
-        
+    except Exception as e:
+        print(f"ERREUR RESEND : {str(e)}")
+        # On ne bloque pas l'utilisateur si le mail a un souci technique
+        # mais on log l'erreur sur Render pour nous.
+    
     return response_msg
 
 
