@@ -5153,7 +5153,7 @@ if (!user) {
                     <div className="flex flex-col flex-1 min-h-0 bg-white/5 rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-md overflow-hidden min-[2000px]:p-4">
 
                       {/* --- PARTIE 1 : TRANSACTIONS (Scrollable) --- */}
-                      <div className="flex flex-col min-[2000px]:flex-[1.5] min-h-[450px] overflow-hidden">
+                      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                         
                         {/* HEADER DU FLUX */}
                         <div className="p-4 shrink-0 border-b border-white/5">
@@ -5289,21 +5289,22 @@ if (!user) {
                       </div>
 
                       {/* --- PARTIE 3 : OBJECTIFS BUDGÉTAIRES --- */}
-                      <div className="shrink-0 p-2 bg-white/[0.02] border-t border-white/5 min-[2000px]:bg-transparent min-[2000px]:border-none">
+                      <div className="shrink-0 w-full p-2 bg-white/[0.02] border-t border-white/5 mt-auto">
                         <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em] mb-1">
                           Objectifs Budgétaires
                         </h3>
 
                         {budgetGauges.length > 0 ? (
                           /* GRILLE DES JAUGES SI DES OBJECTIFS EXISTENT */
-                          <div className="grid grid-cols-5 gap-y-10 gap-x-2">
+                          <div className=" flex flex-row md:grid md:grid-cols-5 gap-4 overflow-x-auto pb-2 scrollbar-hide gap-y-10 gap-x-2"> 
+                         
                             {budgetGauges.map((bg, i) => {
                               const radius = 30;
                               const circumference = Math.PI * radius;
                               const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
 
                               return (
-                                <div key={i} className="flex flex-col items-center">
+                                <div key={i} className="flex flex-col items-center min-w-[70px]">
                                   <div className="relative w-20 h-10">
                                     <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
                                       <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
@@ -6984,7 +6985,7 @@ if (!user) {
 
 
   {activeTab === 'gerer' && (
-  <div className="animate-in fade-in duration-500 h-[calc(100vh-120px)] overflow-hidden flex flex-col px-4">
+  <div className="animate-in fade-in duration-500 h-[calc(100vh-120px)] flex flex-col px-4">
 
      {/* ZONE DE NOTIFICATION GLOBALE (Portée par le body) */}
       {lastLearned && (
@@ -7038,7 +7039,7 @@ if (!user) {
 
       {/* LA GRILLE PRINCIPALE */}
       {/* Change grid-cols-17 en grid-cols-1 pour mobile, et lg:grid-cols-17 pour PC */}
-        <div className="grid grid-cols-1 lg:grid-cols-17 gap-4 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-17 gap-4 flex-1 min-h-0">
 
         {/* 3. BARRE DE GESTION LEXIQUE (Droite) */}
       <div className="col-span-1 lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
