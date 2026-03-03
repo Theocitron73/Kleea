@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Lock, ArrowLeft } from 'lucide-react';
-import axios from 'axios';
 import api from './api';
 
 const ResetPassword = () => {

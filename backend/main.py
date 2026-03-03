@@ -59,7 +59,6 @@ conf = ConnectionConfig(
 )
 
 
-FRONTEND_URL="https://kleea.vercel.app"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 engine = create_engine(os.getenv("DATABASE_URL"))
@@ -263,7 +262,11 @@ async def forgot_password(req: ResetRequest):
             conn.execute(update_query, {"t": token, "e": req.email})
             # Pas besoin de conn.commit() avec engine.begin()
 
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+        # Au lieu de mettre l'URL en dur dans le code, on s'assure de la priorité
+        frontend_url = os.getenv("FRONTEND_URL")
+        if not frontend_url:
+            frontend_url = "https://kleea.vercel.app" # Ton URL de secours en dur
+
         reset_link = f"{frontend_url}/reset-password?token={token}"
         
         # On évite les accents dans les chaînes f-string complexes pour le test
@@ -301,7 +304,7 @@ class NewPasswordRequest(BaseModel):
     new_password: str
 
 @app.post("/reset-password-confirm")
-def reset_password_confirm(req: NewPasswordRequest):
+async def reset_password_confirm(req: NewPasswordRequest):
     hashed_password = pwd_context.hash(req.new_password)
     
     with engine.connect() as conn:

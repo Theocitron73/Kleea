@@ -2753,7 +2753,7 @@ const handleRegister = async (e) => {
       last_name: lastName
     });
 
-    showAlert("Compte créé ! Bienvenue chez Kleea.");
+    showAlert("Compte créé ! Bienvenue chez Kleea." , "success" );
     const usernameClean = loginName.toLowerCase();
     localStorage.setItem('user', usernameClean);
     setUser(usernameClean);
