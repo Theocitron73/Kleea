@@ -2448,7 +2448,7 @@ const handleAdd = async (e) => {
       profil: filters.profil
     };
 
-    console.log("Envoi des données :", projetData); // Petit check dans la console F12
+
 
     const res = await api.post(`/save-projet`, projetData);
 
@@ -2823,7 +2823,7 @@ useEffect(() => {
     mois: moisListe[new Date().getMonth()].v 
   });
   
-  console.log("Cleaning data for new user...");
+  //console.log("Cleaning data for new user...");
 }, [user]);
 
 
@@ -2856,11 +2856,6 @@ useEffect(() => {
     if (groupesUniques.length > 0) {
       const premierProfil = groupesUniques[0];
 
-      console.log("🎯 Initialisation auto :", {
-        profil: premierProfil,
-        mois: dernierePeriode.mois,
-        annee: dernierePeriode.annee
-      });
 
       setFilters({
         profil: premierProfil,
@@ -3621,7 +3616,7 @@ const updateCell = async (id, field, value) => {
     
     // 2. LOGIQUE D'APPRENTISSAGE
     if (field === 'categorie' && isApprendreActive) {
-      console.log("🧠 Apprentissage activé pour :", transactionActive.nom);
+      //console.log("Apprentissage activé pour :", transactionActive.nom);
       
       await api.post(`/memoire`, {
         nom: transactionActive.nom,
@@ -3700,7 +3695,7 @@ const handleDeleteSelected = async () => {
       // 2. Reset de la sélection pour la prochaine fois
       setSelectedIds([]);
       
-      console.log(`Suppression réussie : ${res.data.deleted_count} éléments.`);
+     // console.log(`Suppression réussie : ${res.data.deleted_count} éléments.`);
     }
   } catch (err) {
     console.error("Erreur lors de la suppression :", err);
@@ -4071,7 +4066,7 @@ const [categoriesConfig, setCategoriesConfig] = useState([]);
 const fetchCategoriesConfig = async () => {
   try {
     const res = await api.get(`/config-categories`);
-    console.log("Données reçues de l'API :", res.data);
+    //console.log("Données reçues de l'API :", res.data);
     setCategoriesConfig(res.data);
   } catch (err) {
     console.error("Erreur API Intelligence :", err);
@@ -4176,12 +4171,12 @@ const loadPrevisions = async () => {
     // 3. On passe l'année dynamiquement
     const url = `/previsions/${user}/ALL/${filters.annee}`;
     
-    console.log("Tentative de récupération :", url);
+    //console.log("Tentative de récupération :", url);
     
     const res = await api.get(url);
     
     if (res.data) {
-      console.log("Données reçues :", res.data.length, "lignes");
+      //console.log("Données reçues :", res.data.length, "lignes");
       setallPrevisionsAnnee(res.data);
     }
   } catch (err) {
