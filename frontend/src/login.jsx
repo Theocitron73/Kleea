@@ -1770,90 +1770,6 @@ function SortableItem({ id, children, disabled }) {
 }
 
 
-{/* --- FONCTION DE RENDU DU GRAPHE (A placer avant le return du composant) --- */}
-                  // --- SOUS-COMPOSANT POUR LE GRAPHIQUE ---
-const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory }) => (
-  <div className="h-full w-full flex flex-row gap-4"> {/* Changement ici : flex-row */}
-    {statsCategories.length > 0 ? (
-      <>
-        {/* PARTIE GRAPHIQUE (Gauche) */}
-        <div className="flex-[2] min-h-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 15, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#fb7185" stopOpacity={0}/>
-                  <stop offset="100%" stopColor="#fb7185" stopOpacity={0.8}/>
-                </linearGradient>
-              </defs>
-              <XAxis type="number" hide />
-              <YAxis 
-                dataKey="name" 
-                type="category" 
-                axisLine={false}
-                tickLine={false}
-                width={120}
-                // On tronque le nom directement dans le tickFormatter
-                tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
-                tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: 'bold' }}
-              />
-              <Tooltip 
-                cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
-                contentStyle={{ backgroundColor: '#ffffff', border: 'none', borderRadius: '12px' }} 
-              />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
-                {chartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
-                ))}
-                <LabelList 
-                  dataKey="value" 
-                  position="right" 
-                  offset={8} 
-                  formatter={(val) => `${Math.round(val)}€`} 
-                  style={{ fill: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '900' }} 
-                />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* PARTIE LÉGENDE (Droite) */}
-        <div className="flex-1 min-w-[120px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
-          <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-3">
-            Légende
-          </p>
-          <div className="flex flex-col gap-1">
-            {statsCategories.map((item, i) => {
-              const isHidden = hiddenCategories.includes(item.name);
-              return (
-                <button 
-                  key={i} 
-                  onClick={() => toggleCategory(item.name)} 
-                  className={`flex items-center justify-between p-2 rounded-xl transition-all ${
-                    isHidden ? 'opacity-30' : 'bg-white/5 hover:bg-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className={`w-1.5 h-1.5 rounded-full ${
-                      isHidden ? 'bg-white/20' : 'bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.4)]'
-                    }`} />
-                    <span className="text-[9px] font-bold uppercase text-[var(--text-main)]/70 truncate max-w-[100px]">
-                      {item.name}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </>
-    ) : (
-      <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black">
-        Aucune donnée
-      </div>
-    )}
-  </div>
-);
 
 
 
@@ -2034,24 +1950,18 @@ const TransactionCard = ({ t, color, bg }) => {
   let month = '??';
 
   if (t.date) {
-    // 1. On tente de parser la date avec l'objet Date natif (le plus sûr)
     const dateObj = new Date(t.date);
-
-    // Si la date est valide (n'est pas "Invalid Date")
     if (!isNaN(dateObj.getTime())) {
       day = dateObj.getDate().toString().padStart(2, '0');
       month = (dateObj.getMonth() + 1).toString().padStart(2, '0'); 
-    } 
-    // 2. Fallback manuel si l'objet Date échoue (format spécifique)
-    else {
+    } else {
       const dateStr = t.date.toString();
       if (dateStr.includes('-')) {
-        const parties = dateStr.split(' ')[0].split('-'); // Gère "YYYY-MM-DD HH:mm"
-        // Si format YYYY-MM-DD
+        const parties = dateStr.split(' ')[0].split('-');
         if (parties[0].length === 4) {
           day = parties[2];
           month = parties[1];
-        } else { // Si format DD-MM-YYYY
+        } else {
           day = parties[0];
           month = parties[1];
         }
@@ -2070,9 +1980,17 @@ const TransactionCard = ({ t, color, bg }) => {
   };
 
   return (
-    <div className={`px-3 py-1.5 rounded-xl ${bg} border border-white/5 group hover:bg-white/10 transition-all flex items-center gap-3`}>
+    <div 
+      // 1. On applique le BG via style car c'est une valeur HEX/RGBA
+      style={{ backgroundColor: bg }} 
+      className="px-3 py-1.5 rounded-xl border border-white/5 group hover:bg-white/10 transition-all flex items-center gap-3"
+    >
       <div className="flex flex-col items-center justify-center min-w-[34px] h-9 bg-black/30 rounded-lg border border-white/5 shadow-inner">
-         <span className={`text-[11px] font-black leading-none ${color}`}>
+         <span 
+           // 2. On applique la couleur du jour via style
+           style={{ color: color }}
+           className="text-[11px] font-black leading-none"
+         >
            {day}
          </span>
          <span className="text-[7px] font-bold text-[var(--text-main)]/40 uppercase tracking-tighter mt-0.5">
@@ -2085,7 +2003,11 @@ const TransactionCard = ({ t, color, bg }) => {
           <p className="text-[var(--text-main)]/90 font-bold text-[11px] truncate leading-tight">
             {t.nom || 'Sans libellé'}
           </p>
-          <span className={`font-black text-[12px] whitespace-nowrap tracking-tighter ${color}`}>
+          <span 
+            // 3. On applique la couleur du montant via style
+            style={{ color: color }}
+            className="font-black text-[12px] whitespace-nowrap tracking-tighter"
+          >
             {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
           </span>
         </div>
@@ -2189,7 +2111,142 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
 
 
 
+{/* --- FONCTION DE RENDU DU GRAPHE (A placer avant le return du composant) --- */}
+                  // --- SOUS-COMPOSANT POUR LE GRAPHIQUE ---
+const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
+  // On définit la couleur de base à partir du thème ou du fallback
+  const depensesColor = userTheme?.color_depenses || "#fb7185";
 
+  const CustomTooltip = ({ active, payload, userTheme }) => {
+  if (active && payload && payload.length) {
+    const color = userTheme?.color_depenses || "#fb7185";
+    return (
+      <div className="bg-slate-900 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl">
+        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">
+          {payload[0].payload.name}
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+          <p className="text-sm font-black text-white">
+            {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+  return (
+    <div className="h-full w-full flex flex-row gap-4">
+      {statsCategories.length > 0 ? (
+        <>
+          {/* PARTIE GRAPHIQUE (Gauche) */}
+          <div className="flex-[2] min-h-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 15, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
+                    <stop offset="100%" stopColor={depensesColor} stopOpacity={0.8} />
+                  </linearGradient>
+                </defs>
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  axisLine={false}
+                  tickLine={false}
+                  width={120}
+                  tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
+                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: 'bold' }}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
+                  content={<CustomTooltip userTheme={userTheme} />} // On passe le thème ici
+                />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+                  {chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
+                  ))}
+                  <LabelList 
+                    dataKey="value" 
+                    position="right" 
+                    offset={8} 
+                    formatter={(val) => `${Math.round(val)}€`} 
+                    style={{ fill: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '900' }} 
+                  />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* PARTIE LÉGENDE (Droite) */}
+            <div className="flex-1 min-w-[140px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
+              <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-3">
+                Légende
+              </p>
+              <div className="flex flex-col gap-1.5">
+                {statsCategories.map((item, i) => {
+                  const isHidden = hiddenCategories.includes(item.name);
+                  const depensesColor = userTheme?.color_depenses || "#fb7185";
+
+                  return (
+                    <button 
+                      key={i} 
+                      onClick={() => toggleCategory(item.name)} 
+                      className={`flex items-center justify-between p-2 rounded-xl transition-all group border ${
+                        isHidden 
+                          ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
+                          : 'bg-white/5 border-white/5 hover:bg-white/[0.08] hover:border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        {/* Puce de couleur */}
+                        <div 
+                          className="w-2 h-2 rounded-full shrink-0 transition-all duration-300" 
+                          style={{ 
+                            backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
+                            boxShadow: isHidden ? 'none' : `0 0 8px ${depensesColor}44`
+                          }} 
+                        />
+
+                        <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
+                          isHidden ? 'text-white/30' : 'text-white/70 group-hover:text-white'
+                        }`}>
+                          {item.name}
+                        </span>
+                      </div>
+
+                      {/* ICÔNE OEIL : TOUJOURS VISIBLE */}
+                      <div className="shrink-0 ml-2">
+                        {isHidden ? (
+                          <EyeOff 
+                            size={11} 
+                            className="text-white/20 transition-colors" 
+                          />
+                        ) : (
+                          <Eye 
+                            size={11} 
+                            style={{ color: depensesColor }} 
+                            className="opacity-60 group-hover:opacity-100 transition-all" 
+                          />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+        </>
+      ) : (
+        <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black">
+          Aucune donnée
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 
@@ -4641,6 +4698,34 @@ const handleInput = (e) => {
   element.style.height = `${element.scrollHeight}px`;
 };
 
+const [showLearningList, setShowLearningList] = useState(false);
+const [elementsAppris, setElementsAppris] = useState([]);
+
+const fetchMemoire = async () => {
+  try {
+    // Remplace 'ton_username' par la variable qui contient le nom de l'utilisateur
+    const response = await api.get(`/memoire/${user.toLowerCase()}`);
+    
+    // On transforme le dictionnaire { nom: categorie } en tableau [{ nom, categorie }]
+    const dataArray = Object.entries(response.data).map(([nom, categorie]) => ({
+      nom,
+      categorie
+    }));
+    
+    setElementsAppris(dataArray);
+  } catch (error) {
+    console.error("Erreur memoire:", error);
+  }
+};
+
+
+const [searchTerm, setSearchTerm] = useState("");
+
+// Ensuite, filtre tes transactions avant l'affichage
+const transactionsFiltrees = transactionsAAfficher.filter(t => 
+  t.nom.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  t.categorie?.toLowerCase().includes(searchTerm.toLowerCase())
+);
 
 
 useEffect(() => {
@@ -5203,11 +5288,15 @@ if (!user) {
                               </div>
 
                               <div className="flex flex-col items-end">
-                                <span className={`text-2xl font-black leading-none ${
-                                  tabActive === 'revenus' ? 'text-emerald-400' : 
-                                  tabActive === 'depenses' ? 'text-rose-400' : 
-                                  'text-[var(--primary)]'
-                                }`}>
+                               <span 
+                                  className="text-2xl font-black leading-none transition-colors"
+                                  style={{ 
+                                    color: 
+                                      tabActive === 'revenus' ? (userTheme.color_revenus || '#10b981') : 
+                                      tabActive === 'depenses' ? (userTheme.color_depenses || '#f43f5e') : 
+                                      'var(--primary)'
+                                  }}
+                                >
                                   <span className="text-sm mr-0.5 opacity-70">
                                     {tabActive === 'revenus' ? '+' : tabActive === 'depenses' ? '-' : ''}
                                   </span>
@@ -5230,6 +5319,7 @@ if (!user) {
                                 chartData={chartData}
                                 hiddenCategories={hiddenCategories}
                                 toggleCategory={toggleCategory}
+                                userTheme={userTheme}
                               />
                             </div>
                           )}
@@ -5242,12 +5332,20 @@ if (!user) {
                                 return currentTransactions
                                   .sort((a, b) => new Date(b.date) - new Date(a.date))
                                   .map((t, i) => (
-                                    <TransactionCard 
-                                      key={i} 
-                                      t={t} 
-                                      color={tabActive === 'revenus' ? 'text-emerald-400' : tabActive === 'depenses' ? 'text-rose-400' : 'text-[var(--primary)]'}
-                                      bg={tabActive === 'revenus' ? 'bg-emerald-400/5' : tabActive === 'depenses' ? 'bg-rose-400/5' : 'bg-[var(--primary)]/5'}
-                                    />
+                                   <TransactionCard 
+  key={i} 
+  t={t} 
+  color={
+    tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
+    tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
+    '#6366f1' // Remplace var(--primary) par une couleur Hex si ça bug
+  }
+  bg={
+    tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
+    tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
+    'rgba(99, 102, 241, 0.1)'
+  }
+/>
                                   ));
                               } 
                               
@@ -5284,6 +5382,7 @@ if (!user) {
                             chartData={chartData}
                             hiddenCategories={hiddenCategories}
                             toggleCategory={toggleCategory}
+                            userTheme={userTheme}
                           />
                         </div>
                       </div>
@@ -5578,38 +5677,34 @@ if (!user) {
                     switch (activeRightTab) {
                       case 'graphs':
                         return (
-                    <div className="flex-1 flex flex-col min-h-0">
-                      <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 p-4 shadow-2xl backdrop-blur-md mb-3">
-                        {/* EN-TÊTE : Toujours présent, mais contenu variable */}
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center border border-amber-500/20">
-                              <span className="text-xl">🏆</span>
+                   <div className="flex-1 flex flex-col min-h-0 gap-3">
+                      {/* BLOC JAUGE ÉPARGNE COMPACTÉ */}
+                      <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 p-3 shadow-2xl backdrop-blur-md shrink-0">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/20 shrink-0">
+                              <span className="text-lg">🏆</span>
                             </div>
                             <div>
-                              <h4 className="text-[var(--text-main)]/40 text-[10px] font-black uppercase tracking-[0.2em] leading-tight">
-                                Objectif Épargne Annuel {filters.annee}
+                              <h4 className="text-[var(--text-main)]/40 text-[9px] font-black uppercase tracking-[0.1em] leading-tight">
+                                Objectif d'épargne {filters.annee}
                               </h4>
-                              
-                              {/* On n'affiche les chiffres que si l'objectif est défini */}
                               {objectifAnnuelGlobal > 0 ? (
-                                <p className="text-[var(--text-main)] font-black text-xl leading-tight">
+                                <p className="text-[var(--text-main)] font-black text-lg leading-tight">
                                   {Math.floor(epargneCumuleeAnnuelle).toLocaleString('fr-FR')} € 
-                                  <span className="text-[var(--text-main)]/20 text-xs font-medium ml-2 uppercase">
+                                  <span className="text-[var(--text-main)]/20 text-[10px] font-medium ml-1">
                                     / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
                                   </span>
                                 </p>
                               ) : (
-                                <p className="text-[var(--text-main)]/20 font-black text-sm uppercase tracking-widest leading-tight mt-1">
-                                  Non défini
-                                </p>
+                                <p className="text-[var(--text-main)]/20 font-black text-xs uppercase mt-1">Non défini</p>
                               )}
                             </div>
                           </div>
-                          
-                          {/* Badge de pourcentage : Uniquement si objectif > 0 */}
+
+                          {/* Badge % repositionné */}
                           {objectifAnnuelGlobal > 0 && (
-                            <div className={`text-xs font-black px-3 py-1.5 rounded-xl border ${
+                            <div className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
                               pourcentageAnnuel >= 100 
                                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
                                 : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
@@ -5619,45 +5714,19 @@ if (!user) {
                           )}
                         </div>
 
-                        {/* SECTION BASSE : Jauge OU Message d'aide */}
-                        {objectifAnnuelGlobal > 0 ? (
-                          <>
-                            <div className="relative h-4 w-full bg-black/40 rounded-full overflow-hidden p-[3px] border border-white/5 shadow-inner">
+                        {/* Jauge plus fine pour gagner de la place */}
+                        {objectifAnnuelGlobal > 0 && (
+                          <div className="mt-3">
+                            <div className="relative h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
                               <div 
-                                className="h-full rounded-full transition-all duration-1000 ease-out relative"
+                                className="h-full rounded-full transition-all duration-1000 ease-out"
                                 style={{ 
                                   width: `${Math.min(pourcentageAnnuel, 100)}%`,
                                   background: `linear-gradient(90deg, ${userTheme.color_jauge || '#f1c40f'}90, ${userTheme.color_jauge || '#f1c40f'})`,
-                                  boxShadow: `0 0 15px ${(userTheme.color_jauge || '#f1c40f')}44`
+                                  boxShadow: `0 0 10px ${(userTheme.color_jauge || '#f1c40f')}33`
                                 }}
-                              >
-                                <div className="absolute inset-0 bg-white/20 w-full h-[1px] top-0 rounded-full" />
-                              </div>
+                              />
                             </div>
-
-                            <div className="flex justify-between mt-3 px-1">
-                              <span className="text-[9px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest">
-                                {pourcentageAnnuel < 100 
-                                  ? `Épargne totale accumulée sur l'année ${filters.annee}`
-                                  : 'Félicitations, objectif annuel atteint !'}
-                              </span>
-                              <span className="text-[9px] font-bold text-[var(--text-main)]/50 uppercase italic">
-                                {filters.profil}
-                              </span>
-                            </div>
-                          </>
-                        ) : (
-                          /* État vide : Message plus visuel pour remplacer la jauge */
-                          <div className="mt-2 py-1 px-2 rounded-2xl bg-white/[0.02] border border-dashed border-white/10 flex items-center justify-between">
-                            <p className="text-[var(--text-main)]/40 text-[10px] font-medium leading-tight">
-                              Définissez un montant d'épargne pour suivre votre progression.
-                            </p>
-                            <button 
-                              onClick={() => setActiveTab('comptes')}
-                              className="px-3 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-[var(--primary)] text-[9px] font-black uppercase tracking-widest transition-all border border-white/5"
-                            >
-                              Configurer →
-                            </button>
                           </div>
                         )}
                       </div>
@@ -7117,20 +7186,29 @@ if (!user) {
       {/* BARRE D'OUTILS LEXIQUE (Sous le bloc d'ajout) */}
       <div className="mt-4 px-1 flex items-center  justify-between border-t border-white/5 pt-4">
         <div className="flex items-center gap-4">
-          {/* INDICATEUR ET BOUTON GESTION */}
+          {/* INDICATEUR ET BOUTON GESTION - STYLE AMÉLIORÉ */}
           <button 
             onClick={() => setShowListPopover(!showListPopover)}
-            className="flex items-center gap-2 group transition-all"
+            className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/5 hover:bg-white/[0.08] hover:border-[var(--primary)]/30 hover:shadow-[0_0_15px_rgba(99,102,241,0.1)] transition-all group"
           >
-            <div className="flex -space-x-2">
-              <div className="w-6 h-6 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center z-10 group-hover:bg-[var(--primary)]/20 transition-colors">
-                <Settings2 size={11} className="text-[var(--primary)]" />
-              </div>
-              
+            {/* Icône principale avec effet de focus */}
+            <div className="w-6 h-6 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center group-hover:bg-[var(--primary)] group-hover:border-transparent transition-all duration-300">
+              <Settings2 
+                size={11} 
+                className="text-[var(--primary)] group-hover:text-white transition-colors" 
+              />
             </div>
+            
+            {/* Texte avec changement de contraste */}
             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40 group-hover:text-[var(--text-main)] transition-colors">
               Gérer mes catégories
             </span>
+
+            {/* Petite flèche pour indiquer l'ouverture/action */}
+            <ChevronRight 
+              size={12} 
+              className={`text-[var(--text-main)]/20 group-hover:text-[var(--primary)] transition-all transform ${showListPopover ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} 
+            />
           </button>
         </div>
 
@@ -7585,37 +7663,75 @@ if (!user) {
                   {/* DEUXIÈME RESSORT : Maintient l'équidistance en 4K */}
                   
 
-                  {/* --- BLOC BAS : MÉMOIRE --- */}
-                  <div className="pt-4">
-                    <div className="flex items-center gap-2 mb-1"> {/* Réduit le mb-3 en mb-1 pour coller au texte */}
-                      <Database size={12} className="text-[var(--primary)]/50" />
-                      <span className="text-[10px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.15em]">Apprentissage</span>
+                    {/* --- BLOC BAS : MÉMOIRE --- */}
+                    <div className="pt-4 relative"> {/* Ajout de relative ici pour le positionnement du panneau */}
+                      <div className="flex items-center gap-2 mb-1">
+                        <Database size={12} className="text-[var(--primary)]/50" />
+                        <span className="text-[10px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.15em]">Apprentissage</span>
+                      </div>
+
+                      <p className="text-[9px] text-[var(--text-main)]/50 leading-relaxed mb-3">
+                        Mémorise tes habitudes pour catégoriser automatiquement tes prochains imports CSV.
+                      </p>
+
+                      <div className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-2xl border border-white/10 hover:bg-white/5 transition-all group relative">
+                        <div className="p-2 bg-[var(--primary)]/10 rounded-xl group-hover:scale-110 transition-transform">
+                          <Brain size={18} className="text-[var(--primary)]" />
+                        </div>
+                        <div className="flex flex-col flex-1">
+                          <span className="text-[11px] font-black text-[var(--text-main)] uppercase leading-none">Apprentissage</span>
+                          <span className="text-[9px] text-[var(--text-main)]/30 font-bold uppercase mt-1">
+                            {isApprendreActive ? "Activé" : "Désactivé"}
+                          </span>
+                        </div>
+
+                        {/* BOUTON LISTE */}
+                        <button 
+                          onClick={() => {
+                            const newState = !showLearningList;
+                            setShowLearningList(newState);
+                            if(newState) fetchMemoire();
+                          }}
+                          className={`p-2 rounded-lg border transition-all z-20 ${showLearningList ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'bg-white/5 border-white/5 text-[var(--text-main)]/40 hover:bg-white/10'}`}
+                        >
+                          <List size={14} />
+                        </button>
+                        
+                        {/* BOUTON TOGGLE */}
+                        <button 
+                          onClick={() => setIsApprendreActive(!isApprendreActive)}
+                          className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${isApprendreActive ? 'bg-[var(--primary)] shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/10'}`}
+                        >
+                          <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${isApprendreActive ? 'left-6' : 'left-1'}`} />
+                        </button>
+
+                        {/* --- PANNEAU FLOTTANT (OVERLAY) --- */}
+                        {showLearningList && (
+                          <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#16191f] border border-white/10 rounded-2xl shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                            <div className="flex justify-between items-center px-2 py-1 mb-2 border-b border-white/5">
+                              <span className="text-[8px] font-black uppercase text-[var(--text-main)]/40 tracking-widest">Base Mémoire</span>
+                              <button onClick={() => setShowLearningList(false)}>
+                                <X size={10} className="text-white/20 hover:text-white" />
+                              </button>
+                            </div>
+                            
+                            <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1">
+                              {elementsAppris.length > 0 ? (
+                                elementsAppris.map((item, i) => (
+                                  <div key={i} className="flex justify-between items-center p-2 bg-white/[0.02] rounded-lg border border-white/5 group/item">
+                                    <span className="text-[9px] text-white/80 font-bold uppercase truncate pr-2">{item.nom}</span>
+                                    <span className="text-[8px] text-[var(--primary)] font-black uppercase bg-[var(--primary)]/10 px-1.5 py-0.5 rounded">{item.categorie}</span>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-[8px] text-center py-4 text-white/20 uppercase font-bold">Vide</p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* TEXTE EXPLICATIF RÉINSÉRÉ */}
-                    <p className="text-[9px] text-[var(--text-main)]/50 leading-relaxed mb-3">
-                      Mémorise tes habitudes pour catégoriser automatiquement tes prochaines transactions que tu importera un CSV.
-                    </p>
-
-                    <div className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-2xl border border-white/10 hover:bg-white/5 transition-all group">
-                      <div className="p-2 bg-[var(--primary)]/10 rounded-xl group-hover:scale-110 transition-transform">
-                        <Brain size={18} className="text-[var(--primary)]" />
-                      </div>
-                      <div className="flex flex-col flex-1">
-                        <span className="text-[11px] font-black text-[var(--text-main)] uppercase leading-none">Apprentissage</span>
-                        <span className="text-[9px] text-[var(--text-main)]/30 font-bold uppercase mt-1">
-                          {isApprendreActive ? "Activé" : "Désactivé"}
-                        </span>
-                      </div>
-                      
-                      <button 
-                        onClick={() => setIsApprendreActive(!isApprendreActive)}
-                        className={`w-10 h-5 rounded-full transition-all relative ${isApprendreActive ? 'bg-[var(--primary)] shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/10'}`}
-                      >
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${isApprendreActive ? 'left-6' : 'left-1'}`} />
-                      </button>
-                    </div>
-                  </div>
               </div>
                 </div>
               </div>
@@ -7747,11 +7863,43 @@ if (!user) {
                 </div>
               </div>
 
-              {/* BLOC DROITE : Compteur */}
-              <div className="flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full border border-white/5">
-                <span className="text-[9px] font-black text-[var(--primary)]">{transactionsAAfficher.length}</span>
-                <span className="text-[9px] font-medium text-[var(--text-main)]/30 uppercase tracking-widest">Résultats</span>
-              </div>
+              {/* BLOC DROITE : Recherche + Compteur */}
+                <div className="flex items-center gap-3">
+                    {/* BARRE DE RECHERCHE DYNAMIQUE */}
+                    <div className="relative group/search">
+                      <Search 
+                        size={12} 
+                        className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                          searchTerm ? 'text-[var(--primary)]' : 'text-[var(--text-main)]/20'
+                        }`} 
+                      />
+                      <input
+                        type="text"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        placeholder="RECHERCHER..."
+                        className="bg-white/5 border border-white/5 rounded-full py-1.5 pl-8 pr-4 text-[10px] font-bold text-[var(--text-main)] outline-none w-32 focus:w-64 focus:bg-white/[0.08] focus:border-[var(--primary)]/30 transition-all placeholder:text-[var(--text-main)]/10 placeholder:font-black tracking-widest"
+                      />
+                      {searchTerm && (
+                        <button 
+                          onClick={() => setSearchTerm("")}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-white/10 rounded-full"
+                        >
+                          <X size={10} className="text-[var(--text-main)]/30" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* COMPTEUR (Mis à jour selon le filtre) */}
+                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/5 min-w-[100px] justify-center">
+                      <span className="text-[9px] font-black text-[var(--primary)]">
+                        {transactionsFiltrees.length}
+                      </span>
+                      <span className="text-[9px] font-medium text-[var(--text-main)]/30 uppercase tracking-widest">
+                        Résultats
+                      </span>
+                    </div>
+                  </div>
             </div>
 
 
@@ -7810,8 +7958,8 @@ if (!user) {
       key={`${sortConfig.key}-${sortConfig.direction}`} 
       className="divide-y divide-white/5"
     >
-      {transactionsAAfficher.length > 0 ? (
-        transactionsAAfficher.map((t) => {
+      {transactionsFiltrees.length > 0 ? (
+        transactionsFiltrees.map((t) => {
           const isSelected = selectedIds.includes(t.id);
           return (
             <tr 
