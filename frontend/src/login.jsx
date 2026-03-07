@@ -3,11 +3,12 @@ import { useState, useEffect,useMemo,useRef,forwardRef} from 'react'
 
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, CartesianGrid, Legend, Cell,LabelList
+  AreaChart, Area, CartesianGrid, Legend, Cell,LabelList,PieChart, 
+  Pie,
 } from 'recharts';
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
-  Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,PieChart,Loader,AlertCircle,CheckCircle,Smile,
+  Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -23,7 +24,173 @@ import { createPortal } from 'react-dom';
 import api from './api';
 
 
+const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
+  const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
+  const { visibleData, totalVisible } = useMemo(() => {
+    const visible = data.filter(d => !hiddenCategories.has(d.name));
+    const total = visible.reduce((acc, curr) => acc + curr.value, 0);
+    return { visibleData: visible, totalVisible: total };
+  }, [data, hiddenCategories]);
+
+  if (!data || data.length === 0) return (
+    <div className="h-full min-h-[300px] flex items-center justify-center text-[10px] font-black uppercase text-white/10 tracking-widest italic">
+      Aucune donnée
+    </div>
+  );
+
+  const COLORS = [
+    userTheme.color_depenses, 
+    `${userTheme.color_depenses}cc`, 
+    `${userTheme.color_depenses}99`, 
+    `${userTheme.color_depenses}66`, 
+    `${userTheme.color_depenses}33`, 
+  ];
+
+  const extractEmoji = (name) => {
+    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
+    const match = name.match(emojiRegex);
+    return match ? match[0] : '•';
+  };
+
+  const toggleCategory = (name) => {
+    setHiddenCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const renderCustomizedLabel = (props) => {
+    const { cx, cy, midAngle, outerRadius, value, name } = props;
+    const realPercent = totalVisible > 0 ? (value / totalVisible) * 100 : 0;
+    if (realPercent < 2) return null;
+
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius * 1.12; 
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <g className="animate-in fade-in duration-500">
+        <text x={x} y={y - 6} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" style={{ fontSize: '18px' }}>
+          {extractEmoji(name)}
+        </text>
+        <text x={x} y={y + 12} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-[10px] font-black tracking-tighter">
+          {`${realPercent.toFixed(0)}%`}
+        </text>
+      </g>
+    );
+  };
+
+  return (
+    <div className="h-full w-full p-4 flex flex-col min-h-0">
+      <p className="text-[10px] font-black uppercase text-white/20 mb-2 tracking-[0.3em] text-center shrink-0">
+        Répartition des dépenses {currentYear}
+      </p>
+      
+      <div className="flex-1 flex flex-row items-center min-h-0 relative">
+        
+        {/* GRAPHIQUE (ZONE PRINCIPALE) */}
+        <div className="flex-1 h-full relative">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={visibleData}
+                cx="50%" cy="50%"
+                innerRadius="65%"
+                outerRadius="85%"
+                paddingAngle={visibleData.length > 1 ? 3 : 0}
+                dataKey="value"
+                stroke="none"
+                label={renderCustomizedLabel}
+                labelLine={false}
+                isAnimationActive={true}
+                animationDuration={600}
+              >
+                {visibleData.map((entry, index) => (
+                  <Cell key={entry.name} fill={COLORS[index % COLORS.length]} className="outline-none" />
+                ))}
+              </Pie>
+              <Tooltip
+                isAnimationActive={false} // Désactive le délai de mouvement
+                animationDuration={0}     // Force la durée à zéro pour être sûr
+                wrapperStyle={{ zIndex: 1000 }}
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const p = payload[0].payload;
+                    return (
+                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-xl z-50">
+                        <p className="text-[10px] font-black uppercase text-white/40 mb-1 tracking-widest">{p.name}</p>
+                        <p className="text-xl font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+
+          {/* CENTRE DU DONUT */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-[8px] font-black text-white/10 uppercase tracking-[0.2em] mb-1">Total</span>
+            <span className="text-xl font-black text-white tracking-tighter leading-none">
+              {totalVisible.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+            </span>
+          </div>
+        </div>
+
+        {/* LÉGENDE ÉMOJI À DROITE */}
+          <div className="w-14 h-full flex flex-col gap-3 py-2 border-l border-white/5 items-center overflow-y-auto no-scrollbar shrink-0 bg-white/[0.01]">
+            
+            {/* INDICATEUR D'ÉTAT GLOBAL */}
+            <div className="mb-2 flex flex-col items-center gap-1 opacity-20">
+              {hiddenCategories.size > 0 ? (
+                <EyeOff size={12} strokeWidth={3} />
+              ) : (
+                <Eye size={12} strokeWidth={3} />
+              )}
+              <span className="text-[7px] font-black uppercase tracking-tighter italic">Filtre</span>
+            </div>
+
+            {data.map((entry) => {
+              const isHidden = hiddenCategories.has(entry.name);
+              return (
+                <button
+                  key={entry.name}
+                  onClick={() => toggleCategory(entry.name)}
+                  title={entry.name}
+                  className={`group relative w-10 h-10 flex items-center justify-center rounded-xl border transition-all duration-500 shrink-0 ${
+                    isHidden 
+                    ? 'bg-transparent border-transparent grayscale opacity-10 scale-90' 
+                    : 'bg-white/[0.03] border-white/10 shadow-lg scale-100 hover:border-white/30'
+                  }`}
+                >
+                  {/* L'ÉMOJI */}
+                  <span className={`text-lg leading-none transition-transform duration-500 ${isHidden ? 'scale-75' : 'scale-100'}`}>
+                    {extractEmoji(entry.name)}
+                  </span>
+                  
+                  {/* BADGE OEIL LUCIDE */}
+                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0a0a0b] border border-white/10 flex items-center justify-center transition-all duration-300 ${
+                    isHidden ? 'opacity-100 scale-100' : 'opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100'
+                  }`}>
+                    {isHidden ? (
+                      <EyeOff size={8} color="white" strokeWidth={3} />
+                    ) : (
+                      <Eye size={8} color="white" strokeWidth={3} />
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+      </div>
+    </div>
+  );
+};
 
 
 
@@ -2111,31 +2278,42 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
 
 
 
-{/* --- FONCTION DE RENDU DU GRAPHE (A placer avant le return du composant) --- */}
-                  // --- SOUS-COMPOSANT POUR LE GRAPHIQUE ---
 const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
-  // On définit la couleur de base à partir du thème ou du fallback
   const depensesColor = userTheme?.color_depenses || "#fb7185";
 
-  const CustomTooltip = ({ active, payload, userTheme }) => {
-  if (active && payload && payload.length) {
-    const color = userTheme?.color_depenses || "#fb7185";
-    return (
-      <div className="bg-slate-900 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl">
-        <p className="text-[10px] font-black uppercase tracking-widest text-white/40 mb-1">
-          {payload[0].payload.name}
-        </p>
-        <div className="flex items-center gap-2">
-          <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-          <p className="text-sm font-black text-white">
-            {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-          </p>
+  // --- TOOLTIP PERSONNALISÉ ---
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const evolution = data.evolution || 0;
+
+      return (
+        <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl">
+          <div className="flex justify-between items-start gap-6 mb-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
+              {data.name}
+            </p>
+            {/* Dans le CustomTooltip de CategoriesView */}
+              {evolution !== null && evolution !== 0 && (
+                <div className={`flex items-center gap-2 text-[10px] font-black px-2 py-1 rounded-lg ${
+                  evolution > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
+                }`}>
+                  <span>{evolution > 0 ? '▲' : '▼'} {Math.abs(evolution)}%</span>
+                  <span className="opacity-30">({payload[0].payload.diffEuro > 0 ? '+' : ''}{Math.round(payload[0].payload.diffEuro)}€)</span>
+                </div>
+              )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: depensesColor }} />
+            <p className="text-sm font-black text-white">
+              {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+            </p>
+          </div>
         </div>
-      </div>
-    );
-  }
-  return null;
-};
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="h-full w-full flex flex-row gap-4">
@@ -2144,7 +2322,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
           {/* PARTIE GRAPHIQUE (Gauche) */}
           <div className="flex-[2] min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 15, left: 0, bottom: 0 }}>
+              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
@@ -2157,24 +2335,24 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                   type="category" 
                   axisLine={false}
                   tickLine={false}
-                  width={120}
-                  tickFormatter={(value) => value.length > 10 ? `${value.substring(0, 10)}...` : value}
-                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: 'bold' }}
+                  width={110}
+                  tickFormatter={(value) => value.length > 12 ? `${value.substring(0, 10)}...` : value}
+                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: 'bold' }}
                 />
                 <Tooltip 
-                  cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
-                  content={<CustomTooltip userTheme={userTheme} />} // On passe le thème ici
+                  cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
+                  content={<CustomTooltip />} 
                 />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
                   ))}
                   <LabelList 
                     dataKey="value" 
                     position="right" 
-                    offset={8} 
+                    offset={10} 
                     formatter={(val) => `${Math.round(val)}€`} 
-                    style={{ fill: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '900' }} 
+                    style={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '900' }} 
                   />
                 </Bar>
               </BarChart>
@@ -2182,66 +2360,96 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
           </div>
 
           {/* PARTIE LÉGENDE (Droite) */}
-            <div className="flex-1 min-w-[140px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
-              <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-3">
-                Légende
-              </p>
-              <div className="flex flex-col gap-1.5">
-                {statsCategories.map((item, i) => {
-                  const isHidden = hiddenCategories.includes(item.name);
-                  const depensesColor = userTheme?.color_depenses || "#fb7185";
+          <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
+            <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
+              Analyse Légende
+            </p>
+            <div className="flex flex-col gap-2">
+              {statsCategories.map((item, i) => {
+                const isHidden = hiddenCategories.includes(item.name);
+                const hasEvolution = item.evolution !== undefined && item.evolution !== 0;
 
-                  return (
-                    <button 
-                      key={i} 
-                      onClick={() => toggleCategory(item.name)} 
-                      className={`flex items-center justify-between p-2 rounded-xl transition-all group border ${
-                        isHidden 
-                          ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
-                          : 'bg-white/5 border-white/5 hover:bg-white/[0.08] hover:border-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        {/* Puce de couleur */}
-                        <div 
-                          className="w-2 h-2 rounded-full shrink-0 transition-all duration-300" 
-                          style={{ 
-                            backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
-                            boxShadow: isHidden ? 'none' : `0 0 8px ${depensesColor}44`
-                          }} 
+                return (
+                  <button 
+                    key={i} 
+                    onClick={() => toggleCategory(item.name)} 
+                    className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
+                      isHidden 
+                        ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
+                        : 'bg-white/5 border-white/5 hover:bg-white/[0.08] hover:border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      {/* Puce dynamique */}
+                      <div 
+                        className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
+                        style={{ 
+                          backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
+                          boxShadow: isHidden ? 'none' : `0 0 10px ${depensesColor}66`
+                        }} 
+                      />
+
+                      {/* Dans ton .map de la légende dans CategoriesView */}
+                        <div className="flex flex-col items-start overflow-hidden">
+                          <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
+                            isHidden ? 'text-white/20' : 'text-white/80 group-hover:text-white'
+                          }`}>
+                            {item.name}
+                          </span>
+                          
+                          {/* On affiche le badge seulement si l'évolution n'est pas null et n'est pas 0 */}
+                          {/* Dans CategoriesView, au niveau du badge d'évolution */}
+                            {!isHidden && item.evolution !== null && item.evolution !== 0 && (
+                              <div className={`flex items-center gap-1 text-[10px] font-bold mt-0.5 ${
+                                item.evolution > 0 ? 'text-rose-400' : 'text-emerald-400'
+                              }`}>
+                                {item.evolution > 0 ? <TrendingUp size={8}/> : <TrendingDown size={8}/>}
+                                
+                                {/* Pourcentage */}
+                                <span>{Math.abs(item.evolution)}%</span>
+                                
+                                {/* Séparateur discret */}
+                                <span className="opacity-20 mx-0.5">|</span>
+                                
+                                {/* Valeur en € */}
+                                <span>
+                                  {item.diffEuro > 0 ? '+' : ''}
+                                  {Math.round(item.diffEuro)}€
+                                </span>
+
+                                <span className="opacity-40 font-medium ml-0.5 italic">vs M-1</span>
+                              </div>
+                            )}
+
+                          {/* Optionnel : Un indicateur très discret si c'est nouveau, sans chiffre */}
+                          {!isHidden && item.isNew && (
+                            <span className="text-[7px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
+                              Nouveau ce mois
+                            </span>
+                          )}
+                        </div>
+                    </div>
+
+                    <div className="shrink-0 ml-2">
+                      {isHidden ? (
+                        <EyeOff size={11} className="text-white/10 transition-colors" />
+                      ) : (
+                        <Eye 
+                          size={11} 
+                          style={{ color: depensesColor }} 
+                          className="opacity-40 group-hover:opacity-100 transition-all" 
                         />
-
-                        <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
-                          isHidden ? 'text-white/30' : 'text-white/70 group-hover:text-white'
-                        }`}>
-                          {item.name}
-                        </span>
-                      </div>
-
-                      {/* ICÔNE OEIL : TOUJOURS VISIBLE */}
-                      <div className="shrink-0 ml-2">
-                        {isHidden ? (
-                          <EyeOff 
-                            size={11} 
-                            className="text-white/20 transition-colors" 
-                          />
-                        ) : (
-                          <Eye 
-                            size={11} 
-                            style={{ color: depensesColor }} 
-                            className="opacity-60 group-hover:opacity-100 transition-all" 
-                          />
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+          </div>
         </>
       ) : (
         <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black">
-          Aucune donnée
+          Aucune donnée disponible
         </div>
       )}
     </div>
@@ -2452,38 +2660,26 @@ const [masquees, setMasquees] = useState([]); // <-- Nouvel état à ajouter
 useEffect(() => {
   const chargerDonnees = async () => {
     try {
-      // On lance les deux requêtes en parallèle
+      // Axios combine l'appel et le .json()
       const [resCats, resMasquees] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/api/categories/${user}`),
-        fetch(`${import.meta.env.VITE_API_URL}/api/categories_masquees/${user}`)
+        api.get(`/api/categories/${user}`),
+        api.get(`/api/categories_masquees/${user}`)
       ]);
 
-      const dataCats = await resCats.json();
-      const dataMasquees = await resMasquees.json();
-
-      // On dispatch tout d'un coup
-      setToutesLesCategories(dataCats.all || []);
-      setCategoriesPerso(dataCats.perso || []);
-      setMasquees(dataMasquees || []); // On stocke les noms masqués
+      // Avec Axios, les données sont dans .data
+      setToutesLesCategories(resCats.data.all || []);
+      setCategoriesPerso(resCats.data.perso || []);
+      setMasquees(resMasquees.data || []);
       
     } catch (err) {
       console.error("Erreur lors du chargement des catégories:", err);
+      // Fallback : au moins afficher les catégories par défaut si l'API crash
+      setToutesLesCategories(CATEGORIES_DEFAUT_FRONT); 
     }
   };
 
   if (user) chargerDonnees();
 }, [user]);
-
-
-const categories_defaut = [
-  "💰 Salaire", "🏥 Remboursements", "🤝 Virements Reçus", "👫 Compte Commun",
-  "📱 Abonnements", "🛒 Alimentation", "🛍️ Shopping", "👕 Habillement", 
-  "⚖️ Impôts", "🏦 Frais Bancaires", "🏠 Assurance Habitation", "🎮 Jeux vidéos",
-  "🩺 Mutuelle", "💊 Pharmacie", "👨‍⚕️ Médecin/Santé", "🔑 Loyer", 
-  "🔨 Bricolage", "🚌 Transports", "⛽ Carburant", "🚗 Auto", 
-  "💸 Virements envoyé", "🏧 Retraits", "🌐 Web/Énergie", 
-  "🔄 Virement : Livret A vers CCP", "🔄 Virement : CCP vers Livret A", "❓ Autre"
-];
 
 
 const handleAdd = async (e) => {
@@ -2995,56 +3191,92 @@ const comptesDuProfil = useMemo(() => {
 
 
 const financeData = useMemo(() => {
-  // On crée une liste des noms de comptes en MAJUSCULES pour la comparaison
+  // 1. Préparation des constantes de filtrage
   const nomsComptesProfilMaj = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
-
+  
+  // On sécurise les transactions avec des IDs si manquants
   const transactionsSecurisees = (toutesLesTransactions || []).map((t, index) => ({
     ...t,
-    // Si t.id n'existe pas, on en crée un basé sur l'index (stable pour ce rendu)
     id: t.id || `tr-${index}` 
   }));
 
-  // On utilise maintenant 'transactionsSecurisees' au lieu de 'toutesLesTransactions'
-  const base = transactionsSecurisees.filter(t => {
-    const nomCompteTransac = (t.compte || "").trim().toUpperCase();
-    const categorie = (t.categorie || "").toLowerCase();
-    
-    const matchSource = filters.profil === 'Tous' || nomsComptesProfilMaj.includes(nomCompteTransac);
-    
-    const matchCible = filters.profil !== 'Tous' && 
-                        categorie.includes("vers") && 
-                        nomsComptesProfilMaj.some(nomC => categorie.toUpperCase().includes(nomC));
-
-    const matchMois = t.mois?.toString().toLowerCase().trim() === filters.mois.toLowerCase().trim();
-    const matchAnnee = t.année?.toString().trim() === filters.annee.toString().trim();
-
-    return (matchSource || matchCible) && matchMois && matchAnnee;
-  });
-
-  // ... (reste de la fonction estUnTransfert, revenusList, depensesList inchangé)
+  // 2. Logique pour déterminer le mois précédent
+  const moisFr = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  const moisIndex = moisFr.indexOf(filters.mois.toLowerCase().trim());
   
+  let moisPrecedentLabel = filters.mois;
+  let anneePrecedenteLabel = filters.annee;
+
+  if (moisIndex !== -1) {
+    // Si on est en Janvier (index 0), le mois précédent est Décembre (index 11) de l'année n-1
+    const dateRef = new Date(parseInt(filters.annee), moisIndex);
+    dateRef.setMonth(dateRef.getMonth() - 1);
+    
+    moisPrecedentLabel = moisFr[dateRef.getMonth()];
+    anneePrecedenteLabel = dateRef.getFullYear().toString();
+  }
+
+  // 3. Fonction de filtrage réutilisable (Source, Cible, Transferts)
   const estUnTransfert = (t) => {
     const cat = (t.categorie || "").toLowerCase();
     const lib = (t.nom || "").toLowerCase();
     return cat.includes('vers') || cat.includes('transfert') || lib.includes('🔄');
   };
 
-  const revenusList = base.filter(t => parseFloat(t.montant) > 0 && !estUnTransfert(t));
-  const depensesList = base.filter(t => parseFloat(t.montant) < 0 && !estUnTransfert(t));
-  const transfertsList = base.filter(t => estUnTransfert(t));
+  const filtrerParPeriode = (mois, annee) => {
+    return transactionsSecurisees.filter(t => {
+      const nomCompteTransac = (t.compte || "").trim().toUpperCase();
+      const categorie = (t.categorie || "").toLowerCase();
+      
+      // Match Profil (Source ou Cible de virement interne)
+      const matchSource = filters.profil === 'Tous' || nomsComptesProfilMaj.includes(nomCompteTransac);
+      const matchCible = filters.profil !== 'Tous' && 
+                        categorie.includes("vers") && 
+                        nomsComptesProfilMaj.some(nomC => categorie.toUpperCase().includes(nomC));
+
+      // Match Période
+      const matchMois = t.mois?.toString().toLowerCase().trim() === mois.toLowerCase().trim();
+      const matchAnnee = t.année?.toString().trim() === annee.toString().trim();
+
+      return (matchSource || matchCible) && matchMois && matchAnnee;
+    });
+  };
+
+  // 4. Extraction des deux jeux de données
+  const baseActuelle = filtrerParPeriode(filters.mois, filters.annee.toString());
+  const basePrecedente = filtrerParPeriode(moisPrecedentLabel, anneePrecedenteLabel);
+
+  // Séparation Revenus / Dépenses / Transferts (Mois Actuel)
+  const revenusList = baseActuelle.filter(t => parseFloat(t.montant) > 0 && !estUnTransfert(t));
+  const depensesList = baseActuelle.filter(t => parseFloat(t.montant) < 0 && !estUnTransfert(t));
+  const transfertsList = baseActuelle.filter(t => estUnTransfert(t));
+
+  // Séparation Dépenses (Mois Précédent) pour l'analyse comparative
+  const depensesMoisPrecedent = basePrecedente.filter(t => parseFloat(t.montant) < 0 && !estUnTransfert(t));
+
+  // 5. Calcul des totaux (Mois Actuel)
+  const totalRev = revenusList.reduce((acc, t) => acc + parseFloat(t.montant), 0);
+  const totalDep = depensesList.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant)), 0);
 
   return {
-    journal: { revenus: revenusList, depenses: depensesList, transferts: transfertsList },
+    journal: { 
+      revenus: revenusList, 
+      depenses: depensesList, 
+      transferts: transfertsList,
+      depensesMoisPrecedent: depensesMoisPrecedent // Crucial pour statsCategories
+    },
     stats: { 
-      totalRev: revenusList.reduce((acc, t) => acc + parseFloat(t.montant), 0),
-      totalDep: depensesList.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant)), 0),
-      solde: revenusList.reduce((acc, t) => acc + parseFloat(t.montant), 0) - 
-             depensesList.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant)), 0),
-      nb: base.length 
+      totalRev,
+      totalDep,
+      solde: totalRev - totalDep,
+      nb: baseActuelle.length 
+    },
+    periodeComparee: {
+      mois: moisPrecedentLabel,
+      annee: anneePrecedenteLabel
     }
   };
-}, [toutesLesTransactions, comptesDuProfil, filters.mois, filters.annee, filters.profil]); 
-// Note : j'ai ajouté comptesDuProfil en dépendance, c'est plus propre
+}, [toutesLesTransactions, comptesDuProfil, filters.mois, filters.annee, filters.profil]);
 
 
 
@@ -3168,20 +3400,42 @@ const soldesTries = useMemo(() => {
 
 
 const statsCategories = useMemo(() => {
-  const depenses = financeData.journal.depenses || [];
-  const recap = {};
+  const depensesActuelles = financeData.journal.depenses || [];
+  const depensesPrecedentes = financeData.journal.depensesMoisPrecedent || [];
 
-  depenses.forEach(t => {
+  const recapActuel = {};
+  depensesActuelles.forEach(t => {
     const cat = t.categorie || "Autre";
-    const montant = Math.abs(parseFloat(t.montant) || 0);
-    recap[cat] = (recap[cat] || 0) + montant;
+    recapActuel[cat] = (recapActuel[cat] || 0) + Math.abs(parseFloat(t.montant) || 0);
   });
 
-  // Transformer en tableau et trier par montant décroissant
-  return Object.entries(recap)
-    .map(([name, value]) => ({ name, value }))
+  const recapPrecedent = {};
+  depensesPrecedentes.forEach(t => {
+    const cat = t.categorie || "Autre";
+    recapPrecedent[cat] = (recapPrecedent[cat] || 0) + Math.abs(parseFloat(t.montant) || 0);
+  });
+
+  return Object.entries(recapActuel)
+    .map(([name, value]) => {
+      const valeurMoisPrecedent = recapPrecedent[name] || 0;
+      let evolution = null;
+      let diffEuro = 0;
+
+      if (valeurMoisPrecedent > 0) {
+        evolution = Math.round(((value - valeurMoisPrecedent) / valeurMoisPrecedent) * 100);
+        diffEuro = value - valeurMoisPrecedent; // Différence brute en €
+      }
+
+      return { 
+        name, 
+        value, 
+        evolution, 
+        diffEuro, 
+        isNew: valeurMoisPrecedent === 0 
+      };
+    })
     .sort((a, b) => b.value - a.value);
-}, [financeData.journal.depenses]);
+}, [financeData.journal.depenses, financeData.journal.depensesMoisPrecedent]);
 
 
   const chartData = statsCategories.filter(item => !hiddenCategories.includes(item.name));
@@ -3836,23 +4090,25 @@ const confirmDeletecat = async () => {
 // Cette ligne doit être déclarée à chaque rendu, juste avant le "return"
 const categoriesVisibles = toutesLesCategories.filter(cat => !masquees.includes(cat));
 
-// --- 3. Ta fonction d'action ---
 const toggleVisibility = async (catName) => {
-  let nouvelleListe;
-  if (masquees.includes(catName)) {
-    nouvelleListe = masquees.filter(c => c !== catName);
-  } else {
-    nouvelleListe = [...masquees, catName];
-  }
+  // 1. Calcul de la nouvelle liste
+  const nouvelleListe = masquees.includes(catName)
+    ? masquees.filter(c => c !== catName)
+    : [...masquees, catName];
   
+  // 2. Mise à jour instantanée de l'UI (Optimistic Update)
   setMasquees(nouvelleListe); 
-  
 
-  await fetch(`${import.meta.env.VITE_API_URL}/api/categories_masquees/${user}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(nouvelleListe)
-  });
+  try {
+    // 3. Sauvegarde en BDD via ton instance Axios 'api'
+    // Note : On utilise 'api.post' et non 'fetch'
+    await api.post(`/api/categories_masquees/${user}`, nouvelleListe);
+    console.log("✅ Préférences de visibilité sauvegardées");
+  } catch (err) {
+    console.error("❌ Erreur lors de la sauvegarde SQL:", err);
+    // Optionnel : revenir à l'état précédent en cas d'erreur
+    // setMasquees(masquees); 
+  }
 };
 
 
@@ -4727,6 +4983,59 @@ const transactionsFiltrees = transactionsAAfficher.filter(t =>
   t.categorie?.toLowerCase().includes(searchTerm.toLowerCase())
 );
 
+const [annualTab, setAnnualTab] = useState('list'); // 'list' sera la vue par défaut
+const statsAnnuellesCategories = useMemo(() => {
+  const recap = {};
+  let totalAnnuel = 0;
+
+  // 1. IDENTIFIER LES COMPTES APPARTENANT AU PROFIL (Comme dans ton tableau)
+  const comptesDuProfil = comptes.filter(c => 
+    filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
+  );
+  const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
+
+  // 2. FILTRER LES TRANSACTIONS PAR ANNÉE ET PAR COMPTES DU PROFIL
+  const transAnnee = (toutesLesTransactions || []).filter(t => {
+    const matchAnnee = t.année?.toString().trim() === filters.annee.toString().trim();
+    // La transaction appartient au profil si son compte est dans la liste nomsComptesProfil
+    const matchCompteProfil = nomsComptesProfil.includes(t.compte?.trim().toUpperCase());
+    
+    return matchAnnee && matchCompteProfil;
+  });
+
+  // 3. CALCULER LA RÉPARTITION
+  transAnnee.forEach(t => {
+    const montant = parseFloat(t.montant) || 0;
+    const cat = t.categorie || "Autre";
+    const lib = (t.nom || "").toLowerCase();
+    
+    // Logique d'exclusion des transferts (identique à ton tableau)
+    const estTransfert = 
+      cat.toLowerCase().includes('vers') || 
+      cat.toLowerCase().includes('transfert') || 
+      lib.includes('🔄');
+
+    // On ne prend que les dépenses (montant < 0)
+    if (montant < 0 && !estTransfert) {
+      const absMontant = Math.abs(montant);
+      recap[cat] = (recap[cat] || 0) + absMontant;
+      totalAnnuel += absMontant;
+    }
+  });
+
+  // 4. FORMATAGE POUR RECHARTS
+  return Object.entries(recap)
+    .map(([name, value]) => ({
+      name,
+      value,
+      percent: totalAnnuel > 0 ? Math.round((value / totalAnnuel) * 100) : 0
+    }))
+    .sort((a, b) => b.value - a.value);
+
+}, [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
+// On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
+
+
 
 useEffect(() => {
   if (user) {
@@ -5333,19 +5642,19 @@ if (!user) {
                                   .sort((a, b) => new Date(b.date) - new Date(a.date))
                                   .map((t, i) => (
                                    <TransactionCard 
-  key={i} 
-  t={t} 
-  color={
-    tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
-    tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
-    '#6366f1' // Remplace var(--primary) par une couleur Hex si ça bug
-  }
-  bg={
-    tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
-    tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
-    'rgba(99, 102, 241, 0.1)'
-  }
-/>
+                                    key={i} 
+                                    t={t} 
+                                    color={
+                                      tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
+                                      tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
+                                      '#6366f1' // Remplace var(--primary) par une couleur Hex si ça bug
+                                    }
+                                    bg={
+                                      tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
+                                      tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
+                                      'rgba(99, 102, 241, 0.1)'
+                                    }
+                                  />
                                   ));
                               } 
                               
@@ -5466,165 +5775,183 @@ if (!user) {
                 {/* COLONNE 2 : RECAP ANNUEL */}
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[500px] lg:h-full min-h-0">
                   <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-md">
-                    <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
-                        <div className="flex flex-col">
-                          {/* Titre avec dégradé et année en retrait vertical */}
-                          <div className="flex items-baseline gap-3">
-                            <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-                              Bilan Annuel
-                            </h3>
-                            
-                            {/* Séparateur vertical et infos temporelles */}
-                            <div className="border-l border-white/10 pl-3 flex flex-col">
-                              <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
-                                {filters.annee}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* La barre décorative émeraude */}
-                          <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-                        </div>
-                      </div>
                     
-                    <div className="flex-1 overflow-y-auto p-2 custom-scrollbar min-h-0">
-                      {/* EN-TÊTE DISCRET */}
-                      <div className="grid grid-cols-5 px-6 mb-2">
-                        {['Mois', 'Revenus', 'Dépenses', 'Épargne', 'Cumul'].map((h) => (
-                          <span key={h} className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20 last:text-right">
-                            {h}
-                          </span>
-                        ))}
+                    {/* EN-TÊTE FIXE */}
+                    <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <div className="flex items-baseline gap-3">
+                          <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+                            Bilan Annuel
+                          </h3>
+                          <div className="border-l border-white/10 pl-3 flex flex-col">
+                            <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
+                              {filters.annee}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
                       </div>
 
-                      <div className="space-y-2">
-                        {recapAnnuelStats.map((m, i) => (
-                          <div 
-                            key={i} 
-                            className="grid grid-cols-5 items-center px-4 py-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-all duration-200 group"
-                          >
-                            {/* MOIS */}
-                            <div className="flex flex-col">
-                              <span className="text-[10px] font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors">
-                                {m.nom}
+                      {/* SELECTEUR DE TABS */}
+                      <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                        <button 
+                          onClick={() => setAnnualTab('list')}
+                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                            annualTab === 'list' ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/60'
+                          }`}
+                        >
+                          <List size={14} />
+                        </button>
+                        <button 
+                          onClick={() => setAnnualTab('chart')}
+                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                            annualTab === 'chart' ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/60'
+                          }`}
+                        >
+                          <PieChartIcon size={14} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* CONTENU DYNAMIQUE */}
+                    <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
+                      {annualTab === 'list' ? (
+                        <div className="flex flex-col h-full">
+                          {/* EN-TÊTE DISCRET */}
+                          <div className="grid grid-cols-5 px-6 mb-2 shrink-0">
+                            {['Mois', 'Revenus', 'Dépenses', 'Épargne', 'Cumul'].map((h) => (
+                              <span key={h} className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20 last:text-right">
+                                {h}
                               </span>
-                            </div>
-
-                            {/* REVENUS */}
-                            <div 
-                              className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap"
-                              style={{ color: `${userTheme.color_revenus}e6` }} // e6 = 90% opacité
-                            >
-                              {m.revenus !== null && m.revenus > 0 
-                                ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` 
-                                : '—'}
-                            </div>
-
-                            {/* DÉPENSES */}
-                            <div 
-                              className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap"
-                              style={{ color: `${userTheme.color_depenses}e6` }}
-                            >
-                              {m.depenses > 0 
-                                ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
-                                : <span className="text-[var(--text-main)]/5">—</span>}
-                            </div>
-
-                            {/* ÉPARGNE */}
-                            <div>
-                              <span 
-                                className="inline-block px-1.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black whitespace-nowrap"
-                                style={{ 
-                                  backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, // 1a = 10% opacité fond
-                                  color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses 
-                                }}
-                              >
-                                {m.epargne !== null 
-                                  ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
-                                  : '—'
-                                }
-                              </span>
-                            </div>
-
-                            {/* SOLDE TOTAL (CUMUL / PATRIMOINE) */}
-                            <div className="text-right col-span-1">
-                              <div className="flex flex-col items-end">
-                                <div 
-                                  className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tighter leading-none whitespace-nowrap"
-                                  style={{ color: userTheme.color_patrimoine }}
-                                >
-                                  {m.soldeTotal !== null 
-                                    ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
-                                    : <span className="text-[var(--text-main)]/10">—</span>
-                                  }
-                                </div>
-                                
-                              </div>
-                            </div>
+                            ))}
                           </div>
-                        ))}
+
+                          {/* ZONE SCROLLABLE (LISTE) */}
+                          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                            {recapAnnuelStats.map((m, i) => (
+                              <div 
+                                key={i} 
+                                className="grid grid-cols-5 items-center px-4 py-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-all duration-200 group"
+                              >
+                                {/* MOIS */}
+                                <div className="flex flex-col">
+                                  <span className="text-[10px] font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors">
+                                    {m.nom}
+                                  </span>
+                                </div>
+
+                                {/* REVENUS (Text Grand) */}
+                                <div 
+                                  className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap"
+                                  style={{ color: `${userTheme.color_revenus}e6` }}
+                                >
+                                  {m.revenus !== null && m.revenus > 0 
+                                    ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` 
+                                    : '—'}
+                                </div>
+
+                                {/* DÉPENSES (Text Grand) */}
+                                <div 
+                                  className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap"
+                                  style={{ color: `${userTheme.color_depenses}e6` }}
+                                >
+                                  {m.depenses > 0 
+                                    ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
+                                    : <span className="text-[var(--text-main)]/5">—</span>}
+                                </div>
+
+                                {/* ÉPARGNE */}
+                                <div>
+                                  <span 
+                                    className="inline-block px-1.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black whitespace-nowrap"
+                                    style={{ 
+                                      backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`,
+                                      color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses 
+                                    }}
+                                  >
+                                    {m.epargne !== null 
+                                      ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
+                                      : '—'}
+                                  </span>
+                                </div>
+
+                                {/* SOLDE TOTAL (Le plus grand) */}
+                                <div className="text-right col-span-1">
+                                  <div 
+                                    className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tighter leading-none whitespace-nowrap"
+                                    style={{ color: userTheme.color_patrimoine }}
+                                  >
+                                    {m.soldeTotal !== null 
+                                      ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
+                                      : <span className="text-[var(--text-main)]/10">—</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        /* VUE GRAPHIQUE */
+                        <div className="h-full w-full animate-in fade-in duration-500">
+                         <AnnualCategoriesChart 
+                            data={statsAnnuellesCategories} 
+                            userTheme={userTheme} 
+                            currentYear={filters.annee} 
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* CARTE DE SYNTHÈSE TOTAUX (FIXE EN BAS) */}
+                  <div className="mt-4 p-5 bg-white/[0.03] border border-white/10 rounded-[var(--radius)] backdrop-blur-xl shadow-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-main)]/30">Totaux Annuel</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-bold text-[var(--text-main)]/20 uppercase">Taux d'effort :</span>
+                        <span className="text-xs font-black text-emerald-400">{tauxEpargneMoyen}%</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
+                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">Total Revenus</p>
+                        <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_revenus }}>
+                          {totauxAnnuels.revenus.toLocaleString('fr-FR')}€
+                        </p>
+                      </div>
+                      <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
+                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">Total Dépenses</p>
+                        <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_depenses }}>
+                          -{totauxAnnuels.depenses.toLocaleString('fr-FR')}€
+                        </p>
+                      </div>
+                      <div className="relative overflow-hidden bg-white/5 p-3 rounded-2xl border border-white/10 group">
+                        <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1 italic">Net Épargné</p>
+                        <p className="text-xl font-black tracking-tighter" style={{ color: userTheme.color_epargne }}>
+                          {totauxAnnuels.epargne.toLocaleString('fr-FR')}€
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-1.5">
+                      <div className="flex justify-between text-[8px] font-black uppercase text-[var(--text-main)]/20">
+                        <span>Consommé</span>
+                        <span>Épargné ({tauxEpargneMoyen}%)</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden flex border border-white/5">
+                        <div 
+                          className="h-full bg-rose-500/50 transition-all duration-1000" 
+                          style={{ width: `${100 - tauxEpargneMoyen}%` }}
+                        />
+                        <div 
+                          className="h-full bg-emerald-500 transition-all duration-1000 shadow-[0_0_10px_#10b981]" 
+                          style={{ width: `${tauxEpargneMoyen}%` }}
+                        />
                       </div>
                     </div>
                   </div>
-                  {/* CARTE DE SYNTHÈSE ANNUELLE SÉPARÉE */}
-                    <div className="mt-4 p-5 bg-white/[0.03] border border-white/10 rounded-[var(--radius)] backdrop-blur-xl shadow-xl animate-in fade-in slide-in-from-bottom-4 duration-700">
-                      <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-main)]/30">Totaux Annuel</h4>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-bold text-[var(--text-main)]/20 uppercase">Taux d'effort :</span>
-                          <span className="text-xs font-black text-emerald-400">{tauxEpargneMoyen}%</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4">
-                        {/* REVENUS CUMULÉS */}
-                        <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                          <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">Total Revenus</p>
-                          <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_revenus }}>
-                            {totauxAnnuels.revenus.toLocaleString('fr-FR')}€
-                          </p>
-                        </div>
-
-                        {/* DÉPENSES CUMULÉES */}
-                        <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                          <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">Total Dépenses</p>
-                          <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_depenses }}>
-                            -{totauxAnnuels.depenses.toLocaleString('fr-FR')}€
-                          </p>
-                        </div>
-
-                        {/* ÉPARGNE CUMULÉE */}
-                        <div className="relative overflow-hidden bg-white/5 p-3 rounded-2xl border border-white/10 group">
-                          {/* Petit effet de brillance au survol */}
-                          <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                          
-                          <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1 italic">Net Épargné</p>
-                          <p className="text-xl font-black tracking-tighter"style={{ color: userTheme.color_epargne }}>
-                            {totauxAnnuels.epargne.toLocaleString('fr-FR')}€
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* BARRE DE PROGRESSION VISUELLE (Ratio Revenus / Épargne) */}
-                      <div className="mt-4 space-y-1.5">
-                        <div className="flex justify-between text-[8px] font-black uppercase text-[var(--text-main)]/20">
-                          <span>Consommé</span>
-                          <span>Épargné ({tauxEpargneMoyen}%)</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden flex border border-white/5">
-                          <div 
-                            className="h-full bg-rose-500/50 transition-all duration-1000" 
-                            style={{ width: `${100 - tauxEpargneMoyen}%` }}
-                          />
-                          <div 
-                            className="h-full bg-emerald-500 transition-all duration-1000 shadow-[0_0_10px_#10b981]" 
-                            style={{ width: `${tauxEpargneMoyen}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-
                 </div>
 
 
@@ -6849,7 +7176,7 @@ if (!user) {
           {/* --- SOUS-BLOC GRAPHIQUE (35%) --- */}
           <div className="flex-1 flex flex-col bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[var(--radius)] shadow-2xl p-4 min-w-[300px]">
             <div className="flex items-center gap-2 mb-4 px-2">
-              <PieChart size={14} className="text-[var(--text-main)]/40" />
+              <PieChartIcon size={14} className="text-[var(--text-main)]/40" />
               <h3 className="text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-widest italic">Analyse Prévue</h3>
             </div>
             
