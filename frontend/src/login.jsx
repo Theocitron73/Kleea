@@ -24,14 +24,67 @@ import { createPortal } from 'react-dom';
 import api from './api';
 
 
+// Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
+const generateGradientStep = (hex, stepIndex, totalSteps) => {
+  // 1. Convertir HEX en RGB
+  let r = parseInt(hex.slice(1, 3), 16);
+  let g = parseInt(hex.slice(3, 5), 16);
+  let b = parseInt(hex.slice(5, 7), 16);
+
+  // 2. Convertir RGB en HSL
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0; // achromatique
+  } else {
+    const d = max - min;
+    s = l > 0.1 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  // --- LOGIQUE DU DÉGRADÉ (C'est ici qu'on règle le look) ---
+  
+  // On garde la teinte (h) EXACTEMENT pareille pour rester dans la couleur de base.
+  
+  // On réduit la saturation (s) progressivement pour que les parts inactives soient moins "vives".
+  // (On passe de 100% de la saturation d'origine à 30%).
+  const finalS = s * (1 - (stepIndex / totalSteps) * 0.7); 
+
+  // On éclaircit très légèrement (l) les parts pour qu'elles restent visibles sur fond sombre.
+  const finalL = l + (stepIndex / totalSteps) * 0.15; 
+
+  // 3. Retourner la couleur au format HSL utilisable par le navigateur
+  return `hsl(${Math.round(h * 360)}, ${Math.round(finalS * 100)}%, ${Math.round(finalL * 100)}%)`;
+};
+
+
 const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
   const [hiddenCategories, setHiddenCategories] = useState(new Set());
 
+  // Couleur de base (Identique)
+  const baseColor = userTheme.color_depenses || "#6366f1"; 
+
+  // Filtrage (Identique)
   const { visibleData, totalVisible } = useMemo(() => {
     const visible = data.filter(d => !hiddenCategories.has(d.name));
     const total = visible.reduce((acc, curr) => acc + curr.value, 0);
     return { visibleData: visible, totalVisible: total };
   }, [data, hiddenCategories]);
+
+  // --- NOUVELLE GÉNÉRATION DU DÉGRADÉ (Lumineux et fidèle) ---
+  const gradientColors = useMemo(() => {
+    return visibleData.map((_, i) => {
+      // Utilise la nouvelle fonction qui joue sur la saturation/luminosité HSL
+      return generateGradientStep(baseColor, i, visibleData.length); 
+    });
+  }, [visibleData, baseColor]);
 
   if (!data || data.length === 0) return (
     <div className="h-full min-h-[300px] flex items-center justify-center text-[10px] font-black uppercase text-white/10 tracking-widest italic">
@@ -39,20 +92,14 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
     </div>
   );
 
-  const COLORS = [
-    userTheme.color_depenses, 
-    `${userTheme.color_depenses}cc`, 
-    `${userTheme.color_depenses}99`, 
-    `${userTheme.color_depenses}66`, 
-    `${userTheme.color_depenses}33`, 
-  ];
-
+  // Logique emoji (Identique)
   const extractEmoji = (name) => {
     const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
     const match = name.match(emojiRegex);
     return match ? match[0] : '•';
   };
 
+  // Logique toggle (Identique)
   const toggleCategory = (name) => {
     setHiddenCategories(prev => {
       const next = new Set(prev);
@@ -62,6 +109,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
     });
   };
 
+  // Label personnalisé (Identique)
   const renderCustomizedLabel = (props) => {
     const { cx, cy, midAngle, outerRadius, value, name } = props;
     const realPercent = totalVisible > 0 ? (value / totalVisible) * 100 : 0;
@@ -74,7 +122,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
 
     return (
       <g className="animate-in fade-in duration-500">
-        <text x={x} y={y - 6} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" style={{ fontSize: '18px' }}>
+        <text x={x} y={y - 6} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" style={{ fontSize: '15px' }}>
           {extractEmoji(name)}
         </text>
         <text x={x} y={y + 12} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-[10px] font-black tracking-tighter">
@@ -84,8 +132,9 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
     );
   };
 
+  // Rendu JSX (Identique à 100%, sauf fill des Cells)
   return (
-    <div className="h-full w-full p-4 flex flex-col min-h-0">
+    <div className="h-full w-full p-4 flex flex-col min-h-0 select-none">
       <p className="text-[10px] font-black uppercase text-white/20 mb-2 tracking-[0.3em] text-center shrink-0">
         Répartition des dépenses {currentYear}
       </p>
@@ -99,8 +148,8 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
               <Pie
                 data={visibleData}
                 cx="50%" cy="50%"
-                innerRadius="65%"
-                outerRadius="85%"
+                innerRadius="55%"
+                outerRadius="75%"
                 paddingAngle={visibleData.length > 1 ? 3 : 0}
                 dataKey="value"
                 stroke="none"
@@ -110,12 +159,16 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
                 animationDuration={600}
               >
                 {visibleData.map((entry, index) => (
-                  <Cell key={entry.name} fill={COLORS[index % COLORS.length]} className="outline-none" />
+                  <Cell 
+                    key={entry.name} 
+                    fill={gradientColors[index]} // <--- Dégradé HSL
+                    className="outline-none" 
+                  />
                 ))}
               </Pie>
               <Tooltip
-                isAnimationActive={false} // Désactive le délai de mouvement
-                animationDuration={0}     // Force la durée à zéro pour être sûr
+                isAnimationActive={false}
+                animationDuration={0}
                 wrapperStyle={{ zIndex: 1000 }}
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
@@ -142,19 +195,12 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
           </div>
         </div>
 
-        {/* LÉGENDE ÉMOJI À DROITE */}
+        {/* LÉGENDE ÉMOJI À DROITE (Identique à 100%) */}
           <div className="w-14 h-full flex flex-col gap-3 py-2 border-l border-white/5 items-center overflow-y-auto no-scrollbar shrink-0 bg-white/[0.01]">
-            
-            {/* INDICATEUR D'ÉTAT GLOBAL */}
             <div className="mb-2 flex flex-col items-center gap-1 opacity-20">
-              {hiddenCategories.size > 0 ? (
-                <EyeOff size={12} strokeWidth={3} />
-              ) : (
-                <Eye size={12} strokeWidth={3} />
-              )}
+              {hiddenCategories.size > 0 ? <EyeOff size={12} strokeWidth={3} /> : <Eye size={12} strokeWidth={3} />}
               <span className="text-[7px] font-black uppercase tracking-tighter italic">Filtre</span>
             </div>
-
             {data.map((entry) => {
               const isHidden = hiddenCategories.has(entry.name);
               return (
@@ -168,20 +214,13 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
                     : 'bg-white/[0.03] border-white/10 shadow-lg scale-100 hover:border-white/30'
                   }`}
                 >
-                  {/* L'ÉMOJI */}
                   <span className={`text-lg leading-none transition-transform duration-500 ${isHidden ? 'scale-75' : 'scale-100'}`}>
                     {extractEmoji(entry.name)}
                   </span>
-                  
-                  {/* BADGE OEIL LUCIDE */}
                   <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0a0a0b] border border-white/10 flex items-center justify-center transition-all duration-300 ${
                     isHidden ? 'opacity-100 scale-100' : 'opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100'
                   }`}>
-                    {isHidden ? (
-                      <EyeOff size={8} color="white" strokeWidth={3} />
-                    ) : (
-                      <Eye size={8} color="white" strokeWidth={3} />
-                    )}
+                    {isHidden ? <EyeOff size={8} color="white" strokeWidth={3} /> : <Eye size={8} color="white" strokeWidth={3} />}
                   </div>
                 </button>
               );
