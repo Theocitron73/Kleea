@@ -4765,12 +4765,8 @@ const recapPrevisionsStats = useMemo(() => {
   const anneeActuelle = maintenant.getFullYear();
   const anneeFiltre = parseInt(filters.annee);
 
-  const moisPassesEtPresent = recapAnnuelStats.filter(m => m.soldeTotal !== null);
-  const dernierStatsReel = moisPassesEtPresent[moisPassesEtPresent.length - 1];
-  
-  let cumulMobile = dernierStatsReel ? dernierStatsReel.soldeTotal : 0;
+  let cumulMobile = 0;
 
-  // Fonction utilitaire pour détecter un transfert dans les prévisions
   const estUnTransfertPrevi = (p) => {
     const cat = (p.categorie || "").toLowerCase();
     const nom = (p.nom || "").toLowerCase();
@@ -4780,47 +4776,53 @@ const recapPrevisionsStats = useMemo(() => {
   return moisListe.map((moisObj, indexMois) => {
     const estFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMois > moisActuelIdx);
     const estMoisEnCours = (anneeFiltre === anneeActuelle && indexMois === moisActuelIdx);
+    const estPasse = !estFutur && !estMoisEnCours;
 
-    if (!estFutur && !estMoisEnCours) {
-      return { ...recapAnnuelStats[indexMois], type: 'réel' };
-    }
-
-    // CHANGEMENT ICI : On vérifie si le mois est exclu
     const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
     const estMasque = excludedMonths.includes(nomMoisComplet);
 
-    // On utilise previsionsActivesPourRecap pour filtrer les données du mois
+    // Données réelles (Toujours conservées)
+    const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0, soldeTotal: 0 };
+
+    if (estPasse) {
+      cumulMobile = statsReelles.soldeTotal ?? cumulMobile;
+      return { ...statsReelles, type: 'réel' };
+    }
+
+    // --- CALCUL DES PRÉVISIONS ---
     const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
       const d = new Date(p.date);
       return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
     });
 
-    const rev = previsionsDuMois
+    // On calcule les prévisions, mais on les passe à 0 si le mois est masqué
+    const revPrevi = estMasque ? 0 : previsionsDuMois
       .filter(p => p.montant > 0 && !estUnTransfertPrevi(p))
       .reduce((acc, p) => acc + (parseFloat(p.montant) || 0), 0);
       
-    const dep = previsionsDuMois
+    const depPrevi = estMasque ? 0 : previsionsDuMois
       .filter(p => p.montant < 0 && !estUnTransfertPrevi(p))
       .reduce((acc, p) => acc + Math.abs(parseFloat(p.montant) || 0), 0);
 
-    const balanceMois = rev - dep;
+    // --- FUSION ---
+    // Les revenus/dépenses affichés sont : Réel (toujours) + Prévi (si pas masqué)
+    const totalRev = statsReelles.revenus + revPrevi;
+    const totalDep = statsReelles.depenses + depPrevi;
+    const balanceMois = totalRev - totalDep;
 
-    // Le cumul ne bouge que si le mois n'est pas masqué
-    if ((estFutur || estMoisEnCours) && !estMasque) {
-      cumulMobile += balanceMois;
-    }
+    // Le cumul prend en compte le réel + les prévi non masquées
+    cumulMobile += balanceMois;
 
     return {
       nom: moisObj.l,
-      revenus: estMasque ? 0 : rev, // On affiche 0 si masqué
-      depenses: estMasque ? 0 : dep,
-      epargne: estMasque ? 0 : balanceMois,
-      soldeTotal: cumulMobile, // Le cumul reste à jour avec les mois actifs uniquement
-      type: 'projeté',
-      isMasque: estMasque // Petit flag utile pour griser la ligne dans le JSX
+      revenus: totalRev,
+      depenses: totalDep,
+      epargne: balanceMois,
+      soldeTotal: cumulMobile,
+      type: estMoisEnCours ? 'mixte' : 'projeté',
+      isMasque: estMasque // On garde le flag pour le style visuel
     };
   });
-  // CHANGEMENT ICI : previsionsActivesPourRecap en dépendance
 }, [recapAnnuelStats, previsionsActivesPourRecap, filters.annee, moisListe, excludedMonths]);
 
 
@@ -7316,7 +7318,8 @@ if (!user) {
           <div className="space-y-2">
           {/* Dans ton map du tableau de droite */}
             {recapPrevisionsStats.map((m, i) => {
-              const isProjected = m.type === 'projeté';
+              // On considère comme "actif" (non grisé) tout ce qui n'est pas du réel pur passé
+              const estInteractif = m.type === 'projeté' || m.type === 'mixte';
               
               return (
                 <div 
@@ -7324,10 +7327,11 @@ if (!user) {
                   className={`
                     grid grid-cols-5 items-center px-4 py-4 rounded-[var(--radius)] border 
                     transition-all duration-300 group backdrop-blur-sm
-                    ${isProjected 
-                      ? 'bg-white/[0.03] border-white/5 shadow-inner hover:bg-white/[0.06] hover:border-white/10' 
-                      : 'bg-white/[0.01] border-white/[0.02] opacity-50 hover:opacity-80'
+                    ${estInteractif 
+                      ? 'bg-white/[0.03] border-white/5 shadow-inner hover:bg-white/[0.06] hover:border-white/10 opacity-100' 
+                      : 'bg-white/[0.01] border-white/[0.02] opacity-40 hover:opacity-70'
                     }
+                    ${m.isMasque ? 'grayscale opacity-20' : ''} 
                   `}
                 >
                   {/* 1. MOIS & TYPE */}
@@ -7374,10 +7378,10 @@ if (!user) {
                   {/* 5. SOLDE TOTAL (CUMUL) */}
                   <div className="text-right">
                     <div 
-                      className={`text-[15px] font-black tracking-tighter transition-all duration-500 ${isProjected ? '' : 'text-[var(--text-main)]/20'}`}
+                      className={`text-[15px] font-black tracking-tighter transition-all duration-500 ${estInteractif ? '' : 'text-[var(--text-main)]/20'}`}
                       style={{ 
-                        color: isProjected ? userTheme.color_revenus : undefined,
-                        textShadow: isProjected ? `0 0 15px ${userTheme.color_patrimoine}30` : 'none'
+                        color: estInteractif ? userTheme.color_revenus : undefined,
+                        textShadow: estInteractif ? `0 0 15px ${userTheme.color_patrimoine}30` : 'none'
                       }}
                     >
                       {m.soldeTotal?.toLocaleString('fr-FR')}
