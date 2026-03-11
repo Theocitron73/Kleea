@@ -8,7 +8,8 @@ import {
 } from 'recharts';
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
-  Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon
+  Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays  
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -3196,6 +3197,7 @@ useEffect(() => {
     { id: 'comptes', label: 'Comptes', icon: Wallet },
     { id: 'tricount', label: 'Tricount', icon: Users2 },
     { id: 'theme', label: 'Thème', icon: Palette },
+    { id: 'Guide', label: 'Guide', icon: FileText },
   ];
 
   const visibleMenuItems = menuItems.filter(item => {
@@ -9023,6 +9025,252 @@ if (!user) {
   </div>
 )}
        
+
+
+{activeTab === 'Guide' && (
+  <div className="w-full p-4 md:p-8 space-y-16 animate-in fade-in duration-700 pb-32">
+    
+    {/* INTRO HERO */}
+    <div className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 overflow-hidden text-center flex flex-col items-center">
+      <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[150%] bg-[var(--primary)]/10 blur-[120px] rounded-full pointer-events-none" />
+      <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-white mb-6 relative z-10">
+        Maîtrisez <span className="text-[var(--primary)] italic">Kleea</span>
+      </h2>
+      <p className="text-white/50 text-sm md:text-base max-w-2xl font-medium leading-relaxed relative z-10">
+        Découvrez comment exploiter chaque module de votre écosystème financier. De l'importation automatisée par l'IA jusqu'aux projections annuelles et enveloppes virtuelles.
+      </p>
+    </div>
+
+    {/* GRILLE DES FONCTIONNALITÉS */}
+    <div className="space-y-24">
+
+      {/* --- 1. INFRASTRUCTURE & IMPORTATION --- */}
+      <section className="space-y-8">
+        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20">
+            <Database size={24} />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tight text-white">1. Les Fondations</h3>
+            <p className="text-blue-400/60 text-[10px] font-bold uppercase tracking-widest">Comptes & Imports CSV</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] hover:bg-white/[0.04] transition-all">
+            <Wallet className="text-blue-400 mb-4" size={24} />
+            <h4 className="text-white font-bold text-sm uppercase mb-3">La Page Comptes</h4>
+            <ul className="space-y-3 text-sm text-white/50 leading-relaxed">
+              <li><strong className="text-white">Création :</strong> Définissez vos comptes (Courant, Livret, etc.), leur solde actuel et assignez-les à un <em>Groupe/Profil</em> (ex: Perso, Pro, Commun).</li>
+              <li><strong className="text-white">Objectifs d'épargne :</strong> Saisissez une cible financière. Le Dashboard calculera automatiquement votre progression sous forme de jauge.</li>
+              <li><strong className="text-white">Personnalisation :</strong> Modifiez la couleur de chaque compte d'un simple clic sur sa pastille colorée. C'est cette couleur qui représentera le compte sur tous les graphiques.</li>
+            </ul>
+          </div>
+
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] hover:bg-white/[0.04] transition-all">
+            <UploadCloud className="text-blue-400 mb-4" size={24} />
+            <h4 className="text-white font-bold text-sm uppercase mb-3">Le Moteur d'Importation</h4>
+            <ul className="space-y-3 text-sm text-white/50 leading-relaxed">
+              <li><strong className="text-white">Glisser-Déposer :</strong> Récupérez le fichier CSV fourni par votre banque et glissez-le dans la zone dédiée.</li>
+              <li><strong className="text-white">Guide des banques :</strong> Un bouton "?" en haut à droite vous explique comment extraire un CSV depuis Boursorama, Crédit Agricole, Revolut, etc.</li>
+              <li><strong className="text-white">Validation :</strong> Vérifiez le récapitulatif (Revenus/Dépenses détectés) avant de valider l'importation de masse.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* --- 2. LE CENTRE DE CONTRÔLE (GÉRER) --- */}
+      <section className="space-y-8">
+        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 border border-purple-500/20">
+            <Settings2 size={24} />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tight text-white">2. Le Centre de Contrôle</h3>
+            <p className="text-purple-400/60 text-[10px] font-bold uppercase tracking-widest">Page Gérer & Intelligence</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] relative overflow-hidden">
+            <List className="text-purple-400 mb-4 relative z-10" size={24} />
+            <h4 className="text-white font-bold text-sm uppercase mb-3 relative z-10">Le Tableau d'Édition</h4>
+            <p className="text-white/50 text-sm leading-relaxed mb-4 relative z-10">
+              C'est ici que vous corrigez et affinez vos transactions. Le tableau est interactif :
+            </p>
+            <ul className="space-y-2 text-xs text-white/40 relative z-10">
+              <li>• <strong className="text-white/80">Édition rapide :</strong> Cliquez directement sur un nom de transaction pour le modifier.</li>
+              <li>• <strong className="text-white/80">Changement de mois :</strong> Très utile pour une dépense effectuée le 30 du mois que vous souhaitez imputer au budget du mois suivant.</li>
+              <li>• <strong className="text-white/80">Sélection multiple :</strong> Utilisez les cases à cocher pour supprimer plusieurs lignes d'un coup via le menu flottant.</li>
+            </ul>
+          </div>
+
+          <div className="bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/20 p-6 rounded-[2rem] shadow-[0_0_30px_rgba(168,85,247,0.1)]">
+            <Brain className="text-purple-400 mb-4" size={24} />
+            <h4 className="text-white font-bold text-sm uppercase mb-3">Le Système Kleea Brain</h4>
+            <p className="text-white/50 text-xs leading-relaxed mb-4">
+              L'application apprend de vous. Dans la barre de droite, activez <strong>l'Apprentissage</strong>. 
+            </p>
+            <p className="text-white/50 text-xs leading-relaxed">
+              Dès lors, si vous recatégorisez "Uber" en "Alimentation", le système mémorisera le mot-clé. Au prochain import CSV, tous les futurs "Uber" seront automatiquement classés !
+            </p>
+          </div>
+        </div>
+
+        {/* Sous-section : Lexique & Budgets */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+            <Tag className="text-white/40 mb-3" size={20} />
+            <h4 className="text-white font-bold text-sm uppercase mb-2">Lexique & Émojis</h4>
+            <p className="text-white/50 text-xs leading-relaxed">
+              Créez vos propres catégories avec le sélecteur d'émojis intégré. Si certaines catégories par défaut ne vous servent pas, cliquez sur "Gérer mes catégories" pour masquer celles qui encombrent vos menus.
+            </p>
+          </div>
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+            <Target className="text-rose-400 mb-3" size={20} />
+            <h4 className="text-white font-bold text-sm uppercase mb-2">Limites Budgétaires</h4>
+            <p className="text-white/50 text-xs leading-relaxed">
+              Fixez un plafond maximum pour une catégorie donnée sur un mois précis (ex: 200€ de Courses en Février). Des jauges de progression apparaîtront sur votre Dashboard, virant au rouge si vous dépassez.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* --- 3. ANALYSE (DASHBOARD) --- */}
+      <section className="space-y-8">
+        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
+            <LayoutDashboard size={24} />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tight text-white">3. L'Analyse Globale</h3>
+            <p className="text-orange-400/60 text-[10px] font-bold uppercase tracking-widest">Page Dashboard</p>
+          </div>
+        </div>
+
+        <p className="text-white/60 text-sm leading-relaxed max-w-3xl">
+          Le Dashboard est le cœur visuel de l'application. La barre de filtres supérieure (Profil, Compte, Mois, Année) pilote instantanément toutes les données affichées à l'écran. Vos comptes bancaires peuvent être réorganisés par <strong>Drag & Drop</strong> (glisser-déposer).
+        </p>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+            <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">A. Flux Mensuel</h4>
+            <p className="text-white/50 text-xs leading-relaxed">
+              Résume ce qui est entré et sorti sur le mois sélectionné. L'onglet "Catégories" génère un graphique comparant vos dépenses actuelles avec celles du mois précédent (flèches d'évolution vertes ou rouges).
+            </p>
+          </div>
+
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+            <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">B. Bilan Annuel</h4>
+            <p className="text-white/50 text-xs leading-relaxed">
+              Un tableau mois par mois générant le calcul automatique de votre <strong>Net Épargné</strong> et de votre <strong>Taux d'effort</strong> (pourcentage de revenus mis de côté sur l'année). Cliquez sur l'icône "Camembert" pour voir la répartition par émojis.
+            </p>
+          </div>
+
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+            <h4 className="text-emerald-400 font-black text-xs uppercase mb-3 tracking-widest">C. Enveloppes & Projets</h4>
+            <p className="text-white/50 text-xs leading-relaxed">
+              Dans le panneau de droite, créez des <em>Enveloppes</em> (onglet Répartition) pour "bloquer" virtuellement de l'argent de votre solde global. <br/>L'onglet <em>Projets</em> calcule automatiquement la faisabilité d'un achat futur basé sur votre capacité d'épargne.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* --- 4. LE PRÉVISIONNEL --- */}
+      <section className="space-y-8">
+        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+          <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 border border-pink-500/20">
+            <ChartCandlestick size={24} />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tight text-white">4. La Machine à Voyager dans le Temps</h3>
+            <p className="text-pink-400/60 text-[10px] font-bold uppercase tracking-widest">Page Prévisionnel</p>
+          </div>
+        </div>
+
+        <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[2rem] flex flex-col md:flex-row gap-8 items-center">
+          <div className="flex-1 space-y-4">
+            <h4 className="text-white font-bold text-lg uppercase">Anticipez vos soldes futurs</h4>
+            <p className="text-white/50 text-sm leading-relaxed">
+              Saisissez vos dépenses et revenus à venir (loyer, salaires, abonnements). L'application génère des "Cartes de comptes holographiques" vous montrant <strong>le solde estimé à la fin du mois</strong>.
+            </p>
+            <p className="text-white/50 text-sm leading-relaxed">
+              <strong>Simulation dynamique :</strong> Dans le panneau de droite, le tableau annuel mixe vos données réelles (les mois passés) et vos projections (les mois futurs). Vous pouvez cliquer sur les boutons de mois pour <em>désactiver</em> temporairement certaines projections et voir l'impact immédiat sur votre solde de fin d'année.
+            </p>
+          </div>
+          <div className="w-full md:w-1/3 bg-black/40 border border-white/10 rounded-2xl p-4 rotate-2 shadow-2xl">
+            <div className="h-4 w-1/2 bg-white/10 rounded mb-4" />
+            <div className="h-10 w-full bg-pink-500/20 border border-pink-500/40 rounded-lg mb-2" />
+            <div className="h-10 w-full bg-emerald-500/20 border border-emerald-500/40 rounded-lg" />
+          </div>
+        </div>
+      </section>
+
+      {/* --- 5. OUTILS AVANCÉS & TRICOUNT --- */}
+      <section className="space-y-8">
+        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
+            <Users2 size={24} />
+          </div>
+          <div>
+            <h3 className="text-2xl font-black uppercase tracking-tight text-white">5. Outils Avancés & Tricount</h3>
+            <p className="text-amber-500/60 text-[10px] font-bold uppercase tracking-widest">Le couteau suisse</p>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Tricount */}
+          <div className="bg-amber-500/5 border border-amber-500/10 p-6 rounded-[2rem] relative overflow-hidden">
+            <Users2 className="text-amber-500 mb-4" size={24} />
+            <h4 className="text-white font-bold text-sm uppercase mb-2">Module Tricount</h4>
+            <p className="text-white/50 text-sm leading-relaxed mb-4">
+              Idéal pour les colocations ou les vacances. <strong>Ce module est totalement séparé de vos statistiques personnelles.</strong>
+            </p>
+            <ul className="space-y-2 text-xs text-white/40">
+              <li>• Ajoutez des membres et assignez-leur un Emoji personnalisé.</li>
+              <li>• Saisissez une dépense et choisissez si elle est répartie équitablement ou en <em>parts inégales</em> (ex: Jean paye 15€, Marie 5€).</li>
+              <li>• Le Bilan vous dit instantanément "Qui doit combien à Qui" avec la possibilité de générer un PDF.</li>
+            </ul>
+          </div>
+
+          {/* Widgets Flottants */}
+          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-center">
+            <h4 className="text-white font-bold text-sm uppercase mb-4">Les Widgets Flottants</h4>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Calculator className="text-[var(--primary)] mt-1" size={16} />
+                <div>
+                  <strong className="text-white text-xs block uppercase">Prorata Calculateur</strong>
+                  <span className="text-white/40 text-xs">Un outil toujours accessible en bas à droite pour calculer la répartition équitable d'une dépense commune basée sur les salaires du couple.</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <StickyNote className="text-[var(--primary)] mt-1" size={16} />
+                <div>
+                  <strong className="text-white text-xs block uppercase">Bloc-notes Auto-save</strong>
+                  <span className="text-white/40 text-xs">Un pense-bête persistant lié à votre compte pour noter vos idées d'investissements.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    {/* FOOTER DOCS */}
+    <div className="mt-24 pt-10 border-t border-white/5 text-center">
+      <button 
+        onClick={() => setActiveTab('dashboard')}
+        className="px-8 py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-2xl hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+      >
+        Retourner au Dashboard
+      </button>
+    </div>
+
+  </div>
+)}
+
       </main>
 
       </div>
