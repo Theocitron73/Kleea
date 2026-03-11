@@ -9093,17 +9093,42 @@ if (!user) {
 
         <div className="grid md:grid-cols-3 gap-6">
           <div className="md:col-span-2 bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] relative overflow-hidden">
-            <List className="text-purple-400 mb-4 relative z-10" size={24} />
-            <h4 className="text-white font-bold text-sm uppercase mb-3 relative z-10">Le Tableau d'Édition</h4>
-            <p className="text-white/50 text-sm leading-relaxed mb-4 relative z-10">
-              C'est ici que vous corrigez et affinez vos transactions. Le tableau est interactif :
-            </p>
-            <ul className="space-y-2 text-xs text-white/40 relative z-10">
-              <li>• <strong className="text-white/80">Édition rapide :</strong> Cliquez directement sur un nom de transaction pour le modifier.</li>
-              <li>• <strong className="text-white/80">Changement de mois :</strong> Très utile pour une dépense effectuée le 30 du mois que vous souhaitez imputer au budget du mois suivant.</li>
-              <li>• <strong className="text-white/80">Sélection multiple :</strong> Utilisez les cases à cocher pour supprimer plusieurs lignes d'un coup via le menu flottant.</li>
-            </ul>
-          </div>
+  <List className="text-purple-400 mb-4 relative z-10" size={24} />
+  <h4 className="text-white font-bold text-sm uppercase mb-3 relative z-10">Le Tableau d'Édition</h4>
+  <p className="text-white/50 text-sm leading-relaxed mb-4 relative z-10">
+    C'est ici que vous gérez vos flux financiers au quotidien. Le tableau est entièrement interactif :
+  </p>
+  <ul className="space-y-3 text-xs text-white/40 relative z-10">
+    <li>
+      <div className="flex items-center gap-2 mb-1">
+        <Plus size={14} className="text-purple-400" />
+        <strong className="text-white/80 uppercase tracking-tighter">Ajout Manuel :</strong>
+      </div>
+      <p className="ml-5">Utilisez le bouton "Ajouter une transaction" pour saisir instantanément un achat en espèces ou une opération non présente sur votre CSV. Renseignez le nom, le montant, la catégorie et le compte associé.</p>
+    </li>
+    <li>
+      <div className="flex items-center gap-2 mb-1">
+        <Edit3 size={14} className="text-purple-400" />
+        <strong className="text-white/80 uppercase tracking-tighter">Édition rapide :</strong>
+      </div>
+      <p className="ml-5">Cliquez directement sur n'importe quelle cellule du tableau (nom, montant, date) pour la modifier à la volée. Pas de bouton de sauvegarde, tout s'enregistre automatiquement à chaque modifications</p>
+    </li>
+    <li>
+      <div className="flex items-center gap-2 mb-1">
+        <Calendar size={14} className="text-purple-400" />
+        <strong className="text-white/80 uppercase tracking-tighter">Changement de mois :</strong>
+      </div>
+      <p className="ml-5">Vous pouvez réaffecter une dépense à un autre mois. Très utile pour une dépense effectuée le 30 du mois que vous souhaitez imputer au budget du mois suivant.</p>
+    </li>
+    <li>
+      <div className="flex items-center gap-2 mb-1">
+        <Trash2 size={14} className="text-purple-400" />
+        <strong className="text-white/80 uppercase tracking-tighter">Sélection multiple :</strong>
+      </div>
+      <p className="ml-5">Utilisez les cases à cocher à gauche des lignes pour supprimer plusieurs transactions d'un coup via le menu contextuel qui apparaît en bas de l'écran.</p>
+    </li>
+  </ul>
+</div>
 
           <div className="bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/20 p-6 rounded-[2rem] shadow-[0_0_30px_rgba(168,85,247,0.1)]">
             <Brain className="text-purple-400 mb-4" size={24} />
@@ -9161,44 +9186,63 @@ if (!user) {
       </section>
 
       {/* --- 3. ANALYSE (DASHBOARD) --- */}
-      <section className="space-y-8">
-        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
-            <LayoutDashboard size={24} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tight text-white">3. L'Analyse Globale</h3>
-            <p className="text-orange-400/60 text-[10px] font-bold uppercase tracking-widest">Page Dashboard</p>
-          </div>
-        </div>
+<section className="space-y-8">
+  <div className="flex items-center gap-4 border-b border-white/10 pb-4">
+    <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
+      <LayoutDashboard size={24} />
+    </div>
+    <div>
+      <h3 className="text-2xl font-black uppercase tracking-tight text-white">3. L'Analyse Globale</h3>
+      <p className="text-orange-400/60 text-[10px] font-bold uppercase tracking-widest">Page Dashboard</p>
+    </div>
+  </div>
 
-        <p className="text-white/60 text-sm leading-relaxed max-w-3xl">
-          Le Dashboard est le cœur visuel de l'application. La barre de filtres supérieure (Profil, Compte, Mois, Année) pilote instantanément toutes les données affichées à l'écran. Vos comptes bancaires peuvent être réorganisés par <strong>Drag & Drop</strong> (glisser-déposer).
+  <p className="text-white/60 text-sm leading-relaxed max-w-3xl">
+    Le Dashboard est le cœur visuel de l'application. La barre de filtres supérieure (Profil, Compte, Mois, Année) pilote instantanément toutes les données affichées à l'écran. Vos comptes bancaires peuvent être réorganisés par <strong>Drag & Drop</strong> (glisser-déposer).
+  </p>
+
+  <div className="grid md:grid-cols-3 gap-6">
+    {/* A. Flux Mensuel */}
+    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+      <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">A. Flux Mensuel</h4>
+      <p className="text-white/50 text-xs leading-relaxed">
+        Résume ce qui est entré et sorti sur le mois sélectionné. L'onglet "Catégories" génère un graphique comparant vos dépenses actuelles avec celles du mois précédent (flèches d'évolution vertes ou rouges).
+      </p>
+    </div>
+
+    {/* B. Bilan Annuel */}
+    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+      <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">B. Bilan Annuel</h4>
+      <p className="text-white/50 text-xs leading-relaxed">
+        Un tableau mois par mois générant le calcul automatique de votre <strong>Net Épargné</strong> et de votre <strong>Taux d'effort</strong> (pourcentage de revenus mis de côté sur l'année). Cliquez sur l'icône "Camembert" pour voir la répartition par émojis.
+      </p>
+    </div>
+
+    {/* C. Panneau Latéral : Graphiques & Projets */}
+    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+      <h4 className="text-emerald-400 font-black text-xs uppercase mb-3 tracking-widest">C. Tendances & Enveloppes</h4>
+      <div className="space-y-4">
+        <p className="text-white/50 text-xs leading-relaxed">
+          Le panneau de droite offre une vue d'ensemble puissante grâce à plusieurs onglets :
         </p>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-            <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">A. Flux Mensuel</h4>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Résume ce qui est entré et sorti sur le mois sélectionné. L'onglet "Catégories" génère un graphique comparant vos dépenses actuelles avec celles du mois précédent (flèches d'évolution vertes ou rouges).
-            </p>
-          </div>
-
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-            <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">B. Bilan Annuel</h4>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Un tableau mois par mois générant le calcul automatique de votre <strong>Net Épargné</strong> et de votre <strong>Taux d'effort</strong> (pourcentage de revenus mis de côté sur l'année). Cliquez sur l'icône "Camembert" pour voir la répartition par émojis.
-            </p>
-          </div>
-
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-            <h4 className="text-emerald-400 font-black text-xs uppercase mb-3 tracking-widest">C. Enveloppes & Projets</h4>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Dans le panneau de droite, créez des <em>Enveloppes</em> (onglet Répartition) pour "bloquer" virtuellement de l'argent de votre solde global. <br/>L'onglet <em>Projets</em> calcule automatiquement la faisabilité d'un achat futur basé sur votre capacité d'épargne.
-            </p>
-          </div>
-        </div>
-      </section>
+        <ul className="space-y-2 text-[11px] text-white/40">
+          <li className="flex gap-2 items-start text-pretty">
+            <span className="text-emerald-400 font-bold">•</span> 
+            <span><strong>Graphiques de Tendances :</strong> Visualisez sur l'année complète l'évolution de vos <strong className="text-white/60">Revenus, Dépenses et Épargne</strong>. Un second graphique suit la courbe de vos <strong className="text-white/60">Soldes par compte</strong> ainsi que votre <strong className="text-white/60">Solde Total</strong> cumulé.</span>
+          </li>
+          <li className="flex gap-2 items-start text-pretty">
+            <span className="text-emerald-400 font-bold">•</span> 
+            <span><strong>Répartition & Enveloppes :</strong> Allouez virtuellement des sommes pour "bloquer" de l'argent de votre solde global (ex: Provision Impôts, Vacances).</span>
+          </li>
+          <li className="flex gap-2 items-start text-pretty">
+            <span className="text-emerald-400 font-bold">•</span> 
+            <span><strong>Projets :</strong> Calcule automatiquement si un achat futur est réalisable en fonction de votre rythme d'épargne moyen.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
 
       {/* --- 4. LE PRÉVISIONNEL --- */}
       <section className="space-y-8">
