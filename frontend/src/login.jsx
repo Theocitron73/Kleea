@@ -8650,7 +8650,7 @@ if (!user) {
             {/* TEXTE EXPLICATIF AJOUTÉ ICI */}
             <p className="text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-1 italic">
               Configuration des mots-clés pour la catégorisation automatique
-              (ils sont pour tous les utilisateurs du site)
+              (ils sont commun à tous les utilisateurs du site pour les catégories par défaut)
             </p>
           </div>
 
@@ -9118,22 +9118,46 @@ if (!user) {
         </div>
 
         {/* Sous-section : Lexique & Budgets */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-            <Tag className="text-white/40 mb-3" size={20} />
-            <h4 className="text-white font-bold text-sm uppercase mb-2">Lexique & Émojis</h4>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Créez vos propres catégories avec le sélecteur d'émojis intégré. Si certaines catégories par défaut ne vous servent pas, cliquez sur "Gérer mes catégories" pour masquer celles qui encombrent vos menus.
-            </p>
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Lexique & Catégories */}
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-between">
+              <div>
+                <Tag className="text-white/40 mb-3" size={20} />
+                <h4 className="text-white font-bold text-sm uppercase mb-2">Lexique & Émojis</h4>
+                <p className="text-white/50 text-xs leading-relaxed mb-4">
+                  Créez vos propres catégories avec le sélecteur d'émojis intégré. Si certaines catégories par défaut ne vous servent pas, cliquez sur "Gérer mes catégories" pour masquer celles qui encombrent vos menus.
+                </p>
+              </div>
+              
+              {/* Info importante sur les virements internes */}
+              <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl">
+                <div className="flex items-center gap-2 mb-2">
+                  <ArrowUpDown className="text-blue-400" size={14} />
+                  <span className="text-blue-400 font-black text-[10px] uppercase tracking-widest">Règle de Transfert</span>
+                </div>
+                <p className="text-white/40 text-[11px] leading-relaxed">
+                  Pour que les virements entre vos comptes ne soient pas comptés comme des dépenses, respectez strictement ce format avec cet emoji :<br/>
+                  <code className="text-blue-300 font-mono mt-2 block bg-black/30 p-2 rounded border border-white/5">
+                    🔄 Virement : Compte A VERS Compte B
+                  </code>
+                </p>
+              </div>
+            </div>
+
+            {/* Limites Budgétaires */}
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
+              <Target className="text-rose-400 mb-3" size={20} />
+              <h4 className="text-white font-bold text-sm uppercase mb-2">Limites Budgétaires</h4>
+              <p className="text-white/50 text-xs leading-relaxed">
+                Fixez un plafond maximum pour une catégorie donnée sur un mois précis (ex: 200€ de Courses en Février). Des jauges de progression apparaîtront sur votre Dashboard, virant au rouge si vous dépassez.
+              </p>
+              <div className="mt-4 p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl">
+                <p className="text-[10px] text-white/30 italic">
+                  Note : Les limites sont indépendantes par mois pour s'adapter à vos imprévus.
+                </p>
+              </div>
+            </div>
           </div>
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-            <Target className="text-rose-400 mb-3" size={20} />
-            <h4 className="text-white font-bold text-sm uppercase mb-2">Limites Budgétaires</h4>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Fixez un plafond maximum pour une catégorie donnée sur un mois précis (ex: 200€ de Courses en Février). Des jauges de progression apparaîtront sur votre Dashboard, virant au rouge si vous dépassez.
-            </p>
-          </div>
-        </div>
       </section>
 
       {/* --- 3. ANALYSE (DASHBOARD) --- */}
@@ -9234,25 +9258,45 @@ if (!user) {
           </div>
 
           {/* Widgets Flottants */}
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-center">
-            <h4 className="text-white font-bold text-sm uppercase mb-4">Les Widgets Flottants</h4>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Calculator className="text-[var(--primary)] mt-1" size={16} />
-                <div>
-                  <strong className="text-white text-xs block uppercase">Prorata Calculateur</strong>
-                  <span className="text-white/40 text-xs">Un outil toujours accessible en bas à droite pour calculer la répartition équitable d'une dépense commune basée sur les salaires du couple.</span>
+            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-center">
+              <h4 className="text-white font-bold text-sm uppercase mb-4">Les Widgets Flottants</h4>
+              <div className="space-y-4">
+                
+                {/* 1. Prorata */}
+                <div className="flex items-start gap-3">
+                  <Calculator className="text-[var(--primary)] mt-1" size={16} />
+                  <div>
+                    <strong className="text-white text-xs block uppercase">Prorata Calculateur</strong>
+                    <span className="text-white/40 text-[11px] leading-relaxed">
+                      Un outil toujours accessible pour calculer la répartition équitable d'une dépense commune basée sur les revenus respectifs du couple.
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <StickyNote className="text-[var(--primary)] mt-1" size={16} />
-                <div>
-                  <strong className="text-white text-xs block uppercase">Bloc-notes Auto-save</strong>
-                  <span className="text-white/40 text-xs">Un pense-bête persistant lié à votre compte pour noter vos idées d'investissements.</span>
+
+                {/* 2. Bloc-notes */}
+                <div className="flex items-start gap-3">
+                  <StickyNote className="text-[var(--primary)] mt-1" size={16} />
+                  <div>
+                    <strong className="text-white text-xs block uppercase">Bloc-notes Auto-save</strong>
+                    <span className="text-white/40 text-[11px] leading-relaxed">
+                      Un pense-bête persistant lié à votre compte pour noter vos idées d'investissements ou vos rappels financiers sans quitter l'interface.
+                    </span>
+                  </div>
                 </div>
+
+                {/* 3. Personnalisation (Le nouveau widget) */}
+                <div className="flex items-start gap-3">
+                  <Palette className="text-[var(--primary)] mt-1" size={26} />
+                  <div>
+                    <strong className="text-white text-xs block uppercase">Studio de Design</strong>
+                    <span className="text-white/40 text-[11px] leading-relaxed">
+                      Personnalisez l'identité visuelle de votre interface. Changez en temps réel les couleurs des <strong className="text-white/60">revenus</strong>, <strong className="text-white/60">dépenses</strong>, <strong className="text-white/60">épargnes</strong> et <strong className="text-white/60">objectifs</strong>. Ces réglages impactent l'ensemble des graphiques et des indicateurs chiffrés pour une lecture qui vous ressemble.
+                    </span>
+                  </div>
+                </div>
+
               </div>
             </div>
-          </div>
         </div>
       </section>
 
