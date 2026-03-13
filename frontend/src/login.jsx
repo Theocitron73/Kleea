@@ -4579,26 +4579,33 @@ const transactionsCalculees = useMemo(() => {
   return tx.map(t => ({ ...t, compte: selectedCompte }));
 }, [tempTransactions, categoriesConfig, elementsAppris, selectedCompte, user]);
 
-
+const [fileName, setFileName] = useState("");
 // --- ÉTAPE 3 : Modifier handleFileUpload ---
 const handleFileUpload = async (file) => {
   if (!file) return;
+
+  // 1. On capture le nom immédiatement pour l'UI
+  setFileName(file.name);
+  
   const formData = new FormData();
   formData.append('file', file);
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
 
   try {
-    // Note : On n'envoie plus le compte ici, on s'en occupe en local
     const response = await api.post(
       `/import-csv?utilisateur=${nomUtilisateur}`, 
       formData,
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     
-    // On stocke les transactions brutes reçues du serveur
+    // 2. On stocke les transactions
     setTempTransactions(response.data);
+
   } catch (error) {
+    console.error("Erreur import:", error);
     alert("Erreur lors de l'envoi");
+    // Optionnel : reset le nom si ça échoue
+    setFileName("");
   }
 };
 
@@ -8617,56 +8624,130 @@ if (!user) {
           <HelpPopover />
         </div>
 
-        {/* 2. Zone de Drag & Drop (Compacte) */}
-        <div 
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-          onClick={() => document.getElementById('csvInput').click()}
-          className={`
-            border-2 border-dashed rounded-[2rem] p-4 flex items-center justify-center gap-6
-            transition-all duration-500 cursor-pointer relative overflow-hidden min-h-[80px] shrink-0
-            ${isDragging 
-              ? 'border-[var(--primary)] bg-[var(--primary)]/10 scale-[1.005]' 
-              : 'border-white/5 bg-white/[0.01] backdrop-blur-sm hover:border-[var(--primary)]/30 hover:bg-white/[0.03]'}
-          `}
-        >
-          <input type="file" id="csvInput" className="hidden" accept=".csv" onChange={(e) => handleFileUpload(e.target.files[0])} />
-          
-          {/* Icône réduite et sans marge basse (mb-0) car alignement horizontal */}
-          <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isDragging ? 'bg-[var(--primary)] scale-110 shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' : 'bg-white/5 border border-white/10'}`}>
-            <Upload size={18} className={isDragging ? 'text-black' : 'text-[var(--primary)]'} />
-          </div>
-          
-          <div className="flex flex-col">
-            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]">
-              {isDragging ? "Relâcher" : "Glisser le fichier CSV"}
-            </h3>
-            {!isDragging && (
-              <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase tracking-widest mt-0.5">
-                Ou cliquer pour parcourir
-              </p>
+        {/* 2. Zone de Drag & Drop (Compacte & Stylisée) */}
+          <div 
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={(e) => { 
+              onDrop(e); 
+              const file = e.dataTransfer.files[0]; 
+              if (file) setFileName(file.name); 
+            }}
+            onClick={() => document.getElementById('csvInput').click()}
+            className={`
+              relative rounded-[2rem] p-4 flex items-center gap-6
+              transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px] shrink-0
+              ${isDragging 
+                ? 'bg-[var(--primary)]/10 scale-[1.01] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
+                : transactionsCalculees?.length > 0 
+                  ? 'bg-emerald-500/5' 
+                  : 'bg-white/[0.01] backdrop-blur-sm hover:bg-white/[0.03]'}
+            `}
+          >
+            {/* 1. LES POINTILLÉS QUI TOURNENT (SVG) */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              <rect 
+                x="0" y="0" width="100%" height="100%" rx="2rem"
+                fill="none" 
+                strokeWidth="2"
+                stroke={isDragging ? "var(--primary)" : transactionsCalculees?.length > 0 ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.1)"}
+                strokeDasharray="8 6" 
+                className={isDragging || transactionsCalculees?.length === 0 ? "animate-[borderFlow_2s_linear_infinite]" : ""}
+              />
+            </svg>
+
+            {/* Effet de brillance */}
+            <div className={`absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-full ${transactionsCalculees?.length > 0 ? 'animate-[shimmer_5s_infinite]' : 'group-hover:animate-[shimmer_2s_infinite]'}`} />
+
+            <input type="file" id="csvInput" className="hidden" accept=".csv" onChange={(e) => {
+              const file = e.target.files[0];
+              if (file) {
+                setFileName(file.name);
+                handleFileUpload(file);
+              }
+            }} />
+            
+            {/* Icône Dynamique - Correction du flash blanc */}
+            <div className={`
+              p-3 rounded-xl transition-all duration-500 shrink-0 relative z-10
+              ${isDragging 
+                ? 'bg-[var(--primary)]/20 border border-[var(--primary)] scale-110 shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)] rotate-12' 
+                : transactionsCalculees?.length > 0
+                  ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)] rotate-0'
+                  : 'bg-white/5 border border-white/10 text-[var(--primary)]'}
+            `}>
+              {transactionsCalculees?.length > 0 && !isDragging ? (
+                <Check size={18} className="text-black" strokeWidth={3} />
+              ) : (
+                <Upload 
+                  size={18} 
+                  className={`transition-colors duration-500 ${isDragging ? 'text-[var(--primary)]' : ''}`} 
+                />
+              )}
+            </div>
+            
+            <div className="flex flex-col relative z-10 flex-1 min-w-0">
+              <h3 className={`text-[11px] font-black uppercase tracking-[0.2em] transition-colors duration-500 ${transactionsCalculees?.length > 0 ? 'text-emerald-400' : 'text-[var(--text-main)]'}`}>
+                {isDragging 
+                  ? "Lâcher pour analyser" 
+                  : transactionsCalculees?.length > 0 
+                    ? "Analyse terminée" 
+                    : "Glisser le fichier CSV"}
+              </h3>
+
+              {/* Affichage du nom du fichier si présent */}
+              {transactionsCalculees?.length > 0 && fileName && (
+                <p className="text-[9px] text-[var(--primary)] font-bold truncate mt-0.5 animate-in fade-in slide-in-from-left-2">
+                  {fileName}
+                </p>
+              )}
+
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase tracking-widest truncate">
+                  {transactionsCalculees?.length > 0 
+                    ? `${transactionsCalculees.length} opérations prêtes` 
+                    : "Format .CSV uniquement"}
+                </p>
+
+              </div>
+            </div>
+
+            {/* Bouton de switch rapide */}
+            {transactionsCalculees?.length > 0 && !isDragging && (
+              <div className="ml-auto relative z-10 flex items-center gap-3 animate-in fade-in slide-in-from-right-2">
+                <div className="h-8 w-[1px] bg-white/10" />
+                <button 
+                  onClick={(e) => { e.stopPropagation(); document.getElementById('csvInput').click(); }}
+                  className="text-[7px] font-black uppercase tracking-tighter text-[var(--text-main)]/30 hover:text-[var(--primary)] transition-colors px-2 py-1"
+                >
+                  Changer
+                </button>
+              </div>
             )}
           </div>
 
-          {/* Petit indicateur de succès si un fichier est déjà chargé */}
-          {transactionsCalculees?.length > 0 && !isDragging && (
-            <div className="ml-auto bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">
-              <span className="text-emerald-500 text-[8px] font-black uppercase">CSV Chargé</span>
-            </div>
-          )}
-        </div>
+          {/* CSS à ajouter dans ton fichier global ou bloc <style> */}
+          <style jsx>{`
+            
+            @keyframes shimmer {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(200%); }
+            }
+          `}</style>
 
-        {/* 3. RÉCAPITULATIF & TABLEAU (Conditionnel) */}
+          {/* 3. RÉCAPITULATIF & TABLEAU (Conditionnel) */}
           {transactionsCalculees && transactionsCalculees.length > 0 && (
-            <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0">
+            <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
               
+              {/* LUEUR D'ARRIÈRE-PLAN (Glow effect) */}
+              <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
+
               {/* MINI STATS BAR & ACTIONS */}
-              <div className="flex flex-wrap items-center justify-between gap-4 px-2">
+              <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
                 {/* Groupement des stats à gauche */}
                 <div className="flex items-center gap-2">
                   {/* Badge du Compte de Destination */}
-                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2">
+                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
                     <Wallet size={10} className="text-[var(--primary)]" />
                     <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
                     <span className="text-[10px] font-black text-[var(--primary)] uppercase">
@@ -8674,16 +8755,14 @@ if (!user) {
                     </span>
                   </div>
 
-                  {/* Séparateur visuel vertical */}
                   <div className="w-[1px] h-6 bg-white/10 mx-1" />
 
-                  {/* Tes statistiques existantes */}
                   {[
                     { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
                     { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
                     { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
                   ].map((stat, idx) => (
-                    <div key={idx} className="bg-white/[0.03] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2">
+                    <div key={idx} className="bg-white/[0.03] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
                       <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
                       <span className={`text-[10px] font-black ${stat.color}`}>
                         {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
@@ -8695,26 +8774,26 @@ if (!user) {
                 {/* Groupement des actions à droite */}
                 <div className="flex items-center gap-3">
                   <button 
-                    onClick={() => setTempTransactions([])} 
-                    className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 hover:bg-rose-500/5 rounded-xl uppercase tracking-widest transition-all"
+                    onClick={() => { setTempTransactions([]); setFileName(""); }} 
+                    className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
                   >
                     Annuler
                   </button>
                   <button 
                     onClick={confirmBatchImport}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-lg shadow-[var(--primary)]/10"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main) font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20"
                   >
                     <Check size={12} strokeWidth={4} /> Importer {transactionsCalculees.length} lignes
                   </button>
                 </div>
               </div>
 
-              {/* TABLEAU AVEC HAUTEUR AJUSTÉE */}
-              <div className="bg-white/[0.02] backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden">
+              {/* TABLEAU AVEC EFFET DE BORDURE LUMINEUSE */}
+              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
                 <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
-                      <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/40 uppercase font-black bg-white/[0.02]">
+                      <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
                         <th className="p-4">Date</th>
                         <th className="p-4">Désignation</th>
                         <th className="p-4">Catégorie</th>
@@ -8726,17 +8805,17 @@ if (!user) {
                         const isTransfert = t.categorie.startsWith('🔄');
                         return (
                           <tr key={i} className="hover:bg-white/[0.03] transition-colors group">
-                            <td className="p-4 text-[10px] text-[var(--text-main)]/30 font-bold">{t.date}</td>
+                            <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">{t.date}</td>
                             <td className="p-4">
-                              <div className="text-[10px] text-[var(--text-main)]/80 font-black uppercase truncate max-w-[250px] group-hover:text-[var(--text-main)]">
+                              <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px] group-hover:text-[var(--text-main)]">
                                 {t.nom}
                               </div>
                             </td>
                             <td className="p-4">
-                              <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border ${
+                              <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
                                 isTransfert 
-                                  ? 'bg-violet-500/10 text-violet-400 border-violet-500/20' 
-                                  : 'bg-white/5 text-[var(--primary)] border-white/5'
+                                  ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
+                                  : 'bg-white/5 text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
                               }`}>
                                 {t.categorie}
                               </span>
