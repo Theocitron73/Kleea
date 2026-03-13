@@ -64,7 +64,17 @@ conf = ConnectionConfig(
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-engine = create_engine(os.getenv("DATABASE_URL"))
+engine = create_engine(
+    os.getenv("DATABASE_URL"),
+    pool_pre_ping=True,  # INDISPENSABLE pour Neon (réveille la DB si besoin)
+    pool_recycle=60,     # On recycle toutes les 60s pour éviter la déconnexion SSL
+    pool_size=5,         # Neon supporte beaucoup de connexions, mais reste léger
+    max_overflow=10,
+    connect_args={
+        "sslmode": "require",
+        "connect_timeout": 10 # Donne un peu de temps à Neon pour sortir de veille
+    }
+)
 
 @app.get("/")
 def read_root():
