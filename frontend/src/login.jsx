@@ -3932,6 +3932,7 @@ const sortedData = [...filteredData].sort((a, b) => {
 
 
 
+
 const [lastLearned, setLastLearned] = useState(null);
 
 // Fonction pour afficher la notif et la faire disparaître après 4s
@@ -3948,51 +3949,77 @@ const updateCell = async (id, field, value) => {
     return;
   }
 
- // On reconstruit l'objet en utilisant 'transactionActive'
+  // --- 1. FONCTION DE NETTOYAGE INTERNE ---
+  // On l'utilise pour enregistrer une règle "propre" en base de données
+  const nettoyerPourMemoire = (texte) => {
+    if (!texte) return "";
+    return texte
+      .toLowerCase()
+      .replace(/\d{2}[\.\/]\d{2}[\.\/]\d{2,4}/g, '') // Enlève les dates (08.03.26)
+      .replace(/carte no \d+/gi, '')                 // Enlève "CARTE NO 132"
+      .replace(/carte numero \d+/gi, '')             // Enlève "CARTE NUMERO 132"
+      .replace(/\s+/g, ' ')                          // Transforme les espaces multiples en un seul
+      .trim();
+  };
+
+  // --- 2. PRÉPARATION DES DONNÉES POUR SQL ---
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+
   const updatedData = {
     nom: transactionActive.nom,
     montant: transactionActive.montant,
     categorie: transactionActive.categorie,
-    utilisateur: user,
+    utilisateur: nomUtilisateur,
     mois: transactionActive.mois,
     compte: transactionActive.compte,
-    // Attention ici : utilise le nom exact de ta colonne SQL (probablement 'année')
-    annee: parseInt(transactionActive.annee || transactionActive.année || 2026),
-    // On applique le changement
+    // Gestion de la colonne année/annee selon ta DB
+    annee: parseInt(transactionActive.annee || transactionActive.année || new Date().getFullYear()),
+    // On applique la modification demandée (nom, montant ou catégorie)
     [field]: field === 'montant' ? parseFloat(value) : value 
   };
 
   try {
-    // 1. Sauvegarde SQL
+    // --- 3. SAUVEGARDE DE LA TRANSACTION ---
     await api.put(`/transactions/${id}`, updatedData);
     
-    // 2. LOGIQUE D'APPRENTISSAGE
+    // --- 4. LOGIQUE D'APPRENTISSAGE ---
     if (field === 'categorie' && isApprendreActive) {
-      //console.log("Apprentissage activé pour :", transactionActive.nom);
+      // On nettoie le nom (ex: "UBER   EATS 08.03" devient "uber eats")
+      const nomPropre = nettoyerPourMemoire(transactionActive.nom);
       
+      // On enregistre dans la table memoire
       await api.post(`/memoire`, {
-        nom: transactionActive.nom,
+        nom: nomPropre,
         categorie: value,
-        utilisateur: user
+        utilisateur: nomUtilisateur
       });
 
-      showLearningNotif(transactionActive.nom, value);
+      // Notification visuelle
+      showLearningNotif(nomPropre, value);
 
-      // Mise à jour locale (toutes les lignes de même nom)
+      // On rafraîchit la mémoire locale (elementsAppris) pour que l'intelligence
+      // soit à jour immédiatement pour les prochains imports CSV
+      if (typeof fetchMemoire === 'function') {
+        await fetchMemoire();
+      }
+
+      // Mise à jour locale de l'affichage : 
+      // On change la catégorie de TOUTES les transactions qui ont le même NOM brut
       setToutesLesTransactions(prev => 
         prev.map(t => t.nom === transactionActive.nom ? { ...t, categorie: value } : t)
       );
 
     } else {
-      // 3. Mise à jour simple
+      // --- 5. MISE À JOUR SIMPLE (si pas de changement de catégorie ou apprentissage off) ---
       setToutesLesTransactions(prev => 
         prev.map(t => t.id == id ? { ...t, ...updatedData } : t)
       );
     }
 
   } catch (err) {
-    console.error("Erreur de validation Pydantic :", err.response?.data);
-    alert("Erreur de sauvegarde. Le backend attendait 'annee' sans accent.");
+    console.error("Erreur de sauvegarde :", err.response?.data || err);
+    alert("Erreur lors de la mise à jour. Vérifiez la console.");
+    // En cas d'erreur, on recharge les données pour annuler les changements visuels
     fetchTransactions();
   }
 };
@@ -4301,35 +4328,27 @@ const statsFiltrées = useMemo(() => {
 
 
 
-const [tempTransactions, setTempTransactions] = useState([]);
-const handleFileUpload = async (file) => {
-  if (!file) return;
 
-  // Vérification de sécurité avant l'envoi
-  if (!user || (!user.nom && typeof user !== 'string')) {
-    alert("Erreur : Vous devez être connecté pour importer un fichier.");
-    return;
-  }
+const [elementsAppris, setElementsAppris] = useState([]);
 
-  const formData = new FormData();
-  formData.append('file', file);
-
-  // On extrait le nom proprement (si user est un objet, on prend user.nom, sinon user)
-  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-
+const fetchMemoire = async () => {
   try {
-    const response = await api.post(
-      `/import-csv?utilisateur=${nomUtilisateur}&compte=${selectedCompte}`, 
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
+    const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+    if (!nomUtilisateur) return;
+
+    const response = await api.get(`/memoire/${nomUtilisateur.toLowerCase()}`);
     
-    setTempTransactions(response.data);
+    // Le backend envoie déjà [{"nom":...}, {"nom":...}]
+    // On le stocke directement dans l'état
+    setElementsAppris(response.data); 
   } catch (error) {
-    console.error("Détails erreur :", error.response?.data?.detail);
-    alert(error.response?.data?.detail || "Erreur lors de l'envoi");
+    console.error("Erreur fetch mémoire:", error);
   }
 };
+
+
+const [tempTransactions, setTempTransactions] = useState([]);
+
 
 
 
@@ -4373,64 +4392,38 @@ const onDrop = (e) => {
 
 
 const [notification, setNotification] = useState(null);
-const confirmBatchImport = async () => {
-  try {
-    // 1. Envoi au backend (qui attend 'annee' sans accent)
-    const response = await api.post(`/transactions/batch`, tempTransactions);
-    
-    // 2. Préparation des transactions pour l'affichage immédiat
-    // On s'assure que chaque transaction possède les deux clés (accent et sans accent)
-    const transactionsWithCorrectKeys = tempTransactions.map(t => ({
-      ...t,
-      année: t.année || t.annee, // Force la présence de 'année' pour ton tableau
-      annee: t.annee || t.année  // Garde 'annee' pour la cohérence backend
-    }));
-
-    // 3. Mise à jour de l'interface SANS refresh
-    setToutesLesTransactions(prev => [...transactionsWithCorrectKeys, ...prev]);
-
-    setNotification({
-      message: `Importation réussie : ${response.data.added} transactions enregistrées`,
-      type: 'success'
-    });
-
-    setTempTransactions([]);
-    
-    // Optionnel : fetchTransactions() peut rester en sécurité, 
-    // mais l'affichage est déjà géré par la ligne au-dessus.
-    fetchTransactions(); 
-
-    setTimeout(() => setNotification(null), 7000);
-
-  } catch (error) {
-    console.error("Erreur batch :", error);
-    setNotification({
-      message: "Erreur lors de l'enregistrement groupé",
-      type: 'error'
-    });
-    setTimeout(() => setNotification(null), 7000);
-  }
-};
 
 
-// 1. L'état
+
+// 1. L'état (Inchangé)
 const [categoriesConfig, setCategoriesConfig] = useState([]);
+const [memoireRegles, setMemoireRegles] = useState([]);
 
-// 2. Définition de la fonction de chargement (ACCESSIBLE PARTOUT)
+
+
+
+// 2. Définition de la fonction de chargement mise à jour
 const fetchCategoriesConfig = async () => {
   try {
-    const res = await api.get(`/config-categories`);
-    //console.log("Données reçues de l'API :", res.data);
+    // On récupère le nom de l'utilisateur connecté
+    const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+    
+    // Si l'utilisateur n'est pas encore chargé, on attend
+    if (!nomUtilisateur) return;
+
+    // On passe l'utilisateur en paramètre Query String
+    const res = await api.get(`/config-categories?utilisateur=${nomUtilisateur}`);
+    
     setCategoriesConfig(res.data);
   } catch (err) {
     console.error("Erreur API Intelligence :", err);
   }
 };
 
-// 3. Appel unique au montage
+// 3. Appel au montage OU quand l'utilisateur change
 useEffect(() => {
   fetchCategoriesConfig();
-}, []);
+}, [user]); // Ajoutez 'user' ici pour recharger si la session change
 
 
 
@@ -4438,13 +4431,12 @@ const handleAddKeyword = async (catName, newKeyword) => {
   const cleanKeyword = newKeyword.trim().toLowerCase();
   if (!cleanKeyword) return;
 
-  // On cherche si on a déjà des mots clés pour cette catégorie
+  // On définit la variable ici !
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+
   const targetCat = categoriesConfig.find(c => c.categorie === catName);
-  
-  // Si targetCat existe, on prend ses mots clés, sinon tableau vide
   const existingKeywords = targetCat ? (targetCat.mots_cles || []) : [];
   
-  // On évite les doublons locaux
   if (existingKeywords.includes(cleanKeyword)) return;
   
   const updatedKeywords = [...existingKeywords, cleanKeyword];
@@ -4452,30 +4444,49 @@ const handleAddKeyword = async (catName, newKeyword) => {
   try {
     await api.put(`/config-categories/update`, {
       categorie: catName,
-      keywords: updatedKeywords
+      keywords: updatedKeywords,
+      utilisateur: nomUtilisateur
     });
     
-    // TRÈS IMPORTANT : Recharger la config pour que l'UI se mette à jour
     await fetchCategoriesConfig(); 
     
+    // 1. On affiche la notification
     setNotification({ message: `Intelligence apprise : ${catName}`, type: "success" });
+
+    // 2. On programme sa disparition (null ou objet vide selon comment ton composant est géré)
+    setTimeout(() => {
+      setNotification(null); 
+    }, 2000); // 2000 millisecondes = 2 secondes
+
   } catch (e) {
     console.error(e);
     setNotification({ message: "Erreur de mémorisation", type: "error" });
+
+    // Optionnel : faire disparaître l'erreur aussi après 2 ou 3 secondes
+    setTimeout(() => {
+      setNotification(null);
+    }, 2000);
   }
 };
 
 const handleRemoveKeyword = async (catName, keywordToRemove) => {
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
   const targetCat = categoriesConfig.find(c => c.categorie === catName);
+  
+  if (!targetCat) return;
+
   const updatedKeywords = targetCat.mots_cles.filter(k => k !== keywordToRemove);
 
   try {
     await api.put(`/config-categories/update`, {
       categorie: catName,
-      keywords: updatedKeywords
+      keywords: updatedKeywords,
+      utilisateur: nomUtilisateur // Ajout indispensable ici aussi
     });
     fetchCategoriesConfig();
-  } catch (e) { console.error(e); }
+  } catch (e) { 
+    console.error(e); 
+  }
 };
 
 
@@ -4509,6 +4520,118 @@ useEffect(() => {
 }, [categoriesPourIntelligence, intelSelectedCat]);
 
 
+
+
+
+
+const appliquerIntelligence = (transactions, config, utilisateurActuel) => {
+  return transactions.map(t => {
+    let nouvelleCategorie = t.categorie; 
+    const nomNettoye = t.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+
+    // 1. On filtre la config pour ne garder que :
+    // - Les catégories "globales" (celles qui n'ont pas de propriétaire ou créées par 'admin')
+    // - Les catégories appartenant à l'utilisateur actuel
+    const configPertinente = config.filter(c => 
+      !c.proprietaire || c.proprietaire === "admin" || c.proprietaire === utilisateurActuel
+    );
+
+    configPertinente.forEach(cat => {
+      cat.mots_cles.forEach(keyword => {
+        const keywordNettoye = keyword.toLowerCase().replace(/\s+/g, ' ').trim();
+        if (nomNettoye.includes(keywordNettoye)) {
+          nouvelleCategorie = cat.categorie;
+        }
+      });
+    });
+
+    return { ...t, categorie: nouvelleCategorie };
+  });
+};
+
+// --- ÉTAPE 2 : Mise à jour automatique quand la config change ---
+// Dès que categoriesConfig ou tempTransactions change, on recalcule les catégories
+const transactionsCalculees = useMemo(() => {
+  if (!tempTransactions.length) return [];
+  
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+
+  // 1. Appliquer d'abord l'intelligence globale (mots-clés)
+  let tx = appliquerIntelligence(tempTransactions, categoriesConfig, nomUtilisateur);
+  
+  // 2. ÉCRASER avec la mémoire (car l'apprentissage manuel est plus précis)
+  tx = tx.map(t => {
+    // Normalisation du libellé : minuscules + un seul espace entre les mots
+    const libelleCsvNettoye = t.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+    
+    // On cherche dans elementsAppris (qui sont déjà triés du plus long au plus court par le SQL)
+    const match = elementsAppris.find(item => {
+      const nomApprisNettoye = item.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+      return libelleCsvNettoye.includes(nomApprisNettoye);
+    });
+
+    if (match) {
+      return { ...t, categorie: match.categorie };
+    }
+    return t;
+  });
+  
+  return tx.map(t => ({ ...t, compte: selectedCompte }));
+}, [tempTransactions, categoriesConfig, elementsAppris, selectedCompte, user]);
+
+
+// --- ÉTAPE 3 : Modifier handleFileUpload ---
+const handleFileUpload = async (file) => {
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+
+  try {
+    // Note : On n'envoie plus le compte ici, on s'en occupe en local
+    const response = await api.post(
+      `/import-csv?utilisateur=${nomUtilisateur}`, 
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    
+    // On stocke les transactions brutes reçues du serveur
+    setTempTransactions(response.data);
+  } catch (error) {
+    alert("Erreur lors de l'envoi");
+  }
+};
+
+const confirmBatchImport = async () => {
+  try {
+    const response = await api.post(`/transactions/batch`, transactionsCalculees);
+    
+    if(response.data.added > 0) {
+       // 1. On vide la zone d'importation
+       setTempTransactions([]);
+       
+       // 2. On affiche le succès
+        setNotification({ 
+          message: `${response.data.added} transactions importées avec succès`, 
+          type: 'success' 
+        });
+
+        // 3. Auto-suppression après 5 secondes
+        setTimeout(() => {
+          setNotification(null); // Ou setNotification({ ...notification, show: false }) selon ta structure
+        }, 2000);
+
+       // 3. LA CLÉ : On recharge les données depuis le serveur
+       // Cela mettra à jour l'état 'toutesLesTransactions' avec les vrais IDs de la DB
+       await fetchTransactions(); 
+
+       // 4. Facultatif : On redirige l'utilisateur vers le dashboard pour qu'il voie le résultat
+    }
+  } catch (error) {
+    console.error("Erreur import:", error);
+    setNotification({ message: "Erreur lors de l'insertion", type: 'error' });
+  }
+};
 
 
 
@@ -4998,24 +5121,7 @@ const handleInput = (e) => {
 };
 
 const [showLearningList, setShowLearningList] = useState(false);
-const [elementsAppris, setElementsAppris] = useState([]);
 
-const fetchMemoire = async () => {
-  try {
-    // Remplace 'ton_username' par la variable qui contient le nom de l'utilisateur
-    const response = await api.get(`/memoire/${user.toLowerCase()}`);
-    
-    // On transforme le dictionnaire { nom: categorie } en tableau [{ nom, categorie }]
-    const dataArray = Object.entries(response.data).map(([nom, categorie]) => ({
-      nom,
-      categorie
-    }));
-    
-    setElementsAppris(dataArray);
-  } catch (error) {
-    console.error("Erreur memoire:", error);
-  }
-};
 
 
 const [searchTerm, setSearchTerm] = useState("");
@@ -8544,7 +8650,7 @@ if (!user) {
           </div>
 
           {/* Petit indicateur de succès si un fichier est déjà chargé */}
-          {tempTransactions?.length > 0 && !isDragging && (
+          {transactionsCalculees?.length > 0 && !isDragging && (
             <div className="ml-auto bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg">
               <span className="text-emerald-500 text-[8px] font-black uppercase">CSV Chargé</span>
             </div>
@@ -8552,17 +8658,30 @@ if (!user) {
         </div>
 
         {/* 3. RÉCAPITULATIF & TABLEAU (Conditionnel) */}
-          {tempTransactions && tempTransactions.length > 0 && (
+          {transactionsCalculees && transactionsCalculees.length > 0 && (
             <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0">
               
               {/* MINI STATS BAR & ACTIONS */}
               <div className="flex flex-wrap items-center justify-between gap-4 px-2">
                 {/* Groupement des stats à gauche */}
                 <div className="flex items-center gap-2">
+                  {/* Badge du Compte de Destination */}
+                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2">
+                    <Wallet size={10} className="text-[var(--primary)]" />
+                    <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
+                    <span className="text-[10px] font-black text-[var(--primary)] uppercase">
+                      {selectedCompte}
+                    </span>
+                  </div>
+
+                  {/* Séparateur visuel vertical */}
+                  <div className="w-[1px] h-6 bg-white/10 mx-1" />
+
+                  {/* Tes statistiques existantes */}
                   {[
-                    { label: "Revenus", val: tempTransactions.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
-                    { label: "Dépenses", val: tempTransactions.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
-                    { label: "Transferts", val: tempTransactions.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
+                    { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
+                    { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
+                    { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
                   ].map((stat, idx) => (
                     <div key={idx} className="bg-white/[0.03] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2">
                       <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
@@ -8585,7 +8704,7 @@ if (!user) {
                     onClick={confirmBatchImport}
                     className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-lg shadow-[var(--primary)]/10"
                   >
-                    <Check size={12} strokeWidth={4} /> Importer {tempTransactions.length} lignes
+                    <Check size={12} strokeWidth={4} /> Importer {transactionsCalculees.length} lignes
                   </button>
                 </div>
               </div>
@@ -8603,7 +8722,7 @@ if (!user) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/[0.02]">
-                      {tempTransactions.map((t, i) => {
+                      {transactionsCalculees.map((t, i) => {
                         const isTransfert = t.categorie.startsWith('🔄');
                         return (
                           <tr key={i} className="hover:bg-white/[0.03] transition-colors group">
@@ -8649,8 +8768,7 @@ if (!user) {
             </div>
             {/* TEXTE EXPLICATIF AJOUTÉ ICI */}
             <p className="text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-1 italic">
-              Configuration des mots-clés pour la catégorisation automatique
-              (ils sont commun à tous les utilisateurs du site pour les catégories par défaut)
+              Configuration des mots-clés pour la catégorisation automatique.
             </p>
           </div>
 

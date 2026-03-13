@@ -771,10 +771,17 @@ def add_to_memory(m: dict): # Ou utilise un modèle Pydantic
 
 @app.get("/memoire/{username}")
 def get_memoire(username: str):
-    query = text("SELECT nom, categorie FROM memoire WHERE utilisateur = :u")
+    # On récupère les noms et catégories, triés par longueur de nom décroissante
+    # (pour que "UBER EATS" soit testé avant "UBER")
+    query = text("""
+        SELECT nom, categorie FROM memoire 
+        WHERE utilisateur = :u 
+        ORDER BY LENGTH(nom) DESC
+    """)
     with engine.connect() as conn:
-        df = pd.read_sql(query, conn, params={"u": username.lower()})
-    return dict(zip(df['nom'], df['categorie']))
+        result = conn.execute(query, {"u": username.lower()}).fetchall()
+        # On renvoie une liste de règles
+        return [{"nom": row[0], "categorie": row[1]} for row in result]
 
 
 # --- Récupérer les catégories masquées ---
@@ -809,7 +816,7 @@ def save_masked_categories(user: str, categories: list[str]):
 
 
 @app.post("/import-csv")
-async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)):
+async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = File(...)):
     try:
         contents = await file.read()
         try:
@@ -818,105 +825,137 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
             decoded = contents.decode('latin-1')
             
         lines = [l.strip() for l in decoded.splitlines() if l.strip()]
+        if not lines:
+            return []
         
-        # --- 1. DÉTECTION DU FORMAT (REVOLUT VS CLASSIQUE) ---
-        # On vérifie si les mots clés Revolut sont présents dans la 1ère ligne
+        # --- 1. DÉTECTION DU FORMAT ---
         is_revolut = "Date de début" in lines[0] or "Type,Produit" in lines[0]
         separator = ',' if is_revolut else ';'
         
         start_line = 0
         for i, line in enumerate(lines[:20]):
             l = line.lower()
-            # Pour la Banque Postale, on cherche "date;libellé"
-            # Pour Revolut, on cherche "date de début"
-            if (any(k in l for k in ['date', 'le ']) and any(k in l for k in ['libell', 'montant', 'débit', 'description'])):
+            if (any(k in l for k in ['date', 'le ']) and 
+                any(k in l for k in ['libell', 'montant', 'débit', 'description'])):
                 start_line = i
                 break
         
-        # 2. CHARGEMENT DU CSV
+        # --- 2. CHARGEMENT DU CSV ---
         csv_data = "\n".join(lines[start_line:])
         df = pd.read_csv(io.StringIO(csv_data), sep=separator, engine='python', on_bad_lines='skip')
         df.columns = [c.strip().lower() for c in df.columns]
 
-        # 3. IDENTIFICATION DES COLONNES
+        # --- 3. IDENTIFICATION DES COLONNES ---
         col_date = next((c for c in df.columns if any(k in c for k in ['date de début', 'start date', 'date operation', 'date'])), None)
         col_nom = next((c for c in df.columns if any(k in c for k in ['description', 'libelle simplifie', 'nom', 'libell'])), None)
         col_montant = next((c for c in df.columns if any(k in c for k in ['montant', 'amount', 'valeur'])), None)
-        
         col_debit = next((c for c in df.columns if 'debit' in c or 'débit' in c), None)
         col_credit = next((c for c in df.columns if 'credit' in c or 'crédit' in c), None)
         col_etat = next((c for c in df.columns if any(k in c for k in ['état', 'status', 'state'])), None)
+        col_info = next((c for c in df.columns if any(k in c for k in ['informations complementaires', 'info'])), None)
 
-        # (Le reste du code pour les règles SQL et la mémoire reste identique)
+        # --- 4. CHARGEMENT DE L'INTELLIGENCE (Mots-clés) ---
         mots_cles_rules = []
         try:
             with engine.connect() as conn:
-                result = conn.execute(text("SELECT categorie, mots_cles FROM config_categories")).fetchall()
+                # On récupère les mots clés admin + utilisateur
+                query_cat = text("""
+                    SELECT categorie, mots_cles, utilisateur 
+                    FROM config_categories 
+                    WHERE utilisateur = :u OR utilisateur = 'admin'
+                """)
+                result = conn.execute(query_cat, {"u": utilisateur}).fetchall()
+                
+                # On gère la priorité utilisateur sur l'admin
+                temp_rules = {}
                 for row in result:
-                    if row[1]:
-                        raw_keywords = str(row[1]).replace('{', '').replace('}', '').replace('"', '')
-                        keywords = [m.strip().lower() for m in raw_keywords.split(',') if m.strip()]
-                        mots_cles_rules.append({"categorie": row[0], "keywords": keywords})
-        except: pass
+                    cat_name, raw_keywords, owner = row
+                    if raw_keywords:
+                        # Nettoyage du format {a,b,c} de Postgres
+                        keywords_str = str(raw_keywords).replace('{', '').replace('}', '').replace('"', '')
+                        keywords_list = [m.strip().lower() for m in keywords_str.split(',') if m.strip()]
+                        
+                        if cat_name not in temp_rules or owner == utilisateur:
+                            temp_rules[cat_name] = keywords_list
+                
+                for cat, keys in temp_rules.items():
+                    mots_cles_rules.append({"categorie": cat, "keywords": keys})
+        except Exception as e:
+            print(f"Erreur chargement mots_cles: {e}")
 
-        memoire = get_memoire(utilisateur)
+        # --- 5. CHARGEMENT DE LA MÉMOIRE (Liste d'objets triée) ---
+        # get_memoire(u) renvoie : [{"nom": "UBER EATS", "categorie": "Repas"}, ...]
+        memoire_rules = get_memoire(utilisateur)
+
         transactions_pretes = []
         mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
 
-        # Identification de la colonne info (Banque Postale)
-        col_info = next((c for c in df.columns if any(k in c for k in ['informations complementaires', 'info'])), None)
-
-        # 4. BOUCLE DE TRAITEMENT
+        # --- 6. BOUCLE DE TRAITEMENT ---
         for _, row in df.iterrows():
             if pd.isna(row[col_date]): continue
             
-            # Filtre Revolut
+            # Filtre Revolut (état terminé)
             if col_etat and pd.notna(row[col_etat]):
                 if str(row[col_etat]).upper() not in ['TERMINÉ', 'COMPLETED', 'FINI']:
                     continue
 
             try:
+                # Nettoyage du montant
                 def clean_val(val):
                     if pd.isna(val) or val == "": return "0"
-                    # On nettoie les espaces insécables et symboles
                     res = str(val).replace('+', '').replace('\xa0', '').replace(' ', '').strip()
-                    # IMPORTANT : Pour la Banque Postale, le montant est souvent "-24,99"
-                    # On ne remplace la virgule que si ce n'est pas un CSV Revolut (qui utilise déjà la virgule comme séparateur)
                     return res.replace(',', '.')
 
                 montant_float = 0.0
                 if col_debit or col_credit:
                     d_val = clean_val(row.get(col_debit)) if col_debit else "0"
                     c_val = clean_val(row.get(col_credit)) if col_credit else "0"
-                    if d_val and d_val not in ["0", "0.00"]: montant_float = float(d_val)
-                    elif c_val and c_val not in ["0", "0.00"]: montant_float = float(c_val)
+                    if d_val and d_val not in ["0", "0.00", "0.0"]: montant_float = float(d_val)
+                    elif c_val and c_val not in ["0", "0.00", "0.0"]: montant_float = float(c_val)
                 elif col_montant:
                     montant_float = float(clean_val(row[col_montant]))
 
+                # Préparation des textes pour comparaison
                 nom_t = str(row[col_nom]).strip()
                 info_t = str(row[col_info]) if col_info and pd.notna(row[col_info]) else ""
-                texte_integral = (nom_t + " " + info_t).upper()
+                nom_t_lower = nom_t.lower()
+                texte_integral_upper = (nom_t + " " + info_t).upper()
 
-                # --- CATEGORISATION ---
+                # --- ALGORITHME DE CATÉGORISATION ---
                 cat = "❓ Autre"
+                
+                # A. Priorité 1 : Virements Internes (Logique fixe)
                 mes_comptes = ["LIVRET A", "LDDS", "COMPTE CHEQUES", "COMMUN", "CCP", "REVOLUT"]
-                if any(k in texte_integral for k in ["VERS", "VIR MME FONTA AUDE", "TO "]):
-                    if "LIVRET A" in texte_integral: cat = "🔄 Virement : CCP vers Livret A"
-                    elif any(c in texte_integral for c in ["COMPTE CHEQUES", "CCP"]): cat = "🔄 Virement : Livret A vers CCP"
-                    elif any(c in texte_integral for c in mes_comptes): cat = "🔄 Transfert Interne"
+                if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO "]):
+                    if "LIVRET A" in texte_integral_upper: cat = "🔄 Virement : CCP vers Livret A"
+                    elif any(c in texte_integral_upper for c in ["COMPTE CHEQUES", "CCP"]): cat = "🔄 Virement : Livret A vers CCP"
+                    elif any(c in texte_integral_upper for c in mes_comptes): cat = "🔄 Transfert Interne"
 
+                
+                # B. Priorité 2 : Mémoire Apprise (Recherche partielle flexible)
                 if cat == "❓ Autre":
-                    cat = memoire.get(nom_t, "❓ Autre")
-                    if cat == "❓ Autre":
-                        nom_t_lower = nom_t.lower()
-                        for rule in mots_cles_rules:
-                            if any(k in nom_t_lower for k in rule["keywords"]):
-                                cat = rule["categorie"]
-                                break
+                    # 1. On normalise le nom de la transaction du CSV (minuscules + suppression espaces doubles)
+                    # "ACHAT CB UBER    EATS" devient "achat cb uber eats"
+                    nom_t_normalise = " ".join(nom_t_lower.split())
 
-                # --- DATE ---
+                    for m in memoire_rules:
+                        # 2. On normalise aussi le nom stocké en mémoire par sécurité
+                        nom_memoire_clean = " ".join(m["nom"].lower().split())
+                        
+                        # 3. On compare les deux versions propres
+                        if nom_memoire_clean in nom_t_normalise:
+                            cat = m["categorie"]
+                            break
+
+                # C. Priorité 3 : Intelligence (Mots-clés de la configuration)
+                if cat == "❓ Autre":
+                    for rule in mots_cles_rules:
+                        if any(k in nom_t_lower for k in rule["keywords"]):
+                            cat = rule["categorie"]
+                            break
+
+                # --- DATE ET FORMATAGE FINAL ---
                 date_str = str(row[col_date]).split(' ')[0]
-                # La Banque Postale est en JJ/MM/AAAA, Revolut en AAAA-MM-JJ
                 dt = pd.to_datetime(date_str, dayfirst=True, errors='coerce')
                 if pd.isna(dt): continue
                 
@@ -930,14 +969,15 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
                     "mois": mois_fr[dt.month - 1],
                     "annee": int(dt.year)
                 })
-            except Exception as e: 
-                print(f"Erreur ligne: {e}")
+
+            except Exception as e:
+                print(f"Erreur sur une ligne : {e}")
                 continue
             
         return transactions_pretes
 
     except Exception as e:
-        print(f"CRASH: {e}")
+        print(f"CRASH GÉNÉRAL IMPORT: {e}")
         return []
     
 
@@ -946,26 +986,36 @@ async def import_csv(utilisateur: str, compte: str, file: UploadFile = File(...)
 
 @app.post("/transactions/batch")
 def add_transactions_batch(transactions: List[Transaction]):
-    # Supprime temporairement le ON CONFLICT pour forcer et voir l'erreur
-    query = text("""
-        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte) 
-        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
-    """)
-    
-    success_count = 0
-    with engine.connect() as conn:
-        for t in transactions:
-            try:
-                conn.execute(query, {
-                    "d": t.date, "n": t.nom, "m": t.montant, 
-                    "c": t.categorie, "u": t.utilisateur.lower(),
-                    "mo": t.mois, "a": t.annee, "co": t.compte
-                })
-                success_count += 1
-            except Exception as e:
-                print(f"ERREUR LIGNE {t.nom}: {e}")
-        conn.commit()
-    return {"status": "success", "added": success_count}
+    # Utilise engine.begin() pour garantir le COMMIT
+    try:
+        success_count = 0
+        with engine.begin() as conn:
+            for t in transactions:
+                try:
+                    # Log pour debugger
+                    #print(f"Tentative insertion: {t.nom} | {t.montant}")
+                    
+                    # Vérifie bien les noms des colonnes ici (année vs annee)
+                    query = text("""
+                        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte) 
+                        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
+                    """)
+                    
+                    conn.execute(query, {
+                        "d": t.date, "n": t.nom, "m": t.montant, 
+                        "c": t.categorie, "u": t.utilisateur.lower(),
+                        "mo": t.mois, "a": t.annee, "co": t.compte
+                    })
+                    success_count += 1
+                except Exception as e:
+                    # C'est ici que tu verras pourquoi 'added' reste à 0
+                    print(f"ERREUR SQL sur {t.nom}: {e}")
+        
+        #print(f"Total inséré : {success_count}")
+        return {"status": "success", "added": success_count}
+    except Exception as e:
+        #print(f"CRASH CRITIQUE BATCH: {e}")
+        return {"status": "error", "added": 0, "detail": str(e)}
 
 
 @app.put("/config-categories/update")
@@ -973,51 +1023,69 @@ async def update_category_keywords(data: dict):
     try:
         categorie = data.get("categorie")
         keywords_list = data.get("keywords", [])
+        utilisateur = data.get("utilisateur") # <--- On récupère l'utilisateur
         
-        # Formatage propre pour l'array Postgres
-        # On échappe les virgules ou caractères spéciaux si nécessaire
+        if not utilisateur:
+            raise HTTPException(status_code=400, detail="Utilisateur manquant")
+
+        # Formatage propre (SQLAlchemy gère souvent mieux les listes Python directes 
+        # si vous utilisez les types ARRAY, mais gardons votre logique)
         keywords_sql = "{" + ",".join(keywords_list) + "}"
         
-        # UPSERT : Si la catégorie existe, update. Sinon, insert.
+        # L'UPSERT se base maintenant sur (categorie, utilisateur)
         query = text("""
-            INSERT INTO config_categories (categorie, mots_cles) 
-            VALUES (:c, :k)
-            ON CONFLICT (categorie) 
+            INSERT INTO config_categories (categorie, mots_cles, utilisateur) 
+            VALUES (:c, :k, :u)
+            ON CONFLICT (categorie, utilisateur) 
             DO UPDATE SET mots_cles = EXCLUDED.mots_cles
         """)
         
         with engine.connect() as conn:
-            conn.execute(query, {"k": keywords_sql, "c": categorie})
+            conn.execute(query, {"k": keywords_sql, "c": categorie, "u": utilisateur})
             conn.commit()
             
         return {"status": "success"}
     except Exception as e:
         print(f"Erreur Update: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 @app.get("/config-categories")
-def get_categories_config():
-    query = text("SELECT categorie, mots_cles FROM config_categories ORDER BY id ASC")
+def get_categories_config(utilisateur: str = None):
+    # On récupère les deux versions
+    query = text("""
+        SELECT categorie, mots_cles, utilisateur 
+        FROM config_categories 
+        WHERE utilisateur = :u OR utilisateur = 'admin'
+    """)
+    
     try:
         with engine.connect() as conn:
-            result = conn.execute(query).fetchall()
-            data = []
+            result = conn.execute(query, {"u": utilisateur}).fetchall()
+            
+            # Dictionnaire pour stocker le résultat final
+            # Format : { "Nom Cat": {"mots_cles": [], "is_user": False} }
+            final_config = {}
+            
             for row in result:
-                # Sécurité : on s'assure que mots_cles est traité comme une liste
-                keywords = row[1]
-                if keywords is None:
-                    keywords = []
-                elif isinstance(keywords, str):
-                    # Si c'est une string "{A,B}", on la nettoie
-                    keywords = keywords.replace("{", "").replace("}", "").split(",")
-                
-                data.append({
-                    "categorie": row[0],
-                    "mots_cles": list(keywords)
-                })
-            return data
+                cat_name = row[0]
+                kw = row[1] or []
+                if isinstance(kw, str):
+                    kw = kw.replace("{", "").replace("}", "").split(",")
+                kw_list = [k for k in kw if k]
+                is_user = (row[2] == utilisateur)
+
+                # STRATÉGIE : Si on n'a rien pour cette catégorie, on prend ce qui vient.
+                # Si on a déjà une version 'admin' mais que la ligne actuelle est 'utilisateur',
+                # on ÉCRASE la version admin par celle de l'utilisateur.
+                if cat_name not in final_config or is_user:
+                    final_config[cat_name] = kw_list
+
+            return [
+                {"categorie": k, "mots_cles": v} 
+                for k, v in final_config.items()
+            ]
     except Exception as e:
-        print(f"CRASH SQL: {e}")
+        print(f"Erreur Fetch: {e}")
         return []
 
 
