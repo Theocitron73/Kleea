@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays  
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -5196,6 +5196,70 @@ const statsAnnuellesCategories = useMemo(() => {
 // On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
 
 
+const recalculerSoldeInitialHisto = (soldeSaisi, moisSaisi, anneeSaisi, transactionsDuCompte) => {
+  let soldeRemonte = soldeSaisi;
+
+  // On trie les transactions pour ne traiter que celles qui sont AVANT ou PENDANT le mois saisi
+  // (Parce qu'on veut "annuler" leur effet pour remonter dans le passé)
+  transactionsDuCompte.forEach(t => {
+    const anneeT = parseInt(t.année);
+    const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === t.mois.toLowerCase());
+    const indexMoisSaisi = moisListe.findIndex(m => m.v.toLowerCase() === moisSaisi.toLowerCase());
+
+    // Si la transaction est dans le futur par rapport à la saisie, on s'en fiche
+    if (anneeT > anneeSaisi || (anneeT === anneeSaisi && indexMoisT >= indexMoisSaisi)) {
+      // Note: On inclut le mois saisi car le solde "à date" est souvent le solde FIN de mois
+      // ou le solde INSTANTANÉ. Si c'est le solde au 1er du mois, on retire le mois en cours.
+      
+      // Ici, on part du principe que c'est le solde AU MOMENT de la saisie (donc on soustrait l'impact passé)
+      soldeRemonte -= parseFloat(t.montant);
+    }
+  });
+
+  return soldeRemonte;
+};
+
+const [assistantData, setAssistantData] = useState({ open: false, compte: null, valeur: "" });
+const openCalculateurAssistant = (compte) => {
+  setAssistantData({ open: true, compte: compte, valeur: "" });
+};
+const confirmerCalculAssistant = async () => {
+  const { compte, valeur } = assistantData;
+  const montantSaisi = parseFloat(valeur.replace(',', '.'));
+
+  if (isNaN(montantSaisi)) {
+    setNotification({ message: "Veuillez saisir un montant valide", type: "error" });
+    return;
+  }
+
+  const totalTransactions = (toutesLesTransactions || [])
+    .filter(t => t.compte?.trim().toUpperCase() === compte.compte.trim().toUpperCase())
+    .reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0);
+
+  const nouveauSoldeInitial = Math.round((montantSaisi - totalTransactions) * 100) / 100;
+
+  try {
+    const nouveauxComptes = comptes.map(c => 
+      c.compte === compte.compte ? { ...c, solde: nouveauSoldeInitial } : c
+    );
+    
+    setComptes(nouveauxComptes);
+    await handleBlurUpdate({ ...compte, solde: nouveauSoldeInitial });
+
+    setNotification({ 
+      message: `Solde initial ajusté : ${nouveauSoldeInitial.toLocaleString('fr-FR')}€`, 
+      type: "success" 
+    });
+    
+    // Fermer la modale
+    setAssistantData({ open: false, compte: null, valeur: "" });
+    
+    setTimeout(() => setNotification(null), 3000);
+  } catch (err) {
+    setNotification({ message: "Erreur lors de la sauvegarde", type: "error" });
+  }
+};
+
 
 useEffect(() => {
   if (user) {
@@ -9024,20 +9088,71 @@ if (!user) {
 
               {/* LIGNE 2 : DATA */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-black/40 backdrop-blur-md p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
-                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Solde initial</p>
+                <div className="bg-black/40 backdrop-blur-md p-3 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
+                    
+                    {/* Petit bouton magique */}
+                    <button 
+                      onClick={() => openCalculateurAssistant(c)}
+                      className="text-white hover:scale-110 transition-transform"
+                      title="Ajuster selon un solde à date"
+                    >
+                      <Wand2 size={15} />
+                    </button>
+                  </div>
+                  
                   <div className="flex items-center gap-1">
                     <input 
-                      type="number"
-                      className="bg-transparent text-sm font-black text-[var(--text-main)] outline-none w-full"
-                      value={c.solde}
-                      onChange={(e) => {
-                        const newComptes = [...comptes];
-                        newComptes[i].solde = parseFloat(e.target.value) || 0;
-                        setComptes(newComptes);
-                      }}
-                      onBlur={() => handleBlurUpdate(c)}
-                    />
+                  // 1. On passe en type "text" pour éviter les restrictions du navigateur sur les chiffres
+                  type="text"
+                  className="bg-transparent text-sm font-black text-[var(--text-main)] outline-none w-full"
+                  
+                  // 2. L'astuce : On affiche la valeur brute stockée dans l'état
+                  value={c.solde}
+                  
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    
+                    // 3. On autorise uniquement les caractères valides pour un montant (chiffres, point, virgule, signe moins)
+                    // Cela permet de taper librement sans casser l'état
+                    if (/^[0-9.,-]*$/.test(val) || val === "") {
+                      const newComptes = [...comptes];
+                      newComptes[i].solde = val; // On stocke la string telle quelle
+                      setComptes(newComptes);
+                    }
+                  }}
+                  
+                  onBlur={() => {
+                    // 4. Au moment de sortir de l'input, on fait le ménage proprement
+                    let finalValue = c.solde;
+
+                    if (typeof finalValue === 'string') {
+                      // Remplace la virgule par un point et nettoie les espaces
+                      finalValue = finalValue.replace(',', '.').trim();
+                    }
+
+                    const numericValue = parseFloat(finalValue);
+
+                    if (!isNaN(numericValue)) {
+                      // On arrondit à 2 chiffres après la virgule
+                      const roundedValue = Math.round(numericValue * 100) / 100;
+                      
+                      const newComptes = [...comptes];
+                      newComptes[i].solde = roundedValue;
+                      setComptes(newComptes);
+                      
+                      // On sauvegarde la version propre en BDD
+                      handleBlurUpdate({ ...c, solde: roundedValue });
+                    } else {
+                      // Si l'entrée est invalide, on remet à 0 ou à l'ancienne valeur
+                      const newComptes = [...comptes];
+                      newComptes[i].solde = 0;
+                      setComptes(newComptes);
+                      handleBlurUpdate({ ...c, solde: 0 });
+                    }
+                  }}
+                />
                     <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
                   </div>
                 </div>
@@ -9896,6 +10011,55 @@ if (!user) {
       {/* Barre de progression éphémère */}
       <div className="absolute bottom-0 left-0 h-1 bg-current opacity-20 transition-all duration-[4000ms] ease-linear"
            style={{ width: '0%', animation: 'progress 4s linear' }} />
+    </div>
+  </div>
+)}
+
+
+
+{assistantData.open && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    {/* Overlay flouté */}
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setAssistantData({ ...assistantData, open: false })} />
+    
+    {/* Fenêtre Modale */}
+    <div className="relative w-full max-w-md bg-[#1a1a1c]/90 border border-white/20 rounded-[2rem] p-8 shadow-2xl backdrop-blur-2xl animate-in zoom-in-95 duration-200">
+      <div className="flex flex-col gap-6">
+        <div className="space-y-2">
+          <h3 className="text-white font-black text-xl uppercase tracking-tighter">Assistant de Solde</h3>
+          <p className="text-white/40 text-xs font-medium leading-relaxed">
+            Saisissez le solde actuel de votre compte <span className="text-white">"{assistantData.compte?.compte}"</span> tel qu'il apparaît sur votre banque. L'app calculera le solde initial nécessaire.
+          </p>
+        </div>
+
+        <div className="relative">
+          <input
+            autoFocus
+            type="text"
+            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-2xl font-black text-white outline-none focus:border-[var(--primary)] transition-colors"
+            placeholder="0,00"
+            value={assistantData.valeur}
+            onChange={(e) => setAssistantData({ ...assistantData, valeur: e.target.value })}
+            onKeyDown={(e) => e.key === 'Enter' && confirmerCalculAssistant()}
+          />
+          <span className="absolute right-6 top-1/2 -translate-y-1/2 text-white/20 font-black text-xl">€</span>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => setAssistantData({ open: false, compte: null, valeur: "" })}
+            className="flex-1 py-4 rounded-2xl bg-white/5 text-white/60 font-bold hover:bg-white/10 transition-all uppercase text-xs tracking-widest"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={confirmerCalculAssistant}
+            className="flex-[2] py-4 rounded-2xl bg-white text-black font-black hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest shadow-xl shadow-white/10"
+          >
+            Calculer & Appliquer
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 )}
