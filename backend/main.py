@@ -846,7 +846,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
         for i, line in enumerate(lines[:20]):
             l = line.lower()
             if (any(k in l for k in ['date', 'le ']) and 
-                any(k in l for k in ['libell', 'montant', 'débit', 'description'])):
+                any(k in l for k in ['libell', 'montant', 'débit', 'crédit', 'description'])):
                 start_line = i
                 break
         
@@ -920,8 +920,15 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 if col_debit or col_credit:
                     d_val = clean_val(row.get(col_debit)) if col_debit else "0"
                     c_val = clean_val(row.get(col_credit)) if col_credit else "0"
-                    if d_val and d_val not in ["0", "0.00", "0.0"]: montant_float = float(d_val)
-                    elif c_val and c_val not in ["0", "0.00", "0.0"]: montant_float = float(c_val)
+                    
+                    # SI DÉBIT : On force le montant en NÉGATIF
+                    if d_val and d_val not in ["0", "0.00", "0.0"]: 
+                        montant_float = -abs(float(d_val)) 
+                    
+                    # SI CRÉDIT : On force le montant en POSITIF
+                    elif c_val and c_val not in ["0", "0.00", "0.0"]: 
+                        montant_float = abs(float(c_val))
+                
                 elif col_montant:
                     montant_float = float(clean_val(row[col_montant]))
 

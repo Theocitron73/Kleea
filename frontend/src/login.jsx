@@ -2054,7 +2054,7 @@ const SortableAccountCard = ({ c }) => {
     zIndex: isDragging ? 50 : 1,
   };
 
-  return (
+ return (
     <div 
       ref={setNodeRef}
       style={containerStyle}
@@ -2068,57 +2068,62 @@ const SortableAccountCard = ({ c }) => {
           w-full h-full p-5 rounded-[var(--radius)] 
           flex flex-col justify-between
           relative overflow-hidden group 
-          cursor-grab active:cursor-grabbing shadow-lg
+          cursor-grab active:cursor-grabbing shadow-xl
           will-change-transform
           transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
           
+          /* Effet de transparence et flou */
+          backdrop-blur-md border
+          
           /* Bordures et Effets selon l'état */
           ${isEstimated 
-            ? 'border-[1.5px] border-white/40 saturate-[0.85] brightness-110 animate-pulse-subtle' 
-            : 'border border-white/20 saturate-100'
+            ? 'border-white/40 saturate-[0.85] animate-pulse-subtle' 
+            : 'border-white/10 hover:border-white/30'
           }
           
           /* Animation Drag vs Hover */
           ${isDragging 
-            ? 'scale-105 rotate-2 shadow-2xl opacity-40 brightness-125 ring-2 ring-white/30' 
+            ? 'scale-105 rotate-2 shadow-2xl opacity-60 brightness-125 ring-2 ring-white/20' 
             : 'hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)]'
           }
         `}
         style={{
+          /* Utilisation de couleurs semi-transparentes (77 = ~45% d'opacité en hexa) */
           background: isEstimated
-            ? `linear-gradient(135deg, ${c.couleur}dd 0%, ${c.couleur}aa 100%)`
-            : `linear-gradient(135deg, ${c.couleur} 0%, ${c.couleur}dd 100%)`,
+            ? `linear-gradient(135deg, ${c.couleur}88 0%, ${c.couleur}44 100%)`
+            : `linear-gradient(135deg, ${c.couleur}aa 0%, ${c.couleur}66 100%)`,
         }}
       >
-        {/* 1. Motif de fond vitreux (plus prononcé si estimé) */}
-        <div className={`absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/30 to-transparent pointer-events-none ${isEstimated ? 'opacity-40' : 'opacity-20'}`} />
+        {/* 1. Motif de fond vitreux (Subtil pour laisser passer la transparence) */}
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-20" />
         
-        {/* Overlay de texture pour le côté "holographique" des prévisions */}
+        {/* Overlay de texture holographique si estimé */}
         {isEstimated && (
-          <div className="absolute inset-0 opacity-[0.05] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
         )}
         
         {/* 2. Cercle de lumière dynamique au survol */}
-        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:bg-white/30 group-hover:scale-150 transition-all duration-700" />
+        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/20 group-hover:scale-150 transition-all duration-700" />
 
         {/* 3. Header de la carte */}
         <div className="flex justify-between items-start relative z-10">
           <div className="flex flex-col">
-            <span className={`text-[10px] font-black uppercase tracking-[0.2em] leading-none mb-1 italic ${isEstimated ? 'text-[var(--text-main)]/60' : 'text-[var(--text-main)]/40'}`}>
+            <span className={`text-[10px] font-black uppercase tracking-[0.2em] leading-none mb-1 italic ${isEstimated ? 'text-white/80' : 'text-white/40'}`}>
               {c.groupe || 'Compte'}
             </span>
-            <h4 className="text-[var(--text-main)] font-bold text-xs tracking-tight truncate max-w-[100px] uppercase">
+            <h4 className="text-white font-bold text-xs tracking-tight truncate max-w-[100px] uppercase">
               {c.compte}
             </h4>
           </div>
           
-          <div className={`w-10 h-10 rounded-2xl backdrop-blur-lg border flex items-center justify-center shadow-inner group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${isEstimated ? 'bg-white/20 border-white/40' : 'bg-white/10 border-white/20'}`}>
+          {/* Icône avec fond translucide */}
+          <div className={`w-9 h-9 rounded-xl backdrop-blur-md border flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${isEstimated ? 'bg-white/30 border-white/40' : 'bg-white/10 border-white/20'}`}>
             {(() => {
               const g = (c.compte || "").toString().toLowerCase().trim();
-              if (g.includes('ccp')) return <CreditCard size={18} className="text-[var(--text-main)]/80" />;
-              if (g.includes('livret')|| g.includes('lep')) return <BadgeEuro size={18} className="text-[var(--text-main)]/80" />;
-              if (g.includes('commun') || g.includes('users')) return <Users2 size={18} className="text-[var(--text-main)]/80" />;
-              return <Wallet size={18} className="text-[var(--text-main)]/80" />;
+              if (g.includes('ccp')) return <CreditCard size={16} className="text-white" />;
+              if (g.includes('livret')|| g.includes('lep')) return <BadgeEuro size={16} className="text-white" />;
+              if (g.includes('commun') || g.includes('users')) return <Users2 size={16} className="text-white" />;
+              return <Wallet size={16} className="text-white" />;
             })()}
           </div>
         </div>
@@ -2126,22 +2131,21 @@ const SortableAccountCard = ({ c }) => {
         {/* 4. Solde et Tendance */}
         <div className="relative z-10 mt-auto">
           <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-black uppercase italic tracking-tighter ${isEstimated ? 'text-[var(--text-main)]/80' : 'text-[var(--text-main)]/60'}`}>
+            <span className={`text-[10px] font-black uppercase italic tracking-tighter ${isEstimated ? 'text-white/90' : 'text-white/60'}`}>
               {isEstimated ? 'Solde estimé' : 'Solde'}
             </span>
-            <div className={`h-[1px] flex-1 ${isEstimated ? 'bg-white/40' : 'bg-white/20'}`} />
+            <div className={`h-[px] flex-1 ${isEstimated ? 'bg-white/30' : 'bg-white/10'}`} />
           </div>
           
           <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-xl font-black text-[var(--text-main)] tracking-tighter">
+            <h3 className="text-xl font-black text-white tracking-tighter">
               {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-              <span className="text-[10px] ml-1 font-bold text-[var(--text-main)]/70">€</span>
+              <span className="text-[10px] ml-1 font-bold text-white/70">€</span>
             </h3>
             
             <div className={`
-              flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-md
-              ${montantFinal >= 0 ? 'bg-emerald-400/20 text-emerald-300' : 'bg-rose-400/20 text-rose-300'}
-              ${isEstimated ? 'ring-1 ring-white/20' : ''}
+              flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-md border border-white/10
+              ${montantFinal >= 0 ? 'bg-emerald-400/30 text-emerald-200' : 'bg-rose-400/30 text-rose-200'}
             `}>
                <TrendingUp size={12} className={montantFinal >= 0 ? '' : 'rotate-180'} />
             </div>
