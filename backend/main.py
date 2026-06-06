@@ -34,9 +34,8 @@ origins = [
     "http://localhost:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",    # Pour tes tests locaux
-    "https://kleea.vercel.app",        # Ton URL Vercel
-    "https://theolebarbier.fr/",
-    "https://kleea.theolebarbier.fr/",
+     os.getenv("DOMAINE_DEFAULT"),        # Ton URL Vercel
+     os.getenv("SOUS_DOMAINE_URL"),
 ]
 
 # LE BLOC INDISPENSABLE :
@@ -52,7 +51,7 @@ app.add_middleware(
 
 conf = ConnectionConfig(
     MAIL_USERNAME = "theolebarbier50@gmail.com",
-    MAIL_PASSWORD = "pblo xpwn klsv fchb", # <--- Ton code de 16 caractères ici
+    MAIL_PASSWORD = os.getenv("MAIL_PASSWORD"), # <--- Ton code de 16 caractères ici
     MAIL_FROM = "theolebarbier50@gmail.com",
     MAIL_PORT = 465,
     MAIL_SERVER = "smtp.gmail.com",
