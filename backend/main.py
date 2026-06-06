@@ -36,6 +36,7 @@ origins = [
     "http://127.0.0.1:8000",    # Pour tes tests locaux
     "https://kleea.vercel.app",        # Ton URL Vercel
     "https://theolebarbier.fr/",
+    "https://kleea.theolebarbier.fr/",
 ]
 
 # LE BLOC INDISPENSABLE :
