@@ -3022,7 +3022,7 @@ const handleLogin = async (e) => {
       if (err.response && err.response.status === 401) {
         showAlert("Mot de passe incorrect.")
       } else if (err.response && err.response.status === 404) {
-        showAlert("Utilisateur inconnu.")
+        showAlert("Identifiant ou e-mail inconnu.")
       } else {
         showAlert("Erreur de connexion au serveur.")
       }
@@ -4584,6 +4584,7 @@ const transactionsCalculees = useMemo(() => {
 }, [tempTransactions, categoriesConfig, elementsAppris, selectedCompte, user]);
 
 const [fileName, setFileName] = useState("");
+
 // --- ÉTAPE 3 : Modifier handleFileUpload ---
 const handleFileUpload = async (file) => {
   if (!file) return;
@@ -4602,13 +4603,53 @@ const handleFileUpload = async (file) => {
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     
-    // 2. On stocke les transactions
-    setTempTransactions(response.data);
+    const lignesBrutes = response.data; // Les transactions renvoyées par Python
+
+    // --- ALGORITHME DE DÉTECTION DES DOUBLONS INTERNES ---
+    const lignesUniques = [];
+    const clesVisitees = new Set();
+    let aDesDoublonsDansLeCsv = false;
+
+    lignesBrutes.forEach((t) => {
+      // On crée une empreinte unique pour la ligne (Date + Nom nettoyé + Montant)
+      const cleUnique = `${t.date}-${t.nom.trim().toLowerCase()}-${t.montant}`;
+      
+      if (!clesVisitees.has(cleUnique)) {
+        clesVisitees.add(cleUnique);
+        lignesUniques.push(t); // On garde cette transaction (première fois qu'on la voit)
+      } else {
+        aDesDoublonsDansLeCsv = true; // C'est un doublon au sein du même fichier !
+      }
+    });
+    // -----------------------------------------------------
+
+    // 2. On stocke uniquement les transactions uniques pour le tableau
+    setTempTransactions(lignesUniques);
+
+    // 3. Si on a trouvé des doublons, on prévient l'utilisateur
+    if (aDesDoublonsDansLeCsv) {
+      setNotification({ 
+        message: "⚠️ Attention : Des lignes identiques ont été détectées à l'intérieur du fichier CSV. Elles ont été nettoyées automatiquement !", 
+        type: 'success' 
+      });
+
+      // Auto-suppression du message après 5 secondes
+      setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+    }
 
   } catch (error) {
     console.error("Erreur import:", error);
-    alert("Erreur lors de l'envoi");
-    // Optionnel : reset le nom si ça échoue
+    
+    // Remplacement de l'alert() moche par ta jolie notification si elle existe
+    if (typeof setNotification === 'function') {
+      setNotification({ message: "Erreur lors de l'envoi ou de l'analyse du CSV", type: 'error' });
+    } else {
+      alert("Erreur lors de l'envoi");
+    }
+    
+    // Reset le nom si ça échoue
     setFileName("");
   }
 };
@@ -4617,26 +4658,31 @@ const confirmBatchImport = async () => {
   try {
     const response = await api.post(`/transactions/batch`, transactionsCalculees);
     
-    if(response.data.added > 0) {
+    // Si au moins une transaction a été ajoutée OU si le serveur répond "success"
+    if (response.data.status === "success") {
        // 1. On vide la zone d'importation
        setTempTransactions([]);
        
-       // 2. On affiche le succès
-        setNotification({ 
-          message: `${response.data.added} transactions importées avec succès`, 
-          type: 'success' 
-        });
+       // 2. Gestion de l'affichage de la notification (Succès global vs Doublons détectés)
+       if (response.data.warning) {
+         setNotification({ 
+           message: `${response.data.added} nouvelles transactions importées. (Attention : des doublons déjà existants ont été ignorés)`, 
+           type: 'success' // Utilise 'warning' ou 'error' selon les couleurs de ton composant de notification
+         });
+       } else {
+         setNotification({ 
+           message: `${response.data.added} transactions importées avec succès`, 
+           type: 'success' 
+         });
+       }
 
-        // 3. Auto-suppression après 5 secondes
-        setTimeout(() => {
-          setNotification(null); // Ou setNotification({ ...notification, show: false }) selon ta structure
-        }, 2000);
+       // 3. Auto-suppression après 3.5 secondes pour laisser le temps de lire l'avertissement
+       setTimeout(() => {
+         setNotification(null);
+       }, 3500);
 
-       // 3. LA CLÉ : On recharge les données depuis le serveur
-       // Cela mettra à jour l'état 'toutesLesTransactions' avec les vrais IDs de la DB
+       // 4. On recharge les données depuis le serveur
        await fetchTransactions(); 
-
-       // 4. Facultatif : On redirige l'utilisateur vers le dashboard pour qu'il voie le résultat
     }
   } catch (error) {
     console.error("Erreur import:", error);
@@ -5361,7 +5407,7 @@ if (!user) {
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
                     <input 
                       className="w-full bg-white/5 border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
-                      placeholder="Pseudo"
+                      placeholder="Pseudo ou Adresse e-mail"
                       value={loginName}
                       onChange={(e) => setLoginName(e.target.value)}
                       required

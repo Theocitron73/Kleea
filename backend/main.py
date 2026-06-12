@@ -228,18 +228,23 @@ def register(req: RegisterRequest):
 # --- ROUTE : CONNEXION (LOGIN) ---
 @app.post("/login")
 def login(req: LoginRequest):
-    query = text("SELECT username, password FROM users WHERE username = :nom")
+    # La clé est ici : on cherche si 'nom' matche avec username OR email
+    query = text("""
+        SELECT username, password 
+        FROM users 
+        WHERE username = :identifiant OR email = :identifiant
+    """)
     
     with engine.connect() as conn:
-        result = conn.execute(query, {"nom": req.nom}).fetchone()
+        # On passe req.nom aux deux paramètres via le même dictionnaire
+        result = conn.execute(query, {"identifiant": req.nom}).fetchone()
         
         if not result:
-            raise HTTPException(status_code=404, detail="Utilisateur inconnu")
+            raise HTTPException(status_code=404, detail="Utilisateur ou email inconnu")
         
         db_username, db_hashed_password = result
         
-        # Vérification : compare le mot de passe saisi avec le hash en base
-        # Le try/except permet de gérer les anciens mots de passe en clair si besoin
+        # Vérification du mot de passe
         try:
             is_valid = pwd_context.verify(req.password, db_hashed_password)
         except Exception:
@@ -248,6 +253,8 @@ def login(req: LoginRequest):
         if not is_valid:
             raise HTTPException(status_code=401, detail="Mot de passe incorrect")
             
+        # On renvoie toujours le db_username pour le frontend, 
+        # peu importe comment l'utilisateur s'est connecté
         return {"status": "success", "user": db_username}
 
 
@@ -1004,36 +1011,37 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
 
 @app.post("/transactions/batch")
 def add_transactions_batch(transactions: List[Transaction]):
-    # Utilise engine.begin() pour garantir le COMMIT
-    try:
-        success_count = 0
-        with engine.begin() as conn:
-            for t in transactions:
-                try:
-                    # Log pour debugger
-                    #print(f"Tentative insertion: {t.nom} | {t.montant}")
-                    
-                    # Vérifie bien les noms des colonnes ici (année vs annee)
-                    query = text("""
-                        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte) 
-                        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
-                    """)
-                    
-                    conn.execute(query, {
-                        "d": t.date, "n": t.nom, "m": t.montant, 
-                        "c": t.categorie, "u": t.utilisateur.lower(),
-                        "mo": t.mois, "a": t.annee, "co": t.compte
-                    })
-                    success_count += 1
-                except Exception as e:
-                    # C'est ici que tu verras pourquoi 'added' reste à 0
-                    print(f"ERREUR SQL sur {t.nom}: {e}")
-        
-        #print(f"Total inséré : {success_count}")
-        return {"status": "success", "added": success_count}
-    except Exception as e:
-        #print(f"CRASH CRITIQUE BATCH: {e}")
-        return {"status": "error", "added": 0, "detail": str(e)}
+    success_count = 0
+    has_duplicates = False
+    
+    # On traite chaque transaction indépendamment pour éviter l'effet domino en cas de doublon
+    for t in transactions:
+        try:
+            # On utilise .begin() individuellement pour valider (COMMIT) chaque ligne réussie
+            with engine.begin() as conn:
+                query = text("""
+                    INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte) 
+                    VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
+                """)
+                
+                conn.execute(query, {
+                    "d": t.date, "n": t.nom, "m": t.montant, 
+                    "c": t.categorie, "u": t.utilisateur.lower(),
+                    "mo": t.mois, "a": t.annee, "co": t.compte
+                })
+                success_count += 1
+        except Exception as e:
+            # Si l'erreur est un doublon (UniqueViolation), on le note mais on ne crash pas l'application
+            print(f"Ligne ignorée (Doublon ou contrainte) sur {t.nom}: {e}")
+            has_duplicates = True
+            continue
+            
+    # On renvoie le résultat global
+    return {
+        "status": "success", 
+        "added": success_count,
+        "warning": has_duplicates
+    }
 
 
 @app.put("/config-categories/update")
