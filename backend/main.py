@@ -423,6 +423,8 @@ class ThemeConfig(BaseModel):
     primary_color: str
     text_main: str
     radius: str
+    glass_blur: str  # <-- AJOUT
+    glass_bg: str    # <-- AJOUT
 
 @app.get("/get-theme/{username}")
 def get_theme(username: str):
@@ -431,16 +433,16 @@ def get_theme(username: str):
         res = conn.execute(query, {"u": username.lower()}).fetchone()
         if res:
             return dict(res._mapping)
-        return None # Retourne rien si l'utilisateur n'a pas de thème perso
+        return None
 
 @app.post("/save-theme")
 def save_theme(t: ThemeConfig):
-    # ON CONFLICT permet de mettre à jour si l'utilisateur existe déjà
+    # Ajout des deux nouvelles colonnes dans l'INSERT et le SET du ON CONFLICT
     query = text("""
-        INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius)
-        VALUES (:u, :bg, :p, :tm, :r)
+        INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius, glass_blur, glass_bg)
+        VALUES (:u, :bg, :p, :tm, :r, :gb, :gg)
         ON CONFLICT (utilisateur) DO UPDATE 
-        SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r
+        SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r, glass_blur = :gb, glass_bg = :gg
     """)
     with engine.connect() as conn:
         conn.execute(query, {
@@ -448,11 +450,12 @@ def save_theme(t: ThemeConfig):
             "bg": t.bg_site, 
             "p": t.primary_color, 
             "tm": t.text_main, 
-            "r": t.radius
+            "r": t.radius,
+            "gb": t.glass_blur,  # <-- AJOUT
+            "gg": t.glass_bg     # <-- AJOUT
         })
         conn.commit()
     return {"status": "success"}
-
 
 
 

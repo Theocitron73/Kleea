@@ -175,7 +175,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
                   if (active && payload && payload.length) {
                     const p = payload[0].payload;
                     return (
-                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-xl z-50">
+                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-[var(--glass-blur)] z-50">
                         <p className="text-[10px] font-black uppercase text-white/40 mb-1 tracking-widest">{p.name}</p>
                         <p className="text-xl font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
                       </div>
@@ -212,7 +212,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
                   className={`group relative w-10 h-10 flex items-center justify-center rounded-xl border transition-all duration-500 shrink-0 ${
                     isHidden 
                     ? 'bg-transparent border-transparent grayscale opacity-10 scale-90' 
-                    : 'bg-white/[0.03] border-white/10 shadow-lg scale-100 hover:border-white/30'
+                    : 'bg-[var(--glass-bg)] border-white/10 shadow-lg scale-100 hover:border-white/30'
                   }`}
                 >
                   <span className={`text-lg leading-none transition-transform duration-500 ${isHidden ? 'scale-75' : 'scale-100'}`}>
@@ -742,7 +742,7 @@ const getEmojiForMember = (nom) => {
 
       {/* --- SYSTÈME DE NOTIFICATION DESIGN --- */}
         <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 transform ${notification.show ? 'translate-y-0 opacity-100' : '-translate-y-10 opacity-0 pointer-events-none'}`}>
-          <div className={`relative overflow-hidden backdrop-blur-xl border p-5 rounded-[var(--radius)] shadow-2xl min-w-[320px] ${
+          <div className={`relative overflow-hidden backdrop-blur-[var(--glass-blur)] border p-5 rounded-[var(--radius)] shadow-2xl min-w-[320px] ${
             notification.type === 'error' 
             ? 'bg-rose-500/10 border-rose-500/20' 
             : 'bg-emerald-500/10 border-emerald-500/20'
@@ -769,7 +769,7 @@ const getEmojiForMember = (nom) => {
 
       {editingTransaction && (
       <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-xl" onClick={() => setEditingTransaction(null)} />
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-[var(--glass-blur)]" onClick={() => setEditingTransaction(null)} />
         
         <div className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-[var(--radius)] p-10 shadow-2xl max-h-[90vh] overflow-y-auto">
           <h3 className="text-2xl font-black uppercase tracking-tighter mb-8 text-[var(--text-main)]">Modifier la dépense</h3>
@@ -782,7 +782,7 @@ const getEmojiForMember = (nom) => {
                 type="text"
                 value={editingTransaction.libellé}
                 onChange={(e) => setEditingTransaction({...editingTransaction, libellé: e.target.value})}
-                className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all"
+                className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all"
                 placeholder="Ex: Restaurant, Courses..."
               />
             </div>
@@ -799,14 +799,14 @@ const getEmojiForMember = (nom) => {
                     const val = parseFloat(e.target.value) || 0;
                     setEditingTransaction({...editingTransaction, montant: val});
                   }}
-                  className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all"
+                  className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all"
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40 ml-2">
                   Date
                 </label>
-                <div className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus-within:border-[var(--primary)] transition-all">
+                <div className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus-within:border-[var(--primary)] transition-all">
                   <DatePicker
                     // Conversion de la string ISO en objet Date pour l'affichage
                     selected={editingTransaction.date ? new Date(editingTransaction.date) : null}
@@ -834,7 +834,7 @@ const getEmojiForMember = (nom) => {
             {/* --- PAYÉ PAR (Sélection Unique) --- */}
             <div className="space-y-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--primary)] ml-2">Payé par</label>
-              <div className="flex flex-wrap gap-2 p-3 bg-white/5 border border-white/10 rounded-[var(--radius)]">
+              <div className="flex flex-wrap gap-2 p-3 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)]">
                 {participantsDuGroupe.map(personne => (
                   <button
                     key={personne}
@@ -842,7 +842,7 @@ const getEmojiForMember = (nom) => {
                     className={`px-4 py-2 rounded-[var(--radius)] text-[10px] font-black uppercase transition-all ${
                       editingTransaction.payé_par === personne 
                       ? 'bg-[var(--primary)] text-[var(--text-main)] shadow-lg' 
-                      : 'bg-white/5 text-[var(--text-main)]/40 hover:bg-white/10'
+                      : 'bg-[var(--glass-bg)] text-[var(--text-main)]/40 hover:bg-[var(--glass-bg)]'
                     }`}
                   >
                     {personne}
@@ -876,7 +876,7 @@ const getEmojiForMember = (nom) => {
                 </button>
               </div>
 
-              <div className="space-y-2 bg-white/5 p-4 rounded-[var(--radius)] border border-white/10">
+              <div className="space-y-2 bg-[var(--glass-bg)] p-4 rounded-[var(--radius)] border border-white/10">
                 {participantsDuGroupe.map(personne => (
                   <div key={personne} className="flex items-center gap-4 p-2">
                     <div className="flex-1">
@@ -891,7 +891,7 @@ const getEmojiForMember = (nom) => {
                         value={editingTransaction.details_montants?.[personne] ?? ""} 
                         onChange={(e) => updateMontantIndividuel(personne, e.target.value)}
                         placeholder="0.00"
-                        className="w-24 bg-white/5 border border-white/10 rounded-[var(--radius)] py-2 px-3 text-right text-[var(--text-main)] font-mono text-sm outline-none focus:border-emerald-500 transition-all"
+                        className="w-24 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] py-2 px-3 text-right text-[var(--text-main)] font-mono text-sm outline-none focus:border-emerald-500 transition-all"
                       />
                       <span className="ml-2 text-[10px] text-[var(--text-main)]/30">€</span>
                     </div>
@@ -911,7 +911,7 @@ const getEmojiForMember = (nom) => {
           <div className="grid grid-cols-2 gap-4 mt-10">
             <button 
               onClick={() => setEditingTransaction(null)} 
-              className="py-4 rounded-[var(--radius)] bg-white/5 font-black uppercase text-[10px] tracking-widest text-[var(--text-main)]/60 hover:bg-white/10 transition-all"
+              className="py-4 rounded-[var(--radius)] bg-[var(--glass-bg)] font-black uppercase text-[10px] tracking-widest text-[var(--text-main)]/60 hover:bg-[var(--glass-bg)] transition-all"
             >
               Annuler
             </button>
@@ -930,7 +930,7 @@ const getEmojiForMember = (nom) => {
       {/* --- MODAL EDIT (RENOMMER) --- */}
       {isEditModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setIsEditModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)]" onClick={() => setIsEditModalOpen(false)} />
           <div className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-[var(--radius)] p-8 shadow-2xl">
             <div className="w-12 h-12 bg-[var(--primary)]/10 text-[var(--primary)] rounded-[var(--radius)] flex items-center justify-center mb-6">
               <Edit2 size={24} />
@@ -942,11 +942,11 @@ const getEmojiForMember = (nom) => {
               autoFocus
               value={groupToEdit.newName}
               onChange={(e) => setGroupToEdit({...groupToEdit, newName: e.target.value})}
-              className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 mb-8 text-[var(--text-main)] font-black uppercase tracking-widest focus:border-[var(--primary)] outline-none transition-all"
+              className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 mb-8 text-[var(--text-main)] font-black uppercase tracking-widest focus:border-[var(--primary)] outline-none transition-all"
             />
 
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setIsEditModalOpen(false)} className="py-4 rounded-[var(--radius)] bg-white/5 text-[10px] font-black uppercase tracking-widest">Annuler</button>
+              <button onClick={() => setIsEditModalOpen(false)} className="py-4 rounded-[var(--radius)] bg-[var(--glass-bg)] text-[10px] font-black uppercase tracking-widest">Annuler</button>
               <button onClick={handleRenameGroup} className="py-4 rounded-[var(--radius)] bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest shadow-lg shadow-[var(--primary)]/20">Sauvegarder</button>
             </div>
           </div>
@@ -956,7 +956,7 @@ const getEmojiForMember = (nom) => {
       {/* --- MODAL CRÉATION DE GROUPE --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setIsModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)]" onClick={() => setIsModalOpen(false)} />
           <div className="relative w-full max-w-md bg-[#0f172a] border border-white/10 rounded-[var(--radius)] p-8 shadow-2xl overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--primary)] to-purple-500" />
             <h3 className="text-2xl font-black uppercase tracking-tighter mb-2">Nouveau Groupe</h3>
@@ -967,11 +967,11 @@ const getEmojiForMember = (nom) => {
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               placeholder="NOM DU GROUPE..."
-              className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 mb-8 text-[var(--text-main)] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/10 focus:outline-none focus:border-[var(--primary)] transition-colors"
+              className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 mb-8 text-[var(--text-main)] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/10 focus:outline-none focus:border-[var(--primary)] transition-colors"
             />
 
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setIsModalOpen(false)} className="py-4 rounded-[var(--radius)] bg-white/5 text-[10px] font-black uppercase tracking-widest hover:bg-white/10">Annuler</button>
+              <button onClick={() => setIsModalOpen(false)} className="py-4 rounded-[var(--radius)] bg-[var(--glass-bg)] text-[10px] font-black uppercase tracking-widest hover:bg-[var(--glass-bg)]">Annuler</button>
               <button onClick={handleCreateGroup} className="py-4 rounded-[var(--radius)] bg-[var(--primary)] shadow-[0_10px_20px_rgba(99,102,241,0.3)] text-[10px] font-black uppercase tracking-widest">Confirmer</button>
             </div>
           </div>
@@ -981,7 +981,7 @@ const getEmojiForMember = (nom) => {
       {/* --- MODAL SUPPRESSION (Look login.jsx) --- */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setIsDeleteModalOpen(false)} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)]" onClick={() => setIsDeleteModalOpen(false)} />
           <div className="relative w-full max-w-sm bg-[#0f172a] border border-rose-500/20 rounded-[var(--radius)] p-8 shadow-2xl text-center">
             <div className="w-16 h-16 bg-rose-500/10 text-rose-500 rounded-[var(--radius)] flex items-center justify-center mx-auto mb-6">
               <Trash2 size={32} />
@@ -989,7 +989,7 @@ const getEmojiForMember = (nom) => {
             <h3 className="text-xl font-black uppercase tracking-tighter mb-2">Supprimer le groupe ?</h3>
             <p className="text-[var(--text-main)]/40 text-xs mb-8 font-medium italic">"{groupToDelete}" sera définitivement effacé.</p>
             <div className="grid grid-cols-2 gap-4">
-              <button onClick={() => setIsDeleteModalOpen(false)} className="py-4 rounded-[var(--radius)] bg-white/5 text-[10px] font-black uppercase tracking-widest">Garder</button>
+              <button onClick={() => setIsDeleteModalOpen(false)} className="py-4 rounded-[var(--radius)] bg-[var(--glass-bg)] text-[10px] font-black uppercase tracking-widest">Garder</button>
               <button onClick={handleDeleteGroup} className="py-4 rounded-[var(--radius)] bg-rose-500 text-[10px] font-black uppercase tracking-widest shadow-[0_10px_20px_rgba(244,63,94,0.3)]">Supprimer</button>
             </div>
           </div>
@@ -999,7 +999,7 @@ const getEmojiForMember = (nom) => {
 
 
       {/* --- HEADER COMPACT --- */}
-        <div className="flex justify-between items-center mb-2 p-2 rounded-[var(--radius)] bg-white/5 border border-white/10">
+        <div className="flex justify-between items-center mb-2 p-2 rounded-[var(--radius)] bg-[var(--glass-bg)] border border-white/10">
           <div>
             <h2 className="text-xl font-black text-[var(--text-main)] uppercase tracking-tighter">Tricount</h2>
             <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-1">
@@ -1022,7 +1022,7 @@ const getEmojiForMember = (nom) => {
               onClick={() => setActiveTab(index)}
               className={`py-2 px-5 text-[9px] font-black uppercase tracking-widest rounded-[var(--radius)] transition-all whitespace-nowrap ${
                 activeTab === index 
-                ? "bg-white/10 text-[var(--text-main)] border border-white/10 shadow-lg" 
+                ? "bg-[var(--glass-bg)] text-[var(--text-main)] border border-white/10 shadow-lg" 
                 : "text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60"
               }`}
             >
@@ -1057,7 +1057,7 @@ const getEmojiForMember = (nom) => {
                       type="text"
                       id="input-nouveau-membre"
                       placeholder="Prénom du membre..."
-                      className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 pr-12 text-[var(--text-main)] text-sm outline-none focus:border-[var(--primary)] transition-all placeholder:text-[var(--text-main)]/10"
+                      className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 pr-12 text-[var(--text-main)] text-sm outline-none focus:border-[var(--primary)] transition-all placeholder:text-[var(--text-main)]/10"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           handleAjouterMembreLocal(e.target.value);
@@ -1087,7 +1087,7 @@ const getEmojiForMember = (nom) => {
                     </label>
                     <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-2 scrollbar-hide">
                       {participantsDuGroupe.map(membre => (
-                        <div key={`manage-${membre}`} className="group flex items-center justify-between p-3 bg-white/5 border border-white/5 rounded-[var(--radius)] hover:border-[var(--primary)]/30 transition-all">
+                        <div key={`manage-${membre}`} className="group flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/5 rounded-[var(--radius)] hover:border-[var(--primary)]/30 transition-all">
                           <div className="flex items-center gap-3">
                             
                             {/* L'Avatar avec Emoji cliquable mis en avant */}
@@ -1121,7 +1121,7 @@ const getEmojiForMember = (nom) => {
                               {activeEmojiPicker === membre && createPortal(
                                 <div className="fixed inset-0 z-[9999] flex items-center justify-center">
                                   <div 
-                                    className="absolute inset-0 bg-black/60 backdrop-blur-md" 
+                                    className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)]" 
                                     onClick={() => setActiveEmojiPicker(null)} 
                                   />
                                   <div className="relative shadow-2xl animate-in zoom-in duration-200">
@@ -1195,7 +1195,7 @@ const getEmojiForMember = (nom) => {
                       value={newTransaction.libelle}
                       onChange={(e) => setNewTransaction({...newTransaction, libelle: e.target.value})}
                       placeholder="Pizza..."
-                      className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] text-sm outline-none focus:border-[var(--primary)] transition-all placeholder:text-[var(--text-main)]/10"
+                      className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] text-sm outline-none focus:border-[var(--primary)] transition-all placeholder:text-[var(--text-main)]/10"
                     />
                   </div>
 
@@ -1204,7 +1204,7 @@ const getEmojiForMember = (nom) => {
                     <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40 ml-2">
                       Date
                     </label>
-                    <div className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus-within:border-[var(--primary)] transition-all">
+                    <div className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus-within:border-[var(--primary)] transition-all">
                       <DatePicker
                         selected={newTransaction.date ? new Date(newTransaction.date) : null}
                         onChange={(date) => {
@@ -1235,7 +1235,7 @@ const getEmojiForMember = (nom) => {
                     const val = parseFloat(e.target.value) || 0;
                     setNewTransaction({...newTransaction, montant: val});
                   }}
-                  className="w-full bg-white/5 border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] text-sm font-mono outline-none focus:border-[var(--primary)] transition-all"
+                  className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] text-sm font-mono outline-none focus:border-[var(--primary)] transition-all"
                 />
               </div>
 
@@ -1250,7 +1250,7 @@ const getEmojiForMember = (nom) => {
                       className={`px-3 py-2 rounded-[var(--radius)] text-[9px] font-black uppercase transition-all ${
                         newTransaction.paye_par === p 
                         ? 'bg-[var(--primary)] text-[var(--text-main)]' 
-                        : 'bg-white/5 text-[var(--text-main)]/40 hover:bg-white/10'
+                        : 'bg-[var(--glass-bg)] text-[var(--text-main)]/40 hover:bg-[var(--glass-bg)]'
                       }`}
                     >
                       {p}
@@ -1308,7 +1308,7 @@ const getEmojiForMember = (nom) => {
                             setNewTransaction({...newTransaction, details_montants: newDetails});
                           }}
                           className={`w-full flex items-center justify-between p-3 rounded-[var(--radius)] border transition-all ${
-                            isSelected ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/5 border-transparent opacity-40'
+                            isSelected ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[var(--glass-bg)] border-transparent opacity-40'
                           }`}
                         >
                           <span className="text-xs font-bold uppercase">{p}</span>
@@ -1320,7 +1320,7 @@ const getEmojiForMember = (nom) => {
                         {/* Input de montant individuel qui n'apparaît que si sélectionné */}
                         {isSelected && (
                           <div className="flex items-center gap-2 pl-4">
-                            <div className="h-px flex-1 bg-white/10" />
+                            <div className="h-px flex-1 bg-[var(--glass-bg)]" />
                             <input 
                               type="number"
                               step="0.01"
@@ -1333,7 +1333,7 @@ const getEmojiForMember = (nom) => {
                                 });
                               }}
                               placeholder="0.00"
-                              className="w-20 bg-white/5 border border-white/10 rounded-[var(--radius)] py-1 px-2 text-right text-xs text-[var(--text-main)] font-mono outline-none focus:border-emerald-500"
+                              className="w-20 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] py-1 px-2 text-right text-xs text-[var(--text-main)] font-mono outline-none focus:border-emerald-500"
                             />
                             <span className="text-[10px] text-[var(--text-main)]/20">€</span>
                           </div>
@@ -1360,7 +1360,7 @@ const getEmojiForMember = (nom) => {
                     
                     {/* Petite barre de progression visuelle */}
                     {!estEquilibre && (
-                      <div className="w-full h-1 bg-white/5 rounded-[var(--radius)] mt-2 overflow-hidden">
+                      <div className="w-full h-1 bg-[var(--glass-bg)] rounded-[var(--radius)] mt-2 overflow-hidden">
                         <div 
                           className={`h-full transition-all duration-300 ${resteARepartir > 0 ? 'bg-rose-500' : 'bg-orange-500'}`}
                           style={{ width: `${Math.min(Math.abs((totalReparti / newTransaction.montant) * 100), 100)}%` }}
@@ -1448,7 +1448,7 @@ const getEmojiForMember = (nom) => {
                   return Object.keys(bilanParPersonne).map((nom) => (
                     <div 
                       key={`bilan-${nom}`} 
-                      className="group bg-white/5 border border-white/10 rounded-[var(--radius)] p-6 hover:bg-white/[0.08] hover:border-indigo-500/30 transition-all duration-500 animate-in slide-in-from-bottom-2 flex flex-col"
+                      className="group bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-6 hover:bg-white/[0.08] hover:border-indigo-500/30 transition-all duration-500 animate-in slide-in-from-bottom-2 flex flex-col"
                     >
                       <div className="flex justify-between items-start mb-6">
                         <div className="flex items-center gap-4">
@@ -1494,7 +1494,7 @@ const getEmojiForMember = (nom) => {
 
                       <button 
                         onClick={() => handleDownloadPDF(nom)} 
-                        className="w-full py-3 rounded-[var(--radius)] bg-white/5 hover:bg-white/10 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/40 hover:text-[var(--text-main)] transition-all border border-white/5"
+                        className="w-full py-3 rounded-[var(--radius)] bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/40 hover:text-[var(--text-main)] transition-all border border-white/5"
                       >
                         Générer PDF Individuel
                       </button>
@@ -1515,7 +1515,7 @@ const getEmojiForMember = (nom) => {
                     setGroupToEdit({ oldName: groupes[activeTab].nom, newName: groupes[activeTab].nom });
                     setIsEditModalOpen(true);
                   }}
-                  className="p-3 bg-white/5 hover:bg-white/10 rounded-[var(--radius)] border border-white/5 transition-all text-[var(--text-main)]/60 hover:text-[var(--primary)]"
+                  className="p-3 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/5 transition-all text-[var(--text-main)]/60 hover:text-[var(--primary)]"
                 >
                   <Edit2 size={14}/>
                 </button>
@@ -1535,7 +1535,7 @@ const getEmojiForMember = (nom) => {
               {/* --- CONDITION : SI AUCUNE DÉPENSE --- */}
               {groupData.transactions.filter(t => t.montant > 0).length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.02]">
-                  <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-4 text-2xl opacity-20">
+                  <div className="w-16 h-16 bg-[var(--glass-bg)] rounded-full flex items-center justify-center mb-4 text-2xl opacity-20">
                     💸
                   </div>
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">
@@ -1550,7 +1550,7 @@ const getEmojiForMember = (nom) => {
                 groupData.transactions.filter(t => t.montant > 0).map((t, i) => (
                   <div 
                     key={t.id || i} 
-                    className="group relative overflow-hidden min-h-[85px] flex items-center p-4 bg-white/[0.02] hover:bg-white/5 transition-all border-b border-white/5 first:rounded-[var(--radius)]"
+                    className="group relative overflow-hidden min-h-[85px] flex items-center p-4 bg-white/[0.02] hover:bg-[var(--glass-bg)] transition-all border-b border-white/5 first:rounded-[var(--radius)]"
                   >
                     {/* --- CONTENU NORMAL --- */}
                     <div className={`flex items-center justify-between w-full transition-all duration-300 ${deletingId === t.id ? 'opacity-0 scale-95 pointer-events-none' : 'opacity-100 scale-100'}`}>
@@ -1615,7 +1615,7 @@ const getEmojiForMember = (nom) => {
 
                     {/* --- OVERLAY DE CONFIRMATION (S'affiche par-dessus) --- */}
                     {deletingId === t.id && (
-                      <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-md flex items-center justify-between px-6 animate-in slide-in-from-right duration-300">
+                      <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-[var(--glass-blur)] flex items-center justify-between px-6 animate-in slide-in-from-right duration-300">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-rose-500 text-[var(--text-main)] rounded-[var(--radius)] flex items-center justify-center shadow-lg shadow-rose-500/40">
                             <Trash2 size={14} />
@@ -1658,7 +1658,7 @@ const getEmojiForMember = (nom) => {
       </div>
     ) : (
       /* --- ÉTAT VIDE STYLE LOGIN --- */
-      <div className="flex flex-col items-center justify-center p-20 bg-white/5 rounded-[var(--radius)] border border-white/10">
+      <div className="flex flex-col items-center justify-center p-20 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10">
         <div className="w-20 h-20 bg-[var(--primary)]/20 text-[var(--primary)] rounded-[var(--radius)] flex items-center justify-center mb-6 shadow-inner">
           <Plus size={40} strokeWidth={3} />
         </div>
@@ -1722,10 +1722,10 @@ const bankGuides = [
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={`h-[52px] px-4 rounded-2xl flex items-center gap-3 transition-all duration-300 border ${
-          isOpen ? 'bg-white/10 border-[var(--primary)]/50' : 'bg-white/[0.02] border-white/10'
+          isOpen ? 'bg-[var(--glass-bg)] border-[var(--primary)]/50' : 'bg-white/[0.02] border-white/10'
         }`}
       >
-        <div className="p-1.5 bg-white/5 rounded-lg">
+        <div className="p-1.5 bg-[var(--glass-bg)] rounded-lg">
           <HelpCircle size={16} className={isOpen ? 'text-[var(--primary)]' : 'text-[var(--text-main)]/40'} />
         </div>
         <div className="flex flex-col items-start hidden md:flex">
@@ -1753,7 +1753,7 @@ const bankGuides = [
                     <button
                       key={bank.id}
                       onClick={() => setSelectedBank(bank)}
-                      className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-white/5 transition-colors group/item text-left"
+                      className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-[var(--glass-bg)] transition-colors group/item text-left"
                     >
                       <span className="text-[10px] font-bold text-[var(--text-main)]/60 group-hover/item:text-[var(--primary)] uppercase">{bank.name}</span>
                       <ChevronRight size={14} className="text-[var(--text-main)]/10 group-hover/item:text-[var(--primary)]" />
@@ -1812,7 +1812,7 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
     <div className="flex items-center ref={ref}">
       {/* LE BADGE VISUEL COMPACT */}
       <div 
-        className="relative w-[54px] h-[54px] flex flex-col items-center justify-center bg-white/[0.03] border border-white/10 rounded-xl transition-all duration-300 shadow-lg"
+        className="relative w-[54px] h-[54px] flex flex-col items-center justify-center bg-[var(--glass-bg)] border border-white/10 rounded-xl transition-all duration-300 shadow-lg"
       >
         {/* L'ANNÉE intégrée en haut */}
         <span className="text-[7px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-0.5">
@@ -1871,8 +1871,8 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon }) => {
       
       {/* ZONE DE SAISIE / BOUTON */}
       <div
-        className={`w-full flex items-center justify-between bg-white/5 border ${
-          isOpen ? 'border-[var(--primary)]/50 bg-white/10' : 'border-white/10'
+        className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
+          isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
         } p-3.5 rounded-2xl transition-all outline-none cursor-text`}
         onClick={() => setIsOpen(true)}
       >
@@ -1897,7 +1897,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon }) => {
 
       {/* MENU DÉROULANT */}
       {isOpen && (
-        <div className="absolute top-[110%] left-0 w-full z-[100] bg-[#0f172a]/95 backdrop-blur-2xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute top-[110%] left-0 w-full z-[100] bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto custom-scrollbar">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt) => (
@@ -1911,7 +1911,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon }) => {
                   className={`px-4 py-3 text-xs font-bold cursor-pointer transition-colors ${
                     value === opt.v 
                     ? 'bg-indigo-600 text-[var(--text-main)]' 
-                    : 'text-[var(--text-main)]/60 hover:bg-white/5 hover:text-[var(--text-main)]'
+                    : 'text-[var(--text-main)]/60 hover:bg-[var(--glass-bg)] hover:text-[var(--text-main)]'
                   }`}
                 >
                   {opt.l}
@@ -1961,7 +1961,7 @@ function SortableItem({ id, children, disabled }) {
         {!disabled && (
           <div 
             {...listeners} 
-            className="absolute top-0 left-1/2 -translate-x-1/2  w-12 h-6 flex items-center justify-center bg-white/10 hover:bg-white/20 border border-white/10 rounded-full cursor-grab active:cursor-grabbing z-50 transition-colors backdrop-blur-sm"
+            className="absolute top-0 left-1/2 -translate-x-1/2  w-12 h-6 flex items-center justify-center bg-[var(--glass-bg)] hover:bg-white/20 border border-white/10 rounded-full cursor-grab active:cursor-grabbing z-50 transition-colors backdrop-blur-[var(--glass-blur)]"
           >
             {/* Petit motif de points pour suggérer le drag */}
             <div className="flex gap-0.5">
@@ -2073,7 +2073,7 @@ const SortableAccountCard = ({ c }) => {
           transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
           
           /* Effet de transparence et flou */
-          backdrop-blur-md border
+          backdrop-blur-[var(--glass-blur)] border
           
           /* Bordures et Effets selon l'état */
           ${isEstimated 
@@ -2103,7 +2103,7 @@ const SortableAccountCard = ({ c }) => {
         )}
         
         {/* 2. Cercle de lumière dynamique au survol */}
-        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/20 group-hover:scale-150 transition-all duration-700" />
+        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-[var(--glass-bg)] rounded-full blur-2xl group-hover:bg-white/20 group-hover:scale-150 transition-all duration-700" />
 
         {/* 3. Header de la carte */}
         <div className="flex justify-between items-start relative z-10">
@@ -2117,7 +2117,7 @@ const SortableAccountCard = ({ c }) => {
           </div>
           
           {/* Icône avec fond translucide */}
-          <div className={`w-9 h-9 rounded-xl backdrop-blur-md border flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${isEstimated ? 'bg-white/30 border-white/40' : 'bg-white/10 border-white/20'}`}>
+          <div className={`w-9 h-9 rounded-xl backdrop-blur-[var(--glass-blur)] border flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${isEstimated ? 'bg-white/30 border-white/40' : 'bg-[var(--glass-bg)] border-white/20'}`}>
             {(() => {
               const g = (c.compte || "").toString().toLowerCase().trim();
               if (g.includes('ccp')) return <CreditCard size={16} className="text-white" />;
@@ -2134,7 +2134,7 @@ const SortableAccountCard = ({ c }) => {
             <span className={`text-[10px] font-black uppercase italic tracking-tighter ${isEstimated ? 'text-white/90' : 'text-white/60'}`}>
               {isEstimated ? 'Solde estimé' : 'Solde'}
             </span>
-            <div className={`h-[px] flex-1 ${isEstimated ? 'bg-white/30' : 'bg-white/10'}`} />
+            <div className={`h-[px] flex-1 ${isEstimated ? 'bg-white/30' : 'bg-[var(--glass-bg)]'}`} />
           </div>
           
           <div className="flex items-baseline justify-between mt-1">
@@ -2144,7 +2144,7 @@ const SortableAccountCard = ({ c }) => {
             </h3>
             
             <div className={`
-              flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-md border border-white/10
+              flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-[var(--glass-blur)] border border-white/10
               ${montantFinal >= 0 ? 'bg-emerald-400/30 text-emerald-200' : 'bg-rose-400/30 text-rose-200'}
             `}>
                <TrendingUp size={12} className={montantFinal >= 0 ? '' : 'rotate-180'} />
@@ -2194,7 +2194,7 @@ const TransactionCard = ({ t, color, bg }) => {
     <div 
       // 1. On applique le BG via style car c'est une valeur HEX/RGBA
       style={{ backgroundColor: bg }} 
-      className="px-3 py-1.5 rounded-xl border border-white/5 group hover:bg-white/10 transition-all flex items-center gap-3"
+      className="px-3 py-1.5 rounded-xl border border-white/5 group hover:bg-[var(--glass-bg)] transition-all flex items-center gap-3"
     >
       <div className="flex flex-col items-center justify-center min-w-[34px] h-9 bg-black/30 rounded-lg border border-white/5 shadow-inner">
          <span 
@@ -2271,7 +2271,7 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
     <div className="fixed bottom-22 right-6 z-[1004] flex flex-col items-end">
       {/* Fenêtre de personnalisation */}
       {isOpen && (
-        <div className="mb-4 w-72 bg-slate-900/95 backdrop-blur-2xl rounded-[var(--radius)] shadow-2xl border border-white/10 p-5 animate-in slide-in-from-bottom-5 duration-300">
+        <div className="mb-4 w-72 bg-slate-900/95 backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] shadow-2xl border border-white/10 p-5 animate-in slide-in-from-bottom-5 duration-300">
           <div className="flex justify-between items-center mb-5">
             <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-[var(--text-main)]/40">Couleurs Graphiques</h4>
             <Palette size={14} className="text-[var(--text-main)]/20" />
@@ -2282,7 +2282,7 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
               <div key={key} className="relative">
                 <button
                   onClick={() => setActiveKey(activeKey === key ? null : key)}
-                  className="w-full flex items-center justify-between bg-white/5 hover:bg-white/10 p-3 rounded-2xl border border-white/5 transition-all"
+                  className="w-full flex items-center justify-between bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] p-3 rounded-2xl border border-white/5 transition-all"
                 >
                   <span className="text-xs font-bold text-[var(--text-main)]/70">{labels[key]}</span>
                   <div 
@@ -2332,7 +2332,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
       const evolution = data.evolution || 0;
 
       return (
-        <div className="bg-slate-900/95 backdrop-blur-xl border border-white/10 p-3 rounded-2xl shadow-2xl">
+        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl">
           <div className="flex justify-between items-start gap-6 mb-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
               {data.name}
@@ -2420,7 +2420,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                     className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
                       isHidden 
                         ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
-                        : 'bg-white/5 border-white/5 hover:bg-white/[0.08] hover:border-white/10'
+                        : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
                     }`}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
@@ -2522,7 +2522,7 @@ const NotePad = ({ user }) => {
     <div className="fixed bottom-54 right-6 z-[1001] flex flex-col items-end">
       {/* Fenêtre de la note */}
       {isOpen && (
-        <div className="mb-4 w-72 md:w-80 bg-white/90 backdrop-blur-xl rounded-[24px] shadow-2xl border border-white/20 p-4 animate-in slide-in-from-bottom-5 duration-300">
+        <div className="mb-4 w-72 md:w-80 bg-white/90 backdrop-blur-[var(--glass-blur)] rounded-[24px] shadow-2xl border border-white/20 p-4 animate-in slide-in-from-bottom-5 duration-300">
           <div className="flex justify-between items-center mb-3">
             <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Bloc-notes</h4>
             <span className="text-[10px] text-emerald-500 font-bold">Auto-save activé</span>
@@ -2572,12 +2572,12 @@ const ProrataCalc = () => {
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mon Salaire</label>
                 <input type="number" value={salaires.perso} onChange={(e) => setSalaires({...salaires, perso: e.target.value})}
-                  className="w-full bg-white/10 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-[var(--primary)]" />
+                  className="w-full bg-[var(--glass-bg)] border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Son Salaire</label>
                 <input type="number" value={salaires.partenaire} onChange={(e) => setSalaires({...salaires, partenaire: e.target.value})}
-                  className="w-full bg-white/10 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-[var(--primary)]" />
+                  className="w-full bg-[var(--glass-bg)] border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-[var(--primary)]" />
               </div>
             </div>
 
@@ -2864,22 +2864,19 @@ const [userTheme, setUserTheme] = useState({
 
 const fetchUserTheme = async (username) => {
   try {
-    // 1. Charge le thème du site (Variables CSS)
     const resTheme = await api.get(`/get-theme/${username}`);
     if (resTheme.data) {
-
-      
       document.documentElement.style.setProperty('--bg-site', resTheme.data.bg_site);
       document.documentElement.style.setProperty('--primary', resTheme.data.primary_color);
       document.documentElement.style.setProperty('--text-main', resTheme.data.text_main);
       document.documentElement.style.setProperty('--radius', resTheme.data.radius);
+      // Prise en compte du Glassmorphism avec valeurs de repli par défaut (fallback)
+      document.documentElement.style.setProperty('--glass-blur', resTheme.data.glass_blur || '12px');
+      document.documentElement.style.setProperty('--glass-bg', resTheme.data.glass_bg || 'rgba(255, 255, 255, 0.03)');
     }
 
-    // 2. Charge les couleurs des graphiques (Table 'theme')
     const resColors = await api.get(`/get-user-theme/${username}`);
-    
     if (resColors.data && Object.keys(resColors.data).length > 0) {
-      // On met à jour l'état pour que userTheme.color_revenus etc. soient définis
       setUserTheme(prev => ({ ...prev, ...resColors.data }));
     }
   } catch (err) {
@@ -2898,6 +2895,8 @@ const [notification2, setNotification2] = useState({ show: false, message: '', t
     primary_color: styles.getPropertyValue('--primary').trim() || '#4f46e5',
     text_main: styles.getPropertyValue('--text-main').trim() || '#0f172a',
     radius: styles.getPropertyValue('--radius').trim() || '1.5rem',
+    glass_blur: getComputedStyle(document.documentElement).getPropertyValue('--glass-blur').trim()|| '#f8fafc',
+    glass_bg: getComputedStyle(document.documentElement).getPropertyValue('--glass-bg').trim()|| '#f8fafc',
   };
 
   try {
@@ -5331,7 +5330,7 @@ if (!user) {
       <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
         <form 
           onSubmit={isForgotPassword ? handleResetRequest : (isRegistering ? handleRegister : handleLogin)} 
-          className="bg-white/5 backdrop-blur-2xl p-10 rounded-[3rem] border border-white/20 shadow-2xl w-full"
+          className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[3rem] border border-white/20 shadow-2xl w-full"
           style={{ 
             boxShadow: `0 0 40px -10px var(--primary), inset 0 0 20px -10px var(--primary)` 
           }}
@@ -5362,7 +5361,7 @@ if (!user) {
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
                     <input 
                       type="email"
-                      className="w-full bg-white/5 border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                       placeholder="votre@email.com"
                       value={resetEmail}
                       onChange={(e) => setResetEmail(e.target.value)}
@@ -5380,7 +5379,7 @@ if (!user) {
                     <div className="flex-1 space-y-2">
                       <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Prénom</label>
                       <input 
-                        className="w-full bg-white/5 border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                        className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                         placeholder="Jean"
                         value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
@@ -5390,7 +5389,7 @@ if (!user) {
                     <div className="flex-1 space-y-2">
                       <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Nom</label>
                       <input 
-                        className="w-full bg-white/5 border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                        className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                         placeholder="Dupont"
                         value={lastName}
                         onChange={(e) => setLastName(e.target.value)}
@@ -5406,7 +5405,7 @@ if (!user) {
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
                     <input 
-                      className="w-full bg-white/5 border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                       placeholder="Pseudo ou Adresse e-mail"
                       value={loginName}
                       onChange={(e) => setLoginName(e.target.value)}
@@ -5423,7 +5422,7 @@ if (!user) {
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
                       <input 
                         type="email"
-                        className="w-full bg-white/5 border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                        className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                         placeholder="theo@exemple.com"
                         value={loginEmail}
                         onChange={(e) => setLoginEmail(e.target.value)}
@@ -5451,7 +5450,7 @@ if (!user) {
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
                     <input 
                       type={showPassword ? "text" : "password"}
-                      className="w-full bg-white/5 border border-white/5 p-4 pl-12 pr-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 pr-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
@@ -5473,7 +5472,7 @@ if (!user) {
                     <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Confirmer</label>
                     <input 
                       type="password"
-                      className="w-full bg-white/5 border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-white/10 transition-all placeholder:text-[var(--text-main)]/10"
+                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                       placeholder="••••••••"
                       required
                     />
@@ -5511,7 +5510,7 @@ if (!user) {
     {toast.show && (
       <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
         <div className={`
-          px-6 py-3 rounded-2xl border backdrop-blur-xl shadow-2xl flex items-center gap-3
+          px-6 py-3 rounded-2xl border backdrop-blur-[var(--glass-blur)] shadow-2xl flex items-center gap-3
           ${toast.type === 'success' 
             ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
             : 'bg-red-500/10 border-red-500/20 text-red-400'}
@@ -5561,10 +5560,10 @@ if (!user) {
       {/* NAVIGATION GLOBALE */}
           <nav>
             {/* --- VERSION DESKTOP (Haut) --- */}
-<div className="hidden md:flex sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-xl border border-white/10 rounded-2xl mb-8">
+<div className="hidden md:flex sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl mb-8">
   
   {/* --- VERSION DE L'APP (LOGO-STYLE) --- */}
-  <div className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl border border-white/5 mr-1">
+  <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
         Kleea <span className="text-[var(--primary)]">v.3.0</span>
@@ -5575,7 +5574,7 @@ if (!user) {
     </div>
   </div>
 
-  <div className="w-px h-4 bg-white/10 mx-1" />
+  <div className="w-px h-4 bg-[var(--glass-bg)] mx-1" />
 
   {/* Navigation Items */}
   {visibleMenuItems.map((item) => {
@@ -5588,7 +5587,7 @@ if (!user) {
         className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 ${
           isActive 
           ? 'bg-white text-slate-900 shadow-lg' 
-          : 'text-[var(--text-main)]/50 hover:text-[var(--text-main)] hover:bg-white/5'
+          : 'text-[var(--text-main)]/50 hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)]'
         }`}
       >
         <Icon size={18} weight={isActive ? "fill" : "bold"} />
@@ -5597,10 +5596,10 @@ if (!user) {
     );
   })}
   
-  <div className="w-px h-4 bg-white/10 mx-2" />
+  <div className="w-px h-4 bg-[var(--glass-bg)] mx-2" />
   
   {/* --- BADGE UTILISATEUR CONNECTÉ --- */}
-  <div className="flex items-center gap-3 px-3 py-1.5 bg-white/5 border border-white/5 rounded-xl ml-1">
+  <div className="flex items-center gap-3 px-3 py-1.5 bg-[var(--glass-bg)] border border-white/5 rounded-xl ml-1">
     <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]">
       {user.substring(0, 1).toUpperCase()}
     </div>
@@ -5622,7 +5621,7 @@ if (!user) {
 
             {/* --- VERSION MOBILE (Tab Bar en bas) --- */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] px-6 pb-8 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pointer-events-none">
-              <div className="max-w-md mx-auto flex items-center justify-around p-2 bg-slate-900/80 backdrop-blur-2xl border border-white/10 rounded-[32px] shadow-2xl pointer-events-auto">
+              <div className="max-w-md mx-auto flex items-center justify-around p-2 bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[32px] shadow-2xl pointer-events-auto">
                 {visibleMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
@@ -5643,7 +5642,7 @@ if (!user) {
 
                       {/* Point indicateur sous l'icône non-active */}
                       {!isActive && (
-                        <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-white/10" />
+                        <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-[var(--glass-bg)]" />
                       )}
                     </button>
                   );
@@ -5679,7 +5678,7 @@ if (!user) {
         <div className="h-auto overflow-visible lg:h-[calc(99vh-100px)] lg:overflow-hidden flex flex-col animate-in fade-in duration-500 px-4 md:px-8">
           
           {/* 1. LA BARRE DE FILTRES (On la ferme bien à la fin) */}
-          <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-white/5 backdrop-blur-xl rounded-[var(--radius)] border border-white/10">
+          <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
            {/* SECTION PROFIL */}
             <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
               {['Tous', ...new Set(comptes.map(c => c.groupe).filter(Boolean))].map(p => {
@@ -5702,7 +5701,7 @@ if (!user) {
               })}
             </div>
 
-            <div className="hidden md:block w-px h-6 bg-white/10" />
+            <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
             {/* SECTION MOIS */}
             <div className="flex items-center gap-1 no-scrollbar">
@@ -5727,7 +5726,7 @@ if (!user) {
               })}
             </div>
 
-            <div className="hidden md:block w-px h-6 bg-white/10" />
+            <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
             {/* SECTION ANNÉE */}
             <div className="flex items-center gap-1">
@@ -5761,7 +5760,7 @@ if (!user) {
           <div className="col-span-12 md:col-span-2 flex flex-col gap-2 h-full">
             
             {/* MINI RECAP FILTRES */}
-            <div className="shrink-0 flex flex-col gap-1 px-3 py-2 bg-white/5 rounded-[var(--radius)] border border-white/10 backdrop-blur-md">
+            <div className="shrink-0 flex flex-col gap-1 px-3 py-2 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)]">
               <div className="flex justify-between items-center">
                 <span className="text-[9px] text-[var(--text-main)]/30 uppercase font-black tracking-tighter italic">
                   {filters.profil}
@@ -5814,7 +5813,7 @@ if (!user) {
                   <div className="col-span-12 lg:col-span-4 flex flex-col h-[400px] lg:h-full min-h-0 gap-4">
 
                     {/* CONTENEUR PRINCIPAL */}
-                    <div className="flex flex-col flex-1 min-h-0 bg-white/5 rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-md overflow-hidden min-[2000px]:p-4">
+                    <div className="flex flex-col flex-1 min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden min-[2000px]:p-4">
 
                       {/* --- PARTIE 1 : TRANSACTIONS (Scrollable) --- */}
                       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -5844,7 +5843,7 @@ if (!user) {
                                 key={tab}
                                 onClick={() => setTabActive(tab)}
                                 className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                  tabActive === tab ? 'bg-white/10 text-[var(--text-main)] shadow-lg' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]/60'
+                                  tabActive === tab ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-lg' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]/60'
                                 } ${tab === 'Catégories' ? 'min-[2000px]:hidden' : 'block'}`}
                               >
                                 {tab}
@@ -5860,7 +5859,7 @@ if (!user) {
                                   <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
                                     Total {tabActive}
                                   </span>
-                                  <span className="flex items-center justify-center bg-white/5 border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-sm">
+                                  <span className="flex items-center justify-center bg-[var(--glass-bg)] border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-[var(--glass-blur)]">
                                     {(financeData.journal[tabActive] || []).length} transactions
                                   </span>
                                 </div>
@@ -5951,7 +5950,7 @@ if (!user) {
                       </div>
 
                       {/* --- PARTIE 2 : GRAPHE (Seulement visible > 2000px) --- */}
-                      <div className="hidden min-[2000px]:flex basis-[300px] max-h-[350px] bg-white/5 rounded-[var(--radius)] border border-white/5 p-3 my-4 flex-col overflow-hidden shrink-0">
+                      <div className="hidden min-[2000px]:flex basis-[300px] max-h-[350px] bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/5 p-3 my-4 flex-col overflow-hidden shrink-0">
                         <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4">
                           Analyse par Catégorie
                         </h3>
@@ -6030,7 +6029,7 @@ if (!user) {
                             </div>
                             <button 
                               onClick={() => setActiveTab('gerer')}
-                              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all border border-white/5"
+                              className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all border border-white/5"
                             >
                               Limites →
                             </button>
@@ -6044,7 +6043,7 @@ if (!user) {
 
                 {/* COLONNE 2 : RECAP ANNUEL */}
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[500px] lg:h-full min-h-0">
-                  <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-md">
+                  <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-[var(--glass-blur)]">
                     
                     {/* EN-TÊTE FIXE */}
                     <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
@@ -6067,7 +6066,7 @@ if (!user) {
                         <button 
                           onClick={() => setAnnualTab('list')}
                           className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                            annualTab === 'list' ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/60'
+                            annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
                           }`}
                         >
                           <List size={14} />
@@ -6075,7 +6074,7 @@ if (!user) {
                         <button 
                           onClick={() => setAnnualTab('chart')}
                           className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                            annualTab === 'chart' ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/60'
+                            annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
                           }`}
                         >
                           <PieChartIcon size={14} />
@@ -6101,7 +6100,7 @@ if (!user) {
                             {recapAnnuelStats.map((m, i) => (
                               <div 
                                 key={i} 
-                                className="grid grid-cols-5 items-center px-4 py-4 bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-all duration-200 group"
+                                className="grid grid-cols-5 items-center px-4 py-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-all duration-200 group"
                               >
                                 {/* MOIS */}
                                 <div className="flex flex-col">
@@ -6174,7 +6173,7 @@ if (!user) {
                   </div>
 
                   {/* CARTE DE SYNTHÈSE TOTAUX (FIXE EN BAS) */}
-                  <div className="mt-4 p-5 bg-white/[0.03] border border-white/10 rounded-[var(--radius)] backdrop-blur-xl shadow-xl">
+                  <div className="mt-4 p-5 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] backdrop-blur-[var(--glass-blur)] shadow-xl">
                     <div className="flex items-center justify-between mb-4">
                       <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-main)]/30">Totaux Annuel</h4>
                       <div className="flex items-center gap-2">
@@ -6196,7 +6195,7 @@ if (!user) {
                           -{totauxAnnuels.depenses.toLocaleString('fr-FR')}€
                         </p>
                       </div>
-                      <div className="relative overflow-hidden bg-white/5 p-3 rounded-2xl border border-white/10 group">
+                      <div className="relative overflow-hidden bg-[var(--glass-bg)] p-3 rounded-2xl border border-white/10 group">
                         <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
                         <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1 italic">Net Épargné</p>
                         <p className="text-xl font-black tracking-tighter" style={{ color: userTheme.color_epargne }}>
@@ -6232,7 +6231,7 @@ if (!user) {
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[700px] lg:h-full min-h-0">
 
                   {/* SWITCHER DE SOUS-ONGLETS */}
-                    <div className="flex bg-slate-900/50 p-1.5 rounded-[24px] mb-2 border border-white/5 backdrop-blur-md w-fit self-center shadow-inner">
+                    <div className="flex bg-slate-900/50 p-1.5 rounded-[24px] mb-2 border border-white/5 backdrop-blur-[var(--glass-blur)] w-fit self-center shadow-inner">
                       <button 
                         onClick={() => setActiveRightTab('graphs')}
                         className={`px-6 py-2 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${
@@ -6276,7 +6275,7 @@ if (!user) {
                         return (
                    <div className="flex-1 flex flex-col min-h-0 gap-3">
                       {/* BLOC JAUGE ÉPARGNE COMPACTÉ */}
-                      <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 p-3 shadow-2xl backdrop-blur-md shrink-0">
+                      <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0">
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/20 shrink-0">
@@ -6328,7 +6327,7 @@ if (!user) {
                         )}
                       </div>
                       {/* Évolution */}
-                      <div className="flex-1 bg-white/5 rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-md min-h-0">
+                      <div className="flex-1 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-[var(--glass-blur)] min-h-0">
                         <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
                         {/* SECTION GRAPHIQUE ANNUEL */}
                           
@@ -6530,7 +6529,7 @@ if (!user) {
                                       content={({ active, payload, label }) => {
                                         if (active && payload && payload.length) {
                                           return (
-                                            <div className="bg-slate-900/95 backdrop-blur-md p-4 rounded-xl border-none shadow-2xl">
+                                            <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border-none shadow-2xl">
                                               <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
                                               <div className="flex flex-col gap-2">
                                                 {payload.map((entry, index) => (
@@ -6632,7 +6631,7 @@ if (!user) {
                         return (
                           /* CONTENU DE L'ONGLET PROJETS */
                             <div className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-500">
-                                <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 p-6 flex flex-col h-full shadow-2xl backdrop-blur-md overflow-hidden">
+                                <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-6 flex flex-col h-full shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden">
                                   
                                   <div className="flex items-center justify-between mb-6 shrink-0">
                                     <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-xs">Mes Envies & Projets 🚀</h3>
@@ -6647,16 +6646,16 @@ if (!user) {
                                       /* BOUTON DISCRET */
                                       <button 
                                         onClick={() => setShowAddProject(true)}
-                                        className="w-full py-3 border-2 border-dashed border-white/10 rounded-[24px] flex items-center justify-center gap-3 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-white/5 transition-all group"
+                                        className="w-full py-3 border-2 border-dashed border-white/10 rounded-[24px] flex items-center justify-center gap-3 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-[var(--glass-bg)] transition-all group"
                                       >
-                                        <div className="p-1 bg-white/5 rounded-full group-hover:scale-110 transition-transform">
+                                        <div className="p-1 bg-[var(--glass-bg)] rounded-full group-hover:scale-110 transition-transform">
                                           <Plus size={16} />
                                         </div>
                                         <span className="text-[11px] font-black uppercase tracking-widest">Ajouter un nouveau projet</span>
                                       </button>
                                     ) : (
                                       /* LE FORMULAIRE (Affiché au clic) */
-                                      <div className="grid grid-cols-2 gap-x-3 gap-y-4 bg-white/5 p-5 rounded-[2rem] border border-white/10 animate-in zoom-in-95 duration-200">
+                                      <div className="grid grid-cols-2 gap-x-3 gap-y-4 bg-[var(--glass-bg)] p-5 rounded-[2rem] border border-white/10 animate-in zoom-in-95 duration-200">
                                         <div className="col-span-2 flex justify-between items-center mb-1">
                                           <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-[0.2em]">Nouveau Projet</h3>
                                           <button 
@@ -6736,19 +6735,19 @@ if (!user) {
                                         return (
                                           <SortableItem key={p.nom} id={p.nom} disabled={isEditing}>
                                             <div className={`group relative border transition-all p-4 rounded-[24px] ${
-                                              isEditing ? 'bg-white/10 border-blue-500/50' : 'bg-white/5 border-white/5 hover:bg-white/[0.08]'
+                                              isEditing ? 'bg-[var(--glass-bg)] border-blue-500/50' : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08]'
                                             }`}>
                                               
                                               {/* OVERLAY DE CONFIRMATION DE SUPPRESSION */}
                                               {isConfirmingDelete && (
-                                                <div className="absolute inset-0 z-20 bg-slate-900/90 backdrop-blur-sm rounded-[24px] flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
+                                                <div className="absolute inset-0 z-20 bg-slate-900/90 backdrop-blur-[var(--glass-blur)] rounded-[24px] flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
                                                   <p className="text-[10px] font-black uppercase text-[var(--text-main)] mb-3 tracking-widest text-center">
                                                     Supprimer {p.nom} ?
                                                   </p>
                                                   <div className="flex gap-2 w-full">
                                                     <button 
                                                       onClick={() => setItemToDelete(null)}
-                                                      className="flex-1 py-2 bg-white/10 text-[var(--text-main)] text-[9px] font-bold uppercase rounded-lg hover:bg-white/20"
+                                                      className="flex-1 py-2 bg-[var(--glass-bg)] text-[var(--text-main)] text-[9px] font-bold uppercase rounded-lg hover:bg-white/20"
                                                     >
                                                       Non
                                                     </button>
@@ -6826,7 +6825,7 @@ if (!user) {
                                                   <div className="flex gap-2 pt-2">
                                                     <button 
                                                       onClick={() => setEditingIndex(null)}
-                                                      className="flex-1 py-2 bg-white/5 text-[var(--text-main)]/50 text-[10px] font-bold uppercase rounded-xl hover:bg-white/10 transition-all"
+                                                      className="flex-1 py-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 text-[10px] font-bold uppercase rounded-xl hover:bg-[var(--glass-bg)] transition-all"
                                                     > Annuler </button>
                                                     <button 
                                                       onClick={() => handleUpdate(tempProjet, p.nom)}
@@ -6856,7 +6855,7 @@ if (!user) {
                                                         <div>
                                                           <div className="flex items-center gap-2 mb-1">
                                                             <h4 className="text-[var(--text-main)] font-bold text-sm">{p.nom}</h4>
-                                                            <span className="text-[8px] bg-white/5 px-1.5 py-0.5 rounded text-[var(--text-main)]/40 border border-white/10 font-bold uppercase">
+                                                            <span className="text-[8px] bg-[var(--glass-bg)] px-1.5 py-0.5 rounded text-[var(--text-main)]/40 border border-white/10 font-bold uppercase">
                                                               {Number(p.capa).toLocaleString()}€/mois
                                                             </span>
                                                           </div>
@@ -6953,7 +6952,7 @@ if (!user) {
                           case 'Répartition':
             return (
             <div className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="bg-white/5 rounded-[var(--radius)] border border-white/10 p-6 flex flex-col h-full shadow-2xl backdrop-blur-md">
+              <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-6 flex flex-col h-full shadow-2xl backdrop-blur-[var(--glass-blur)]">
                 
                 {/* HEADER : SOLDE DISPONIBLE */}
                 <div className="mb-6 p-4 bg-black/20 rounded-[var(--radius)] border border-white/5">
@@ -6967,7 +6966,7 @@ if (!user) {
                       </span>
                     </div>
                   </div>
-                  <div className="mt-4 h-2 w-full bg-white/5 rounded-[var(--radius)] overflow-hidden">
+                  <div className="mt-4 h-2 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden">
                     <div 
                       className="h-full bg-gradient-to-r from-emerald-500 to-sky-500 transition-all duration-500"
                       style={{ width: `${Math.min(100, (sommeAllocations / soldeGlobal) * 100)}%` }}
@@ -6979,9 +6978,9 @@ if (!user) {
                 {!showAddProjet ? (
                   <button 
                     onClick={() => setShowAddProjet(true)}
-                    className="w-full py-4 mb-6 border-2 border-dashed border-white/10 rounded-[var(--radius)] flex items-center justify-center gap-3 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-white/5 transition-all group"
+                    className="w-full py-4 mb-6 border-2 border-dashed border-white/10 rounded-[var(--radius)] flex items-center justify-center gap-3 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-[var(--glass-bg)] transition-all group"
                   >
-                    <div className="p-1.5 bg-white/5 rounded-[var(--radius)] group-hover:scale-110 transition-transform">
+                    <div className="p-1.5 bg-[var(--glass-bg)] rounded-[var(--radius)] group-hover:scale-110 transition-transform">
                       <Plus size={16} />
                     </div>
                     <span className="text-[11px] font-black uppercase tracking-[0.2em]">Ajouter une nouvelle enveloppe</span>
@@ -7028,7 +7027,7 @@ if (!user) {
               .reduce((sum, curr) => sum + (parseFloat(curr.montant_alloue) || 0), 0);
 
             return (
-              <div key={projet.id} className="group p-4 bg-white/5 border border-white/10 rounded-[var(--radius)] mb-4 hover:border-white/20 transition-all">
+              <div key={projet.id} className="group p-4 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] mb-4 hover:border-white/20 transition-all">
                 <div className="flex justify-between items-center mb-3">
                   <div className="flex flex-col">
                     <span className="text-[10px] text-[var(--text-main)]/40 uppercase font-black tracking-widest">Enveloppe</span>
@@ -7051,7 +7050,7 @@ if (!user) {
                       <span className="text-emerald-400 font-bold">{totalAlloue.toLocaleString()} €</span>
                     </div>
                     {/* BARRE DE PROGRESSION (Optionnelle si tu n'as pas d'objectif fixe) */}
-                    <div className="h-1.5 w-full bg-white/5 rounded-[var(--radius)] overflow-hidden">
+                    <div className="h-1.5 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden">
                       <div className="h-full bg-emerald-500" style={{ width: '100%' }} />
                     </div>
                   </div>
@@ -7102,7 +7101,7 @@ if (!user) {
   <div className="h-auto overflow-visible lg:h-[calc(98vh-100px)] lg:overflow-hidden flex flex-col animate-in fade-in duration-500 px-4 md:px-8">
     
     {/* 1. LA BARRE DE FILTRES */}
-    <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-white/5 backdrop-blur-xl rounded-[var(--radius)] border border-white/10">
+    <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
       {/* SECTION PROFIL */}
       <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
         {['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => (
@@ -7120,7 +7119,7 @@ if (!user) {
         ))}
       </div>
 
-      <div className="hidden md:block w-px h-6 bg-white/10" />
+      <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
       {/* SECTION MOIS */}
       <div className="flex items-center gap-1 no-scrollbar">
@@ -7139,7 +7138,7 @@ if (!user) {
         ))}
       </div>
 
-      <div className="hidden md:block w-px h-6 bg-white/10" />
+      <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
       {/* SECTION ANNÉE */}
       <div className="flex items-center gap-1">
@@ -7164,7 +7163,7 @@ if (!user) {
       
       {/* COLONNE GAUCHE : RECAP FILTRES + SOLDE TOTAL */}
       <div className="col-span-12 md:col-span-2 flex flex-col gap-2 h-full">
-        <div className="shrink-0 flex flex-col gap-1 px-3 py-2 bg-white/5 rounded-[var(--radius)] border border-white/10 backdrop-blur-md">
+        <div className="shrink-0 flex flex-col gap-1 px-3 py-2 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)]">
           <div className="flex justify-between items-center">
             <span className="text-[9px] text-[var(--text-main)]/30 uppercase font-black tracking-tighter italic">
               {filters.profil}
@@ -7218,7 +7217,7 @@ if (!user) {
           
           
           {/* 1. FORMULAIRE D'AJOUT */}
-            <div className="grid grid-cols-12 gap-3 mb-6 p-4 bg-white/5 rounded-[var(--radius)] border border-white/10 backdrop-blur-md relative z-30 shadow-xl">
+            <div className="grid grid-cols-12 gap-3 mb-6 p-4 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] relative z-30 shadow-xl">
 
               {/* 1. Titre Stylisé - AJOUT DE col-span-12 ICI */}
               <div className="col-span-12 flex items-center justify-between mb-2 pb-3 border-b border-white/5">
@@ -7316,26 +7315,26 @@ if (!user) {
             {/* Effet de lueur diffuse derrière le tableau */}
             <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 to-fuchsia-500/5 rounded-[var(--radius)] blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
 
-            <div className="relative h-full flex flex-col bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[var(--radius)] shadow-2xl">
+            <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl">
               
               {/* ZONE DE SCROLL INTERNE */}
               <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
                 <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed">
                   <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
                     <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
-                      <th className="px-4 py-3 w-12 text-center backdrop-blur-md bg-black/20">
+                      <th className="px-4 py-3 w-12 text-center backdrop-blur-[var(--glass-blur)] bg-black/20">
                         <input 
                           type="checkbox"
                           checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
                           onChange={toggleAll2}
-                          className="w-4 h-4 border-white/20 bg-white/5 text-emerald-500 cursor-pointer"
+                          className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
                         />
                       </th>
-                      <th className="px-4 py-3 w-[25%] backdrop-blur-md bg-black/20">Libellé</th>
-                      <th className="px-4 py-3 w-[18%] backdrop-blur-md bg-black/20">Catégorie</th>
-                      <th className="px-4 py-3 w-[18%] backdrop-blur-md bg-black/20">Compte</th>
-                      <th className="px-4 py-3 w-[18%] text-right backdrop-blur-md bg-black/20">Montant</th>
-                      <th className="px-4 py-3 w-[21%] text-right backdrop-blur-md bg-black/20">Date</th>
+                      <th className="px-4 py-3 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
+                      <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
+                      <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
+                      <th className="px-4 py-3 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
+                      <th className="px-4 py-3 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Date</th>
                     </tr>
                   </thead>
 
@@ -7352,7 +7351,7 @@ if (!user) {
                               group transition-all duration-300
                               ${isSelected 
                                 ? 'bg-emerald-500/15 shadow-[inset_3px_0_0_0_#10b981]' 
-                                : 'bg-white/[0.03] hover:bg-white/[0.08]'
+                                : 'bg-[var(--glass-bg)] hover:bg-white/[0.08]'
                               }
                             `}
                           >
@@ -7361,7 +7360,7 @@ if (!user) {
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleSelect2(prev.id)}
-                                className="w-4 h-4 border-white/20 bg-white/10 text-emerald-500 cursor-pointer"
+                                className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
                               />
                             </td>
                             
@@ -7422,7 +7421,7 @@ if (!user) {
                           <div className="flex flex-col items-center justify-center text-center">
                             <div className="relative mb-6">
                                 <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
-                                <div className="relative w-16 h-16 rounded-2xl bg-white/[0.03] border border-white/10 flex items-center justify-center">
+                                <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
                                   <Calendar size={28} className="text-[var(--primary)]/40" />
                                 </div>
                             </div>
@@ -7444,7 +7443,7 @@ if (!user) {
           </div>
 
           {/* --- SOUS-BLOC GRAPHIQUE (35%) --- */}
-          <div className="flex-1 flex flex-col bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[var(--radius)] shadow-2xl p-4 min-w-[300px]">
+          <div className="flex-1 flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl p-4 min-w-[300px]">
             <div className="flex items-center gap-2 mb-4 px-2">
               <PieChartIcon size={14} className="text-[var(--text-main)]/40" />
               <h3 className="text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-widest italic">Analyse Prévue</h3>
@@ -7461,12 +7460,12 @@ if (!user) {
       </div>
 
       {/* ================= COLONNE DROITE (25% ou flexible) : RÉCAP ANNUEL PROJETÉ ================= */}
-      <div className="flex-[1.2] min-w-[380px] flex flex-col bg-white/5 rounded-[var(--radius)] border border-white/10 backdrop-blur-2xl p-4 shadow-2xl relative overflow-hidden h-full">
+      <div className="flex-[1.2] min-w-[380px] flex flex-col bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] p-4 shadow-2xl relative overflow-hidden h-full">
       
 
         {/* SÉLECTEUR DE MOIS DYNAMIQUE */}
          {moisDisponibles.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6 p-3 bg-white/[0.02] rounded-2xl border border-white/5 backdrop-blur-md">
+          <div className="flex flex-wrap gap-2 mb-6 p-3 bg-white/[0.02] rounded-2xl border border-white/5 backdrop-blur-[var(--glass-blur)]">
             <div className="w-full px-2 mb-2 flex justify-between items-center">
               <span className="text-[8px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em]">Masquer/Activer les prévisions</span>
               {excludedMonths.length > 0 && (
@@ -7493,10 +7492,10 @@ if (!user) {
                     transition-all duration-200 cursor-pointer select-none
                     border active:scale-95
                     ${isVisible 
-                      ? 'bg-white/10 border-white/20 text-[var(--text-main)] shadow-lg' 
+                      ? 'bg-[var(--glass-bg)] border-white/20 text-[var(--text-main)] shadow-lg' 
                       : 'bg-black/20 border-white/5 text-[var(--text-main)]/20 opacity-40 hover:opacity-100'
                     }
-                    hover:before:absolute hover:before:inset-0 hover:before:bg-white/5 hover:before:rounded-xl
+                    hover:before:absolute hover:before:inset-0 hover:before:bg-[var(--glass-bg)] hover:before:rounded-xl
                   `}
                   style={{
                     borderColor: isVisible ? `${userTheme.color_epargne}60` : '',
@@ -7555,9 +7554,9 @@ if (!user) {
                   key={i} 
                   className={`
                     grid grid-cols-5 items-center px-4 py-4 rounded-[var(--radius)] border 
-                    transition-all duration-300 group backdrop-blur-sm
+                    transition-all duration-300 group backdrop-blur-[var(--glass-blur)]
                     ${estInteractif 
-                      ? 'bg-white/[0.03] border-white/5 shadow-inner hover:bg-white/[0.06] hover:border-white/10 opacity-100' 
+                      ? 'bg-[var(--glass-bg)] border-white/5 shadow-inner hover:bg-white/[0.06] hover:border-white/10 opacity-100' 
                       : 'bg-white/[0.01] border-white/[0.02] opacity-40 hover:opacity-70'
                     }
                     ${m.isMasque ? 'grayscale opacity-20' : ''} 
@@ -7640,7 +7639,7 @@ if (!user) {
           </div>
           
           {/* Petit badge indicateur de tendance */}
-          <div className="h-6 w-6 rounded-full bg-white/5 flex items-center justify-center text-[9px] font-black text-[var(--text-main)]/40 italic">
+          <div className="h-6 w-6 rounded-full bg-[var(--glass-bg)] flex items-center justify-center text-[9px] font-black text-[var(--text-main)]/40 italic">
             {Math.round(((recapPrevisionsStats[11]?.soldeTotal / recapPrevisionsStats[0]?.soldeTotal) - 1) * 100)}%
           </div>
         </div>
@@ -7658,7 +7657,7 @@ if (!user) {
      {/* ZONE DE NOTIFICATION GLOBALE (Portée par le body) */}
       {lastLearned && (
         <div className="fixed top-6 right-6 z-[9999] w-80 animate-in fade-in slide-in-from-right-8 duration-300">
-          <div className="bg-[#121212] border border-white/10 rounded-[1.5rem] p-4 shadow-2xl shadow-[var(--primary)]/20 backdrop-blur-xl relative overflow-hidden group">
+          <div className="bg-[#121212] border border-white/10 rounded-[1.5rem] p-4 shadow-2xl shadow-[var(--primary)]/20 backdrop-blur-[var(--glass-blur)] relative overflow-hidden group">
             
             {/* Barre de progression de disparition (optionnelle mais sexy) */}
             <div className="absolute bottom-0 left-0 h-[2px] bg-[var(--primary)] animate-[shimmer_4s_linear_forwards]" style={{ width: '100%' }} />
@@ -7687,7 +7686,7 @@ if (!user) {
                 </p>
                 
                 <div className="flex items-center gap-2 mt-1">
-                  <div className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10">
+                  <div className="px-2 py-0.5 rounded-md bg-[var(--glass-bg)] border border-white/10">
                     <span className="text-[15px] text-[var(--text-main)]/40 font-medium italic">
                       Cible : <span className="text-[var(--text-main)]/70 font-bold not-italic">{lastLearned.categorie}</span>
                     </span>
@@ -7711,7 +7710,7 @@ if (!user) {
 
         {/* 3. BARRE DE GESTION LEXIQUE (Droite) */}
       <div className="col-span-1 lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
-        <div className="z-[1000] bg-white/5 backdrop-blur-xl border border-white/10 p-5 rounded-[var(--radius)] shrink-0">
+        <div className="z-[1000] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] shrink-0">
     
     {/* HEADER AVEC BOUTON LISTE FLOTTANT */}
     <div className="flex items-center justify-between mb-6 relative">
@@ -7732,7 +7731,7 @@ if (!user) {
           <button 
             type="button"
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl text-2xl hover:bg-white/10 transition-all flex items-center justify-center"
+            className="w-12 h-12 bg-[var(--glass-bg)] border border-white/10 rounded-2xl text-2xl hover:bg-[var(--glass-bg)] transition-all flex items-center justify-center"
           >
             {newIcon}
           </button>
@@ -7788,7 +7787,7 @@ if (!user) {
           {/* INDICATEUR ET BOUTON GESTION - STYLE AMÉLIORÉ */}
           <button 
             onClick={() => setShowListPopover(!showListPopover)}
-            className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/5 hover:bg-white/[0.08] hover:border-[var(--primary)]/30 hover:shadow-[0_0_15px_rgba(99,102,241,0.1)] transition-all group"
+            className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-[var(--glass-bg)] border border-white/5 hover:bg-white/[0.08] hover:border-[var(--primary)]/30 hover:shadow-[0_0_15px_rgba(99,102,241,0.1)] transition-all group"
           >
             {/* Icône principale avec effet de focus */}
             <div className="w-6 h-6 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center group-hover:bg-[var(--primary)] group-hover:border-transparent transition-all duration-300">
@@ -7866,7 +7865,7 @@ if (!user) {
                     const estPerso = categoriesPerso.includes(cat);
                     
                     return (
-                      <div key={cat} className={`group flex items-center justify-between p-2 rounded-xl transition-all ${estMasquee ? 'bg-black/20 opacity-40' : 'bg-white/[0.03] hover:bg-white/[0.06]'}`}>
+                      <div key={cat} className={`group flex items-center justify-between p-2 rounded-xl transition-all ${estMasquee ? 'bg-black/20 opacity-40' : 'bg-[var(--glass-bg)] hover:bg-white/[0.06]'}`}>
                         <div className="flex items-center gap-3">
                           <span className={`text-[11px] font-bold ${estMasquee ? 'text-[var(--text-main)]/20' : 'text-[var(--text-main)]/60'}`}>
                             {cat}
@@ -7874,7 +7873,7 @@ if (!user) {
                           {estPerso ? (
                               <span className="text-[7px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-[var(--primary)]/20">Perso</span>
                           ) : (
-                              <span className="text-[7px] bg-white/5 text-[var(--text-main)]/60 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-white/5">Défaut</span>
+                              <span className="text-[7px] bg-[var(--glass-bg)] text-[var(--text-main)]/60 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-white/5">Défaut</span>
                           )}
                         </div>
 
@@ -7916,7 +7915,7 @@ if (!user) {
         </div>
 
       {/* 4. BLOC GESTION DES BUDGETS (Sous le Lexique) */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-5 rounded-[var(--radius)] flex flex-col">
+        <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] flex flex-col">
           
           {/* HEADER BUDGET */}
           <div className="flex items-center justify-between mb-2">
@@ -7974,7 +7973,7 @@ if (!user) {
             </div>
 
             {/* 3. Champ Somme - On utilise h-full pour qu'il s'adapte ou une hauteur fixe si nécessaire */}
-            <div className="col-span-4 bg-white/5 rounded-xl border border-white/10 px-3 flex items-center h-[38px] mb-[1px]"> 
+            <div className="col-span-4 bg-[var(--glass-bg)] rounded-xl border border-white/10 px-3 flex items-center h-[38px] mb-[1px]"> 
               {/* mb-[1px] est une petite astuce si ton CustomSelect a une bordure qui décale l'alignement */}
               <div className="flex flex-col w-full">
                 <label className="block text-[6px] uppercase font-black text-[var(--text-main)]/20 leading-none mb-1">Budget</label>
@@ -8003,7 +8002,7 @@ if (!user) {
         <div className="relative mt-2">
           <button 
             onClick={() => setShowBudgetDetails(!showBudgetDetails)}
-            className="w-full flex items-center justify-between p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition-all group"
+            className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)] transition-all group"
           >
             <div className="flex items-center gap-3">
               <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
@@ -8057,7 +8056,7 @@ if (!user) {
                           <div key={uniqueKey} className="group relative">
                             {isEditing ? (
                               /* --- VUE ÉDITION --- */
-                              <div className="bg-white/5 p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
+                              <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
                                 <div className="flex flex-col gap-2">
                                   <input 
                                     className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
@@ -8080,7 +8079,7 @@ if (!user) {
                                     </button>
                                     <button 
                                       onClick={() => setEditingBudget(null)}
-                                      className="p-2 bg-white/5 text-[var(--text-main)]/50 rounded-lg hover:bg-white/10"
+                                      className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
                                     >
                                       <X size={12} />
                                     </button>
@@ -8094,7 +8093,7 @@ if (!user) {
                                   <div className="flex flex-col">
                                     <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[7px] px-1.2 py-0.2 bg-white/5 rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
+                                      <span className="text-[7px] px-1.2 py-0.2 bg-[var(--glass-bg)] rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
                                         {b.compte}
                                       </span>
                                       <span className="text-[7px] text-[var(--primary)]/50 font-black uppercase tracking-tighter">
@@ -8125,7 +8124,7 @@ if (!user) {
                                   </div>
                                 </div>
 
-                                <div className="relative w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                <div className="relative w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden">
                                   <div 
                                     className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
                                     style={{ width: `${pourcentage}%` }}
@@ -8156,7 +8155,7 @@ if (!user) {
               
                     {/* 1. BARRE LATÉRALE DE FILTRES */}
                     <div className="col-span-1 lg:col-span-3 order-1 lg:order-0">
-                      <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-5 rounded-[var(--radius)] flex flex-col shadow-2xl overflow-hidden">
+                      <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] flex flex-col shadow-2xl overflow-hidden">
                   
                   {/* --- BLOC HAUT : FILTRES --- */}
                   <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
@@ -8223,7 +8222,7 @@ if (!user) {
                       </div>
                       
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="p-3 bg-white/[0.03] rounded-2xl border border-white/5">
+                        <div className="p-3 bg-[var(--glass-bg)] rounded-2xl border border-white/5">
                           <div className="flex items-center gap-1.5 mb-1">
                             <div className="w-1 h-1 rounded-full bg-emerald-500" />
                             <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase">Entrées</span>
@@ -8233,7 +8232,7 @@ if (!user) {
                           </p>
                         </div>
 
-                        <div className="p-3 bg-white/[0.03] rounded-2xl border border-white/5">
+                        <div className="p-3 bg-[var(--glass-bg)] rounded-2xl border border-white/5">
                           <div className="flex items-center gap-1.5 mb-1">
                             <div className="w-1 h-1 rounded-full bg-rose-500" />
                             <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase">Sorties</span>
@@ -8246,7 +8245,7 @@ if (!user) {
 
                       {/* Barre de progression visuelle */}
                       <div className="mt-4 px-1">
-                        <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden flex">
+                        <div className="h-1.5 w-full bg-[var(--glass-bg)] rounded-full overflow-hidden flex">
                           <div 
                             className="h-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)] transition-all duration-700"
                             style={{ width: `${(statsFiltrées.revenus / (statsFiltrées.revenus + statsFiltrées.depenses || 1)) * 100}%` }}
@@ -8273,7 +8272,7 @@ if (!user) {
                         Mémorise tes habitudes pour catégoriser automatiquement tes prochains imports CSV.
                       </p>
 
-                      <div className="flex items-center gap-3 p-3 bg-white/[0.03] rounded-2xl border border-white/10 hover:bg-white/5 transition-all group relative">
+                      <div className="flex items-center gap-3 p-3 bg-[var(--glass-bg)] rounded-2xl border border-white/10 hover:bg-[var(--glass-bg)] transition-all group relative">
                         <div className="p-2 bg-[var(--primary)]/10 rounded-xl group-hover:scale-110 transition-transform">
                           <Brain size={18} className="text-[var(--primary)]" />
                         </div>
@@ -8291,7 +8290,7 @@ if (!user) {
                             setShowLearningList(newState);
                             if(newState) fetchMemoire();
                           }}
-                          className={`p-2 rounded-lg border transition-all z-20 ${showLearningList ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'bg-white/5 border-white/5 text-[var(--text-main)]/40 hover:bg-white/10'}`}
+                          className={`p-2 rounded-lg border transition-all z-20 ${showLearningList ? 'bg-[var(--primary)] border-[var(--primary)] text-white' : 'bg-[var(--glass-bg)] border-white/5 text-[var(--text-main)]/40 hover:bg-[var(--glass-bg)]'}`}
                         >
                           <List size={14} />
                         </button>
@@ -8299,7 +8298,7 @@ if (!user) {
                         {/* BOUTON TOGGLE */}
                         <button 
                           onClick={() => setIsApprendreActive(!isApprendreActive)}
-                          className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${isApprendreActive ? 'bg-[var(--primary)] shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-white/10'}`}
+                          className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 ${isApprendreActive ? 'bg-[var(--primary)] shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-[var(--glass-bg)]'}`}
                         >
                           <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${isApprendreActive ? 'left-6' : 'left-1'}`} />
                         </button>
@@ -8341,7 +8340,7 @@ if (!user) {
             <div className="col-span-12 lg:col-span-10 flex flex-col h-full min-h-0">
               {/* h-[calc(100vh-120px)] : On prend toute la hauteur moins la marge du haut/header */}
 
-             <div className="mb-4 p-4 bg-white/5 border border-white/10 rounded-[var(--radius)] shrink-0">
+             <div className="mb-4 p-4 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] shrink-0">
 
               {/* 1. Titre Stylisé (Maintenant à l'intérieur) */}
                 <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">
@@ -8369,7 +8368,7 @@ if (!user) {
                       placeholder="Libellé..." 
                       className="bg-transparent border-none outline-none text-[var(--text-main)] text-[13px] font-bold w-full placeholder:text-[var(--text-main)]/10"
                     />
-                    <div className="w-[1px] h-4 bg-white/10 mx-2" />
+                    <div className="w-[1px] h-4 bg-[var(--glass-bg)] mx-2" />
                     <input 
                       type="number" 
                       id="quick-montant"
@@ -8400,7 +8399,7 @@ if (!user) {
                   </div>
 
                   {/* 4. DATE PICKER STYLISÉ */}
-                <div className="w-40 flex items-center gap-2 px-3 py-2 bg-white/5 rounded-xl border border-white/5 hover:border-[var(--primary)]/30 transition-all relative">
+                <div className="w-40 flex items-center gap-2 px-3 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 hover:border-[var(--primary)]/30 transition-all relative">
                   <Calendar size={14} className="text-[var(--primary)]" />
                   <DatePicker
                     selected={selectedDate}
@@ -8421,7 +8420,7 @@ if (!user) {
                 </div>
             </div>
                               
-              <div className="bg-white/5 border border-white/10 rounded-[var(--radius)] flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] flex flex-col flex-1 min-h-0 overflow-hidden">
 
             {/* RAPPEL DES FILTRES (Affichage uniquement) */}
             <div className="px-4 py-3 shrink-0 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
@@ -8477,12 +8476,12 @@ if (!user) {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         placeholder="RECHERCHER..."
-                        className="bg-white/5 border border-white/5 rounded-full py-1.5 pl-8 pr-4 text-[10px] font-bold text-[var(--text-main)] outline-none w-32 focus:w-64 focus:bg-white/[0.08] focus:border-[var(--primary)]/30 transition-all placeholder:text-[var(--text-main)]/10 placeholder:font-black tracking-widest"
+                        className="bg-[var(--glass-bg)] border border-white/5 rounded-full py-1.5 pl-8 pr-4 text-[10px] font-bold text-[var(--text-main)] outline-none w-32 focus:w-64 focus:bg-white/[0.08] focus:border-[var(--primary)]/30 transition-all placeholder:text-[var(--text-main)]/10 placeholder:font-black tracking-widest"
                       />
                       {searchTerm && (
                         <button 
                           onClick={() => setSearchTerm("")}
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-white/10 rounded-full"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 hover:bg-[var(--glass-bg)] rounded-full"
                         >
                           <X size={10} className="text-[var(--text-main)]/30" />
                         </button>
@@ -8490,7 +8489,7 @@ if (!user) {
                     </div>
 
                     {/* COMPTEUR (Mis à jour selon le filtre) */}
-                    <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/5 min-w-[100px] justify-center">
+                    <div className="flex items-center gap-2 bg-[var(--glass-bg)] px-3 py-1.5 rounded-full border border-white/5 min-w-[100px] justify-center">
                       <span className="text-[9px] font-black text-[var(--primary)]">
                         {transactionsFiltrees.length}
                       </span>
@@ -8521,30 +8520,30 @@ if (!user) {
                   el.indeterminate = selectedIds.length > 0 && selectedIds.length < transactionsAAfficher.length;
                 }
               }}
-              className="w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
+              className="w-4 h-4 rounded border-white/20 bg-[var(--glass-bg)] text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
             />
           </div>
         </th>
 
-        <th className="p-4 w-20 cursor-pointer hover:bg-white/5" onClick={() => handleSort('jour')}>
+        <th className="p-4 w-20 cursor-pointer hover:bg-[var(--glass-bg)]" onClick={() => handleSort('jour')}>
           <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
             Date {sortConfig.key === 'jour' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
           </div>
         </th>
         
-        <th className="p-4 w-[300px] cursor-pointer hover:bg-white/5" onClick={() => handleSort('nom')}>
+        <th className="p-4 w-[300px] cursor-pointer hover:bg-[var(--glass-bg)]" onClick={() => handleSort('nom')}>
           <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
             Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
           </div>
         </th>
 
-        <th className="p-4 w-32 cursor-pointer hover:bg-white/5 text-right" onClick={() => handleSort('montant')}>
+        <th className="p-4 w-32 cursor-pointer hover:bg-[var(--glass-bg)] text-right" onClick={() => handleSort('montant')}>
           <div className="flex items-center justify-end gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
             Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
           </div>
         </th>
 
-        <th className="p-4 hidden md:table-cell w-44 cursor-pointer hover:bg-white/5" onClick={() => handleSort('categorie')}>
+        <th className="p-4 hidden md:table-cell w-44 cursor-pointer hover:bg-[var(--glass-bg)]" onClick={() => handleSort('categorie')}>
           <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
             Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
           </div>
@@ -8566,7 +8565,7 @@ if (!user) {
               className={`group transition-all duration-300 ${
                 isSelected 
                   ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
-                  : 'hover:bg-white/[0.03]'
+                  : 'hover:bg-[var(--glass-bg)]'
               }`}
             >
               <td className="p-4 w-12 border-b border-white/[0.05]">
@@ -8575,7 +8574,7 @@ if (!user) {
                     type="checkbox"
                     checked={isSelected}
                     onChange={() => toggleSelect(t.id)}
-                    className={`w-4 h-4 rounded border-white/20 bg-white/5 text-[var(--primary)] transition-all cursor-pointer ${
+                    className={`w-4 h-4 rounded border-white/20 bg-[var(--glass-bg)] text-[var(--primary)] transition-all cursor-pointer ${
                       isSelected ? 'scale-110 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'scale-100'
                     }`}
                   />
@@ -8614,7 +8613,7 @@ if (!user) {
                           e.target.blur();
                         }
                       }}
-                      className="bg-white/[0.03] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20"
+                      className="bg-[var(--glass-bg)] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20"
                       placeholder="Modifier le libellé..."
                     />
                     <div className="mt-2 shrink-0">
@@ -8755,7 +8754,7 @@ if (!user) {
                 ? 'bg-[var(--primary)]/10 scale-[1.01] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
                 : transactionsCalculees?.length > 0 
                   ? 'bg-emerald-500/5' 
-                  : 'bg-white/[0.01] backdrop-blur-sm hover:bg-white/[0.03]'}
+                  : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] hover:bg-[var(--glass-bg)]'}
             `}
           >
             {/* 1. LES POINTILLÉS QUI TOURNENT (SVG) */}
@@ -8788,7 +8787,7 @@ if (!user) {
                 ? 'bg-[var(--primary)]/20 border border-[var(--primary)] scale-110 shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)] rotate-12' 
                 : transactionsCalculees?.length > 0
                   ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)] rotate-0'
-                  : 'bg-white/5 border border-white/10 text-[var(--primary)]'}
+                  : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--primary)]'}
             `}>
               {transactionsCalculees?.length > 0 && !isDragging ? (
                 <Check size={18} className="text-black" strokeWidth={3} />
@@ -8829,7 +8828,7 @@ if (!user) {
             {/* Bouton de switch rapide */}
             {transactionsCalculees?.length > 0 && !isDragging && (
               <div className="ml-auto relative z-10 flex items-center gap-3 animate-in fade-in slide-in-from-right-2">
-                <div className="h-8 w-[1px] bg-white/10" />
+                <div className="h-8 w-[1px] bg-[var(--glass-bg)]" />
                 <button 
                   onClick={(e) => { e.stopPropagation(); document.getElementById('csvInput').click(); }}
                   className="text-[7px] font-black uppercase tracking-tighter text-[var(--text-main)]/30 hover:text-[var(--primary)] transition-colors px-2 py-1"
@@ -8861,7 +8860,7 @@ if (!user) {
                 {/* Groupement des stats à gauche */}
                 <div className="flex items-center gap-2">
                   {/* Badge du Compte de Destination */}
-                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
+                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
                     <Wallet size={10} className="text-[var(--primary)]" />
                     <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
                     <span className="text-[10px] font-black text-[var(--primary)] uppercase">
@@ -8869,14 +8868,14 @@ if (!user) {
                     </span>
                   </div>
 
-                  <div className="w-[1px] h-6 bg-white/10 mx-1" />
+                  <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
 
                   {[
                     { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
                     { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
                     { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
                   ].map((stat, idx) => (
-                    <div key={idx} className="bg-white/[0.03] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-md">
+                    <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
                       <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
                       <span className={`text-[10px] font-black ${stat.color}`}>
                         {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
@@ -8903,7 +8902,7 @@ if (!user) {
               </div>
 
               {/* TABLEAU AVEC EFFET DE BORDURE LUMINEUSE */}
-              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
                 <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
@@ -8918,7 +8917,7 @@ if (!user) {
                       {transactionsCalculees.map((t, i) => {
                         const isTransfert = t.categorie.startsWith('🔄');
                         return (
-                          <tr key={i} className="hover:bg-white/[0.03] transition-colors group">
+                          <tr key={i} className="hover:bg-[var(--glass-bg)] transition-colors group">
                             <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">{t.date}</td>
                             <td className="p-4">
                               <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px] group-hover:text-[var(--text-main)]">
@@ -8929,7 +8928,7 @@ if (!user) {
                               <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
                                 isTransfert 
                                   ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
-                                  : 'bg-white/5 text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
+                                  : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
                               }`}>
                                 {t.categorie}
                               </span>
@@ -8975,7 +8974,7 @@ if (!user) {
             />
           </div>
 
-        <div className="flex-1 bg-white/[0.03] backdrop-blur-2xl border border-white/10 rounded-[3rem] p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-[500px]">
+        <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[3rem] p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-[500px]">
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
           
           <div className="flex flex-col h-full animate-in fade-in duration-500 relative z-10">
@@ -8984,7 +8983,7 @@ if (!user) {
                 <span className="text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em]">Lexique</span>
                 <span className="text-[11px] text-[var(--text-main)]/60 font-bold uppercase truncate pr-4">{intelSelectedCat}</span>
               </div>
-              <div className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+              <div className="bg-[var(--glass-bg)] border border-white/10 px-3 py-1.5 rounded-xl">
                 <span className="text-[12px] font-black text-[var(--primary)]">
                   {activeCategoryData?.mots_cles?.length || 0}
                 </span>
@@ -9008,7 +9007,7 @@ if (!user) {
               <input 
                 type="text"
                 placeholder="Nouvel apprentissage..."
-                className="w-full bg-black/40 backdrop-blur-xl border border-white/10 rounded-[1.5rem] px-6 py-5 text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/10"
+                className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[1.5rem] px-6 py-5 text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/10"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && e.target.value.trim()) {
                     handleAddKeyword(intelSelectedCat, e.target.value);
@@ -9043,22 +9042,22 @@ if (!user) {
     </div>
 
     {/* FORMULAIRE : RÉINTÉGRATION DU GROUPE + INDICATEUR COULEUR */}
-    <div className="z-[900] bg-white/5 backdrop-blur-xl p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
+    <div className="z-[900] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
       <form onSubmit={handleAddCompte} className="flex items-center gap-4">
         <div className="flex flex-col border-r border-white/10 pr-4">
           <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-tighter">Nouveau</span>
           <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
         </div>
 
-        <input type="text" placeholder="NOM DU COMPTE" className="flex-[1.5] bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
-        <input type="text" placeholder="GROUPE (PERSO, COMMUN...)" className="flex-1 bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
-        <input type="number" step="0.01" placeholder="SOLDE" className="w-20 bg-white/5 p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" />
+        <input type="text" placeholder="NOM DU COMPTE" className="flex-[1.5] bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
+        <input type="text" placeholder="GROUPE (PERSO, COMMUN...)" className="flex-1 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
+        <input type="number" step="0.01" placeholder="SOLDE" className="w-20 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" />
         
         <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10">
           <button
             type="button"
             onClick={() => setShowAddPicker(!showAddPicker)}
-            className="p-0.5 bg-white/10 rounded-lg border border-white/20 hover:scale-110 transition-transform relative"
+            className="p-0.5 bg-[var(--glass-bg)] rounded-lg border border-white/20 hover:scale-110 transition-transform relative"
           >
             <div className="w-7 h-7 rounded-md shadow-inner" style={{ backgroundColor: newCompteColor }} />
           </button>
@@ -9134,7 +9133,7 @@ if (!user) {
 
               {/* LIGNE 2 : DATA */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-black/40 backdrop-blur-md p-3 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
+                <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
                     
@@ -9203,7 +9202,7 @@ if (!user) {
                   </div>
                 </div>
                 
-                <div className="bg-white/10 p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
+                <div className="bg-[var(--glass-bg)] p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
                   <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
                   <div className="flex items-center gap-1">
                     <input 
@@ -9242,7 +9241,7 @@ if (!user) {
         <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
           <div className="relative mb-6">
             <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
-            <div className="relative w-20 h-20 rounded-3xl bg-white/[0.03] border border-white/10 flex items-center justify-center shadow-2xl">
+            <div className="relative w-20 h-20 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center shadow-2xl">
               <Wallet size={32} className="text-[var(--primary)]/80" />
             </div>
           </div>
@@ -9271,7 +9270,7 @@ if (!user) {
 
 {activeTab === 'theme' && user === 'theo' && (
   <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-bottom-6 duration-700">
-    <div className="bg-[#0f172a] border border-white/10 rounded-[var(--radius)] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+    <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
       
       {/* HEADER HARMONISÉ */}
       <div className="flex items-center gap-4 mb-8">
@@ -9292,14 +9291,15 @@ if (!user) {
         <div className="space-y-8">
           <div className="flex items-center gap-2">
             <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--primary)]">Couleurs</h3>
-            <div className="h-px flex-1 bg-white/5" />
+            <div className="h-px flex-1 bg-[var(--glass-bg)]" />
           </div>
           
           <div className="space-y-4">
             {[
-              { id: 'bg', label: 'Arrière-plan site', var: '--bg-site' },
-              { id: 'primary', label: 'Accent Primaire', var: '--primary' },
-              { id: 'text', label: 'Texte Principal', var: '--text-main' }
+              { id: 'bg', label: 'Arrière-plan site', var: '--bg-site', alpha: false },
+              { id: 'primary', label: 'Accent Primaire', var: '--primary', alpha: false },
+              { id: 'text', label: 'Texte Principal', var: '--text-main', alpha: false },
+              { id: 'glassBg', label: 'Couleur des blocs (Glass)', var: '--glass-bg', alpha: true } // <-- AJOUT DU GLASS BG
             ].map((item) => (
               <div key={item.id} className="group flex items-center justify-between p-4 bg-white/[0.02] border border-white/5 rounded-[var(--radius)] hover:bg-white/[0.05] transition-all">
                 <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/60">{item.label}</span>
@@ -9313,19 +9313,20 @@ if (!user) {
                     <div className="absolute z-50 top-10 right-0 shadow-2xl animate-in zoom-in-95 duration-200">
                       <div className="fixed inset-0" onClick={() => setActivePicker(null)} />
                       <SketchPicker 
-                        // 1. On utilise une couleur provenant de l'état ou du style calculé au montage
                         color={pickingColor?.id === item.id 
-                          ? pickingColor.hex 
+                          ? pickingColor.hexOrRgb 
                           : getComputedStyle(document.documentElement).getPropertyValue(item.var).trim()
                         }
                         onChange={(color) => {
-                          // 2. Mise à jour de l'état local pour que le "petit rond" bouge immédiatement
-                          setPickingColor({ id: item.id, hex: color.hex });
-                          
-                          // 3. Mise à jour du CSS Live (votre fonction existante)
-                          updateThemeLive(item.var, color.hex);
+                          // Pour le verre, on a absolument besoin du canal Alpha (RGBA) pour la transparence
+                          const colorVal = item.alpha 
+                            ? `rgba(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b}, ${color.rgb.a})`
+                            : color.hex;
+
+                          setPickingColor({ id: item.id, hexOrRgb: colorVal });
+                          updateThemeLive(item.var, colorVal);
                         }}
-                        disableAlpha={true}
+                        disableAlpha={!item.alpha} // Active l'alpha uniquement pour le fond en verre
                       />
                     </div>
                   )}
@@ -9335,14 +9336,15 @@ if (!user) {
           </div>
         </div>
 
-        {/* SECTION STYLE */}
+        {/* SECTION STYLE / STRUCTURE */}
         <div className="space-y-8">
           <div className="flex items-center gap-2">
-            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--primary)]">Structure</h3>
-            <div className="h-px flex-1 bg-white/5" />
+            <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-[var(--primary)]">Structure & Effets</h3>
+            <div className="h-px flex-1 bg-[var(--glass-bg)]" />
           </div>
           
           <div className="space-y-6">
+            {/* COMPOSANT : ARRONDI */}
             <div className="bg-white/[0.02] border border-white/5 p-4 rounded-[var(--radius)]">
               <div className="flex justify-between mb-4">
                 <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/60">Arrondi des cartes</label>
@@ -9353,12 +9355,28 @@ if (!user) {
               <input 
                 type="range" min="0" max="3" step="0.1" 
                 defaultValue={parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--radius')) || 1.5}
-                className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
+                className="w-full h-1.5 bg-[var(--glass-bg)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
                 onChange={(e) => updateThemeLive('--radius', `${e.target.value}rem`)} 
               />
             </div>
 
-            {/* APERÇU AMÉLIORÉ */}
+            {/* COMPOSANT : FLOU GLASSMORPHISM (AJOUT) */}
+            <div className="bg-white/[0.02] border border-white/5 p-4 rounded-[var(--radius)]">
+              <div className="flex justify-between mb-4">
+                <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/60">Intensité du flou (Glass)</label>
+                <span className="text-xs font-mono font-black text-[var(--primary)]">
+                  {getComputedStyle(document.documentElement).getPropertyValue('--glass-blur') || '12px'}
+                </span>
+              </div>
+              <input 
+                type="range" min="0" max="40" step="1" 
+                defaultValue={parseInt(getComputedStyle(document.documentElement).getPropertyValue('--glass-blur')) || 12}
+                className="w-full h-1.5 bg-[var(--glass-bg)] rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
+                onChange={(e) => updateThemeLive('--glass-blur', `${e.target.value}px`)} 
+              />
+            </div>
+
+            {/* APERÇU DYNAMIQUE AMÉLIORÉ AVEC LE VRAI RENDU GLASSMORPHISM */}
             <div className="relative overflow-hidden p-6 bg-[var(--bg-site)] rounded-[var(--radius)] border border-white/10 shadow-inner group">
               <div className="absolute top-0 right-0 p-2 opacity-10 font-black text-[40px] italic pointer-events-none">PREVIEW</div>
               <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text-main)]/20 mb-4">Aperçu du rendu</p>
@@ -9366,10 +9384,19 @@ if (!user) {
                 <button className="w-full py-3 bg-[var(--primary)] text-[var(--text-main)] rounded-[var(--radius)] text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-[var(--primary)]/20">
                   Bouton Principal
                 </button>
-                <div className="p-4 bg-white/5 rounded-[var(--radius)] border border-white/5">
+                
+                {/* Cette carte utilise les nouvelles variables à la volée ! */}
+                <div 
+                  className="p-4 rounded-[var(--radius)] border border-white/10 shadow-xl transition-all"
+                  style={{
+                    backgroundColor: 'var(--glass-bg)',
+                    backdropFilter: 'blur(var(--glass-blur))',
+                    WebkitBackdropFilter: 'blur(var(--glass-blur))'
+                  }}
+                >
                    <div className="h-1 w-8 bg-[var(--primary)] mb-2 rounded-full" />
-                   <div className="h-2 w-full bg-white/10 rounded-full mb-1" />
-                   <div className="h-2 w-2/3 bg-white/5 rounded-full" />
+                   <div className="h-2 w-full bg-[var(--text-main)]/20 rounded-full mb-1" />
+                   <div className="h-2 w-2/3 bg-[var(--text-main)]/10 rounded-full" />
                 </div>
               </div>
             </div>
@@ -9629,7 +9656,7 @@ if (!user) {
             </p>
           </div>
           <div className="w-full md:w-1/3 bg-black/40 border border-white/10 rounded-2xl p-4 rotate-2 shadow-2xl">
-            <div className="h-4 w-1/2 bg-white/10 rounded mb-4" />
+            <div className="h-4 w-1/2 bg-[var(--glass-bg)] rounded mb-4" />
             <div className="h-10 w-full bg-pink-500/20 border border-pink-500/40 rounded-lg mb-2" />
             <div className="h-10 w-full bg-emerald-500/20 border border-emerald-500/40 rounded-lg" />
           </div>
@@ -9751,7 +9778,7 @@ if (!user) {
       {deleteModal.show && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-300">
           {/* Overlay flou */}
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setDeleteModal({ show: false, accountName: null })} />
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[var(--glass-blur)]" onClick={() => setDeleteModal({ show: false, accountName: null })} />
           
           {/* Contenu de la Modal */}
           <div className="relative bg-white rounded-[var(--radius)] p-8 max-w-sm w-full shadow-2xl scale-in-center animate-in zoom-in-95 duration-200">
@@ -9787,7 +9814,7 @@ if (!user) {
       {/* BARRE D'ACTION FLOTTANTE */}
         {selectedIds.length > 0 && (
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
-            <div className="bg-[#121212]/90 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
+            <div className="bg-[#121212]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
               
               {/* Compteur */}
               <div className="flex items-center gap-3 border-r border-white/10 pr-6">
@@ -9828,7 +9855,7 @@ if (!user) {
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               {/* Overlay flouté */}
               <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
+                className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
                 onClick={() => setShowDeleteConfirm(false)}
               />
               
@@ -9847,7 +9874,7 @@ if (!user) {
                   <div className="flex gap-3 w-full">
                     <button 
                       onClick={() => setShowDeleteConfirm(false)}
-                      className="flex-1 px-6 py-3 rounded-xl bg-white/5 hover:bg-white/10 text-[var(--text-main)] text-xs font-black uppercase transition-all"
+                      className="flex-1 px-6 py-3 rounded-xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[var(--text-main)] text-xs font-black uppercase transition-all"
                     >
                       Annuler
                     </button>
@@ -9870,7 +9897,7 @@ if (!user) {
   <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
     {/* Overlay sombre et flou */}
     <div 
-      className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
+      className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
       onClick={() => setBudgetToDelete(null)}
     />
     
@@ -9891,7 +9918,7 @@ if (!user) {
         <div className="grid grid-cols-2 gap-3 w-full mt-2">
           <button 
             onClick={() => setBudgetToDelete(null)}
-            className="py-3 bg-white/5 hover:bg-white/10 text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
+            className="py-3 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
           >
             Annuler
           </button>
@@ -9912,7 +9939,7 @@ if (!user) {
 {notification && (
   <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 duration-300">
     <div className={`
-      flex items-center gap-3 px-6 py-4 rounded-[1.5rem] shadow-2xl border backdrop-blur-xl
+      flex items-center gap-3 px-6 py-4 rounded-[1.5rem] shadow-2xl border backdrop-blur-[var(--glass-blur)]
       ${notification.type === 'success' 
         ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
         : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}
@@ -9944,7 +9971,7 @@ if (!user) {
 
 {selectedIds2.length > 0 && (
   <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
-    <div className="bg-[#121212]/90 backdrop-blur-2xl border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
+    <div className="bg-[#121212]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
       
       {/* Compteur */}
       <div className="flex items-center gap-3 border-r border-white/10 pr-6">
@@ -9985,7 +10012,7 @@ if (!user) {
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
     {/* Overlay flou */}
     <div 
-      className="absolute inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-300"
+      className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
       onClick={() => setDeleteModal3({ show: false, projetNom: null })}
     />
     
@@ -10008,7 +10035,7 @@ if (!user) {
         <div className="grid grid-cols-2 gap-3 w-full">
           <button 
             onClick={() => setDeleteModal3({ show: false, projetNom: null })}
-            className="py-3 rounded-xl bg-white/5 text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all"
+            className="py-3 rounded-xl bg-[var(--glass-bg)] text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest hover:bg-[var(--glass-bg)] transition-all"
           >
             Annuler
           </button>
@@ -10066,10 +10093,10 @@ if (!user) {
 {assistantData.open && (
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
     {/* Overlay flouté */}
-    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setAssistantData({ ...assistantData, open: false })} />
+    <div className="absolute inset-0 bg-black/40 backdrop-blur-[var(--glass-blur)]" onClick={() => setAssistantData({ ...assistantData, open: false })} />
     
     {/* Fenêtre Modale */}
-    <div className="relative w-full max-w-md bg-[#1a1a1c]/90 border border-white/20 rounded-[2rem] p-8 shadow-2xl backdrop-blur-2xl animate-in zoom-in-95 duration-200">
+    <div className="relative w-full max-w-md bg-[#1a1a1c]/90 border border-white/20 rounded-[2rem] p-8 shadow-2xl backdrop-blur-[var(--glass-blur)] animate-in zoom-in-95 duration-200">
       <div className="flex flex-col gap-6">
         <div className="space-y-2">
           <h3 className="text-white font-black text-xl uppercase tracking-tighter">Assistant de Solde</h3>
@@ -10082,7 +10109,7 @@ if (!user) {
           <input
             autoFocus
             type="text"
-            className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 text-2xl font-black text-white outline-none focus:border-[var(--primary)] transition-colors"
+            className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-2xl py-4 px-6 text-2xl font-black text-white outline-none focus:border-[var(--primary)] transition-colors"
             placeholder="0,00"
             value={assistantData.valeur}
             onChange={(e) => setAssistantData({ ...assistantData, valeur: e.target.value })}
@@ -10094,7 +10121,7 @@ if (!user) {
         <div className="flex gap-3">
           <button
             onClick={() => setAssistantData({ open: false, compte: null, valeur: "" })}
-            className="flex-1 py-4 rounded-2xl bg-white/5 text-white/60 font-bold hover:bg-white/10 transition-all uppercase text-xs tracking-widest"
+            className="flex-1 py-4 rounded-2xl bg-[var(--glass-bg)] text-white/60 font-bold hover:bg-[var(--glass-bg)] transition-all uppercase text-xs tracking-widest"
           >
             Annuler
           </button>
