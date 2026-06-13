@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -4738,16 +4738,34 @@ const previsionsFiltrees = useMemo(() => {
   });
 
   // 3. Filtrage par PROFIL (Perso / Pro / Tous)
-  if (filters.profil === 'Tous') return dataDuMois;
+  let resultatFinal = [];
+  
+  if (filters.profil === 'Tous') {
+    resultatFinal = dataDuMois;
+  } else {
+    resultatFinal = dataDuMois.filter(prev => {
+      // On cherche à quel groupe appartient le compte de cette prévision
+      const nomCompte = String(prev.compte || "").trim().toUpperCase();
+      const infoCompte = comptes?.find(c => 
+        String(c?.compte || "").trim().toUpperCase() === nomCompte
+      );
+      return infoCompte?.groupe === filters.profil;
+    });
+  }
 
-  return dataDuMois.filter(prev => {
-    // On cherche à quel groupe appartient le compte de cette prévision
-    const nomCompte = String(prev.compte || "").trim().toUpperCase();
-    const infoCompte = comptes?.find(c => 
-      String(c?.compte || "").trim().toUpperCase() === nomCompte
-    );
-    return infoCompte?.groupe === filters.profil;
+  // 4. 🔥 TRI STABLE : On trie par date chronologique, puis par ID unique
+  // Cela empêche la ligne de bouger lorsqu'on modifie un montant au onBlur
+  return [...resultatFinal].sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    
+    // Si les dates sont différentes, on classe par ordre chronologique
+    if (dateA !== dateB) return dateA - dateB;
+    
+    // Si les dates sont identiques, on utilise l'ID pour garantir un ordre immuable
+    return String(a.id).localeCompare(String(b.id));
   });
+
 }, [allPrevisionsAnnee, filters.mois, filters.profil, comptes]);
 
 
@@ -5055,6 +5073,162 @@ const loadAvailablePreviPeriods = async () => {
   }
 };
 
+
+const [duplicateModal, setDuplicateModal] = useState({
+  show: false,
+  count: 0,
+  isSelection: false
+});
+
+// 1. Déclencheur au clic sur le bouton de l'interface
+const handleTryDuplicate = () => {
+  const aCopier = selectedIds2.length > 0 
+    ? previsionsFiltrees.filter(p => selectedIds2.includes(p.id))
+    : previsionsFiltrees;
+
+  if (aCopier.length === 0) {
+    setNotification({
+      type: 'error',
+      message: "Aucune prévision à copier !"
+    });
+    return;
+  }
+
+  // On ouvre le modal avec les infos nécessaires
+  setDuplicateModal({
+    show: true,
+    count: aCopier.length,
+    isSelection: selectedIds2.length > 0
+  });
+};
+
+// 2. L'action réelle exécutée après confirmation dans le modal
+const handleConfirmDuplicate = async () => {
+  const aCopier = selectedIds2.length > 0 
+    ? previsionsFiltrees.filter(p => selectedIds2.includes(p.id))
+    : previsionsFiltrees;
+
+  try {
+    const requetes = aCopier.map(prev => {
+      const dateOrigine = new Date(prev.date);
+      const nouvelleDate = new Date(dateOrigine);
+      nouvelleDate.setMonth(dateOrigine.getMonth() + 1);
+
+      const nomMoisLong = nouvelleDate.toLocaleDateString('fr-FR', { month: 'long' });
+      const moisFormate = nomMoisLong.charAt(0).toUpperCase() + nomMoisLong.slice(1);
+
+      return api.post(`/previsions`, {
+        nom: prev.nom,
+        montant: prev.montant,
+        categorie: prev.categorie,
+        compte: prev.compte,
+        date: nouvelleDate.toISOString().split('T')[0],
+        mois: moisFormate,
+        annee: nouvelleDate.getFullYear(),
+        utilisateur: user
+      });
+    });
+
+    await Promise.all(requetes);
+    
+    // Nettoyage et rafraîchissement
+    setSelectedIds2([]);
+    setDuplicateModal({ show: false, count: 0, isSelection: false });
+    loadPrevisions();
+    
+    setNotification({
+      type: 'success',
+      message: `${aCopier.length} prévisions dupliquées avec succès !`
+    });
+    setTimeout(() => {
+      setNotification(null); 
+    }, 2000); // 2000 millisecondes = 2 secondes
+
+  } catch (err) {
+    console.error("Erreur duplication :", err);
+    setDuplicateModal({ show: false, count: 0, isSelection: false });
+    setNotification({
+      type: 'error',
+      message: "Erreur lors de la duplication."
+    });
+    setTimeout(() => {
+      setNotification(null); 
+    }, 2000); // 2000 millisecondes = 2 secondes
+
+  }
+};
+
+
+const statsEpargnePrevisionnelle = useMemo(() => {
+  const maintenant = new Date();
+  const moisActuelIdx = maintenant.getMonth();
+  const anneeActuelle = maintenant.getFullYear();
+  const anneeFiltre = parseInt(filters.annee);
+
+  const estUnTransfertPrevi = (p) => {
+    const cat = (p.categorie || "").toLowerCase();
+    const nom = (p.nom || "").toLowerCase();
+    return cat.includes('🔄') || cat.includes('vers') || cat.includes('transfert') || nom.includes('vers');
+  };
+
+  const cumulEpargneAnnuel = moisListe.reduce((acc, moisObj, indexMois) => {
+    const estFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMois > moisActuelIdx);
+    const estMoisEnCours = (anneeFiltre === anneeActuelle && indexMois === moisActuelIdx);
+    const estPasse = !estFutur && !estMoisEnCours;
+
+    const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
+    const estMasque = excludedMonths.includes(nomMoisComplet);
+
+    // Récupération des données réelles du mois
+    const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0 };
+
+    // CAS 1 : Le mois est PASSÉ -> Épargne réelle stockée
+    if (estPasse) {
+      return acc + (parseFloat(statsReelles.epargne) || 0);
+    }
+
+    // CAS 2 : Le mois est MASQUÉ -> On se rabat sur le réel
+    if (estMasque) {
+      return acc + (parseFloat(statsReelles.epargne) || 0);
+    }
+
+    // CAS 3 : Le mois est ACTIF (Futur/En cours et non masqué) -> Épargne projetée
+    const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
+      const d = new Date(p.date);
+      return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
+    });
+
+    const revPrevi = previsionsDuMois
+      .filter(p => p.montant > 0 && !estUnTransfertPrevi(p))
+      .reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
+      
+    const depPrevi = previsionsDuMois
+      .filter(p => p.montant < 0 && !estUnTransfertPrevi(p))
+      .reduce((sum, p) => sum + Math.abs(parseFloat(p.montant) || 0), 0);
+
+    const totalRev = statsReelles.revenus + revPrevi;
+    const totalDep = statsReelles.depenses + depPrevi;
+    
+    const balanceMoisProjetee = totalRev - totalDep;
+
+    // 🔥 CORRECTION : On ajoute la balance telle quelle (qu'elle soit positive ou négative)
+    // Si balanceMoisProjetee vaut -200€, faire "acc + (-200)" va correctement soustraire 200€ du cumul global
+    return acc + balanceMoisProjetee;
+
+  }, 0);
+
+  // Calcul du pourcentage face à l'objectif global (avec une sécurité pour ne pas descendre sous 0%)
+  const pourcentage = objectifAnnuelGlobal > 0 
+    ? Math.max(0, Math.round((cumulEpargneAnnuel / objectifAnnuelGlobal) * 100))
+    : 0;
+
+  return {
+    montant: cumulEpargneAnnuel,
+    pourcentage: pourcentage
+  };
+
+}, [previsionsActivesPourRecap, recapAnnuelStats, filters.annee, moisListe, excludedMonths, objectifAnnuelGlobal]);
+
 useEffect(() => {
   loadAvailablePreviPeriods();
 }, [user]);
@@ -5305,6 +5479,36 @@ const confirmerCalculAssistant = async () => {
   }
 };
 
+
+// État pour afficher ou masquer le popup flash
+const [showPatchModal, setShowPatchModal] = useState(false);
+
+// Version du patch actuel (incrémente-la à chaque grosse mise à jour !)
+const CURRENT_VERSION = "3.1"; 
+
+useEffect(() => {
+  if (!user) return;
+
+  // 🧪 MODE TEST : On récupère le nombre de fois où le patch a été affiché
+  const viewCount = parseInt(localStorage.getItem(`patch_tests_count_${user}`)) || 0;
+
+  // On l'affiche tant qu'on a pas atteint la limite (ex: 3 fois)
+  if (viewCount < 2) {
+    const timer = setTimeout(() => {
+      setShowPatchModal(true);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }
+}, [user]);
+
+const handleClosePatchModal = () => {
+  setShowPatchModal(false);
+
+  // 🧪 MODE TEST : On incrémente le compteur à chaque fermeture
+  const currentCount = parseInt(localStorage.getItem(`patch_tests_count_${user}`)) || 0;
+  localStorage.setItem(`patch_tests_count_${user}`, currentCount + 1);
+};
 
 useEffect(() => {
   if (user) {
@@ -5566,7 +5770,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.0</span>
+        Kleea <span className="text-[var(--primary)]">v.3.1</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -7231,9 +7435,28 @@ if (!user) {
                   </div>
                 </div>
                 
-                <div className="px-3 py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[9px] text-[var(--bg-primary)]-300/50 font-bold tracking-widest italic uppercase">
-                  ⚡ Auto-save Ready
-                </div>
+                {/* Dans l'en-tête de ton formulaire d'ajout, à côté de "⚡ Auto-save Ready" */}
+                  <div className="flex items-center gap-3">
+                    {previsionsFiltrees.length > 0 && (
+                  <button
+                    onClick={handleTryDuplicate}
+                    className="h-[34px] px-4 bg-[var(--primary)] hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] tracking-widest uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_15px_rgba(16,185,129,0.2)]"
+                  >
+                    <span>
+                      {selectedIds2.length > 0 
+                        ? `Reconduire la sélection (${selectedIds2.length})` 
+                        : 'Reconduire le mois'}
+                    </span>
+                    <div className="w-4 h-4 rounded-[var(--radius)] bg-black/10 flex items-center justify-center font-bold text-[9px]">
+                      +
+                    </div>
+                  </button>
+                    )}
+
+                    <div className="px-3 py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[9px] text-[var(--bg-primary)]-300/50 font-bold tracking-widest italic uppercase">
+                      ⚡ Auto-save Ready
+                    </div>
+                  </div>
               </div>
                 
             {/* DATE */}
@@ -7338,105 +7561,149 @@ if (!user) {
                     </tr>
                   </thead>
 
-                  <tbody className="before:content-[''] before:block before:h-2">
-                    {previsionsFiltrees.length > 0 ? (
-                      previsionsFiltrees.map((prev) => {
-                        const isSelected = selectedIds2.includes(prev.id);
-                        const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
-                        
-                        return (
-                          <tr 
-                            key={prev.id} 
-                            className={`
-                              group transition-all duration-300
-                              ${isSelected 
-                                ? 'bg-emerald-500/15 shadow-[inset_3px_0_0_0_#10b981]' 
-                                : 'bg-[var(--glass-bg)] hover:bg-white/[0.08]'
-                              }
-                            `}
-                          >
-                            <td className="p-3 border-y border-l border-white/5 text-center">
-                              <input 
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => toggleSelect2(prev.id)}
-                                className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
-                              />
-                            </td>
-                            
-                            <td className="px-2 py-2 border-y border-white/5">
-                              <input 
-                                className="bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
-                                defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                                onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                              />
-                            </td>
-
-                            <td className="px-2 py-2 border-y border-white/5 overflow-visible">
-                              <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
-                            </td>
-
-                            <td className="px-2 py-2 border-y border-white/5 overflow-visible">
-                              <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
-                            </td>
-
-                            <td className="px-2 py-2 border-y border-white/5">
-                              <div className="flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300 group-hover:bg-white/[0.08] group-hover:border-white/20">
+                    <tbody className="before:content-[''] before:block before:h-2">
+                      {previsionsFiltrees.length > 0 ? (
+                        previsionsFiltrees.map((prev) => {
+                          const isSelected = selectedIds2.includes(prev.id);
+                          const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+                          
+                          return (
+                            <tr 
+                              key={prev.id} 
+                              className={`
+                                group transition-all duration-300
+                                /* 🔴 NETTOYAGE : Assure-toi qu'il n'y a AUCUN border-l-4 ou shadow-inset ici quand isSelected est vrai */
+                                ${isSelected 
+                                  ? 'bg-transparent' /* On laisse les <td> gérer leur fond émeraude */
+                                  : 'hover:[&>td]:bg-white/[0.08] hover:[&_.input-libelle]:bg-white/[0.08] hover:[&_.amount-box]:bg-white/[0.08] hover:[&_.amount-box]:border-white/20'
+                                }
+                              `}
+                            >
+                              {/* PREMIÈRE CASE (Checkbox) */}
+                                <td className={`
+                                  p-3 border-y border-l border-white/5 text-center relative
+                                  rounded-l-[var(--radius)]
+                                  ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
+                                  transition-colors duration-300
+                                  /* 🔥 FIX DE LA BARRE VERTE : Intégrée, centrée et arrondie */
+                                  ${isSelected 
+                                    ? "before:content-[''] before:absolute before:left-1.5 before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-[3px] before:bg-[#10b981] before:rounded-full" 
+                                    : ""
+                                  }
+                                `}>
+                                  {/* On ajoute un pl-4 (padding left) sur l'input pour décaler la checkbox et laisser la place à la barre verte sans qu'elles se chevauchement */}
+                                  <div className={isSelected ? "pl-2 transition-all" : ""}>
+                                    <input 
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleSelect2(prev.id)}
+                                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
+                                    />
+                                  </div>
+                                </td>
+                              
+                              {/* LIBELLÉ */}
+                              <td className={`
+                                px-2 py-2 border-y border-white/5
+                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
+                                transition-colors duration-300
+                              `}>
+                                {/* 🔥 Ajout de la classe unique "input-libelle" ici */}
                                 <input 
-                                  type="number"
-                                  className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
-                                  style={{ 
-                                    color: isTransfert 
-                                      ? '#6d00fc' 
-                                      : prev.montant > 0 
-                                        ? `${userTheme.color_revenus}e6` 
-                                        : `${userTheme.color_depenses}e6` 
-                                  }}
-                                  defaultValue={prev.montant}
-                                  onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                                  className="input-libelle bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
+                                  defaultValue={prev.nom.replace('[PRÉVI] ', '')}
+                                  onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
                                 />
-                                <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
-                              </div>
-                            </td>
+                              </td>
 
-                            <td className="px-4 py-2 rounded-[var(--radius)] border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50">
-                              <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
-                                <Calendar size={12} className="text-[var(--text-main)]/30" />
-                                <DatePicker
-                                  selected={prev.date ? new Date(prev.date) : null}
-                                  onChange={(date) => updatePrevision(prev.id, 'date', date)}
-                                  dateFormat="dd/MM/yyyy"
-                                  portalId="root" 
-                                  className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      /* --- ÉTAT VIDE : SI AUCUNE PRÉVISION --- */
-                      <tr>
-                        <td colSpan="6" className="py-24">
-                          <div className="flex flex-col items-center justify-center text-center">
-                            <div className="relative mb-6">
-                                <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
-                                <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
-                                  <Calendar size={28} className="text-[var(--primary)]/40" />
+                              {/* CATÉGORIE */}
+                              <td className={`
+                                px-2 py-2 border-y border-white/5 overflow-visible
+                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
+                                transition-colors duration-300
+                              `}>
+                                <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
+                              </td>
+
+                              {/* COMPTE */}
+                              <td className={`
+                                px-2 py-2 border-y border-white/5 overflow-visible
+                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
+                                transition-colors duration-300
+                              `}>
+                                <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
+                              </td>
+
+                              {/* MONTANT */}
+                              <td className={`
+                                px-2 py-2 border-y border-white/5
+                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
+                                transition-colors duration-300
+                              `}
+                              >
+                                <div className="amount-box flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300">
+                                  <input 
+                                    type="number"
+                                    /* Cet input reste transparent en permanence, aucun rectangle n'apparaîtra dessus au survol */
+                                    className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
+                                    style={{ 
+                                      color: isTransfert 
+                                        ? '#6d00fc' 
+                                        : prev.montant > 0 
+                                          ? `${userTheme.color_revenus}e6` 
+                                          : `${userTheme.color_depenses}e6` 
+                                    }}
+                                    defaultValue={prev.montant}
+                                    onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                                  />
+                                  <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
                                 </div>
+                              </td>
+
+                              {/* DATE */}
+                              <td className={`
+                                px-4 py-2 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50
+                                rounded-r-[var(--radius)]
+                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
+                                transition-colors duration-300
+                              `}>
+                                <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
+                                  <Calendar size={12} className="text-[var(--text-main)]/30" />
+                                  <DatePicker
+                                    selected={prev.date ? new Date(prev.date) : null}
+                                    onChange={(date) => updatePrevision(prev.id, 'date', date)}
+                                    dateFormat="dd/MM/yyyy"
+                                    portalId="root" 
+                                    className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        /* --- ÉTAT VIDE --- */
+                        <tr>
+                          <td colSpan="6" className="py-24">
+                            <div className="flex flex-col items-center justify-center text-center">
+                              <div className="relative mb-6">
+                                  <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
+                                  <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
+                                    <Calendar size={28} className="text-[var(--primary)]/40" />
+                                  </div>
+                              </div>
+                              <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
+                                Calendrier de prévisions vide
+                              </h3>
+                              <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic">
+                                Aucun mouvement programmé pour cette période. 
+                                <br/>Ajouter des prévisions pour anticiper vos dépenses.
+                              </p>
                             </div>
-                            <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
-                              Calendrier de prévisions vide
-                            </h3>
-                            <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic">
-                              Aucun mouvement programmé pour cette période. 
-                              <br/>Ajouter des prévisions pour anticiper vos dépenses.
-                            </p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
                 </table>
               </div>
             </div>
@@ -7622,28 +7889,90 @@ if (!user) {
           </div>
         </div>
 
-      {/* TOTAL FINAL EN BAS - PROJECTION FIN D'ANNÉE */}
-      <div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-[var(--radius)]">
-        <div className="flex justify-between items-center">
-          <div className="flex flex-col">
-            <span className="text-[8px] font-black text-emerald-500/40 uppercase italic tracking-widest">
-              Résultat projeté fin {filters.annee}
-            </span>
-            <span className="text-xl font-black text-[var(--text-main)] tracking-tighter">
-              {/* On va chercher le dernier mois du tableau de prévisions */}
-              {recapPrevisionsStats && recapPrevisionsStats.length > 0 
-                ? `${recapPrevisionsStats[recapPrevisionsStats.length - 1].soldeTotal?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
-                : "0.00€"
-              }
-            </span>
-          </div>
-          
-          {/* Petit badge indicateur de tendance */}
-          <div className="h-6 w-6 rounded-full bg-[var(--glass-bg)] flex items-center justify-center text-[9px] font-black text-[var(--text-main)]/40 italic">
-            {Math.round(((recapPrevisionsStats[11]?.soldeTotal / recapPrevisionsStats[0]?.soldeTotal) - 1) * 100)}%
-          </div>
+{/* TOTAL FINAL ET JAUGE ÉPARGNE - PROJECTION FIN D'ANNÉE */}
+<div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-[var(--radius)] flex flex-col gap-4">
+  
+  {/* SECTION 1 : Les Chiffres Globaux (Ton ancien bloc adapté) */}
+  <div className="flex justify-between items-center">
+    <div className="flex flex-col">
+      <span className="text-[8px] font-black text-emerald-500/40 uppercase italic tracking-widest">
+        Résultat projeté fin {filters.annee}
+      </span>
+      <span className="text-xl font-black text-[var(--text-main)] tracking-tighter">
+        {recapPrevisionsStats && recapPrevisionsStats.length > 0 
+          ? `${recapPrevisionsStats[recapPrevisionsStats.length - 1].soldeTotal?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
+          : "0.00€"
+        }
+      </span>
+    </div>
+    
+    {/* Petit badge indicateur de tendance (Sécurisé pour éviter le NaN/Infinity) */}
+    <div className="h-6 w-6 rounded-full bg-[var(--glass-bg)] border border-white/5 flex items-center justify-center text-[9px] font-black text-[var(--text-main)]/40 italic">
+      {recapPrevisionsStats && recapPrevisionsStats[0]?.soldeTotal !== 0
+        ? `${Math.round(((recapPrevisionsStats[recapPrevisionsStats.length - 1]?.soldeTotal / recapPrevisionsStats[0]?.soldeTotal) - 1) * 100)}%`
+        : "0%"
+      }
+    </div>
+  </div>
+
+  {/* Séparateur subtil */}
+  <div className="h-[1px] w-full bg-white/5" />
+
+  {/* SECTION 2 : La Jauge d'Épargne Prévisionnelle intégrée */}
+  <div className="flex flex-col gap-2">
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-2">
+        {/* Petit badge icône simulation discret */}
+        <div className="w-6 h-6 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shrink-0">
+          <span className="text-xs">🏆</span> 
+        </div>
+        <div>
+          <h4 className="text-[var(--text-main)]/40 text-[8px] font-black uppercase tracking-[0.1em] leading-tight">
+            Projection Épargne Annuelle
+          </h4>
+          {objectifAnnuelGlobal > 0 ? (
+            <p className="text-[var(--text-main)] font-black text-sm leading-tight mt-0.5">
+              {Math.floor(statsEpargnePrevisionnelle.montant).toLocaleString('fr-FR')} € 
+              <span className="text-[var(--text-main)]/20 text-[9px] font-medium ml-1">
+                / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
+              </span>
+            </p>
+          ) : (
+            <p className="text-[var(--text-main)]/20 font-black text-[10px] uppercase mt-0.5">Objectif non défini</p>
+          )}
         </div>
       </div>
+
+      {/* Badge % dynamique */}
+      {objectifAnnuelGlobal > 0 && (
+        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition-all duration-300 ${
+          statsEpargnePrevisionnelle.pourcentage >= 100 
+            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+            : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
+        }`}>
+          {statsEpargnePrevisionnelle.pourcentage}%
+        </div>
+      )}
+    </div>
+
+    {/* La barre de progression fine */}
+    {objectifAnnuelGlobal > 0 && (
+      <div className="mt-0.5">
+        <div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+          <div 
+            className="h-full rounded-full transition-all duration-1000 ease-out"
+            style={{ 
+              width: `${Math.min(statsEpargnePrevisionnelle.pourcentage, 100)}%`,
+              background: `linear-gradient(90deg, rgba(6,182,212,0.6), #06b6d4)`,
+              boxShadow: `0 0 8px rgba(6,182,212,0.3)`
+            }}
+          />
+        </div>
+      </div>
+    )}
+  </div>
+
+</div>
       </div>
       </div>
         </div>
@@ -10137,6 +10466,165 @@ if (!user) {
   </div>
 )}
 
+
+
+{/* --- MODAL DE CONFIRMATION DE DUPLICATION PERSONNALISÉ --- */}
+{duplicateModal.show && (
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    {/* Overlay flou */}
+    <div 
+      className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
+      onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })}
+    />
+    
+    {/* Contenu du Modal */}
+    <div className="relative bg-[#0A0A0A] border border-white/10 p-8 rounded-[32px] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+      <div className="flex flex-col items-center text-center">
+        {/* Badge Icône Émeraude */}
+        <div className="p-4 bg-emerald-500/10 rounded-full text-emerald-400 mb-4 animate-pulse">
+          {/* Remplace Copy par RefreshCw ou l'icône de ton choix si nécessaire */}
+          <Copy size={32} />
+        </div>
+        
+        <h3 className="text-[var(--text-main)] font-black text-xl uppercase tracking-tighter mb-2精确">
+          Dupliquer les prévisions ?
+        </h3>
+        
+        <p className="text-[var(--text-main)]/40 text-xs leading-relaxed mb-8">
+          Êtes-vous sûr de vouloir copier les <span className="text-emerald-400 font-black">{duplicateModal.count}</span> prévisions {duplicateModal.isSelection ? 'sélectionnées' : 'de ce mois'} vers le mois prochain ? 
+          <br />
+          <span className="opacity-60 text-[10px]">Les montants, catégories et comptes associés seront conservés à l'identique.</span>
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 w-full">
+          <button 
+            onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })}
+            className="py-3 rounded-xl bg-[var(--glass-bg)] text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 hover:text-[var(--text-main)] transition-all cursor-pointer"
+          >
+            Annuler
+          </button>
+          
+          <button 
+            onClick={handleConfirmDuplicate}
+            className="py-3 rounded-xl bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transition-all cursor-pointer"
+          >
+            Dupliquer
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
+
+
+{/* POPUP FLASH : NOTES DE PATCH */}
+{showPatchModal && (
+  <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+    
+    {/* Conteneur de la modale */}
+    <div className="w-full max-w-xl bg-slate-900/90 border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden transform transition-all scale-100">
+      
+      {/* Effets de lumière néon en tâche de fond */}
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-cyan-500/10 blur-2xl rounded-full" />
+      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-emerald-500/10 blur-2xl rounded-full" />
+
+      {/* En-tête */}
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+          <span className="text-xl">🚀</span>
+        </div>
+        <div>
+          <span className="text-[8px] font-black text-cyan-400 uppercase tracking-[0.2em] bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+            Mise à jour v{CURRENT_VERSION}
+          </span>
+          <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-wider mt-1">
+            Quoi de neuf dans l'application ?
+          </h3>
+        </div>
+      </div>
+
+      {/* Liste des changements */}
+        <div className="space-y-3 mb-6 max-h-[800px] overflow-y-auto pr-1 custom-scrollbar">
+          
+          {/* SECTION : ACCÈS */}
+          <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-start gap-3">
+            <span className="text-base mt-0.5">🔐</span>
+            <div>
+              <h4 className="text-[15px] font-black text-blue-400 uppercase tracking-wide">
+                Connexion simplifiée
+              </h4>
+              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+                Plus besoin de chercher ton identifiant : tu peux désormais te connecter directement en utilisant ton **adresse email**.
+              </p>
+            </div>
+          </div>
+
+          {/* SECTION : IMPORTATION (DOUBLONS CSV) */}
+          <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3">
+            <span className="text-base mt-0.5">📥</span>
+            <div>
+              <h4 className="text-[15px] font-black text-amber-400 uppercase tracking-wide">
+                Nettoyage automatique des CSV
+              </h4>
+              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+                La page d'importation traque désormais les doublons **à l'intérieur** de tes fichiers CSV pour les supprimer automatiquement avant traitement.
+              </p>
+            </div>
+          </div>
+
+          {/* SECTION : IMPORTATION (DOUBLONS BDD) */}
+          <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl flex items-start gap-3">
+            <span className="text-base mt-0.5">🛡️</span>
+            <div>
+              <h4 className="text-[15px] font-black text-orange-400 uppercase tracking-wide">
+                Protection anti-doublons
+              </h4>
+              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+                À l'import, si une transaction possède déjà **la même date, le même nom et le même montant** en base de données, elle sera ignorée en toute sécurité.
+              </p>
+            </div>
+          </div>
+
+          {/* SECTION : PRÉVISIONS (DUPLICATION) */}
+          <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3">
+            <span className="text-base mt-0.5">📋</span>
+            <div>
+              <h4 className="text-[15px] font-black text-purple-400 uppercase tracking-wide">
+                Copier/Coller de masse
+              </h4>
+              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+                Gagne du temps sur ta saisie ! Une nouvelle option te permet de **copier et coller tes prévisions d'un mois sur les mois suivants** en un clic.
+              </p>
+            </div>
+          </div>
+
+          {/* SECTION : PRÉVISIONS (JAUGE) */}
+          <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
+            <span className="text-base mt-0.5">🔮</span>
+            <div>
+              <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
+                Jauge d'Épargne Prévisionnelle
+              </h4>
+              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+                Ajout d'un nouvel indicateur visuel en bas du budget prévisionnel pour suivre en direct ton pourcentage d'objectif d'épargne annuel projeté.
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+      {/* Bouton de fermeture */}
+      <button
+        onClick={handleClosePatchModal}
+        className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-cyan-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
+      >
+        C'est parti !
+      </button>
+
+    </div>
+  </div>
+)}
 
 
 <style jsx>{`
