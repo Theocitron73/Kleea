@@ -19,7 +19,7 @@ from fastapi import Response
 import uuid
 import resend
 import re
-
+import unicodedata
 
 
 
@@ -1172,7 +1172,7 @@ class PrevisionIn(BaseModel):
     def clean_mois(cls, v: str) -> str:
         if v:
             # Enlève les accents (Août -> Aout, Février -> Fevrier)
-            import unicodedata
+            
             v = "".join(c for c in unicodedata.normalize('NFD', v) if unicodedata.category(c) != 'Mn')
             # Optionnel : Forcer la première lettre en Majuscule et le reste en minuscule
             v = v.strip().capitalize()
@@ -1207,16 +1207,25 @@ def add_prevision(p: PrevisionIn):
         return {"status": "error", "message": str(e)}
     
 
+
+
 @app.put("/previsions/{prev_id}")
 def update_prevision(prev_id: int, data: dict):
     try:
         if not data:
             return {"status": "error", "message": "No data provided"}
 
-        # Gestion de l'accent sur 'année' si nécessaire
+        # 1. Gestion de l'accent sur 'année' si nécessaire
         if "annee" in data:
             data["année"] = data.pop("annee")
             
+        # 2. 🛡️ SÉCURITÉ DU MOIS : Nettoyage automatique des accents si le mois change
+        if "mois" in data and data["mois"]:
+            m = data["mois"]
+            # Enlève les accents (Août -> Aout, Février -> Fevrier)
+            m = "".join(c for c in unicodedata.normalize('NFD', m) if unicodedata.category(c) != 'Mn')
+            data["mois"] = m.strip().capitalize()
+
         # Construction de la requête SQL
         set_clause = ", ".join([f"{k} = :{k}" for k in data.keys()])
         query = text(f"UPDATE previsions SET {set_clause} WHERE id = :id")

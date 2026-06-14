@@ -4886,7 +4886,6 @@ const handleAddPrevision = async () => {
 
 
 const updatePrevision = async (id, field, value) => {
-
   if (!id) {
     console.error("Impossible de modifier : l'ID de la prévision est introuvable.");
     return;
@@ -4896,14 +4895,24 @@ const updatePrevision = async (id, field, value) => {
     let extraData = {};
 
     // Si on modifie la DATE
-    if (field === 'date') {
-      const d = new Date(value);
-      // Format YYYY-MM-DD pour la base de données
-      finalValue = d.toISOString().split('T')[0]; 
+    if (field === 'date' && value) {
+      // 1. On extrait l'année, le mois et le jour de l'objet Date de React-DatePicker
+      const yyyy = value.getFullYear();
+      const mm = String(value.getMonth() + 1).padStart(2, '0');
+      const dd = String(value.getDate()).padStart(2, '0');
       
-      const nomMois = d.toLocaleDateString('fr-FR', { month: 'long' });
-      extraData.mois = nomMois.charAt(0).toUpperCase() + nomMois.slice(1);
-      extraData.annee = d.getFullYear(); // On envoie 'annee' (le backend gérera l'accent)
+      // 2. Format YYYY-MM-DD local strict (Adieu le bug de fuseau horaire)
+      finalValue = `${yyyy}-${mm}-${dd}`; 
+      
+      // 3. Calcul du nom du mois
+      const nomMois = value.toLocaleDateString('fr-FR', { month: 'long' });
+      let moisFormate = nomMois.charAt(0).toUpperCase() + nomMois.slice(1);
+
+      // 4. On retire l'accent directement au cas où (Août -> Aout)
+      moisFormate = moisFormate.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+      extraData.mois = moisFormate;
+      extraData.annee = parseInt(yyyy, 10);
     }
 
     // On prépare le payload final
@@ -4914,7 +4923,6 @@ const updatePrevision = async (id, field, value) => {
     
     loadPrevisions();
   } catch (err) {
-    // Si l'erreur persiste, regarde l'onglet "Network" -> "Response" dans ton navigateur
     console.error("Erreur update prévision:", err);
   }
 };
@@ -7439,316 +7447,274 @@ if (!user) {
       {/* CONTENEUR PRINCIPAL : Divisé en 2 colonnes */}
       <div className="flex flex-col lg:flex-row gap-6 h-full min-h-0 overflow-hidden p-2">
 
-        {/* ================= COLONNE GAUCHE (75%) : ACTIONS & MODIFS ================= */}
-        <div className="flex-[3] flex flex-col min-w-0 h-full">
+        {/* ================= COLONNE GAUCHE / BLOC PRINCIPAL : ACTIONS & MODIFS ================= */}
+  <div className="flex-[3] flex flex-col min-w-0 w-full h-full">
 
-          
-          
-          {/* 1. FORMULAIRE D'AJOUT */}
-            <div className="grid grid-cols-12 gap-3 mb-6 p-4 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] relative z-30 shadow-xl">
+    {/* 1. FORMULAIRE D'AJOUT RESPONSIVE */}
+    <div className="grid grid-cols-12 gap-3 mb-6 p-4 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] relative z-30 shadow-xl w-full">
 
-              {/* 1. Titre Stylisé - AJOUT DE col-span-12 ICI */}
-              <div className="col-span-12 flex items-center justify-between mb-2 pb-3 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-[var(--primary)]/10 rounded-lg border border-[var(--primary)]/20">
-                    <Plus size={14} className="text-[var(--primary)]" />
-                  </div>
-                  <div>
-                    <h3 className="text-[var(--text-main)] font-bold text-[13px] tracking-wide">Nouvelle Prévision</h3>
-                    <p className="text-[9px] text-[var(--text-main)]/30 uppercase tracking-widest font-medium">Saisie express</p>
-                  </div>
-                </div>
-                
-                {/* Dans l'en-tête de ton formulaire d'ajout, à côté de "⚡ Auto-save Ready" */}
-                  <div className="flex items-center gap-3">
-                    {previsionsFiltrees.length > 0 && (
-                  <button
-                    onClick={handleTryDuplicate}
-                    className="h-[34px] px-4 bg-[var(--primary)] hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] tracking-widest uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_15px_rgba(16,185,129,0.2)]"
-                  >
-                    <span>
-                      {selectedIds2.length > 0 
-                        ? `Reconduire la sélection (${selectedIds2.length})` 
-                        : 'Reconduire le mois'}
-                    </span>
-                    <div className="w-4 h-4 rounded-[var(--radius)] bg-black/10 flex items-center justify-center font-bold text-[9px]">
-                      +
-                    </div>
-                  </button>
-                    )}
-
-                    <div className="px-3 py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[9px] text-[var(--bg-primary)]-300/50 font-bold tracking-widest italic uppercase">
-                      ⚡ Auto-save Ready
-                    </div>
-                  </div>
-              </div>
-                
-            {/* DATE */}
-            <div className="col-span-6 md:col-span-2">
-              <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Date</label>
-              <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-[var(--radius)] px-3 py-2 h-[38px] focus-within:border-emerald-500/50 transition-all">
-                <Calendar size={14} className="text-[var(--text-main)]/40" />
-                <DatePicker
-                  selected={newPrevi.date ? new Date(newPrevi.date) : null} 
-                  onChange={(date) => setNewPrevi({ ...newPrevi, date: date })}
-                  dateFormat="dd/MM/yyyy"
-                  className="bg-transparent border-none outline-none text-[var(--text-main)] text-[11px] font-bold w-full cursor-pointer"
-                />
-              </div>
-            </div>
-
-            {/* NOM */}
-            <div className="col-span-6 md:col-span-2">
-              <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Libellé</label>
-              <input 
-                type="text"
-                placeholder="Ex: Salaire..."
-                className="w-full h-[38px] bg-black/20 border border-white/10 rounded-[var(--radius)] px-4 py-2 text-[11px] text-[var(--text-main)] outline-none focus:border-emerald-500/50 transition-all font-bold"
-                value={newPrevi.nom}
-                onChange={e => setNewPrevi({...newPrevi, nom: e.target.value})}
-              />
-            </div>
-
-            {/* MONTANT */}
-            <div className="col-span-4 md:col-span-2">
-              <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Montant</label>
-              <input 
-                type="number"
-                placeholder="0.00"
-                className="w-full h-[38px] bg-black/20 border border-white/10 rounded-[var(--radius)] px-4 py-2 text-[11px] text-[var(--text-main)] outline-none focus:border-emerald-500/50 transition-all font-bold text-right"
-                value={newPrevi.montant}
-                onChange={e => setNewPrevi({...newPrevi, montant: e.target.value})}
-              />
-            </div>
-
-            {/* CATÉGORIE */}
-            <div className="col-span-4 md:col-span-2">
-              <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Catégorie</label>
-              <CustomSelect 
-                value={newPrevi.categorie}
-                icon={Tag}
-                options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
-                onChange={(val) => setNewPrevi({...newPrevi, categorie: val})}
-              />
-            </div>
-
-            {/* COMPTE */}
-            <div className="col-span-4 md:col-span-2">
-              <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Compte</label>
-              <CustomSelect 
-                value={newPrevi.compte}
-                icon={Wallet}
-                options={optionsComptes}
-                onChange={(val) => setNewPrevi({...newPrevi, compte: val})}
-              />
-            </div>
-
-            {/* BOUTON AJOUTER */}
-            <div className="col-span-12 md:col-span-2 flex items-end">
-              <button 
-                onClick={handleAddPrevision}
-                className="w-full h-[38px] bg-[var(--primary)] transition-all hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2"
-              >
-                <span>Ajouter</span>
-                <div className="w-4 h-4 rounded-[var(--radius)] bg-white/20 flex items-center justify-center">+</div>
-              </button>
-            </div>
+      {/* 1. Titre Stylisé & Boutons d'action */}
+      <div className="col-span-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2 pb-3 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[var(--primary)]/10 rounded-lg border border-[var(--primary)]/20">
+            <Plus size={14} className="text-[var(--primary)]" />
           </div>
-
-        {/* 2. CONTENEUR DOUBLE : TABLEAU (GAUCHE) + GRAPHIQUE (DROITE) */}
-        <div className="flex flex-row gap-6 flex-1 min-h-0">
-          
-          <div className="flex-[3] flex flex-col min-h-0 relative group">
-            {/* Effet de lueur diffuse derrière le tableau */}
-            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 to-fuchsia-500/5 rounded-[var(--radius)] blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
-
-            <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl">
-              
-              {/* ZONE DE SCROLL INTERNE */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-4">
-                <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed">
-                  <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
-                    <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
-                      <th className="px-4 py-3 w-12 text-center backdrop-blur-[var(--glass-blur)] bg-black/20">
-                        <input 
-                          type="checkbox"
-                          checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
-                          onChange={toggleAll2}
-                          className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
-                        />
-                      </th>
-                      <th className="px-4 py-3 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
-                      <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
-                      <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
-                      <th className="px-4 py-3 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
-                      <th className="px-4 py-3 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Date</th>
-                    </tr>
-                  </thead>
-
-                    <tbody className="before:content-[''] before:block before:h-2">
-                      {previsionsFiltrees.length > 0 ? (
-                        previsionsFiltrees.map((prev) => {
-                          const isSelected = selectedIds2.includes(prev.id);
-                          const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
-                          
-                          return (
-                            <tr 
-                              key={prev.id} 
-                              className={`
-                                group transition-all duration-300
-                                /* 🔴 NETTOYAGE : Assure-toi qu'il n'y a AUCUN border-l-4 ou shadow-inset ici quand isSelected est vrai */
-                                ${isSelected 
-                                  ? 'bg-transparent' /* On laisse les <td> gérer leur fond émeraude */
-                                  : 'hover:[&>td]:bg-white/[0.08] hover:[&_.input-libelle]:bg-white/[0.08] hover:[&_.amount-box]:bg-white/[0.08] hover:[&_.amount-box]:border-white/20'
-                                }
-                              `}
-                            >
-                              {/* PREMIÈRE CASE (Checkbox) */}
-                                <td className={`
-                                  p-3 border-y border-l border-white/5 text-center relative
-                                  rounded-l-[var(--radius)]
-                                  ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
-                                  transition-colors duration-300
-                                  /* 🔥 FIX DE LA BARRE VERTE : Intégrée, centrée et arrondie */
-                                  ${isSelected 
-                                    ? "before:content-[''] before:absolute before:left-1.5 before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-[3px] before:bg-[#10b981] before:rounded-full" 
-                                    : ""
-                                  }
-                                `}>
-                                  {/* On ajoute un pl-4 (padding left) sur l'input pour décaler la checkbox et laisser la place à la barre verte sans qu'elles se chevauchement */}
-                                  <div className={isSelected ? "pl-2 transition-all" : ""}>
-                                    <input 
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => toggleSelect2(prev.id)}
-                                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
-                                    />
-                                  </div>
-                                </td>
-                              
-                              {/* LIBELLÉ */}
-                              <td className={`
-                                px-2 py-2 border-y border-white/5
-                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
-                                transition-colors duration-300
-                              `}>
-                                {/* 🔥 Ajout de la classe unique "input-libelle" ici */}
-                                <input 
-                                  className="input-libelle bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
-                                  defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                                  onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                                />
-                              </td>
-
-                              {/* CATÉGORIE */}
-                              <td className={`
-                                px-2 py-2 border-y border-white/5 overflow-visible
-                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
-                                transition-colors duration-300
-                              `}>
-                                <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
-                              </td>
-
-                              {/* COMPTE */}
-                              <td className={`
-                                px-2 py-2 border-y border-white/5 overflow-visible
-                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
-                                transition-colors duration-300
-                              `}>
-                                <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
-                              </td>
-
-                              {/* MONTANT */}
-                              <td className={`
-                                px-2 py-2 border-y border-white/5
-                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
-                                transition-colors duration-300
-                              `}
-                              >
-                                <div className="amount-box flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300">
-                                  <input 
-                                    type="number"
-                                    /* Cet input reste transparent en permanence, aucun rectangle n'apparaîtra dessus au survol */
-                                    className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
-                                    style={{ 
-                                      color: isTransfert 
-                                        ? '#6d00fc' 
-                                        : prev.montant > 0 
-                                          ? `${userTheme.color_revenus}e6` 
-                                          : `${userTheme.color_depenses}e6` 
-                                    }}
-                                    defaultValue={prev.montant}
-                                    onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
-                                  />
-                                  <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
-                                </div>
-                              </td>
-
-                              {/* DATE */}
-                              <td className={`
-                                px-4 py-2 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50
-                                rounded-r-[var(--radius)]
-                                ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'}
-                                transition-colors duration-300
-                              `}>
-                                <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
-                                  <Calendar size={12} className="text-[var(--text-main)]/30" />
-                                  <DatePicker
-                                    selected={prev.date ? new Date(prev.date) : null}
-                                    onChange={(date) => updatePrevision(prev.id, 'date', date)}
-                                    dateFormat="dd/MM/yyyy"
-                                    portalId="root" 
-                                    className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        /* --- ÉTAT VIDE --- */
-                        <tr>
-                          <td colSpan="6" className="py-24">
-                            <div className="flex flex-col items-center justify-center text-center">
-                              <div className="relative mb-6">
-                                  <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
-                                  <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
-                                    <Calendar size={28} className="text-[var(--primary)]/40" />
-                                  </div>
-                              </div>
-                              <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
-                                Calendrier de prévisions vide
-                              </h3>
-                              <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic">
-                                Aucun mouvement programmé pour cette période. 
-                                <br/>Ajouter des prévisions pour anticiper vos dépenses.
-                              </p>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                </table>
-              </div>
-            </div>
+          <div>
+            <h3 className="text-[var(--text-main)] font-bold text-[13px] tracking-wide">Nouvelle Prévision</h3>
+            <p className="text-[9px] text-[var(--text-main)]/30 uppercase tracking-widest font-medium">Saisie express</p>
           </div>
+        </div>
+        
+        {/* Actions à droite : S'empilent joliment sur petit écran */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+          {previsionsFiltrees.length > 0 && (
+            <button
+              onClick={handleTryDuplicate}
+              className="h-[34px] px-4 w-full sm:w-auto bg-[var(--primary)] hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] tracking-widest uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_15px_rgba(16,185,129,0.2)]"
+            >
+              <span>
+                {selectedIds2.length > 0 
+                  ? `Reconduire la sélection (${selectedIds2.length})` 
+                  : 'Reconduire le mois'}
+              </span>
+              <div className="w-4 h-4 rounded-[var(--radius)] bg-black/10 flex items-center justify-center font-bold text-[9px]">+</div >
+            </button>
+          )}
 
-          {/* --- SOUS-BLOC GRAPHIQUE (35%) --- */}
-          <div className="flex-1 flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl p-4 min-w-[300px]">
-            <div className="flex items-center gap-2 mb-4 px-2">
-              <PieChartIcon size={14} className="text-[var(--text-main)]/40" />
-              <h3 className="text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-widest italic">Analyse Prévue</h3>
-            </div>
-            
-            <div className="flex-1">
-              <PrevisionsChartView 
-                data={chartDataPrevisions} 
-                themeColor={userTheme.color_depenses} 
-              />
-            </div>
+          <div className="px-3 py-1.5 sm:py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[9px] text-[var(--bg-primary)]-300/50 font-bold tracking-widest italic uppercase w-full sm:w-auto text-center sm:text-left">
+            ⚡ Auto-save Ready
           </div>
         </div>
       </div>
+        
+      {/* INPUT DATE : col-span-12 sur mobile, col-span-6 sur tablette, col-span-2 sur PC */}
+      <div className="col-span-12 sm:col-span-6 md:col-span-2">
+        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Date</label>
+        <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-[var(--radius)] px-3 py-2 h-[38px] focus-within:border-emerald-500/50 transition-all w-full">
+          <Calendar size={14} className="text-[var(--text-main)]/40" />
+          <DatePicker
+            selected={newPrevi.date ? new Date(newPrevi.date) : null} 
+            onChange={(date) => setNewPrevi({ ...newPrevi, date: date })}
+            dateFormat="dd/MM/yyyy"
+            className="bg-transparent border-none outline-none text-[var(--text-main)] text-[11px] font-bold w-full cursor-pointer"
+          />
+        </div>
+      </div>
+
+      {/* INPUT LIBELLÉ */}
+      <div className="col-span-12 sm:col-span-6 md:col-span-2">
+        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Libellé</label>
+        <input 
+          type="text"
+          placeholder="Ex: Salaire..."
+          className="w-full h-[38px] bg-black/20 border border-white/10 rounded-[var(--radius)] px-4 py-2 text-[11px] text-[var(--text-main)] outline-none focus:border-emerald-500/50 transition-all font-bold"
+          value={newPrevi.nom}
+          onChange={e => setNewPrevi({...newPrevi, nom: e.target.value})}
+        />
+      </div>
+
+      {/* INPUT MONTANT */}
+      <div className="col-span-12 sm:col-span-4 md:col-span-2">
+        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Montant</label>
+        <input 
+          type="number"
+          placeholder="0.00"
+          className="w-full h-[38px] bg-black/20 border border-white/10 rounded-[var(--radius)] px-4 py-2 text-[11px] text-[var(--text-main)] outline-none focus:border-emerald-500/50 transition-all font-bold text-left sm:text-right"
+          value={newPrevi.montant}
+          onChange={e => setNewPrevi({...newPrevi, montant: e.target.value})}
+        />
+      </div>
+
+      {/* INPUT CATÉGORIE */}
+      <div className="col-span-12 sm:col-span-4 md:col-span-2">
+        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Catégorie</label>
+        <CustomSelect 
+          value={newPrevi.categorie}
+          icon={Tag}
+          options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+          onChange={(val) => setNewPrevi({...newPrevi, categorie: val})}
+        />
+      </div>
+
+      {/* INPUT COMPTE */}
+      <div className="col-span-12 sm:col-span-4 md:col-span-2">
+        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Compte</label>
+        <CustomSelect 
+          value={newPrevi.compte}
+          icon={Wallet}
+          options={optionsComptes}
+          onChange={(val) => setNewPrevi({...newPrevi, compte: val})}
+        />
+      </div>
+
+      {/* BOUTON AJOUTER */}
+      <div className="col-span-12 md:col-span-2 flex items-end">
+        <button 
+          onClick={handleAddPrevision}
+          className="w-full h-[38px] bg-[var(--primary)] transition-all hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2"
+        >
+          <span>Ajouter</span>
+          <div className="w-4 h-4 rounded-[var(--radius)] bg-white/20 flex items-center justify-center">+</div >
+        </button>
+      </div>
+    </div>
+
+    {/* 2. CONTENEUR DOUBLE : TABLEAU (GAUCHE) + GRAPHIQUE (DROITE) */}
+    {/* Passage en `flex-col` sur mobile et `lg:flex-row` sur grand écran */}
+    <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 w-full">
+      
+      {/* BLOC TABLEAU */}
+      <div className="flex-[3] flex flex-col min-h-[350px] lg:min-h-0 relative group w-full">
+        {/* Effet de lueur */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 to-fuchsia-500/5 rounded-[var(--radius)] blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
+
+        <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl overflow-hidden w-full">
+          
+          {/* ZONE DE SCROLL : Horizontal sur mobile si le tableau déborde, vertical pour les lignes */}
+          <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar p-4 w-full">
+            
+            {/* Ajout d'un min-w pour éviter que les colonnes se chevauchent sur les petits écrans de téléphone */}
+            <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed min-w-[650px]">
+              <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
+                <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
+                  <th className="px-4 py-3 w-12 text-center backdrop-blur-[var(--glass-blur)] bg-black/20">
+                    <input 
+                      type="checkbox"
+                      checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
+                      onChange={toggleAll2}
+                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
+                    />
+                  </th>
+                  <th className="px-4 py-3 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
+                  <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
+                  <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
+                  <th className="px-4 py-3 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
+                  <th className="px-4 py-3 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Date</th>
+                </tr>
+              </thead>
+
+              <tbody className="before:content-[''] before:block before:h-2">
+                {previsionsFiltrees.length > 0 ? (
+                  previsionsFiltrees.map((prev) => {
+                    const isSelected = selectedIds2.includes(prev.id);
+                    const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+                    
+                    return (
+                      <tr 
+                        key={prev.id} 
+                        className={`group transition-all duration-300 ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.08] hover:[&_.input-libelle]:bg-white/[0.08] hover:[&_.amount-box]:bg-white/[0.08] hover:[&_.amount-box]:border-white/20'}`}
+                      >
+                        {/* CASE CHECKBOX */}
+                        <td className={`p-3 border-y border-l border-white/5 text-center relative rounded-l-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300 ${isSelected ? "before:content-[''] before:absolute before:left-1.5 before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-[3px] before:bg-[#10b981] before:rounded-full" : ""}`}>
+                          <div className={isSelected ? "pl-2 transition-all" : ""}>
+                            <input 
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelect2(prev.id)}
+                              className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
+                            />
+                          </div>
+                        </td>
+                        
+                        {/* LIBELLÉ */}
+                        <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                          <input 
+                            className="input-libelle bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
+                            defaultValue={prev.nom.replace('[PRÉVI] ', '')}
+                            onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
+                          />
+                        </td>
+
+                        {/* CATÉGORIE */}
+                        <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                          <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
+                        </td>
+
+                        {/* COMPTE */}
+                        <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                          <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
+                        </td>
+
+                        {/* MONTANT */}
+                        <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                          <div className="amount-box flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300">
+                            <input 
+                              type="number"
+                              className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
+                              style={{ 
+                                color: isTransfert 
+                                  ? '#6d00fc' 
+                                  : prev.montant > 0 
+                                    ? `${userTheme.color_revenus}e6` 
+                                    : `${userTheme.color_depenses}e6` 
+                              }}
+                              defaultValue={prev.montant}
+                              onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                            />
+                            <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
+                          </div>
+                        </td>
+
+                        {/* DATE */}
+                        <td className={`px-4 py-2 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                          <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
+                            <Calendar size={12} className="text-[var(--text-main)]/30" />
+                            <DatePicker
+                              selected={prev.date ? new Date(prev.date) : null}
+                              onChange={(date) => updatePrevision(prev.id, 'date', date)}
+                              dateFormat="dd/MM/yyyy"
+                              portalId="root" 
+                              className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  /* --- ÉTAT VIDE --- */
+                  <tr>
+                    <td colSpan="6" className="py-24">
+                      <div className="flex flex-col items-center justify-center text-center px-4">
+                        <div className="relative mb-6">
+                            <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
+                            <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
+                              <Calendar size={28} className="text-[var(--primary)]/40" />
+                            </div>
+                        </div>
+                        <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
+                          Calendrier de prévisions vide
+                        </h3>
+                        <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic max-w-xs">
+                          Aucun mouvement programmé pour cette période. <br/>Ajouter des prévisions pour anticiper vos dépenses.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* --- SOUS-BLOC GRAPHIQUE --- */}
+      {/* Devient `w-full` sur mobile et garde sa taille minimale fixe */}
+      <div className="w-full lg:flex-1 flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl p-4 min-w-[300px] min-h-[300px]">
+        <div className="flex items-center gap-2 mb-4 px-2">
+          <PieChartIcon size={14} className="text-[var(--text-main)]/40" />
+          <h3 className="text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-widest italic">Analyse Prévue</h3>
+        </div>
+        
+        <div className="flex-1 w-full">
+          <PrevisionsChartView 
+            data={chartDataPrevisions} 
+            themeColor={userTheme.color_depenses} 
+          />
+        </div>
+      </div>
+    </div>
+  </div>
 
       {/* ================= COLONNE DROITE (25% ou flexible) : RÉCAP ANNUEL PROJETÉ ================= */}
       <div className="flex-[1.2] min-w-[380px] flex flex-col bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] p-4 shadow-2xl relative overflow-hidden h-full">
@@ -7992,10 +7958,10 @@ if (!user) {
           <div 
             className="h-full rounded-full transition-all duration-1000 ease-out"
             style={{ 
-                                  width: `${Math.min(pourcentageAnnuel, 100)}%`,
-                                  background: `linear-gradient(90deg, ${userTheme.color_epargne || '#ffffff'}90, ${userTheme.color_epargne || '#f1c40f'})`,
-                                  boxShadow: `0 0 10px ${(userTheme.color_epargne || '#f1c40f')}33`
-                                }}
+              width: `${Math.min(pourcentageAnnuel, 100)}%`,
+              background: `linear-gradient(90deg, ${userTheme.color_epargne || '#ffffff'}90, ${userTheme.color_epargne || '#f1c40f'})`,
+              boxShadow: `0 0 10px ${(userTheme.color_epargne || '#f1c40f')}33`
+              }}
           />
         </div>
       </div>
