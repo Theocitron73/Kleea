@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
 from typing import List
 import io
@@ -18,6 +18,7 @@ from fpdf import FPDF
 from fastapi import Response
 import uuid
 import resend
+import re
 
 
 
@@ -1165,8 +1166,25 @@ class PrevisionIn(BaseModel):
     annee: int
     date: str
 
+    # 💡 Pydantic Validator : Nettoie automatiquement le mois à l'entrée de l'API
+    @field_validator('mois')
+    @classmethod
+    def clean_mois(cls, v: str) -> str:
+        if v:
+            # Enlève les accents (Août -> Aout, Février -> Fevrier)
+            import unicodedata
+            v = "".join(c for c in unicodedata.normalize('NFD', v) if unicodedata.category(c) != 'Mn')
+            # Optionnel : Forcer la première lettre en Majuscule et le reste en minuscule
+            v = v.strip().capitalize()
+        return v
+
 @app.post("/previsions")
 def add_prevision(p: PrevisionIn):
+    # 🧼 NETTOYAGE DU NOM : Si le front envoie déjà "[PRÉVI]" ou "[PREVI]", on le retire 
+    # pour éviter les doublons avant d'ajouter le tag propre standardisé.
+    nom_nettoye = re.sub(r'^\[PRÉVI\]\s*|^\[PREVI\]\s*', '', p.nom, flags=re.IGNORECASE)
+    nom_final = f"[PRÉVI] {nom_nettoye}"
+
     query = text("""
         INSERT INTO previsions (date, nom, montant, categorie, compte, mois, année, utilisateur)
         VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u)
@@ -1174,9 +1192,14 @@ def add_prevision(p: PrevisionIn):
     try:
         with engine.connect() as conn:
             conn.execute(query, {
-                "d": p.date, "n": f"[PRÉVI] {p.nom}", "m": p.montant, 
-                "c": p.categorie, "compte": p.compte, "mois": p.mois, 
-                "annee": p.annee, "u": p.utilisateur
+                "d": p.date, 
+                "n": nom_final,        # Enregistre "[PRÉVI] Mon Titre" proprement
+                "m": p.montant, 
+                "c": p.categorie, 
+                "compte": p.compte, 
+                "mois": p.mois,         # Sera "Aout" (nettoyé par le validator Pydantic)
+                "annee": p.annee, 
+                "u": p.utilisateur
             })
             conn.commit()
         return {"status": "success"}

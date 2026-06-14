@@ -2891,7 +2891,7 @@ const [notification2, setNotification2] = useState({ show: false, message: '', t
   const styles = getComputedStyle(document.documentElement);
   const themeData = {
     utilisateur: user,
-    bg_site: styles.getPropertyValue('--bg-site').trim() || '#f8fafc',
+    bg_site: styles.getPropertyValue('--bg-site').trim() || '#152c48',
     primary_color: styles.getPropertyValue('--primary').trim() || '#4f46e5',
     text_main: styles.getPropertyValue('--text-main').trim() || '#0f172a',
     radius: styles.getPropertyValue('--radius').trim() || '1.5rem',
@@ -5102,7 +5102,6 @@ const handleTryDuplicate = () => {
   });
 };
 
-// 2. L'action réelle exécutée après confirmation dans le modal
 const handleConfirmDuplicate = async () => {
   const aCopier = selectedIds2.length > 0 
     ? previsionsFiltrees.filter(p => selectedIds2.includes(p.id))
@@ -5110,21 +5109,47 @@ const handleConfirmDuplicate = async () => {
 
   try {
     const requetes = aCopier.map(prev => {
-      const dateOrigine = new Date(prev.date);
-      const nouvelleDate = new Date(dateOrigine);
-      nouvelleDate.setMonth(dateOrigine.getMonth() + 1);
+      // 1. On découpe la chaîne "YYYY-MM-DD" originale (ex: "2026-06-15")
+      const [anneeBrute, moisBrut] = prev.date.split('-').map(Number);
+      
+      // 2. On calcule l'année et le mois suivants (Rappel : en JS, Janvier = 0, Décembre = 11)
+      let anneeCible = anneeBrute;
+      let moisCibleJS = (moisBrut - 1) + 1; // On passe au mois d'après
 
+      if (moisCibleJS > 11) {
+        moisCibleJS = 0;   // Reset à Janvier
+        anneeCible += 1;   // Année suivante
+      }
+
+      // 3. On crée un objet Date calé au 1er du mois à midi pour le formatage du nom du mois
+      const nouvelleDate = new Date(anneeCible, moisCibleJS, 1, 12, 0, 0);
+
+      // 4. On assemble la date finale textuellement : TOUJOURS LE 01
+      const mmFormate = String(nouvelleDate.getMonth() + 1).padStart(2, '0');
+      const dateFormatee = `${anneeCible}-${mmFormate}-01`; 
+
+      // 5. On récupère le nom du mois en français ("Juillet", etc.)
       const nomMoisLong = nouvelleDate.toLocaleDateString('fr-FR', { month: 'long' });
       const moisFormate = nomMoisLong.charAt(0).toUpperCase() + nomMoisLong.slice(1);
 
+      // 6. On s'assure que les types envoyés correspondent bien à ce qu'attend FastAPI
+      const anneeStrict = parseInt(anneeCible, 10);
+      const montantStrict = Number(prev.montant);
+
+      // 🧼 NETTOYAGE DU NOM : On retire "[PRÉVI]" ou "[PREVI]" (insensible à la casse, avec ou sans espace après)
+      let nomNettoye = prev.nom;
+      if (nomNettoye) {
+        nomNettoye = nomNettoye.replace(/^\[PRÉVI\]\s*|^\[PREVI\]\s*/i, '');
+      }
+
       return api.post(`/previsions`, {
-        nom: prev.nom,
-        montant: prev.montant,
+        nom: nomNettoye,        // Le nom tout propre, débarrassé du tag [PRÉVI]
+        montant: montantStrict,
         categorie: prev.categorie,
         compte: prev.compte,
-        date: nouvelleDate.toISOString().split('T')[0],
-        mois: moisFormate,
-        annee: nouvelleDate.getFullYear(),
+        date: dateFormatee,     // Sera toujours sous la forme "YYYY-MM-01"
+        mois: moisFormate,       // Le nom propre du mois suivant
+        annee: anneeStrict,     // L'année en nombre entier
         utilisateur: user
       });
     });
@@ -5142,7 +5167,7 @@ const handleConfirmDuplicate = async () => {
     });
     setTimeout(() => {
       setNotification(null); 
-    }, 2000); // 2000 millisecondes = 2 secondes
+    }, 2000);
 
   } catch (err) {
     console.error("Erreur duplication :", err);
@@ -5153,8 +5178,7 @@ const handleConfirmDuplicate = async () => {
     });
     setTimeout(() => {
       setNotification(null); 
-    }, 2000); // 2000 millisecondes = 2 secondes
-
+    }, 2000);
   }
 };
 
@@ -7923,7 +7947,13 @@ if (!user) {
     <div className="flex items-center justify-between gap-4">
       <div className="flex items-center gap-2">
         {/* Petit badge icône simulation discret */}
-        <div className="w-6 h-6 rounded-lg bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 shrink-0">
+        <div className="w-6 h-6 rounded-lg flex items-center justify-center border border-cyan-500/20 shrink-0"
+        style={{ 
+                        // Fond à 15% d'opacité, texte plein, et bordure à 20% d'opacité
+                        backgroundColor: `${userTheme.color_epargne}15`,
+                        color: userTheme.color_epargne,
+                        border: `1px solid ${userTheme.color_epargne}20`
+                      }}>
           <span className="text-xs">🏆</span> 
         </div>
         <div>
@@ -7945,10 +7975,10 @@ if (!user) {
 
       {/* Badge % dynamique */}
       {objectifAnnuelGlobal > 0 && (
-        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition-all duration-300 ${
+        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition-all duration-300  ${
           statsEpargnePrevisionnelle.pourcentage >= 100 
             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-            : 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
+            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
         }`}>
           {statsEpargnePrevisionnelle.pourcentage}%
         </div>
@@ -7962,10 +7992,10 @@ if (!user) {
           <div 
             className="h-full rounded-full transition-all duration-1000 ease-out"
             style={{ 
-              width: `${Math.min(statsEpargnePrevisionnelle.pourcentage, 100)}%`,
-              background: `linear-gradient(90deg, rgba(6,182,212,0.6), #06b6d4)`,
-              boxShadow: `0 0 8px rgba(6,182,212,0.3)`
-            }}
+                                  width: `${Math.min(pourcentageAnnuel, 100)}%`,
+                                  background: `linear-gradient(90deg, ${userTheme.color_epargne || '#ffffff'}90, ${userTheme.color_epargne || '#f1c40f'})`,
+                                  boxShadow: `0 0 10px ${(userTheme.color_epargne || '#f1c40f')}33`
+                                }}
           />
         </div>
       </div>
