@@ -349,6 +349,7 @@ async def reset_password_confirm(req: NewPasswordRequest):
 
 
 
+# 💡 1. AJOUT DE TAUX DANS LE MODÈLE PYDANTIC
 class CompteConfig(BaseModel):
     compte: str
     groupe: str
@@ -356,45 +357,44 @@ class CompteConfig(BaseModel):
     objectif: float
     couleur: str
     utilisateur: str
+    taux: float = 0.0  # Optionnel par défaut à 0.0 si absent
+
 
 @app.get("/config-comptes/{username}")
 def get_config_comptes(username: str):
     u_clean = username.strip().lower()
+    # 💡 2. Le SELECT * récupèrera automatiquement la nouvelle colonne taux
     query = text("SELECT * FROM configuration WHERE LOWER(utilisateur) = :u")
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={"u": u_clean})
     return df.to_dict(orient="records")
 
+
 @app.post("/config-comptes")
 def add_compte(c: CompteConfig):
+    # 💡 3. AJOUT DE TAUX DANS L'INSERT
     query = text("""
-        INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur) 
-        VALUES (:c, :g, :s, :o, :col, :u)
+        INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux) 
+        VALUES (:c, :g, :s, :o, :col, :u, :t)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
             "c": c.compte, "g": c.groupe, "s": c.solde, 
-            "o": c.objectif, "col": c.couleur, "u": c.utilisateur.lower()
+            "o": c.objectif, "col": c.couleur, "u": c.utilisateur.lower(),
+            "t": c.taux
         })
         conn.commit()
     return {"status": "success"}
 
-@app.delete("/config-comptes/{compte_name}/{username}")
-def delete_compte(compte_name: str, username: str):
-    query = text("DELETE FROM configuration WHERE compte = :c AND LOWER(utilisateur) = :u")
-    with engine.connect() as conn:
-        conn.execute(query, {"c": compte_name, "u": username.lower()})
-        conn.commit()
-    return {"status": "deleted"}
 
 @app.put("/config-comptes/{compte_name}")
 def update_compte(compte_name: str, c: CompteConfig):
-    # .strip() enlève les espaces au début et à la fin
     name_clean = compte_name.strip()
     
+    # 💡 4. AJOUT DE TAUX DANS L'UPDATE
     query = text("""
         UPDATE configuration 
-        SET groupe = :g, solde = :s, objectif = :o, couleur = :col 
+        SET groupe = :g, solde = :s, objectif = :o, couleur = :col, taux = :t
         WHERE compte = :c AND LOWER(utilisateur) = :u
     """)
     
@@ -404,18 +404,23 @@ def update_compte(compte_name: str, c: CompteConfig):
             "s": c.solde, 
             "o": c.objectif, 
             "col": c.couleur, 
+            "t": c.taux,
             "c": name_clean, 
             "u": c.utilisateur.lower()
         })
         conn.commit()
         
-        # Petit check pour débugger dans ton terminal Python
         if result.rowcount == 0:
             print(f"ATTENTION : Aucune ligne mise à jour pour {name_clean}")
             
     return {"status": "updated", "rows_affected": result.rowcount}
-
-
+@app.delete("/config-comptes/{compte_name}/{username}")
+def delete_compte(compte_name: str, username: str):
+    query = text("DELETE FROM configuration WHERE compte = :c AND LOWER(utilisateur) = :u")
+    with engine.connect() as conn:
+        conn.execute(query, {"c": compte_name, "u": username.lower()})
+        conn.commit()
+    return {"status": "deleted"}
 # Dans main.py
 
 class ThemeConfig(BaseModel):
@@ -1122,8 +1127,8 @@ def get_categories_config(utilisateur: str = None):
 
 @app.get("/previsions/{utilisateur}/{mois}/{annee}")
 def get_previsions_filtrees(utilisateur: str, mois: str, annee: int):
-    # On prépare la base de la requête
-    sql_base = "SELECT id, date, nom, montant, categorie, compte, mois, année as annee FROM previsions WHERE utilisateur = :u AND année = :a"
+    # 💡 1. AJOUT DE LA COLONNE 'actif' DANS LE SELECT
+    sql_base = "SELECT id, date, nom, montant, categorie, compte, mois, année as annee, actif FROM previsions WHERE utilisateur = :u AND année = :a"
     params = {"u": utilisateur, "a": annee}
 
     # CONDITION : Si mois n'est pas "ALL", on ajoute le filtre mois
@@ -1140,6 +1145,11 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int):
             previsions = []
             for row in result:
                 r = row._mapping
+                
+                # 💡 2. SÉCURITÉ POUR LES ANCIENNES LIGNES : 
+                # Si 'actif' est NULL (None) ou absent, on le force à True par défaut
+                est_actif = r["actif"] if r["actif"] is not None else True
+                
                 previsions.append({
                     "id": r["id"],
                     "date": r["date"].isoformat() if r["date"] else None,
@@ -1148,7 +1158,8 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int):
                     "categorie": r["categorie"],
                     "compte": r["compte"],
                     "mois": r["mois"],
-                    "annee": int(r["annee"])
+                    "annee": int(r["annee"]),
+                    "actif": est_actif  # 💡 3. AJOUT DU CHAMP DANS LA RÉPONSE JSON
                 })
             return previsions
     except Exception as e:
@@ -1165,6 +1176,7 @@ class PrevisionIn(BaseModel):
     mois: str
     annee: int
     date: str
+    actif: bool = True
 
     # 💡 Pydantic Validator : Nettoie automatiquement le mois à l'entrée de l'API
     @field_validator('mois')
@@ -1186,8 +1198,8 @@ def add_prevision(p: PrevisionIn):
     nom_final = f"[PRÉVI] {nom_nettoye}"
 
     query = text("""
-        INSERT INTO previsions (date, nom, montant, categorie, compte, mois, année, utilisateur)
-        VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u)
+        INSERT INTO previsions (date, nom, montant, categorie, compte, mois, année, utilisateur,actif)
+        VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u,:actif)
     """)
     try:
         with engine.connect() as conn:
@@ -1199,7 +1211,8 @@ def add_prevision(p: PrevisionIn):
                 "compte": p.compte, 
                 "mois": p.mois,         # Sera "Aout" (nettoyé par le validator Pydantic)
                 "annee": p.annee, 
-                "u": p.utilisateur
+                "u": p.utilisateur,
+                "actif": p.actif
             })
             conn.commit()
         return {"status": "success"}
@@ -1225,6 +1238,16 @@ def update_prevision(prev_id: int, data: dict):
             # Enlève les accents (Août -> Aout, Février -> Fevrier)
             m = "".join(c for c in unicodedata.normalize('NFD', m) if unicodedata.category(c) != 'Mn')
             data["mois"] = m.strip().capitalize()
+
+        # 3. 🛡️ SÉCURITÉ BOOLEEN : Conversion forcée pour PostgreSQL
+        if "actif" in data:
+            # Si data["actif"] vaut 0, "0", False ou "false" (insensible à la casse) -> False.
+            # Pour toute autre valeur (comme 1, True, "true") -> True.
+            val = data["actif"]
+            if isinstance(val, str):
+                data["actif"] = val.lower() not in ("0", "false")
+            else:
+                data["actif"] = val not in (0, False)
 
         # Construction de la requête SQL
         set_clause = ", ".join([f"{k} = :{k}" for k in data.keys()])

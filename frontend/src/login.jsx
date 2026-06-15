@@ -1,5 +1,5 @@
 import { useState, useEffect,useMemo,useRef,forwardRef} from 'react'
-
+import React from 'react'; // <-- Ajoute cette ligne tout en haut du fichier
 
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy 
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -2054,7 +2054,7 @@ const SortableAccountCard = ({ c }) => {
     zIndex: isDragging ? 50 : 1,
   };
 
- return (
+  return (
     <div 
       ref={setNodeRef}
       style={containerStyle}
@@ -2065,7 +2065,7 @@ const SortableAccountCard = ({ c }) => {
       {/* LA CARTE VISUELLE */}
       <div 
         className={`
-          w-full h-full p-5 rounded-[var(--radius)] 
+          w-full h-full p-4 rounded-[var(--radius)] 
           flex flex-col justify-between
           relative overflow-hidden group 
           cursor-grab active:cursor-grabbing shadow-xl
@@ -2088,73 +2088,82 @@ const SortableAccountCard = ({ c }) => {
           }
         `}
         style={{
-          /* Utilisation de couleurs semi-transparentes (77 = ~45% d'opacité en hexa) */
           background: isEstimated
             ? `linear-gradient(135deg, ${c.couleur}88 0%, ${c.couleur}44 100%)`
             : `linear-gradient(135deg, ${c.couleur}aa 0%, ${c.couleur}66 100%)`,
         }}
       >
-        {/* 1. Motif de fond vitreux (Subtil pour laisser passer la transparence) */}
+        {/* 1. Motif de fond vitreux */}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-20" />
-        
-        {/* Overlay de texture holographique si estimé */}
-        {isEstimated && (
-          <div className="absolute inset-0 opacity-[0.03] pointer-events-none bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
-        )}
         
         {/* 2. Cercle de lumière dynamique au survol */}
         <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-[var(--glass-bg)] rounded-full blur-2xl group-hover:bg-white/20 group-hover:scale-150 transition-all duration-700" />
 
         {/* 3. Header de la carte */}
-        <div className="flex justify-between items-start relative z-10">
-          <div className="flex flex-col">
-            <span className={`text-[10px] font-black uppercase tracking-[0.2em] leading-none mb-1 italic ${isEstimated ? 'text-white/80' : 'text-white/40'}`}>
+        <div className="flex justify-between items-start relative z-10 w-full">
+          <div className="flex flex-col items-start">
+            <span className={`text-[9px] font-black uppercase tracking-[0.2em] leading-none italic ${isEstimated ? 'text-white/80' : 'text-white/40'}`}>
               {c.groupe || 'Compte'}
             </span>
-            <h4 className="text-white font-bold text-xs tracking-tight truncate max-w-[100px] uppercase">
+            <h4 className="text-white font-black text-xs tracking-tight truncate max-w-[110px] uppercase mt-0.5">
               {c.compte}
             </h4>
           </div>
           
-          {/* Icône avec fond translucide */}
+          {/* Icône de la carte */}
           <div className={`w-9 h-9 rounded-xl backdrop-blur-[var(--glass-blur)] border flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${isEstimated ? 'bg-white/30 border-white/40' : 'bg-[var(--glass-bg)] border-white/20'}`}>
             {(() => {
               const g = (c.compte || "").toString().toLowerCase().trim();
               if (g.includes('ccp')) return <CreditCard size={16} className="text-white" />;
-              if (g.includes('livret')|| g.includes('lep')) return <BadgeEuro size={16} className="text-white" />;
+              if (g.includes('livret')|| g.includes('lep') || c.taux > 0) return <BadgeEuro size={16} className="text-white" />;
               if (g.includes('commun') || g.includes('users')) return <Users2 size={16} className="text-white" />;
               return <Wallet size={16} className="text-white" />;
             })()}
           </div>
         </div>
         
-        {/* 4. Solde et Tendance */}
-        <div className="relative z-10 mt-auto">
-          <div className="flex items-center gap-2">
-            <span className={`text-[10px] font-black uppercase italic tracking-tighter ${isEstimated ? 'text-white/90' : 'text-white/60'}`}>
-              {isEstimated ? 'Solde estimé' : 'Solde'}
-            </span>
-            <div className={`h-[px] flex-1 ${isEstimated ? 'bg-white/30' : 'bg-[var(--glass-bg)]'}`} />
-          </div>
+        {/* 4. Zone des chiffres : Côte à côte en format large */}
+        <div className="relative z-10 flex items-end justify-between w-full mt-auto gap-2 pt-2">
           
-          <div className="flex items-baseline justify-between mt-1">
-            <h3 className="text-xl font-black text-white tracking-tighter">
+          {/* GAUCHE : LE SOLDE (Gros et intact) */}
+          <div className="flex flex-col items-start min-w-0 flex-1">
+            <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none mb-1">
+              {isEstimated ? 'Solde Est.' : 'Solde'}
+            </span>
+            <h3 className="text-xl font-black text-white tracking-tighter leading-none truncate w-full">
               {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-              <span className="text-[10px] ml-1 font-bold text-white/70">€</span>
+              <span className="text-[10px] ml-0.5 font-bold text-white/60">€</span>
             </h3>
-            
-            <div className={`
-              flex items-center justify-center w-6 h-6 rounded-full backdrop-blur-[var(--glass-blur)] border border-white/10
-              ${montantFinal >= 0 ? 'bg-emerald-400/30 text-emerald-200' : 'bg-rose-400/30 text-rose-200'}
-            `}>
-               <TrendingUp size={12} className={montantFinal >= 0 ? '' : 'rotate-180'} />
-            </div>
           </div>
+
+          {/* DROITE : LES INTÉRÊTS (Même esthétique, aligné à droite, grosse écriture) */}
+            {c.taux > 0 && (
+              <div className="flex flex-col items-end shrink-0 max-w-[50%] text-right">
+                {/* Titre "Gains" + Petit Badge Taux d'intérêt */}
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none">
+                    Interêts Estimé
+                  </span>
+                  <span className="text-[11px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.5 rounded leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
+                    {c.taux.toFixed(1)}%
+                  </span>
+                </div>
+                
+                {/* Montant des Intérêts */}
+                <h3 className="text-[13px] font-black text-white-300 tracking-tighter leading-none animate-pulse-subtle truncate w-full">
+                  +{c.interetsGagnesPériode.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                  <span className="text-[10px] ml-0.5 font-bold text-white-300/60 ">€</span>
+                </h3>
+              </div>
+            )}
+
         </div>
       </div>
     </div>
   );
 };
+
+
 
 const TransactionCard = ({ t, color, bg }) => {
   let day = '??';
@@ -2928,28 +2937,29 @@ const showNotify = (msg, type) => {
 
 
 
-  const handleAddCompte = async (e) => {
-    e.preventDefault();
-    
-    const nouveauCompte = {
-      compte: e.target[0].value,
-      groupe: e.target[1].value,
-      solde: parseFloat(e.target[2].value) || 0,
-      objectif: parseFloat(e.target[3].value) || 0,
-      couleur: newCompteColor, // <-- On utilise le state ici
-      utilisateur: user
-    };
-
-    try {
-      await api.post(`/config-comptes`, nouveauCompte);
-      e.target.reset(); 
-      setNewCompteColor("#6366f1"); // On remet la couleur par défaut après l'ajout
-      setShowAddPicker(false);
-      fetchComptes();   
-    } catch (err) {
-      alert("Erreur lors de l'ajout");
-    }
+const handleAddCompte = async (e) => {
+  e.preventDefault();
+  
+  const nouveauCompte = {
+    compte: e.target[0].value,                    // NOM DU COMPTE
+    groupe: e.target[1].value,                    // GROUPE
+    solde: parseFloat(e.target[2].value) || 0,     // SOLDE
+    taux: parseFloat(e.target[3].value) || 0,      // 💡 NOUVEAU : Récupère le TAUX %
+    objectif: 0,                                  // Objectif par défaut à la création (géré ensuite dans sa carte)
+    couleur: newCompteColor,                      // La couleur depuis le state
+    utilisateur: user,
   };
+
+  try {
+    await api.post(`/config-comptes`, nouveauCompte);
+    e.target.reset(); 
+    setNewCompteColor("#6366f1"); // On remet la couleur par défaut après l'ajout
+    setShowAddPicker(false);
+    fetchComptes();   
+  } catch (err) {
+    alert("Erreur lors de l'ajout");
+  }
+};
 
 
 
@@ -3326,33 +3336,50 @@ const financeData = useMemo(() => {
 
 
 const soldesParCompte = useMemo(() => {
-  // 1. On prépare la config des comptes pour un accès rapide (comme ton config_comptes)
+  // 1. On prépare la config des comptes pour un accès rapide
   const configMap = {};
   comptes.forEach(c => {
     configMap[c.compte.trim().toUpperCase()] = {
       soldeInitial: parseFloat(c.solde) || 0,
       groupe: c.groupe?.trim().toUpperCase(),
+      taux: parseFloat(c.taux) || 0,
       original: c
     };
   });
 
-  // 2. Initialisation des soldes courants (Point Zéro)
+  // 2. Initialisation des soldes courants
   let soldesCourants = {};
+  let interetsAccumules = {}; 
+  
   Object.keys(configMap).forEach(nom => {
     soldesCourants[nom] = configMap[nom].soldeInitial;
+    interetsAccumules[nom] = 0;
   });
 
   // 3. On définit l'ordre chronologique pour le calcul
   const indexMoisSelectionne = moisListe.findIndex(m => m.v.toLowerCase() === filters.mois.toLowerCase());
   const anneeFiltre = parseInt(filters.annee);
 
-  // 4. On parcourt TOUTES les transactions (Historique complet)
-  // Note : Il est important que toutesLesTransactions soit trié par date si possible
-  (toutesLesTransactions || []).forEach(t => {
+  let derniereQuinzaineTraitee = -1;
+  const tauxParQuinzaineMap = {};
+  Object.keys(configMap).forEach(nom => {
+    tauxParQuinzaineMap[nom] = (configMap[nom].taux / 100) / 24;
+  });
+
+  // Tri temporaire des transactions
+  const transactionsTriees = [...(toutesLesTransactions || [])].sort((a, b) => {
+    if (a.année !== b.année) return parseInt(a.année) - parseInt(b.année);
+    const idxA = moisListe.findIndex(m => m.v.toLowerCase() === String(a.mois).toLowerCase().trim());
+    const idxB = moisListe.findIndex(m => m.v.toLowerCase() === String(b.mois).toLowerCase().trim());
+    if (idxA !== idxB) return idxA - idxB;
+    return (parseInt(a.jour) || 15) - (parseInt(b.jour) || 15);
+  });
+
+  // 4. On parcourt TOUTES les transactions (Historique jusqu'au mois filtré)
+  transactionsTriees.forEach(t => {
     const anneeT = parseInt(t.année);
     const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === String(t.mois).toLowerCase().trim());
     
-    // On ne traite que ce qui est avant ou égal à la date sélectionnée
     if (anneeT > anneeFiltre || (anneeT === anneeFiltre && indexMoisT > indexMoisSelectionne)) return;
 
     const montant = parseFloat(t.montant) || 0;
@@ -3360,28 +3387,38 @@ const soldesParCompte = useMemo(() => {
     const cat = (t.categorie || "").toUpperCase();
     const nomTrans = (t.nom || "").toUpperCase();
     const texteIntegral = `${nomTrans} ${cat}`;
+    const jourT = parseInt(t.jour) || 15;
 
-    // A. Impact sur le compte émetteur (Réel)
+    if (anneeT === anneeFiltre) {
+      const quinzaineActuelle = (indexMoisT * 2) + (jourT > 15 ? 1 : 0);
+      
+      if (derniereQuinzaineTraitee !== -1 && quinzaineActuelle > derniereQuinzaineTraitee) {
+        const qManquantes = quinzaineActuelle - derniereQuinzaineTraitee;
+        Object.keys(configMap).forEach(nom => {
+          if (tauxParQuinzaineMap[nom] > 0 && soldesCourants[nom] > 0) {
+            interetsAccumules[nom] += soldesCourants[nom] * tauxParQuinzaineMap[nom] * qManquantes;
+          }
+        });
+      }
+      derniereQuinzaineTraitee = quinzaineActuelle;
+    }
+
     if (soldesCourants.hasOwnProperty(compteSrc)) {
       soldesCourants[compteSrc] += montant;
     }
 
-    // B. Simulation de la contrepartie (Virements Internes)
     if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
       const groupeSource = configMap[compteSrc]?.groupe;
       if (!groupeSource) return;
 
       let meilleurMatch = null;
-
-      // C. Recherche de la destination dans le même groupe
       for (const [nomDest, cfgDest] of Object.entries(configMap)) {
-        if (nomDest === compteSrc) continue; // Pas vers soi-même
-        if (cfgDest.groupe !== groupeSource) continue; // Même profil uniquement
+        if (nomDest === compteSrc) continue;
+        if (cfgDest.groupe !== groupeSource) continue;
 
         const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
         const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
 
-        // D. Stratégie de match (Nom complet ou mots clés)
         const matchNomComplet = texteIntegral.includes(nomDest);
         const matchMotsCles = motsCompte.length > 0 && motsCompte.some(m => texteIntegral.includes(m));
 
@@ -3391,30 +3428,44 @@ const soldesParCompte = useMemo(() => {
         }
       }
 
-      // E. Application du mouvement virtuel
       if (meilleurMatch) {
-        // Anti-doublon : on vérifie si une transaction inverse existe déjà dans la base
         const dejaPresent = toutesLesTransactions.some(t2 => 
-          t2.année === t.année && 
-          t2.mois === t.mois && 
+          t2.année === t.année && t2.mois === t.mois && 
           t2.compte?.trim().toUpperCase() === meilleurMatch && 
           Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
         );
 
         if (!dejaPresent) {
-          soldesCourants[meilleurMatch] -= montant; // On soustrait un montant négatif = addition
+          soldesCourants[meilleurMatch] -= montant;
         }
       }
     }
   });
 
+  // 💡 MODIFICATION ICI : PROJECTION JUSQU'À LA FIN DE L'ANNÉE (24ème quinzaine)
+  // Au lieu de s'arrêter au mois sélectionné, on pousse le calcul jusqu'à la fin décembre (24 quinzaines)
+  const quinzaineFinAnnee = 24; 
+  if (derniereQuinzaineTraitee !== -1 && quinzaineFinAnnee > derniereQuinzaineTraitee) {
+    const qProjetees = quinzaineFinAnnee - derniereQuinzaineTraitee;
+    Object.keys(configMap).forEach(nom => {
+      if (tauxParQuinzaineMap[nom] > 0 && soldesCourants[nom] > 0) {
+        // On calcule les intérêts sur le solde stable actuel pour tout le reste de l'année
+        interetsAccumules[nom] += soldesCourants[nom] * tauxParQuinzaineMap[nom] * qProjetees;
+      }
+    });
+  }
+
   // 5. On retourne les comptes filtrés pour l'affichage des cartes
   return comptes
     .filter(c => filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim())
-    .map(c => ({
-      ...c,
-      soldePeriode: soldesCourants[c.compte.trim().toUpperCase()] || 0
-    }));
+    .map(c => {
+      const nomNettoye = c.compte.trim().toUpperCase();
+      return {
+        ...c,
+        soldePeriode: soldesCourants[nomNettoye] || 0,
+        interetsGagnesPériode: interetsAccumules[nomNettoye] || 0 
+      };
+    });
 }, [comptes, toutesLesTransactions, filters]);
 
 const soldeGlobal = useMemo(() => 
@@ -4776,8 +4827,12 @@ const [excludedMonths, setExcludedMonths] = useState([]);
 
 // On crée une version "Année" sans le filtre du mois sélectionné
 const previsionsActivesPourRecap = useMemo(() => {
-  // On filtre TOUTE l'année uniquement par profil et mois exclus (les petits boutons "Masquer")
+  if (!allPrevisionsAnnee || allPrevisionsAnnee.length === 0) return [];
+
   return allPrevisionsAnnee.filter(p => {
+    // 1. SÉCURITÉ DE L'ŒIL : Si l'œil est fermé, on jette la ligne immédiatement des calculs annuels
+    if (p.actif === false || p.actif === 0 || p.actif === "0" || p.actif === "false") return false;
+
     // Filtre profil
     if (filters.profil !== 'Tous') {
         const nomSQL = String(p.compte || "").trim().toUpperCase();
@@ -4894,34 +4949,29 @@ const updatePrevision = async (id, field, value) => {
     let finalValue = value;
     let extraData = {};
 
-    // Si on modifie la DATE
     if (field === 'date' && value) {
-      // 1. On extrait l'année, le mois et le jour de l'objet Date de React-DatePicker
       const yyyy = value.getFullYear();
       const mm = String(value.getMonth() + 1).padStart(2, '0');
       const dd = String(value.getDate()).padStart(2, '0');
-      
-      // 2. Format YYYY-MM-DD local strict (Adieu le bug de fuseau horaire)
       finalValue = `${yyyy}-${mm}-${dd}`; 
       
-      // 3. Calcul du nom du mois
       const nomMois = value.toLocaleDateString('fr-FR', { month: 'long' });
       let moisFormate = nomMois.charAt(0).toUpperCase() + nomMois.slice(1);
-
-      // 4. On retire l'accent directement au cas où (Août -> Aout)
       moisFormate = moisFormate.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
       extraData.mois = moisFormate;
       extraData.annee = parseInt(yyyy, 10);
     }
 
-    // On prépare le payload final
     const payload = { [field]: finalValue, ...extraData };
 
     // Envoi à l'API
     await api.put(`/previsions/${id}`, payload);
     
-    loadPrevisions();
+    // 💡 FORCE LE RECHARGEMENT IMMÉDIAT de la liste
+    // (Puisque le backend gère la conversion, loadPrevisions() va récupérer la nouvelle valeur propre)
+    await loadPrevisions();
+
   } catch (err) {
     console.error("Erreur update prévision:", err);
   }
@@ -5048,9 +5098,12 @@ const moisDisponibles = useMemo(() => {
 const chartDataPrevisions = useMemo(() => {
   const aggregat = {};
   
-  // Utilise 'previsionsFiltrees' (qui contient le mois et le profil sélectionnés)
-  // au lieu de 'previsionsActivesPourRecap'
-  const depensesSeules = previsionsFiltrees.filter(p => 
+  // 💡 AJOUT DU FILTRE DE L'ŒIL : On ne garde que les prévisions du mois qui sont ACTIVES
+  const previsionsVisiblesDuMois = previsionsFiltrees.filter(p => 
+    !(p.actif === false || p.actif === 0 || p.actif === "0" || p.actif === "false")
+  );
+
+  const depensesSeules = previsionsVisiblesDuMois.filter(p => 
     p.montant < 0 && 
     !(p.categorie?.includes("🔄") || p.nom?.toUpperCase().includes("VERS"))
   );
@@ -5064,7 +5117,7 @@ const chartDataPrevisions = useMemo(() => {
     .map(name => ({ name, value: aggregat[name] }))
     .sort((a, b) => b.value - a.value); 
     
-}, [previsionsFiltrees]); // <--- On observe les changements du tableau de gauche
+}, [previsionsFiltrees]);
 
 
 const [moisAvecPrevisions, setMoisAvecPrevisions] = useState([]);
@@ -7570,108 +7623,127 @@ if (!user) {
 
         <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl overflow-hidden w-full">
           
-          {/* ZONE DE SCROLL : Horizontal sur mobile si le tableau déborde, vertical pour les lignes */}
-          <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar p-4 w-full">
-            
-            {/* Ajout d'un min-w pour éviter que les colonnes se chevauchent sur les petits écrans de téléphone */}
-            <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed min-w-[650px]">
-              <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
-                <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
-                  <th className="px-4 py-3 w-12 text-center backdrop-blur-[var(--glass-blur)] bg-black/20">
+{/* ZONE DE SCROLL INTERNE */}
+<div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar p-4 w-full">
+  <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed min-w-[650px]">
+    <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
+      <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
+        {/* On élargit un poil la première colonne pour accueillir l'œil (de w-12 à w-20) */}
+        <th className="px-4 py-3 w-20 text-center backdrop-blur-[var(--glass-blur)] bg-black/20">
+          <input 
+            type="checkbox"
+            checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
+            onChange={toggleAll2}
+            className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
+          />
+        </th>
+        <th className="px-4 py-3 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
+        <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
+        <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
+        <th className="px-4 py-3 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
+        <th className="px-4 py-3 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Date</th>
+      </tr>
+    </thead>
+
+    <tbody className="before:content-[''] before:block before:h-2">
+      {previsionsFiltrees.length > 0 ? (
+        previsionsFiltrees.map((prev) => {
+          const isSelected = selectedIds2.includes(prev.id);
+          const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+          // 🔍 AJOUTE CE LOG ICI POUR VÉRIFIER :
+          console.log(`Prévision ${prev.nom} (ID: ${prev.id}) -> valeur de actif :`, prev.actif, "Type :", typeof prev.actif);
+          // La ligne est active par défaut. Elle n'est désactivée QUE si prev.actif vaut explicitement false, 0, "0" ou "false"
+          const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
+
+          return (
+            <tr 
+              key={prev.id} 
+              className={`
+                group transition-all duration-300 
+                ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.08] hover:[&_.input-libelle]:bg-white/[0.08] hover:[&_.amount-box]:bg-white/[0.08] hover:[&_.amount-box]:border-white/20'}
+                {/* 💡 Si désactivé, on applique une opacité globale sur toute la ligne sauf au survol */}
+                ${!isActif ? 'opacity-30 hover:opacity-70 saturate-50' : ''}
+              `}
+            >
+              {/* PREMIÈRE CASE (Checkbox + Bouton d'activation Œil) */}
+              <td className={`p-3 border-y border-l border-white/5 text-center relative rounded-l-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300 ${isSelected ? "before:content-[''] before:absolute before:left-1.5 before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-[3px] before:bg-[#10b981] before:rounded-full" : ""}`}>
+                <div className="flex items-center justify-center gap-2">
+                  <div className={isSelected ? "pl-1 transition-all" : ""}>
                     <input 
                       type="checkbox"
-                      checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
-                      onChange={toggleAll2}
-                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
+                      checked={isSelected}
+                      onChange={() => toggleSelect2(prev.id)}
+                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
                     />
-                  </th>
-                  <th className="px-4 py-3 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
-                  <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
-                  <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
-                  <th className="px-4 py-3 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
-                  <th className="px-4 py-3 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Date</th>
-                </tr>
-              </thead>
+                  </div>
+                  
+                  {/* 💡 BOUTON MASQUER / ACTIVER LA TRANSACTION */}
+                  <button
+                    onClick={() => updatePrevision(prev.id, 'actif', !isActif)}
+                    title={isActif ? "Désactiver du graphique et des calculs" : "Réactiver la transaction"}
+                    className={`p-1 rounded-md transition-all cursor-pointer ${isActif ? 'text-white/20 hover:text-white/60 hover:bg-white/5' : 'text-rose-400 hover:text-rose-300 bg-rose-500/10'}`}
+                  >
+                    {isActif ? <Eye size={12} /> : <EyeOff size={12} />}
+                  </button>
+                </div>
+              </td>
+              
+              {/* LIBELLÉ */}
+              <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <input 
+                  className={`input-libelle bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
+                  defaultValue={prev.nom.replace('[PRÉVI] ', '')}
+                  onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
+                />
+              </td>
 
-              <tbody className="before:content-[''] before:block before:h-2">
-                {previsionsFiltrees.length > 0 ? (
-                  previsionsFiltrees.map((prev) => {
-                    const isSelected = selectedIds2.includes(prev.id);
-                    const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
-                    
-                    return (
-                      <tr 
-                        key={prev.id} 
-                        className={`group transition-all duration-300 ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.08] hover:[&_.input-libelle]:bg-white/[0.08] hover:[&_.amount-box]:bg-white/[0.08] hover:[&_.amount-box]:border-white/20'}`}
-                      >
-                        {/* CASE CHECKBOX */}
-                        <td className={`p-3 border-y border-l border-white/5 text-center relative rounded-l-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300 ${isSelected ? "before:content-[''] before:absolute before:left-1.5 before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-[3px] before:bg-[#10b981] before:rounded-full" : ""}`}>
-                          <div className={isSelected ? "pl-2 transition-all" : ""}>
-                            <input 
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleSelect2(prev.id)}
-                              className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
-                            />
-                          </div>
-                        </td>
-                        
-                        {/* LIBELLÉ */}
-                        <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                          <input 
-                            className="input-libelle bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all"
-                            defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                            onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                          />
-                        </td>
+              {/* CATÉGORIE */}
+              <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
+              </td>
 
-                        {/* CATÉGORIE */}
-                        <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                          <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
-                        </td>
+              {/* COMPTE */}
+              <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
+              </td>
 
-                        {/* COMPTE */}
-                        <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                          <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
-                        </td>
+              {/* MONTANT */}
+              <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <div className="amount-box flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300">
+                  <input 
+                    type="number"
+                    className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
+                    style={{ 
+                      color: isTransfert 
+                        ? '#6d00fc' 
+                        : prev.montant > 0 
+                          ? `${userTheme.color_revenus}e6` 
+                          : `${userTheme.color_depenses}e6` 
+                    }}
+                    defaultValue={prev.montant}
+                    onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                  />
+                  <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
+                </div>
+              </td>
 
-                        {/* MONTANT */}
-                        <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                          <div className="amount-box flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300">
-                            <input 
-                              type="number"
-                              className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
-                              style={{ 
-                                color: isTransfert 
-                                  ? '#6d00fc' 
-                                  : prev.montant > 0 
-                                    ? `${userTheme.color_revenus}e6` 
-                                    : `${userTheme.color_depenses}e6` 
-                              }}
-                              defaultValue={prev.montant}
-                              onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
-                            />
-                            <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
-                          </div>
-                        </td>
-
-                        {/* DATE */}
-                        <td className={`px-4 py-2 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                          <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
-                            <Calendar size={12} className="text-[var(--text-main)]/30" />
-                            <DatePicker
-                              selected={prev.date ? new Date(prev.date) : null}
-                              onChange={(date) => updatePrevision(prev.id, 'date', date)}
-                              dateFormat="dd/MM/yyyy"
-                              portalId="root" 
-                              className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
+              {/* DATE */}
+              <td className={`px-4 py-2 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
+                  <Calendar size={12} className="text-[var(--text-main)]/30" />
+                  <DatePicker
+                    selected={prev.date ? new Date(prev.date) : null}
+                    onChange={(date) => updatePrevision(prev.id, 'date', date)}
+                    dateFormat="dd/MM/yyyy"
+                    portalId="root" 
+                    className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
+                  />
+                </div>
+              </td>
+            </tr>
+          );
+        })
+      ) : (
                   /* --- ÉTAT VIDE --- */
                   <tr>
                     <td colSpan="6" className="py-24">
@@ -9366,7 +9438,7 @@ if (!user) {
       </span>
     </div>
 
-    {/* FORMULAIRE : RÉINTÉGRATION DU GROUPE + INDICATEUR COULEUR */}
+    {/* FORMULAIRE : AJOUT DE L'INPUT TAUX */}
     <div className="z-[900] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
       <form onSubmit={handleAddCompte} className="flex items-center gap-4">
         <div className="flex flex-col border-r border-white/10 pr-4">
@@ -9378,6 +9450,9 @@ if (!user) {
         <input type="text" placeholder="GROUPE (PERSO, COMMUN...)" className="flex-1 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
         <input type="number" step="0.01" placeholder="SOLDE" className="w-20 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" />
         
+        {/* 💡 NOUVEL INPUT : LE TAUX D'INTÉRÊT DU LIVRET À LA CRÉATION */}
+        <input type="number" step="0.01" min="0" max="100" placeholder="TAUX %" className="w-16 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-black placeholder:text-[var(--text-main)]/30" />
+
         <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10">
           <button
             type="button"
@@ -9404,7 +9479,7 @@ if (!user) {
       </form>
     </div>
 
-    {/* GRILLE DE CARTES OU MESSAGE VIDE */}
+    {/* GRILLE DE CARTES COMPTES */}
     <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
       {comptes.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -9456,83 +9531,57 @@ if (!user) {
                 </div>
               </div>
 
-              {/* LIGNE 2 : DATA */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
+              {/* LIGNE 2 : DATA EXTENSION GRILLE À 3 COLONNES */}
+              <div className="grid grid-cols-3 gap-2">
+                {/* SOLDE INITIAL */}
+                <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
-                    
-                    {/* Petit bouton magique */}
-                    <button 
-                      onClick={() => openCalculateurAssistant(c)}
-                      className="text-white hover:scale-110 transition-transform"
-                      title="Ajuster selon un solde à date"
-                    >
-                      <Wand2 size={15} />
+                    <button onClick={() => openCalculateurAssistant(c)} className="text-white hover:scale-110 transition-transform" title="Ajuster selon un solde à date">
+                      <Wand2 size={12} />
                     </button>
                   </div>
-                  
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <input 
-                  // 1. On passe en type "text" pour éviter les restrictions du navigateur sur les chiffres
-                  type="text"
-                  className="bg-transparent text-sm font-black text-[var(--text-main)] outline-none w-full"
-                  
-                  // 2. L'astuce : On affiche la valeur brute stockée dans l'état
-                  value={c.solde}
-                  
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    
-                    // 3. On autorise uniquement les caractères valides pour un montant (chiffres, point, virgule, signe moins)
-                    // Cela permet de taper librement sans casser l'état
-                    if (/^[0-9.,-]*$/.test(val) || val === "") {
-                      const newComptes = [...comptes];
-                      newComptes[i].solde = val; // On stocke la string telle quelle
-                      setComptes(newComptes);
-                    }
-                  }}
-                  
-                  onBlur={() => {
-                    // 4. Au moment de sortir de l'input, on fait le ménage proprement
-                    let finalValue = c.solde;
-
-                    if (typeof finalValue === 'string') {
-                      // Remplace la virgule par un point et nettoie les espaces
-                      finalValue = finalValue.replace(',', '.').trim();
-                    }
-
-                    const numericValue = parseFloat(finalValue);
-
-                    if (!isNaN(numericValue)) {
-                      // On arrondit à 2 chiffres après la virgule
-                      const roundedValue = Math.round(numericValue * 100) / 100;
-                      
-                      const newComptes = [...comptes];
-                      newComptes[i].solde = roundedValue;
-                      setComptes(newComptes);
-                      
-                      // On sauvegarde la version propre en BDD
-                      handleBlurUpdate({ ...c, solde: roundedValue });
-                    } else {
-                      // Si l'entrée est invalide, on remet à 0 ou à l'ancienne valeur
-                      const newComptes = [...comptes];
-                      newComptes[i].solde = 0;
-                      setComptes(newComptes);
-                      handleBlurUpdate({ ...c, solde: 0 });
-                    }
-                  }}
-                />
-                    <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
+                      type="text"
+                      className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
+                      value={c.solde}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (/^[0-9.,-]*$/.test(val) || val === "") {
+                          const newComptes = [...comptes];
+                          newComptes[i].solde = val;
+                          setComptes(newComptes);
+                        }
+                      }}
+                      onBlur={() => {
+                        let finalValue = c.solde;
+                        if (typeof finalValue === 'string') finalValue = finalValue.replace(',', '.').trim();
+                        const numericValue = parseFloat(finalValue);
+                        const newComptes = [...comptes];
+                        if (!isNaN(numericValue)) {
+                          const roundedValue = Math.round(numericValue * 100) / 100;
+                          newComptes[i].solde = roundedValue;
+                          setComptes(newComptes);
+                          handleBlurUpdate({ ...c, solde: roundedValue });
+                        } else {
+                          newComptes[i].solde = 0;
+                          setComptes(newComptes);
+                          handleBlurUpdate({ ...c, solde: 0 });
+                        }
+                      }}
+                    />
+                    <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
                   </div>
                 </div>
                 
-                <div className="bg-[var(--glass-bg)] p-3 rounded-[var(--radius)] border border-white/5 shadow-inner">
-                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
-                  <div className="flex items-center gap-1">
+                {/* OBJECTIF D'ÉPARGNE */}
+                <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner">
+                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif</p>
+                  <div className="flex items-center gap-0.5">
                     <input 
                       type="number"
-                      className="bg-transparent text-sm font-black text-[var(--text-main)]/70 outline-none w-full"
+                      className="bg-transparent text-xs font-black text-[var(--text-main)]/70 outline-none w-full"
                       value={c.objectif}
                       onChange={(e) => {
                         const newComptes = [...comptes];
@@ -9541,7 +9590,30 @@ if (!user) {
                       }}
                       onBlur={() => handleBlurUpdate(c)}
                     />
-                    <span className="text-xs font-bold text-[var(--text-main)]/20">€</span>
+                    <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+                  </div>
+                </div>
+
+                {/* 💡 NOUVEAU BLOC : LE RENDEMENT DU TAUX D'INTÉRÊT EN DIRECT */}
+                <div className="bg-black/20 p-2 rounded-[var(--radius)] border border-emerald-500/10 shadow-inner">
+                  <p className="text-[8px] font-black text-[var(--text-main)]/50 uppercase mb-1 tracking-tighter">taux d'interets</p>
+                  <div className="flex items-center gap-0.5">
+                    <input 
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      max="100"
+                      placeholder="0.00"
+                      className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
+                      value={c.taux || ""}
+                      onChange={(e) => {
+                        const newComptes = [...comptes];
+                        newComptes[i].taux = parseFloat(e.target.value) || 0;
+                        setComptes(newComptes);
+                      }}
+                      onBlur={() => handleBlurUpdate(c)}
+                    />
+                    <span className="text-[10px] font-black text-[var(--text-main)]/40">%</span>
                   </div>
                 </div>
               </div>
@@ -9550,11 +9622,7 @@ if (!user) {
                 <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
                   <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
                   <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
-                    <SketchPicker 
-                      color={c.couleur} 
-                      onChange={(color) => handleColorChange(i, color)} 
-                      disableAlpha 
-                    />
+                    <SketchPicker color={c.couleur} onChange={(color) => handleColorChange(i, color)} disableAlpha />
                   </div>
                 </div>
               )}
@@ -9562,7 +9630,7 @@ if (!user) {
           ))}
         </div>
       ) : (
-        /* --- ÉTAT VIDE : SI AUCUN COMPTE --- */
+        /* --- ÉTAT VIDE --- */
         <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
           <div className="relative mb-6">
             <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
@@ -9570,17 +9638,10 @@ if (!user) {
               <Wallet size={32} className="text-[var(--primary)]/80" />
             </div>
           </div>
-          <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">
-            Aucun compte configuré
-          </h3>
+          <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">Aucun compte configuré</h3>
           <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
             Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
           </p>
-          <div className="mt-8 flex gap-2 items-center text-[var(--text-main)]/10">
-             <div className="h-[1px] w-8 bg-current"></div>
-             <span className="text-[8px] font-black uppercase tracking-[0.4em]">En attente de data</span>
-             <div className="h-[1px] w-8 bg-current"></div>
-          </div>
         </div>
       )}
     </div>
