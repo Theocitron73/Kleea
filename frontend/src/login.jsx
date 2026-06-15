@@ -5569,10 +5569,11 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (incrémente-la à chaque grosse mise à jour !)
-const CURRENT_VERSION = "3.1"; 
+const CURRENT_VERSION = "3.2"; 
 
 useEffect(() => {
   if (!user) return;
+  //localStorage.removeItem(`patch_tests_count_${user}`);
 
   // 🧪 MODE TEST : On récupère le nombre de fois où le patch a été affiché
   const viewCount = parseInt(localStorage.getItem(`patch_tests_count_${user}`)) || 0;
@@ -5855,7 +5856,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.1</span>
+        Kleea <span className="text-[var(--primary)]">v.3.2</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -10575,6 +10576,7 @@ if (!user) {
 
 
 
+
 {/* POPUP FLASH : NOTES DE PATCH */}
 {showPatchModal && (
   <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
@@ -10602,74 +10604,102 @@ if (!user) {
       </div>
 
       {/* Liste des changements */}
-        <div className="space-y-3 mb-6 max-h-[800px] overflow-y-auto pr-1 custom-scrollbar">
-          
-          {/* SECTION : ACCÈS */}
-          <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-start gap-3">
-            <span className="text-base mt-0.5">🔐</span>
-            <div>
-              <h4 className="text-[15px] font-black text-blue-400 uppercase tracking-wide">
-                Connexion simplifiée
-              </h4>
-              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-                Plus besoin de chercher ton identifiant : tu peux désormais te connecter directement en utilisant ton **adresse email**.
-              </p>
-            </div>
-          </div>
+      <div className="space-y-3 mb-6 max-h-[750px] overflow-y-auto pr-1 custom-scrollbar">
+        
+        
 
-          {/* SECTION : IMPORTATION (DOUBLONS CSV) */}
-          <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3">
-            <span className="text-base mt-0.5">📥</span>
-            <div>
-              <h4 className="text-[15px] font-black text-amber-400 uppercase tracking-wide">
-                Nettoyage automatique des CSV
-              </h4>
-              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-                La page d'importation traque désormais les doublons **à l'intérieur** de tes fichiers CSV pour les supprimer automatiquement avant traitement.
-              </p>
-            </div>
+        {/* 💡 NOUVEAUTÉ 2 : TAUX D'INTÉRÊT SUR LES COMPTES */}
+        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">📈</span>
+          <div>
+            <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
+              Simulateur d'Intérêts Annuels
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Renseigne directement le **taux d'intérêt** de tes livrets (Livret A, LEP, etc.) pour voir s'afficher en temps réel sur tes cartes une estimation de ce qu'ils vont te rapporter d'ici la **fin de l'année**.
+            </p>
           </div>
-
-          {/* SECTION : IMPORTATION (DOUBLONS BDD) */}
-          <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl flex items-start gap-3">
-            <span className="text-base mt-0.5">🛡️</span>
-            <div>
-              <h4 className="text-[15px] font-black text-orange-400 uppercase tracking-wide">
-                Protection anti-doublons
-              </h4>
-              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-                À l'import, si une transaction possède déjà **la même date, le même nom et le même montant** en base de données, elle sera ignorée en toute sécurité.
-              </p>
-            </div>
-          </div>
-
-          {/* SECTION : PRÉVISIONS (DUPLICATION) */}
-          <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3">
-            <span className="text-base mt-0.5">📋</span>
-            <div>
-              <h4 className="text-[15px] font-black text-purple-400 uppercase tracking-wide">
-                Copier/Coller de masse
-              </h4>
-              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-                Gagne du temps sur ta saisie ! Une nouvelle option te permet de **copier et coller tes prévisions d'un mois sur les mois suivants** en un clic.
-              </p>
-            </div>
-          </div>
-
-          {/* SECTION : PRÉVISIONS (JAUGE) */}
-          <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
-            <span className="text-base mt-0.5">🔮</span>
-            <div>
-              <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
-                Jauge d'Épargne Prévisionnelle
-              </h4>
-              <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-                Ajout d'un nouvel indicateur visuel en bas du budget prévisionnel pour suivre en direct ton pourcentage d'objectif d'épargne annuel projeté.
-              </p>
-            </div>
-          </div>
-
         </div>
+
+        {/* SECTION : ACCÈS */}
+        <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">🔐</span>
+          <div>
+            <h4 className="text-[15px] font-black text-blue-400 uppercase tracking-wide">
+              Connexion simplifiée
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Plus besoin de chercher ton identifiant : tu peux désormais te connecter directement en utilisant ton **adresse email**.
+            </p>
+          </div>
+        </div>
+
+        {/* SECTION : IMPORTATION (DOUBLONS CSV) */}
+        <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">📥</span>
+          <div>
+            <h4 className="text-[15px] font-black text-amber-400 uppercase tracking-wide">
+              Nettoyage automatique des CSV
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              La page d'importation traque désormais les doublons **à l'intérieur** de tes fichiers CSV pour les supprimer automatiquement avant traitement.
+            </p>
+          </div>
+        </div>
+
+        {/* SECTION : IMPORTATION (DOUBLONS BDD) */}
+        <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">🛡️</span>
+          <div>
+            <h4 className="text-[15px] font-black text-orange-400 uppercase tracking-wide">
+              Protection anti-doublons
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              À l'import, si une transaction possède déjà **la même date, le même nom et le même montant** en base de données, elle sera ignorée en toute sécurité.
+            </p>
+          </div>
+        </div>
+
+        {/* SECTION : PRÉVISIONS (DUPLICATION) */}
+        <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">📋</span>
+          <div>
+            <h4 className="text-[15px] font-black text-purple-400 uppercase tracking-wide">
+              Copier/Coller de masse
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Gagne du temps sur ta saisie ! Une nouvelle option te permet de **copier et coller tes prévisions d'un mois sur les mois suivants** en un clic.
+            </p>
+          </div>
+        </div>
+
+        {/* SECTION : PRÉVISIONS (JAUGE) */}
+        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">🔮</span>
+          <div>
+            <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
+              Jauge d'Épargne Prévisionnelle
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Ajout d'un nouvel indicateur visuel en bas du budget prévisionnel pour suivre en direct ton pourcentage d'objectif d'épargne annuel projeté.
+            </p>
+          </div>
+        </div>
+
+        {/* 💡 NOUVEAUTÉ 1 : MASQUAGE DES PRÉVISIONS */}
+        <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">👁️‍🗨️</span>
+          <div>
+            <h4 className="text-[15px] font-black text-cyan-400 uppercase tracking-wide">
+              Masquage à la carte
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Besoin d'alléger ta vue ? Tu peux désormais **masquer tes lignes de prévisions individuellement** pour ne garder sous les yeux que l'essentiel de ton budget.
+            </p>
+          </div>
+        </div>
+
+      </div>
 
       {/* Bouton de fermeture */}
       <button
