@@ -2128,7 +2128,7 @@ const SortableAccountCard = ({ c }) => {
           {/* GAUCHE : LE SOLDE (Gros et intact) */}
           <div className="flex flex-col items-start min-w-0 flex-1">
             <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none mb-1">
-              {isEstimated ? 'Solde Est.' : 'Solde'}
+              {isEstimated ? 'Solde prévisionnel' : 'Solde'}
             </span>
             <h3 className="text-xl font-black text-white tracking-tighter leading-none truncate w-full">
               {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
