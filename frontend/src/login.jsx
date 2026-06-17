@@ -9144,17 +9144,22 @@ if (!user) {
               </td>
 
               {/* 💡 CELLULE AVEC FENÊTRE MODALE QUI SE DÉPLIE */}
+{/* 💡 CELLULE MODIFIÉE : BADGE AU-DESSUS DES 3 POINTS */}
 <td className="p-4 border-b border-white/[0.05] w-24 text-center relative">
-  <div className="flex items-center justify-center gap-2">
+  <div className="flex flex-col items-center justify-center gap-1">
     
-    {/* Petit badge si déjà alloué */}
-    {t.enveloppe && (
+    {/* Petit badge si déjà alloué - Placé en premier pour être au-dessus */}
+    {t.enveloppe ? (
       <span 
         title={`Alloué à : ${t.enveloppe}`}
-        className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400/70 uppercase max-w-[80px] truncate block tracking-tighter"
+        className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--primary)]/10 text-[var(--primary)] uppercase max-w-[80px] truncate block tracking-tighter"
       >
         {t.enveloppe}
       </span>
+    ) : (
+      /* Optionnel : Une boîte invisible de la même hauteur que le badge pour éviter 
+         que le bouton 3 points ne remonte verticalement quand il n'y a pas d'enveloppe */
+      <div className="h-[15px]" />
     )}
 
     {/* Bouton 3 points épuré */}
@@ -9172,6 +9177,8 @@ if (!user) {
     >
       <MoreHorizontal size={14} />
     </button>
+
+    {/* (Garde la suite de ton code avec la fenêtre déroulante activeDropdownId === t.id juste ici...) */}
 
     {/* FENÊTRE QUI SE DÉPLIE (Uniquement si activeDropdownId correspond à cette ligne) */}
     {activeDropdownId === t.id && (
