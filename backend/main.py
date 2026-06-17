@@ -84,11 +84,30 @@ def read_root():
 
 @app.get("/transactions/{username}")
 def get_transactions(username: str):
-    u_lower = username.lower() # On force la minuscule ici
-    query = text("SELECT * FROM transactions WHERE LOWER(utilisateur) = :u")
-    with engine.connect() as conn:
-        df = pd.read_sql(query, conn, params={"u": u_lower})
-    return df.to_dict(orient="records")
+    u_lower = username.lower()
+    query = text("SELECT id, date, nom, montant, categorie, utilisateur, mois, année, compte, enveloppe FROM transactions WHERE LOWER(utilisateur) = :u")
+    
+    try:
+        with engine.connect() as conn:
+            # On exécute la requête de manière standard avec SQLAlchemy
+            result = conn.execute(query, {"u": u_lower})
+            
+            # On récupère les clés (noms des colonnes) et les lignes
+            columns = result.keys()
+            records = [dict(zip(columns, row)) for row in result.fetchall()]
+            
+            # Optionnel : Si tu as besoin de formater les dates en string pour éviter les bugs JSON
+            for record in records:
+                if record.get('date') and not isinstance(record['date'], str):
+                    record['date'] = record['date'].strftime('%Y-%m-%d')
+                    
+            return records
+
+    except Exception as e:
+        print(f"Erreur lors de la récupération des transactions: {e}")
+        # Crucial : Lever une vraie HTTPException propre pour que FastAPI 
+        # renvoie le bon code d'erreur au navigateur AVEC les en-têtes CORS !
+        raise HTTPException(status_code=500, detail=f"Erreur Base de données: {str(e)}")
 
 
 class Transaction(BaseModel):
