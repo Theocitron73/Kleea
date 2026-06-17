@@ -2672,12 +2672,54 @@ const moisListe = [
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [tabActive, setTabActive] = useState('revenus');
   const [comptes, setComptes] = useState([]);
-  const [filters, setFilters] = useState({
-    profil: 'Tous',
+  // 💡 Dans la déclaration de ton useState (au tout début)
+const [filtersByPage, setFiltersByPage] = useState(() => {
+  const saved = localStorage.getItem(`filters_v2_${user}`); // ou filters_v3_${user} selon ton correctif Tricount
+  if (saved) {
+    try { return JSON.parse(saved); } catch (e) { console.error(e); }
+  }
+  
+  const defaultPeriod = {
+    profil: '', // 👈 REMPLACÉ 'Tous' par '' pour forcer la détection automatique
     annee: new Date().getFullYear().toString(),
-    // On met le nom du mois actuel en toute lettre pour matcher la base
-    mois: moisListe[new Date().getMonth()].v 
+    mois: moisListe[new Date().getMonth()]?.v || ''
+  };
+
+  return {
+    dashboard: { ...defaultPeriod },
+    previsions: { ...defaultPeriod },
+    transactions: { ...defaultPeriod },
+    default: { ...defaultPeriod }
+  };
+});
+
+// Shortcut pour récupérer les filtres de la page ACTUELLE sans casser ton JSX existant
+const currentKey = activeTab || 'default';
+const filters = filtersByPage[currentKey] || filtersByPage['default'];
+
+// Fonction helper pour mettre à jour les filtres de la page actuelle
+const setFilters = (newFiltersOrFn) => {
+  setFiltersByPage(prev => {
+    const currentPageFilters = prev[currentKey];
+    const updatedFields = typeof newFiltersOrFn === 'function' 
+      ? newFiltersOrFn(currentPageFilters) 
+      : newFiltersOrFn;
+
+    const updatedState = {
+      ...prev,
+      [currentKey]: {
+        ...currentPageFilters,
+        ...updatedFields
+      }
+    };
+    
+    // Sauvegarde immédiate dans le localStorage
+    if (user) {
+      localStorage.setItem(`filters_v2_${user}`, JSON.stringify(updatedState));
+    }
+    return updatedState;
   });
+};
   const [deleteModal, setDeleteModal] = useState({ show: false, accountName: null });
   const [toutesLesTransactions, setToutesLesTransactions] = useState([]);
   const [editForm, setEditForm] = useState({});
@@ -3110,97 +3152,98 @@ useEffect(() => {
   }
 }, [user, toutesLesTransactions]);
 
-const initialSelectionDone = useRef(false);
+const initialSelectionDone = useRef({});
 
-// 1. Reset du verrou au changement d'utilisateur
+// --- 1. RESET UNIQUE AU CHANGEMENT D'UTILISATEUR ---
 useEffect(() => {
-  // 1. On autorise à nouveau la sélection automatique
-  initialSelectionDone.current = false;
-
-  // 2. IMPORTANT : On vide les données de l'ancien utilisateur 
-  // pour éviter que le useEffect d'initialisation ne tourne avec les mauvaises infos
+  initialSelectionDone.current = {};
   setAvailablePeriods([]);
   setComptes([]);
-
-  // 3. On remet les filtres à un état neutre
-  setFilters({
-    profil: '',
-    annee: new Date().getFullYear().toString(),
-    mois: moisListe[new Date().getMonth()].v 
-  });
   
-  //console.log("Cleaning data for new user...");
+  const defaultPeriod = {
+    profil: '', // 👈 REMPLACÉ 'Tous' par '' ici aussi
+    annee: new Date().getFullYear().toString(),
+    mois: moisListe[new Date().getMonth()]?.v || ''
+  };
+
+  setFiltersByPage({
+    dashboard: { ...defaultPeriod },
+    previsions: { ...defaultPeriod },
+    transactions: { ...defaultPeriod },
+    default: { ...defaultPeriod }
+  });
 }, [user]);
 
-
-// 2. Initialisation intelligente
+// --- 2. INITIALISATION INTELLIGENTE DE LA PAGE ACTUELLE ---
 useEffect(() => {
-  // On attend d'avoir les périodes ET les comptes
-  if (availablePeriods.length > 0 && comptes.length > 0 && !initialSelectionDone.current) {
+  if (availablePeriods.length > 0 && comptes.length > 0 && !initialSelectionDone.current[currentKey]) {
     
-    // --- TRI CHRONOLOGIQUE DES PÉRIODES ---
+    // On vérifie si le localStorage contient déjà une session personnalisée enregistrée
+    const saved = localStorage.getItem(`filters_v2_${user}`); // ⚠️ Ajuste le nom de la clé (v2 ou v3) pour correspondre à ton useState
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // 💡 Sécurité : On ne valide la mémoire du localStorage QUE si l'utilisateur y avait choisi un vrai profil (pas vide)
+        if (parsed[currentKey] && parsed[currentKey].profil !== '') {
+          initialSelectionDone.current[currentKey] = true;
+          return;
+        }
+      } catch(e){}
+    }
+
+    // Tri chronologique des périodes de l'API
     const periodesTriees = [...availablePeriods].sort((a, b) => {
-      // Conversion forcée en nombre pour la comparaison
       const yearA = parseInt(a.annee);
       const yearB = parseInt(b.annee);
+      if (yearB !== yearA) return yearB - yearA;
       
-      if (yearB !== yearA) {
-        return yearB - yearA; // Tri décroissant (2024 avant 2023)
-      }
-      
-      // Si même année, on compare l'index des mois
       const indexA = moisListe.findIndex(m => m.v === a.mois);
       const indexB = moisListe.findIndex(m => m.v === b.mois);
       return indexB - indexA;
     });
 
     const dernierePeriode = periodesTriees[0];
-
-    // --- EXTRACTION DU PROFIL ---
+    
+    // Extraction des profils uniques triés par ordre alphabétique
     const groupesUniques = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
     
-    if (groupesUniques.length > 0) {
-      const premierProfil = groupesUniques[0];
+    // 💡 S'il y a des profils dans les comptes, on sélectionne le TOUT PREMIER (ex: "Perso", "Pro"...)
+    // S'il n'y a aucun groupe dans les comptes, on se rabat sur 'Tous' par sécurité
+    const profilInitial = groupesUniques.length > 0 ? groupesUniques[0] : 'Tous';
 
-
+    if (dernierePeriode) {
       setFilters({
-        profil: premierProfil,
+        profil: profilInitial,
         annee: dernierePeriode.annee.toString(),
         mois: dernierePeriode.mois
       });
-
-      initialSelectionDone.current = true;
+      initialSelectionDone.current[currentKey] = true;
     }
   }
-}, [availablePeriods, comptes, user]); // user ajouté en dépendance pour plus de sécurité
+}, [availablePeriods, comptes, user, currentKey]);
 
-
+// --- 3. SÉCURITÉ CHANGEMENT D'ANNÉE POUR LA PAGE ACTUELLE ---
 useEffect(() => {
-  // Si on n'a pas encore de données ou d'année sélectionnée, on ne fait rien
   if (availablePeriods.length === 0 || !filters.annee) return;
 
-  // 1. On regarde quels mois sont dispos pour l'année choisie
   const moisDisposPourAnnee = availablePeriods.filter(
     p => p.annee.toString() === filters.annee.toString()
   );
 
-  // 2. On vérifie si le mois actuellement sélectionné existe dans cette année
   const moisToujoursValide = moisDisposPourAnnee.some(p => p.mois === filters.mois);
 
-  // 3. Si le mois n'est plus valide, on force le mois le plus récent de cette année
   if (!moisToujoursValide && moisDisposPourAnnee.length > 0) {
     const moisTries = [...moisDisposPourAnnee].sort((a, b) => {
       const indexA = moisListe.findIndex(m => m.v === a.mois);
       const indexB = moisListe.findIndex(m => m.v === b.mois);
-      return indexB - indexA; // Décroissant pour avoir le plus récent en [0]
+      return indexB - indexA;
     });
 
-    setFilters(prev => ({
-      ...prev,
+    setFilters({
       mois: moisTries[0].mois
-    }));
+    });
   }
-}, [filters.annee, availablePeriods]); // Se déclenche quand l'année change
+}, [filters.annee, availablePeriods, currentKey]);
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
