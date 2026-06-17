@@ -3161,7 +3161,7 @@ useEffect(() => {
   setComptes([]);
   
   const defaultPeriod = {
-    profil: '', // 👈 REMPLACÉ 'Tous' par '' ici aussi
+    profil: '', 
     annee: new Date().getFullYear().toString(),
     mois: moisListe[new Date().getMonth()]?.v || ''
   };
@@ -3174,53 +3174,54 @@ useEffect(() => {
   });
 }, [user]);
 
-// --- 2. INITIALISATION INTELLIGENTE DE LA PAGE ACTUELLE ---
+// --- 2. INITIALISATION INTELLIGENTE DE LA PAGE ACTUELLE (CORRIGÉ) ---
 useEffect(() => {
   if (availablePeriods.length > 0 && comptes.length > 0 && !initialSelectionDone.current[currentKey]) {
     
-    // On vérifie si le localStorage contient déjà une session personnalisée enregistrée
-    const saved = localStorage.getItem(`filters_v2_${user}`); // ⚠️ Ajuste le nom de la clé (v2 ou v3) pour correspondre à ton useState
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // 💡 Sécurité : On ne valide la mémoire du localStorage QUE si l'utilisateur y avait choisi un vrai profil (pas vide)
-        if (parsed[currentKey] && parsed[currentKey].profil !== '') {
-          initialSelectionDone.current[currentKey] = true;
-          return;
-        }
-      } catch(e){}
-    }
+    // 1. Calcul du profil par défaut (ex: "Aude")
+    const groupesUniques = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
+    const profilInitial = groupesUniques.length > 0 ? groupesUniques[0] : 'Tous';
 
-    // Tri chronologique des périodes de l'API
+    // 2. Tri des périodes
     const periodesTriees = [...availablePeriods].sort((a, b) => {
       const yearA = parseInt(a.annee);
       const yearB = parseInt(b.annee);
       if (yearB !== yearA) return yearB - yearA;
-      
       const indexA = moisListe.findIndex(m => m.v === a.mois);
       const indexB = moisListe.findIndex(m => m.v === b.mois);
       return indexB - indexA;
     });
-
     const dernierePeriode = periodesTriees[0];
-    
-    // Extraction des profils uniques triés par ordre alphabétique
-    const groupesUniques = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
-    
-    // 💡 S'il y a des profils dans les comptes, on sélectionne le TOUT PREMIER (ex: "Perso", "Pro"...)
-    // S'il n'y a aucun groupe dans les comptes, on se rabat sur 'Tous' par sécurité
-    const profilInitial = groupesUniques.length > 0 ? groupesUniques[0] : 'Tous';
 
+    // 3. On vérifie le localStorage
+    const saved = localStorage.getItem(`filters_v2_${user}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const cacheDeLaPage = parsed[currentKey];
+
+        // 💡 MODIFICATION ICI : On ne bloque QUE si l'état actuel de l'application a déjà un profil.
+        // Si filters.profil est vide, ça veut dire qu'on vient de se connecter/rafraîchir, donc on FORCE le profilInitial !
+        if (cacheDeLaPage && cacheDeLaPage.profil && cacheDeLaPage.profil !== '' && filters.profil !== '') {
+          initialSelectionDone.current[currentKey] = true;
+          return;
+        }
+      } catch(e) {
+        console.error(e);
+      }
+    }
+
+    // 4. Application forcée du premier profil alphabétique au démarrage
     if (dernierePeriode) {
       setFilters({
-        profil: profilInitial,
+        profil: profilInitial, // Mettra "Aude"
         annee: dernierePeriode.annee.toString(),
-        mois: dernierePeriode.mois
+        mois: dernierePeriode.mois // Prendra la période la plus récente disponible
       });
       initialSelectionDone.current[currentKey] = true;
     }
   }
-}, [availablePeriods, comptes, user, currentKey]);
+}, [availablePeriods, comptes, user, currentKey, filters.profil]); // 👈 Ajout de filters.profil dans les dépendances
 
 // --- 3. SÉCURITÉ CHANGEMENT D'ANNÉE POUR LA PAGE ACTUELLE ---
 useEffect(() => {
