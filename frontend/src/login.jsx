@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, 
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -4039,6 +4039,13 @@ const showLearningNotif = (transaction, categorie) => {
   setTimeout(() => setLastLearned(null), 4000);
 };
 
+
+
+
+
+
+
+
 const updateCell = async (id, field, value) => {
   const transactionActive = toutesLesTransactions.find(t => t.id == id);
 
@@ -4048,7 +4055,6 @@ const updateCell = async (id, field, value) => {
   }
 
   // --- 1. FONCTION DE NETTOYAGE INTERNE ---
-  // On l'utilise pour enregistrer une règle "propre" en base de données
   const nettoyerPourMemoire = (texte) => {
     if (!texte) return "";
     return texte
@@ -4070,9 +4076,11 @@ const updateCell = async (id, field, value) => {
     utilisateur: nomUtilisateur,
     mois: transactionActive.mois,
     compte: transactionActive.compte,
-    // Gestion de la colonne année/annee selon ta DB
+    // 💡 SÉCURITÉ : On conserve l'enveloppe actuelle pour ne pas l'effacer lors d'autres modifs
+    enveloppe: transactionActive.enveloppe, 
     annee: parseInt(transactionActive.annee || transactionActive.année || new Date().getFullYear()),
-    // On applique la modification demandée (nom, montant ou catégorie)
+    
+    // On applique la modification demandée (nom, montant, catégorie OU enveloppe)
     [field]: field === 'montant' ? parseFloat(value) : value 
   };
 
@@ -4082,33 +4090,28 @@ const updateCell = async (id, field, value) => {
     
     // --- 4. LOGIQUE D'APPRENTISSAGE ---
     if (field === 'categorie' && isApprendreActive) {
-      // On nettoie le nom (ex: "UBER   EATS 08.03" devient "uber eats")
       const nomPropre = nettoyerPourMemoire(transactionActive.nom);
       
-      // On enregistre dans la table memoire
       await api.post(`/memoire`, {
         nom: nomPropre,
         categorie: value,
         utilisateur: nomUtilisateur
       });
 
-      // Notification visuelle
       showLearningNotif(nomPropre, value);
 
-      // On rafraîchit la mémoire locale (elementsAppris) pour que l'intelligence
-      // soit à jour immédiatement pour les prochains imports CSV
       if (typeof fetchMemoire === 'function') {
         await fetchMemoire();
       }
 
-      // Mise à jour locale de l'affichage : 
-      // On change la catégorie de TOUTES les transactions qui ont le même NOM brut
+      // Note : Lors d'un apprentissage massif par le NOM, on ne copie pas l'enveloppe 
+      // sur les autres lignes car chaque dépense (ex: un Uber Eats) peut aller dans des projets différents.
       setToutesLesTransactions(prev => 
         prev.map(t => t.nom === transactionActive.nom ? { ...t, categorie: value } : t)
       );
 
     } else {
-      // --- 5. MISE À JOUR SIMPLE (si pas de changement de catégorie ou apprentissage off) ---
+      // --- 5. MISE À JOUR SIMPLE (Déclenché aussi pour le champ 'enveloppe') ---
       setToutesLesTransactions(prev => 
         prev.map(t => t.id == id ? { ...t, ...updatedData } : t)
       );
@@ -4117,7 +4120,6 @@ const updateCell = async (id, field, value) => {
   } catch (err) {
     console.error("Erreur de sauvegarde :", err.response?.data || err);
     alert("Erreur lors de la mise à jour. Vérifiez la console.");
-    // En cas d'erreur, on recharge les données pour annuler les changements visuels
     fetchTransactions();
   }
 };
@@ -5451,6 +5453,13 @@ const listeAffichage = useMemo(() => {
 }, [projets, allocations]);
 
 
+const optionsEnveloppes = useMemo(() => {
+  // On récupère les noms de listeAffichage ou de tes projets/allocations
+  const enveloppes = listeAffichage.map(p => ({ v: p.nom, l: p.nom }));
+  // On ajoute une option pour désallouer la transaction
+  return [{ v: "", l: "📦 Aucune enveloppe" }, ...enveloppes];
+}, [listeAffichage]);
+
 
 useEffect(() => {
   if (filters.profil) {
@@ -5613,7 +5622,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (incrémente-la à chaque grosse mise à jour !)
-const CURRENT_VERSION = "3.2"; 
+const CURRENT_VERSION = "3.3"; 
 
 useEffect(() => {
   if (!user) return;
@@ -5639,6 +5648,9 @@ const handleClosePatchModal = () => {
   const currentCount = parseInt(localStorage.getItem(`patch_tests_count_${user}`)) || 0;
   localStorage.setItem(`patch_tests_count_${user}`, currentCount + 1);
 };
+
+
+const [activeDropdownId, setActiveDropdownId] = useState(null);
 
 useEffect(() => {
   if (user) {
@@ -5900,7 +5912,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.2</span>
+        Kleea <span className="text-[var(--primary)]">v.3.3</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -7353,62 +7365,87 @@ if (!user) {
                 )}
 
                 {/* LISTE DES PROJETS */}
-                <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                {listeAffichage.map((projet) => {
-            // On calcule le total actuel pour l'afficher
-            const totalAlloue = allocations
-              .filter(a => String(a.projet) === String(projet.nom))
-              .reduce((sum, curr) => sum + (parseFloat(curr.montant_alloue) || 0), 0);
+<div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+  {listeAffichage.map((projet) => {
+    // 1. Montant théorique initialement affecté au projet / enveloppe
+    const totalAlloue = allocations
+      .filter(a => String(a.projet) === String(projet.nom))
+      .reduce((sum, curr) => sum + (parseFloat(curr.montant_alloue) || 0), 0);
 
-            return (
-              <div key={projet.id} className="group p-4 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] mb-4 hover:border-white/20 transition-all">
-                <div className="flex justify-between items-center mb-3">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-[var(--text-main)]/40 uppercase font-black tracking-widest">Enveloppe</span>
-                    <h5 className="text-[var(--text-main)] font-bold text-sm">{projet.nom}</h5>
-                  </div>
-                  
-                  {/* BOUTON SUPPRIMER L'ENTIÈRETE */}
-                  <button 
-                    onClick={() => setDeleteModal3({ show: true, projetNom: projet.nom })}
-                    className="p-2 text-[var(--text-main)]/10 hover:text-rose-500 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+    // 2. 💡 CALCUL DES TRANSACTIONS DROPPÉES DEDANS
+    // Si une dépense vaut -800€, totalTransactions vaudra -800
+    const totalTransactions = toutesLesTransactions
+      .filter(t => t.enveloppe === projet.nom)
+      .reduce((sum, curr) => sum + (parseFloat(curr.montant) || 0), 0);
 
-                <div className="flex items-end gap-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-[10px] mb-1">
-                      <span className="text-[var(--text-main)]/40">Montant alloué</span>
-                      <span className="text-emerald-400 font-bold">{totalAlloue.toLocaleString()} €</span>
-                    </div>
-                    {/* BARRE DE PROGRESSION (Optionnelle si tu n'as pas d'objectif fixe) */}
-                    <div className="h-1.5 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden">
-                      <div className="h-full bg-emerald-500" style={{ width: '100%' }} />
-                    </div>
-                  </div>
+    // 3. 💡 SOLDE DISPONIBLE REEL = Financement théorique + Transactions (Dépenses négatives / Revenus positifs)
+    const soldeDisponibleReel = totalAlloue + totalTransactions;
 
-                  {/* INPUT DE MODIFICATION DIRECTE */}
-                  <div className="w-32">
-                    <input 
-                      type="number"
-                      defaultValue={totalAlloue}
-                      onBlur={async (e) => {
-                        const val = parseFloat(e.target.value);
-                        if (val !== totalAlloue) {
-                          await api.put(`/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
-                          fetchAllocations();
-                        }
-                      }}
-                      className="w-full bg-black/40 border border-white/10 rounded-[var(--radius)] px-3 py-2 text-right text-sm text-emerald-400 font-bold outline-none focus:border-emerald-500 transition-all"
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+    // Pourcentage de la barre de progression (Théorique vs Ce qu'il reste)
+    const pourcentageRestant = totalAlloue > 0 ? Math.max(0, Math.min(100, (soldeDisponibleReel / totalAlloue) * 100)) : 0;
+
+    return (
+      <div key={projet.id} className="group p-4 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] mb-4 hover:border-white/20 transition-all">
+        <div className="flex justify-between items-center mb-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-[var(--text-main)]/40 uppercase font-black tracking-widest">Enveloppe</span>
+            <h5 className="text-[var(--text-main)] font-bold text-sm">{projet.nom}</h5>
+          </div>
+          
+          {/* BOUTON SUPPRIMER L'ENTIÈRETE */}
+          <button 
+            onClick={() => setDeleteModal3({ show: true, projetNom: projet.nom })}
+            className="p-2 text-[var(--text-main)]/10 hover:text-rose-500 transition-colors"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+
+        <div className="flex items-end gap-4">
+          <div className="flex-1">
+            <div className="flex justify-between text-[10px] mb-1">
+              <span className="text-[var(--text-main)]/40">Financement (Objectif)</span>
+              <span className="text-white/60 font-medium">{totalAlloue.toLocaleString('fr-FR')} €</span>
+            </div>
+
+            {/* BARRE DE PROGRESSION MISE À JOUR */}
+            <div className="h-1.5 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden mb-2">
+              <div 
+                className={`h-full transition-all duration-500 ${soldeDisponibleReel < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} 
+                style={{ width: `${pourcentageRestant}%` }} 
+              />
+            </div>
+
+            {/* DISPLAY DU RESTE DISPONIBLE APRES TRANSACTIONS */}
+            <div className="flex justify-between items-center mt-1">
+              <span className="text-[10px] text-[var(--text-main)]/40 uppercase font-black tracking-tight">Reste Disponible :</span>
+              <span className={`text-xs font-black tabular-nums ${soldeDisponibleReel < 0 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
+                {soldeDisponibleReel.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+              </span>
+            </div>
+          </div>
+
+          {/* INPUT DE MODIFICATION DU FINANCEMENT THEORIQUE */}
+          <div className="w-32 self-center">
+            <label className="block text-[8px] uppercase text-[var(--text-main)]/20 font-black mb-1 text-right">Ajuster Budget</label>
+            <input 
+              type="number"
+              defaultValue={totalAlloue}
+              onBlur={async (e) => {
+                const val = parseFloat(e.target.value);
+                if (val !== totalAlloue) {
+                  await api.put(`/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
+                  fetchAllocations();
+                }
+              }}
+              className="w-full bg-black/40 border border-white/10 rounded-[var(--radius)] px-3 py-2 text-right text-sm text-[var(--text-main)]/80 font-bold outline-none focus:border-emerald-500 transition-all"
+            />
+          </div>
+        </div>
       </div>
+    );
+  })}
+</div>
     </div>
   </div>
 );
@@ -8990,7 +9027,11 @@ if (!user) {
             Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
           </div>
         </th>
+        
         <th className="p-4 w-32 text-[10px] font-black text-[var(--text-main)]/40 uppercase">Mois Affecté</th>
+        
+        {/* 💡 EN-TÊTE ULTRA DISCRET POUR L'ENVELOPPE */}
+        <th className="p-4 w-24 text-center text-[10px] font-black text-[var(--text-main)]/40 uppercase">Enveloppe</th>
       </tr>
     </thead>
 
@@ -9101,13 +9142,106 @@ if (!user) {
                   onChange={(val) => updateCell(t.id, 'mois', val)}
                 />
               </td>
+
+              {/* 💡 CELLULE AVEC FENÊTRE MODALE QUI SE DÉPLIE */}
+<td className="p-4 border-b border-white/[0.05] w-24 text-center relative">
+  <div className="flex items-center justify-center gap-2">
+    
+    {/* Petit badge si déjà alloué */}
+    {t.enveloppe && (
+      <span 
+        title={`Alloué à : ${t.enveloppe}`}
+        className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400/70 uppercase max-w-[80px] truncate block tracking-tighter"
+      >
+        {t.enveloppe}
+      </span>
+    )}
+
+    {/* Bouton 3 points épuré */}
+    <button
+      onClick={(e) => {
+        e.stopPropagation(); // Évite de propager le clic à la ligne
+        // Si le menu est déjà ouvert sur cette ligne, on le ferme, sinon on l'ouvre
+        setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
+      }}
+      className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${
+        activeDropdownId === t.id 
+          ? 'bg-white/10 text-white' 
+          : 'text-[var(--text-main)]/30 hover:bg-white/5 hover:text-[var(--text-main)]'
+      }`}
+    >
+      <MoreHorizontal size={14} />
+    </button>
+
+    {/* FENÊTRE QUI SE DÉPLIE (Uniquement si activeDropdownId correspond à cette ligne) */}
+    {activeDropdownId === t.id && (
+      <>
+        {/* Un calque invisible derrière pour fermer la fenêtre si on clique n'importe où ailleurs */}
+        <div 
+          className="fixed inset-0 z-50 cursor-default" 
+          onClick={(e) => {
+            e.stopPropagation();
+            setActiveDropdownId(null);
+          }}
+        />
+
+        {/* La petite fenêtre d'options */}
+        <div className="absolute right-4 top-12 w-48 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left backdrop-blur-md">
+          <div className="px-2.5 py-1 text-[8px] font-black text-white/30 uppercase tracking-widest border-b border-white/5 mb-1">
+            Choisir une enveloppe
+          </div>
+          
+          {/* Option par défaut : Aucune enveloppe */}
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              await updateCell(t.id, 'enveloppe', "");
+              setActiveDropdownId(null);
+            }}
+            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 ${
+              !t.enveloppe 
+                ? 'bg-[var(--primary)]/10 text-[var(--primary)]' 
+                : 'text-white/40 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <span>📦</span> Aucune enveloppe
+          </button>
+
+          {/* Boucle sur tes vraies enveloppes (optionsEnveloppes ou listeAffichage) */}
+          {listeAffichage.map((env) => (
+            <button
+              key={env.id}
+              onClick={async (e) => {
+                e.stopPropagation();
+                await updateCell(t.id, 'enveloppe', env.nom);
+                setActiveDropdownId(null);
+              }}
+              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between ${
+                t.enveloppe === env.nom 
+                  ? 'bg-emerald-500/10 text-emerald-400' 
+                  : 'text-white/60 hover:bg-white/5 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span>💰</span>
+                <span className="truncate">{env.nom}</span>
+              </div>
+              {t.enveloppe === env.nom && <span className="text-[10px]">✓</span>}
+            </button>
+          ))}
+        </div>
+      </>
+    )}
+
+  </div>
+</td>
             </tr>
           );
         })
       ) : (
-        /* --- ÉTAT VIDE : SI AUCUNE TRANSACTION --- */
+        /* --- ÉTAT VIDE --- */
         <tr>
-          <td colSpan="6" className="py-20">
+          <td colSpan="7" className="py-20">
             <div className="flex flex-col items-center justify-center text-center px-4">
               <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4 shadow-inner">
                 <span className="text-2xl opacity-20">📂</span>
@@ -9115,9 +9249,8 @@ if (!user) {
               <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">
                 Journal vide pour {selectedCompte === 'tous' ? 'Tous les comptes' : selectedCompte}, {filters.mois} {filters.annee} 
               </h3>
-              <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-widest mt-2  leading-relaxed">
+              <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-widest mt-2 leading-relaxed">
                 Aucune transaction ne correspond à vos filtres actuels.
-                Ajouter des transactions manuellement ou importer un fichier .CSV
               </p>
             </div>
           </td>
@@ -10648,9 +10781,21 @@ if (!user) {
       </div>
 
       {/* Liste des changements */}
-      <div className="space-y-3 mb-6 max-h-[750px] overflow-y-auto pr-1 custom-scrollbar">
+      <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        
+        {/* 💡 NOUVEAUTÉ 1 : ENVELOPPES BUDGÉTAIRES ET SYSTÈME REFAIT */}
+        <div className="p-3 bg-violet-500/5 border border-violet-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(139,92,246,0.03)]">
+          <span className="text-base mt-0.5">📦</span>
+          <div>
+            <h4 className="text-[15px] font-black text-violet-400 uppercase tracking-wide">
+              Gestion Discrète des Enveloppes
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Associe tes transactions à tes projets en un éclair ! Clique sur le bouton discret <strong className="text-violet-400">3 points (···)</strong> en bout de ligne pour dérouler le sélecteur d'enveloppe. 
+              Le module <strong className="text-violet-400">Répartition</strong> calcule automatiquement le solde réel restant de tes enveloppes en déduisant tes dépenses au centime près.
+            </p>
+          </div>
+        </div>
 
         {/* 💡 NOUVEAUTÉ 2 : TAUX D'INTÉRÊT SUR LES COMPTES */}
         <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
@@ -10730,7 +10875,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 1 : MASQUAGE DES PRÉVISIONS */}
+        {/* SECTION : MASQUAGE DES PRÉVISIONS */}
         <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3">
           <span className="text-base mt-0.5">👁️‍🗨️</span>
           <div>

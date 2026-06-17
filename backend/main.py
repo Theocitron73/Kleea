@@ -101,6 +101,7 @@ class Transaction(BaseModel):
     compte: str
     id: Optional[int] = None  # Très important pour les modifs
     date: Optional[str] = None # Accepte que ce soit vide
+    enveloppe: Optional[str] = None # 👈 AJOUT ICI
 
 @app.post("/transactions")
 def add_transaction(t: Transaction):
@@ -143,24 +144,25 @@ def add_transaction(t: Transaction):
         return {"status": "error", "message": str(e)}
 
 
+# 2. Mets à jour la route d'UPDATE pour inclure l'enveloppe
 @app.put("/transactions/{t_id}")
 def update_transaction(t_id: int, t: Transaction):
     query = text("""
         UPDATE transactions 
-        SET nom=:n, montant=:m, categorie=:c, mois=:mo, année=:a, compte=:co 
+        SET nom=:n, montant=:m, categorie=:c, mois=:mo, année=:a, compte=:co, enveloppe=:env 
         WHERE id=:id AND utilisateur=:u
     """)
     try:
         with engine.connect() as conn:
             conn.execute(query, {
                 "n": t.nom, "m": t.montant, "c": t.categorie, 
-                "mo": t.mois, "a": t.annee, 
-                "co": t.compte, "id": t_id, "u": t.utilisateur.lower()
+                "mo": t.mois, "a": t.annee, "co": t.compte,
+                "env": t.enveloppe, "id": t_id, "u": t.utilisateur.lower()
             })
             conn.commit()
         return {"status": "success"}
     except Exception as e:
-        print(f"Erreur SQL: {e}") # Regarde ton terminal Python ici !
+        print(f"Erreur SQL: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 
