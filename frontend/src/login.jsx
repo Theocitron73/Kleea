@@ -5652,6 +5652,44 @@ const handleClosePatchModal = () => {
 
 const [activeDropdownId, setActiveDropdownId] = useState(null);
 
+
+// Variable temporaire hors du cycle de rendu pour éviter les va-et-vient infinis
+const isSyncing = useRef(false);
+
+useEffect(() => {
+  if (isSyncing.current) return;
+  isSyncing.current = true;
+
+  if (selectedCompte === 'tous') {
+    setFilters(f => f.profil !== 'Tous' ? { ...f, profil: 'Tous' } : f);
+  } else {
+    const compteTrouve = comptes.find(c => c.compte === selectedCompte || c.nom === selectedCompte);
+    if (compteTrouve && compteTrouve.groupe) {
+      setFilters(f => f.profil !== compteTrouve.groupe ? { ...f, profil: compteTrouve.groupe } : f);
+    }
+  }
+
+  isSyncing.current = false;
+}, [selectedCompte, comptes]);
+
+// Gestion du changement de profil
+useEffect(() => {
+  if (isSyncing.current) return;
+  isSyncing.current = true;
+
+  if (filters.profil === 'Tous') {
+    if (selectedCompte !== 'tous') setSelectedCompte('tous');
+  } else {
+    const premierCompteAssocie = comptes.find(c => c.groupe === filters.profil);
+    if (premierCompteAssocie) {
+      const nomCompte = premierCompteAssocie.compte || premierCompteAssocie.nom;
+      if (selectedCompte !== nomCompte) setSelectedCompte(nomCompte);
+    }
+  }
+
+  isSyncing.current = false;
+}, [filters.profil, comptes]);
+
 useEffect(() => {
   if (user) {
     fetchTransactions();
@@ -8623,14 +8661,7 @@ if (!user) {
         </div>
 
               </div>
-
-
-
-
-
-
-
-                
+   
               
                     {/* 1. BARRE LATÉRALE DE FILTRES */}
                     <div className="col-span-1 lg:col-span-3 order-1 lg:order-0">
@@ -8645,47 +8676,49 @@ if (!user) {
                             </div>
                     
                     <div className="space-y-3">
-                      <CustomSelect 
-                        label="Profil cible"
-                        value={filters.profil}
-                        icon={User}
-                        options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
-                        onChange={(val) => setFilters({...filters, profil: val})}
-                      />
 
-                      <CustomSelect 
-                        label="Compte bancaire"
-                        value={selectedCompte}
-                        icon={Search}
-                        options={[
-                          { v: 'tous', l: 'Tous les comptes' },
-                          ...soldesTries.map(s => ({ v: s.compte, l: s.compte }))
-                        ]}
-                        onChange={(val) => setSelectedCompte(val)}
-                      />
+  {/* 1. SÉLECTION DU PROFIL (Nettoyé) */}
+  <CustomSelect 
+    label="Profil cible"
+    value={filters.profil}
+    icon={User}
+    options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
+    onChange={(val) => setFilters(f => ({ ...f, profil: val }))} // 🟢 Uniquement sa propre modification
+  />
 
-                      {/* Mois et Année côte à côte pour optimiser l'espace vertical */}
-                    
-                        <CustomSelect 
-                          label="Mois"
-                          value={filters.mois}
-                          icon={Calendar}
-                          options={moisListe}
-                          onChange={(val) => setFilters({...filters, mois: val})}
-                        />
+  {/* 2. SÉLECTION DU COMPTE BANCAIRE */}
+  <CustomSelect 
+    label="Compte bancaire"
+    value={selectedCompte}
+    icon={Search}
+    options={[
+      { v: 'tous', l: 'Tous les comptes' },
+      ...soldesTries.map(s => ({ v: s.compte, l: s.compte }))
+    ]}
+    onChange={(val) => setSelectedCompte(val)} // 🟢 Uniquement sa propre modification
+  />
 
-                        <CustomSelect 
-                          label="Année"
-                          value={filters.annee}
-                          icon={Calendar1}
-                          options={[...new Set(availablePeriods.map(p => p.annee))]
-                            .sort((a, b) => b - a)
-                            .map(year => ({ v: year, l: year.toString() }))
-                          }
-                          onChange={(val) => setFilters({...filters, annee: val})}
-                        />
-                      
-                    </div>
+  {/* Mois et Année restent identiques... */}
+  <CustomSelect 
+    label="Mois"
+    value={filters.mois}
+    icon={Calendar}
+    options={moisListe}
+    onChange={(val) => setFilters({...filters, mois: val})}
+  />
+
+  <CustomSelect 
+    label="Année"
+    value={filters.annee}
+    icon={Calendar1}
+    options={[...new Set(availablePeriods.map(p => p.annee))]
+      .sort((a, b) => b - a)
+      .map(year => ({ v: year, l: year.toString() }))
+    }
+    onChange={(val) => setFilters({...filters, annee: val})}
+  />
+  
+</div>
                   </div>
 
                   {/* PREMIER RESSORT : Absorbe le vide sur les écrans > 1080p */}
@@ -9312,7 +9345,7 @@ if (!user) {
               value={selectedCompte} 
               icon={Wallet} 
               options={comptes.map(c => ({ v: c.compte, l: c.compte }))} 
-              onChange={(val) => setSelectedCompte(val)} 
+              onChange={(val) => setSelectedCompte(val)} // 🟢 Tout simple aussi
             />
           </div>
 
