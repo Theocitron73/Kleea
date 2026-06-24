@@ -5653,11 +5653,12 @@ const handleClosePatchModal = () => {
 const [activeDropdownId, setActiveDropdownId] = useState(null);
 
 
-// Variable temporaire hors du cycle de rendu pour éviter les va-et-vient infinis
+// Variable de verrouillage
 const isSyncing = useRef(false);
 
+// 🟢 1. SÉCURITÉ : QUAND LE COMPTE CHANGE -> ON ADAPTE LE PROFIL (SANS BOUCLE)
 useEffect(() => {
-  if (isSyncing.current) return;
+  if (isSyncing.current || comptes.length === 0) return;
   isSyncing.current = true;
 
   if (selectedCompte === 'tous') {
@@ -5670,25 +5671,37 @@ useEffect(() => {
   }
 
   isSyncing.current = false;
-}, [selectedCompte, comptes]);
+}, [selectedCompte]); // 🚨 IMPORTANT : On ne surveille QUE le changement de compte, pas le tableau global !
 
-// Gestion du changement de profil
+// 🟢 2. SÉCURITÉ : QUAND LE PROFIL CHANGE (UNIQUEMENT VIA LE CLIC UTILISATEUR)
+// Pour éviter la boucle infinie avec le fetch, on vide ce useEffect des dépendances automatiques.
 useEffect(() => {
-  if (isSyncing.current) return;
+  if (isSyncing.current || comptes.length === 0) return;
+  if (currentKey === 'previsions' || currentKey === 'previsionnel') return;
+
   isSyncing.current = true;
 
   if (filters.profil === 'Tous') {
     if (selectedCompte !== 'tous') setSelectedCompte('tous');
   } else {
-    const premierCompteAssocie = comptes.find(c => c.groupe === filters.profil);
-    if (premierCompteAssocie) {
-      const nomCompte = premierCompteAssocie.compte || premierCompteAssocie.nom;
-      if (selectedCompte !== nomCompte) setSelectedCompte(nomCompte);
+    // On regarde si le compte actuel match déjà avec le profil
+    const compteActuelValide = comptes.find(
+      c => (c.compte === selectedCompte || c.nom === selectedCompte) && c.groupe === filters.profil
+    );
+
+    // Si et seulement si le compte actuel n'a aucun rapport avec le profil, on prend le premier disponible
+    if (!compteActuelValide) {
+      const premierCompteAssocie = comptes.find(c => c.groupe === filters.profil);
+      if (premierCompteAssocie) {
+        const nomCompte = premierCompteAssocie.compte || premierCompteAssocie.nom;
+        setSelectedCompte(nomCompte);
+      }
     }
   }
 
   isSyncing.current = false;
-}, [filters.profil, comptes]);
+// 🚨 RETRAIT DE 'comptes' DES DÉPENDANCES ICI : C'est cela qui créait la boucle infinie lors des requêtes GET !
+}, [filters.profil, currentKey]);
 
 useEffect(() => {
   if (user) {
