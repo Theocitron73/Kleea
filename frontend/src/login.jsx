@@ -8445,7 +8445,7 @@ if (!user) {
         </div>
 
       {/* 4. BLOC GESTION DES BUDGETS (Sous le Lexique) */}
-        <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] flex flex-col">
+        <div className="z-[1000] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] flex flex-col">
           
           {/* HEADER BUDGET */}
           <div className="flex items-center justify-between mb-2">
