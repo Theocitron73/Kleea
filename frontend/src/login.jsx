@@ -8240,7 +8240,7 @@ if (!user) {
 
         {/* 3. BARRE DE GESTION LEXIQUE (Droite) */}
       <div className="col-span-1 lg:col-span-4 flex flex-col gap-4 order-2 lg:order-1">
-        <div className="z-[1000] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] shrink-0">
+        <div className="z-[2000] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 p-5 rounded-[var(--radius)] shrink-0">
     
     {/* HEADER AVEC BOUTON LISTE FLOTTANT */}
     <div className="flex items-center justify-between mb-6 relative">
@@ -8560,7 +8560,7 @@ if (!user) {
                   </button>
                 </div>
 
-                <div className="space-y-5 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="space-y-5 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
                   {budgets.length === 0 ? (
                     <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget défini</p>
                   ) : (
