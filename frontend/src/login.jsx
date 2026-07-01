@@ -5703,6 +5703,56 @@ useEffect(() => {
 // 🚨 RETRAIT DE 'comptes' DES DÉPENDANCES ICI : C'est cela qui créait la boucle infinie lors des requêtes GET !
 }, [filters.profil, currentKey]);
 
+
+
+// 1. États locaux pour la période (on stocke les valeurs "v" de moisListe, ex: "01", "02"...)
+const [moisDebut, setMoisDebut] = useState("01");
+const [moisFin, setMoisFin] = useState(filters.mois || "12"); 
+
+// 2. État pour l'onglet actif ('annuel' ou 'periode')
+const [totalTab, setTotalTab] = useState('periode');
+
+// 3. Calcul automatique basé sur ton tableau recapAnnuelStats
+const donneesPeriodeDirecte = useMemo(() => {
+  // On trouve le libellé complet (ex: "Janvier") pour matcher avec m.nom dans recapAnnuelStats
+  const libelleDebut = moisListe.find(m => m.v === moisDebut)?.l?.toLowerCase();
+  const libelleFin = moisListe.find(m => m.v === moisFin)?.l?.toLowerCase();
+
+  // On récupère les index chronologiques pour filtrer la plage
+  const listeNomsMois = moisListe.map(m => m.l?.toLowerCase());
+  const idxDebut = listeNomsMois.indexOf(libelleDebut);
+  const idxFin = listeNomsMois.indexOf(libelleFin);
+
+  const idxMin = Math.min(idxDebut, idxFin);
+  const idxMax = Math.max(idxDebut, idxFin);
+
+  // On filtre et on cumule
+  const moisSelectionnes = (recapAnnuelStats || []).filter(m => {
+    const currentIdx = listeNomsMois.indexOf(m.nom?.toLowerCase());
+    return currentIdx >= idxMin && currentIdx <= idxMax;
+  });
+
+  const revenus = moisSelectionnes.reduce((sum, m) => sum + (m.revenus || 0), 0);
+  const depenses = moisSelectionnes.reduce((sum, m) => sum + (m.depenses || 0), 0);
+  const epargne = moisSelectionnes.reduce((sum, m) => sum + (m.epargne !== null ? m.epargne : ((m.revenus || 0) - (m.depenses || 0))), 0);
+  const tauxEffort = revenus > 0 ? Math.round((epargne / revenus) * 100) : 0;
+
+  return {
+    revenus,
+    depenses,
+    epargne,
+    tauxEffort: Math.max(0, tauxEffort)
+  };
+}, [recapAnnuelStats, moisDebut, moisFin, moisListe]);
+
+const estPeriode = totalTab === 'periode';
+const donneesAffichees = estPeriode ? donneesPeriodeDirecte : {
+  revenus: totauxAnnuels.revenus,
+  depenses: totauxAnnuels.depenses,
+  epargne: totauxAnnuels.epargne,
+  tauxEffort: tauxEpargneMoyen
+};
+
 useEffect(() => {
   if (user) {
     fetchTransactions();
@@ -6571,49 +6621,115 @@ if (!user) {
 
                   {/* CARTE DE SYNTHÈSE TOTAUX (FIXE EN BAS) */}
                   <div className="mt-4 p-5 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] backdrop-blur-[var(--glass-blur)] shadow-xl">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-main)]/30">Totaux Annuel</h4>
-                      <div className="flex items-center gap-2">
+                    
+                    {/* ZONE ONGLETS & SÉLECTEURS */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-white/5 pb-3">
+                      
+                      <div className="flex items-center gap-3">
+                        <span class="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-main)]/30">Totaux</span>
+                        {/* SWITCH ONGLETS */}
+                        <div className="flex bg-black/40 p-0.5 rounded-xl border border-white/5 shrink-0">
+                        
+                          <button
+                            type="button"
+                            onClick={() => setTotalTab('annuel')}
+                            className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                              !estPeriode 
+                                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-lg' 
+                                : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
+                            }`}
+                          >
+                            Annuel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setTotalTab('periode')}
+                            className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                              estPeriode 
+                                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-lg' 
+                                : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
+                            }`}
+                          >
+                            Période
+                          </button>
+                        </div>
+
+                        {/* SÉLECTEURS DE MOIS (Affichés uniquement si l'onglet Période est actif) */}
+                        {estPeriode && (
+                          <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="w-28 text-[10px]">
+                              <CustomSelect 
+                                value={moisDebut}
+                                onChange={(val) => setMoisDebut(val)} // Assure-toi que ton CustomSelect gère bien le onChange
+                                icon={Calendar} 
+                                options={moisListe}
+                              />
+                            </div>
+                            <span className="text-[9px] font-black text-[var(--text-main)]/20 uppercase">à</span>
+                            <div className="w-28 text-[10px]">
+                              <CustomSelect 
+                                value={moisFin}
+                                onChange={(val) => setMoisFin(val)}
+                                icon={Calendar} 
+                                options={moisListe}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* TAUX D'EFFORT */}
+                      <div className="flex items-center gap-2 self-end sm:self-auto">
                         <span className="text-[9px] font-bold text-[var(--text-main)]/20 uppercase">Taux d'effort :</span>
-                        <span className="text-xs font-black text-emerald-400">{tauxEpargneMoyen}%</span>
+                        <span className="text-xs font-black text-emerald-400">{donneesAffichees.tauxEffort}%</span>
                       </div>
                     </div>
 
+                    {/* GRILLE DES COMPTEURS */}
                     <div className="grid grid-cols-3 gap-4">
                       <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">Total Revenus</p>
+                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">
+                          {estPeriode ? 'Revenus Période' : 'Total Revenus'}
+                        </p>
                         <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_revenus }}>
-                          {totauxAnnuels.revenus.toLocaleString('fr-FR')}€
+                          {donneesAffichees.revenus.toLocaleString('fr-FR')}€
                         </p>
                       </div>
+
                       <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">Total Dépenses</p>
+                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">
+                          {estPeriode ? 'Dépenses Période' : 'Total Dépenses'}
+                        </p>
                         <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_depenses }}>
-                          -{totauxAnnuels.depenses.toLocaleString('fr-FR')}€
+                          -{donneesAffichees.depenses.toLocaleString('fr-FR')}€
                         </p>
                       </div>
+
                       <div className="relative overflow-hidden bg-[var(--glass-bg)] p-3 rounded-2xl border border-white/10 group">
                         <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1 italic">Net Épargné</p>
+                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1 italic">
+                          {estPeriode ? 'Épargne Période' : 'Net Épargné'}
+                        </p>
                         <p className="text-xl font-black tracking-tighter" style={{ color: userTheme.color_epargne }}>
-                          {totauxAnnuels.epargne.toLocaleString('fr-FR')}€
+                          {donneesAffichees.epargne.toLocaleString('fr-FR')}€
                         </p>
                       </div>
                     </div>
 
+                    {/* BARRE DE PROGRESSION */}
                     <div className="mt-4 space-y-1.5">
                       <div className="flex justify-between text-[8px] font-black uppercase text-[var(--text-main)]/20">
                         <span>Consommé</span>
-                        <span>Épargné ({tauxEpargneMoyen}%)</span>
+                        <span>Épargné ({donneesAffichees.tauxEffort}%)</span>
                       </div>
                       <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden flex border border-white/5">
                         <div 
-                          className="h-full bg-rose-500/50 transition-all duration-1000" 
-                          style={{ width: `${100 - tauxEpargneMoyen}%` }}
+                          className="h-full bg-rose-500/50 transition-all duration-500" 
+                          style={{ width: `${100 - donneesAffichees.tauxEffort}%` }}
                         />
                         <div 
-                          className="h-full bg-emerald-500 transition-all duration-1000 shadow-[0_0_10px_#10b981]" 
-                          style={{ width: `${tauxEpargneMoyen}%` }}
+                          className="h-full bg-emerald-500 transition-all duration-500 shadow-[0_0_10px_#10b981]" 
+                          style={{ width: `${donneesAffichees.tauxEffort}%` }}
                         />
                       </div>
                     </div>
