@@ -5706,12 +5706,11 @@ useEffect(() => {
 
 
 // 1. États locaux pour la période (on stocke les valeurs "v" de moisListe, ex: "01", "02"...)
-const [moisDebut, setMoisDebut] = useState("01");
+const [moisDebut, setMoisDebut] = useState("Janvier");
 const [moisFin, setMoisFin] = useState(filters.mois || "12"); 
 
 // 2. État pour l'onglet actif ('annuel' ou 'periode')
-const [totalTab, setTotalTab] = useState('periode');
-
+const [totalTab, setTotalTab] = useState('annuel');
 // 3. Calcul automatique basé sur ton tableau recapAnnuelStats
 const donneesPeriodeDirecte = useMemo(() => {
   // On trouve le libellé complet (ex: "Janvier") pour matcher avec m.nom dans recapAnnuelStats
