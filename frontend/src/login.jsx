@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -2626,6 +2626,223 @@ const ProrataCalc = () => {
 
 
 
+const CalendarSection = React.memo(({ toutesLesTransactions, comptesDuProfil, filters, moisListe }) => {
+  // Le useMemo ne s'exécutera désormais QUE si le calendrier est monté à l'écran !
+  const { semestre1, semestre2 } = React.useMemo(() => {
+    const anneeCible = parseInt(filters.annee) || 2026;
+    const anneeCibleStr = String(anneeCible);
+    
+    const nomsComptesProfilSet = new Set(
+      (comptesDuProfil || []).map(c => c.compte?.trim().toUpperCase())
+    );
+    const filtrerParProfil = filters.profil !== 'Tous';
+
+    const moisMap = {};
+    if (Array.isArray(moisListe)) {
+      moisListe.forEach((m, idx) => {
+        if (m?.v) moisMap[m.v.toLowerCase().trim()] = String(idx + 1).padStart(2, '0');
+      });
+    }
+
+    const depensesParJour = {};
+    const transactions = toutesLesTransactions || [];
+    
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      const montant = parseFloat(t.montant) || 0;
+      if (montant >= 0) continue;
+
+      const cat = t.categorie || "";
+      const lib = t.nom || "";
+      if (cat.includes('vers') || cat.includes('transfert') || lib.includes('🔄')) continue;
+
+      if (filtrerParProfil) {
+        const nomCompteTransac = (t.compte || "").trim().toUpperCase();
+        if (!nomsComptesProfilSet.has(nomCompteTransac)) continue;
+      }
+
+      let isoString = "";
+      if (t.date && t.date.length >= 10) {
+        const anneeTStr = t.date.substring(0, 4);
+        if (anneeTStr !== anneeCibleStr) continue;
+        isoString = t.date.substring(0, 10);
+      } else {
+        const anneeEffective = parseInt(t.année || t.annee || 0);
+        if (anneeEffective !== anneeCible) continue;
+        
+        const tMois = String(t.mois || "").toLowerCase().trim();
+        const mm = moisMap[tMois] || "01";
+        isoString = `${anneeCibleStr}-${mm}-${String(t.jour || 1).padStart(2, '0')}`;
+      }
+
+      depensesParJour[isoString] = (depensesParJour[isoString] || 0) + Math.abs(montant);
+    }
+
+    const s1 = { jours: [], moisLabels: [] };
+    const s2 = { jours: [], moisLabels: [] };
+    let dernierMoisIdS1 = -1;
+    let dernierMoisIdS2 = -1;
+    
+    const dateDebut = new Date(anneeCible, 0, 1);
+    const dateFin = new Date(anneeCible, 11, 31);
+
+    for (let d = new Date(dateDebut); d <= dateFin; d.setDate(d.getDate() + 1)) {
+      const moisActuel = d.getMonth();
+      const j = String(d.getDate()).padStart(2, '0');
+      const m = String(moisActuel + 1).padStart(2, '0');
+      const isoStr = `${anneeCibleStr}-${m}-${j}`;
+      const montant = depensesParJour[isoStr] || 0;
+
+      let niveauIntensite = 0;
+      if (montant > 0) {
+        if (montant <= 15) niveauIntensite = 1;
+        else if (montant <= 40) niveauIntensite = 2;
+        else if (montant <= 100) niveauIntensite = 3;
+        else niveauIntensite = 4;
+      }
+
+      const jourObj = {
+        dateStr: isoStr,
+        affichage: `${d.getDate()} ${d.toLocaleDateString('fr-FR', { month: 'short' })}`,
+        montant,
+        niveauIntensite
+      };
+
+      if (moisActuel < 6) {
+        if (moisActuel !== dernierMoisIdS1) {
+          s1.moisLabels.push({ nom: d.toLocaleDateString('fr-FR', { month: 'short' }), colIndex: Math.floor(s1.jours.length / 7) });
+          dernierMoisIdS1 = moisActuel;
+        }
+        s1.jours.push(jourObj);
+      } else {
+        if (moisActuel !== dernierMoisIdS2) {
+          s2.moisLabels.push({ nom: d.toLocaleDateString('fr-FR', { month: 'short' }), colIndex: Math.floor(s2.jours.length / 7) });
+          dernierMoisIdS2 = moisActuel;
+        }
+        s2.jours.push(jourObj);
+      }
+    }
+
+    return { semestre1: s1, semestre2: s2 };
+  }, [toutesLesTransactions, comptesDuProfil, filters.annee, filters.profil, moisListe]);
+
+  return (
+    <div className="flex-1 flex flex-col justify-start h-full w-full p-4 animate-in fade-in zoom-in-98 duration-300 overflow-y-auto custom-scrollbar">
+      <p className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-widest mb-6 self-start">
+        Intensité des dépenses quotidiennes (Par semestre)
+      </p>
+      
+      <div className="w-full overflow-x-auto custom-scrollbar space-y-12 pb-4">
+        {/* SEMESTRE 1 */}
+        <div className="min-w-max p-1 flex flex-col">
+          <div className="flex gap-1.5 justify-between w-full">
+            {Array.from({ length: Math.ceil(semestre1.jours.length / 7) }).map((_, colIdx) => {
+              const joursDeLaSemaine = semestre1.jours.slice(colIdx * 7, colIdx * 7 + 7);
+              const moisLabel = semestre1.moisLabels.find(m => m.colIndex === colIdx);
+              return (
+                <div key={colIdx} className="flex flex-col gap-1.5 relative pt-5 w-3.5 flex-shrink-0">
+                  {moisLabel && (
+                    <span className="text-[9px] font-black uppercase text-[var(--text-main)]/40 tracking-wider absolute top-0 left-0 whitespace-nowrap pointer-events-none z-10">
+                      {moisLabel.nom.replace('.', '')}
+                    </span>
+                  )}
+                  {joursDeLaSemaine.map((jour, index) => (
+                    <GridTile key={jour.dateStr} jour={jour} index={colIdx * 7 + index} totalJours={semestre1.jours.length} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* SEMESTRE 2 */}
+        <div className="min-w-max p-1 flex flex-col">
+          <div className="flex gap-1.5 justify-between w-full">
+            {Array.from({ length: Math.ceil(semestre2.jours.length / 7) }).map((_, colIdx) => {
+              const joursDeLaSemaine = semestre2.jours.slice(colIdx * 7, colIdx * 7 + 7);
+              const moisLabel = semestre2.moisLabels.find(m => m.colIndex === colIdx);
+              return (
+                <div key={colIdx} className="flex flex-col gap-1.5 relative pt-5 w-3.5 flex-shrink-0">
+                  {moisLabel && (
+                    <span className="text-[9px] font-black uppercase text-[var(--text-main)]/40 tracking-wider absolute top-0 left-0 whitespace-nowrap pointer-events-none z-10">
+                      {moisLabel.nom.replace('.', '')}
+                    </span>
+                  )}
+                  {joursDeLaSemaine.map((jour, index) => (
+                    <GridTile key={jour.dateStr} jour={jour} index={colIdx * 7 + index} totalJours={semestre2.jours.length} />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* LÉGENDE */}
+      <div className="flex items-center gap-1.5 mt-auto pt-4 self-end text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-wider">
+        <span>Moins</span>
+        <div className="w-2 h-2 rounded-sm bg-white/[0.03] border border-white/5" />
+        <div className="w-2 h-2 rounded-sm bg-rose-950/40 border border-rose-900/20" />
+        <div className="w-2 h-2 rounded-sm bg-rose-800/50 border border-rose-700/30" />
+        <div className="w-2 h-2 rounded-sm bg-rose-600/70 border border-rose-500/40" />
+        <div className="w-2 h-2 rounded-sm bg-rose-500 border border-rose-400" />
+        <span>Plus</span>
+      </div>
+    </div>
+  );
+});
+
+CalendarSection.displayName = 'CalendarSection';
+
+
+const GridTile = React.memo(({ jour, index, totalJours }) => {
+  const couleursIntensite = [
+    'bg-white/[0.03] border-white/5', 
+    'bg-rose-950/40 border-rose-900/20 text-rose-300', 
+    'bg-rose-800/50 border-rose-700/30 text-rose-200', 
+    'bg-rose-600/70 border-rose-500/40 text-rose-100', 
+    'bg-rose-500 border-rose-400 text-white font-bold' 
+  ];
+
+  const estAuDebut = index < 14; 
+  const estALaFin = index >= (totalJours - 14); 
+
+  let classeXTooltip = "left-1/2 -translate-x-1/2"; 
+  let classeXFleche = "left-1/2 -translate-x-1/2";
+  
+  if (estAuDebut) {
+    classeXTooltip = "left-0 translate-x-0";
+    classeXFleche = "left-1.5 translate-x-0";
+  } else if (estALaFin) {
+    classeXTooltip = "right-0 translate-x-0 left-auto";
+    classeXFleche = "right-1.5 translate-x-0 left-auto";
+  }
+
+  const indexJourSemaine = index % 7;
+  const estEnBas = indexJourSemaine >= 4; 
+
+  const classeYTooltip = estEnBas ? "bottom-full mb-2 flex-col-reverse" : "top-full mt-2 flex-col";
+  const classeYFleche = estEnBas ? "border-r border-b -mb-1" : "border-l border-t -mt-1";
+
+  return (
+    <div
+      className={`w-3.5 h-3.5 rounded-sm border transition-all duration-150 relative group/tile ${couleursIntensite[jour.niveauIntensite]}`}
+    >
+      <div className={`absolute hidden group-hover/tile:flex items-center pointer-events-none z-50 animate-in fade-in duration-150 ${classeYTooltip} ${classeXTooltip}`}>
+        <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-md min-w-[130px] isolate">
+          <p className="text-[8px] font-black text-white/40 uppercase tracking-wider">{jour.affichage}</p>
+          <p className="text-xs font-black tracking-tight text-rose-400 mt-0.5 whitespace-nowrap">
+            {jour.montant > 0 ? `${jour.montant.toLocaleString('fr-FR')} €` : '0,00 €'}
+          </p>
+        </div>
+        <div className={`w-1.5 h-1.5 bg-neutral-900 border-white/10 rotate-45 z-50 ${classeYFleche} ${classeXFleche}`} />
+      </div>
+    </div>
+  );
+});
+
+// 3. N'oublie pas de lui donner son displayName pour les outils de dev si nécessaire
+GridTile.displayName = 'GridTile';
 
 
 
@@ -6491,7 +6708,7 @@ if (!user) {
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[500px] lg:h-full min-h-0">
                   <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-[var(--glass-blur)]">
                     
-                    {/* EN-TÊTE FIXE */}
+                {/* EN-TÊTE FIXE */}
                     <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
                       <div className="flex flex-col">
                         <div className="flex items-baseline gap-3">
@@ -6507,7 +6724,7 @@ if (!user) {
                         <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
                       </div>
 
-                      {/* SELECTEUR DE TABS */}
+                      {/* SÉLECTEUR DE TABS MIS À JOUR */}
                       <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
                         <button 
                           onClick={() => setAnnualTab('list')}
@@ -6525,12 +6742,22 @@ if (!user) {
                         >
                           <PieChartIcon size={14} />
                         </button>
+                        {/* NOUVEAU TAB : CALENDRIER ACTIVITY HEATMAP */}
+                        <button 
+                          onClick={() => setAnnualTab('calendar')}
+                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                            annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+                          }`}
+                          title="Activité des dépenses"
+                        >
+                          <CalendarDays size={14} />
+                        </button>
                       </div>
                     </div>
 
                     {/* CONTENU DYNAMIQUE */}
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
-                      {annualTab === 'list' ? (
+                      {annualTab === 'list' && (
                         <div className="flex flex-col h-full">
                           {/* EN-TÊTE DISCRET */}
                           <div className="grid grid-cols-5 px-6 mb-2 shrink-0">
@@ -6548,73 +6775,56 @@ if (!user) {
                                 key={i} 
                                 className="grid grid-cols-5 items-center px-4 py-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-all duration-200 group"
                               >
-                                {/* MOIS */}
                                 <div className="flex flex-col">
                                   <span className="text-[10px] font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors">
                                     {m.nom}
                                   </span>
                                 </div>
 
-                                {/* REVENUS (Text Grand) */}
-                                <div 
-                                  className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap"
-                                  style={{ color: `${userTheme.color_revenus}e6` }}
-                                >
-                                  {m.revenus !== null && m.revenus > 0 
-                                    ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` 
-                                    : '—'}
+                                <div className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap" style={{ color: `${userTheme.color_revenus}e6` }}>
+                                  {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : '—'}
                                 </div>
 
-                                {/* DÉPENSES (Text Grand) */}
-                                <div 
-                                  className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap"
-                                  style={{ color: `${userTheme.color_depenses}e6` }}
-                                >
-                                  {m.depenses > 0 
-                                    ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
-                                    : <span className="text-[var(--text-main)]/5">—</span>}
+                                <div className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap" style={{ color: `${userTheme.color_depenses}e6` }}>
+                                  {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/5">—</span>}
                                 </div>
 
-                                {/* ÉPARGNE */}
                                 <div>
-                                  <span 
-                                    className="inline-block px-1.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black whitespace-nowrap"
-                                    style={{ 
-                                      backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`,
-                                      color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses 
-                                    }}
-                                  >
-                                    {m.epargne !== null 
-                                      ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
-                                      : '—'}
+                                  <span className="inline-block px-1.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black whitespace-nowrap" style={{ backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses }}>
+                                    {m.epargne !== null ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                 </div>
 
-                                {/* SOLDE TOTAL (Le plus grand) */}
                                 <div className="text-right col-span-1">
-                                  <div 
-                                    className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tighter leading-none whitespace-nowrap"
-                                    style={{ color: userTheme.color_patrimoine }}
-                                  >
-                                    {m.soldeTotal !== null 
-                                      ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
-                                      : <span className="text-[var(--text-main)]/10">—</span>}
+                                  <div className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tighter leading-none whitespace-nowrap" style={{ color: userTheme.color_patrimoine }}>
+                                    {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
                                   </div>
                                 </div>
                               </div>
                             ))}
                           </div>
                         </div>
-                      ) : (
-                        /* VUE GRAPHIQUE */
+                      )}
+
+                      {annualTab === 'chart' && (
                         <div className="h-full w-full animate-in fade-in duration-500">
-                         <AnnualCategoriesChart 
+                          <AnnualCategoriesChart 
                             data={statsAnnuellesCategories} 
                             userTheme={userTheme} 
                             currentYear={filters.annee} 
                           />
                         </div>
                       )}
+
+                      {/* NOVEL ONGLET : HEATMAP DE L'ANNÉE */}
+                {annualTab === 'calendar' && (
+                  <CalendarSection 
+                    toutesLesTransactions={toutesLesTransactions}
+                    comptesDuProfil={comptesDuProfil}
+                    filters={filters}
+                    moisListe={moisListe}
+                  />
+                )}
                     </div>
                   </div>
 
