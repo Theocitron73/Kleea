@@ -2848,6 +2848,381 @@ GridTile.displayName = 'GridTile';
 
 
 
+const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProfil, filters, moisListe }) => {
+  const stats = useMemo(() => {
+    const aujourdhui = new Date();
+    const anneeCible = parseInt(filters.annee) || 2026;
+    const nomsComptesProfilSet = new Set(
+      (comptesDuProfil || []).map(c => c.compte?.trim().toUpperCase())
+    );
+    const filtrerParProfil = filters.profil !== 'Tous';
+
+    // 1. Initialisation des compteurs globaux
+    let totalDepense = 0;
+    let totalRevenus = 0;
+    let nombreTotalTransactions = 0;
+    let nbVirementsPositifs = 0; // Nouvelle stat !
+    let plusGrosseDepense = { montant: 0, nom: "Aucune", date: "" };
+    let nbPetitesDepenses = 0; 
+    let depensesWeekend = 0;
+    let depensesSemaine = 0;
+
+    // 2. Maps de cumuls
+    const categoriesMap = {};
+    const joursSemaineMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+    const moisMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 };
+    const dailySpendingMap = {}; 
+    const saisonsMap = { Hiver: 0, Printemps: 0, Été: 0, Automne: 0 };
+
+    const transactions = toutesLesTransactions || [];
+
+    for (let i = 0; i < transactions.length; i++) {
+      const t = transactions[i];
+      
+      // Extraction et validation de la date
+      let dateObj = null;
+      let anneeT = 0;
+      let moisIndex = 0;
+      let dateString = "";
+
+      if (t.date) {
+        dateObj = new Date(t.date);
+        anneeT = dateObj.getFullYear();
+        moisIndex = dateObj.getMonth();
+        dateString = t.date.substring(0, 10);
+      } else {
+        anneeT = parseInt(t.année || t.annee || 0);
+        moisIndex = parseInt(t.mois || 1) - 1;
+        dateString = `Inconnu-${moisIndex}`;
+      }
+      
+      if (anneeT !== anneeCible) continue;
+
+      // Filtrage Profil
+      if (filtrerParProfil) {
+        const nomCompteTransac = (t.compte || "").trim().toUpperCase();
+        if (!nomsComptesProfilSet.has(nomCompteTransac)) continue;
+      }
+
+      const montant = parseFloat(t.montant) || 0;
+      const cat = (t.categorie || "").toLowerCase().trim();
+      const lib = (t.nom || "").trim();
+      const libLower = lib.toLowerCase();
+
+      // Gestion des revenus (Virements positifs reçus)
+      if (montant > 0 && !cat.includes('vers') && !cat.includes('transfert') && !libLower.includes('🔄')) {
+        totalRevenus += montant;
+        nbVirementsPositifs++; // On compte un virement positif de plus
+        continue;
+      }
+
+      // Exclusion des virements internes et des valeurs positives pour les dépenses
+      if (montant >= 0 || cat.includes('vers') || cat.includes('transfert') || libLower.includes('🔄')) continue;
+
+      const montantAbs = Math.abs(montant);
+      totalDepense += montantAbs;
+      nombreTotalTransactions++;
+
+      // Stat : Micro-dépenses
+      if (montantAbs < 10) nbPetitesDepenses++;
+
+      // Stat : Record unique
+      if (montantAbs > plusGrosseDepense.montant) {
+        plusGrosseDepense = {
+          montant: montantAbs,
+          nom: lib,
+          date: dateObj && !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : `Mois ${moisIndex + 1}`
+        };
+      }
+
+      // Stat : Cumul Catégories & Mois
+      if (cat) categoriesMap[cat] = (categoriesMap[cat] || 0) + montantAbs;
+      moisMap[moisIndex] = (moisMap[moisIndex] || 0) + montantAbs;
+
+      // Stat : Pire journée exacte
+      dailySpendingMap[dateString] = (dailySpendingMap[dateString] || 0) + montantAbs;
+
+      // Stat : Saisonnalité
+      if (moisIndex === 11 || moisIndex === 0 || moisIndex === 1) saisonsMap["Hiver"] += montantAbs;
+      else if (moisIndex >= 2 && moisIndex <= 4) saisonsMap["Printemps"] += montantAbs;
+      else if (moisIndex >= 5 && moisIndex <= 7) saisonsMap["Été"] += montantAbs;
+      else if (moisIndex >= 8 && moisIndex <= 10) saisonsMap["Automne"] += montantAbs;
+
+      // Stat : Jours de la semaine
+      if (dateObj && !isNaN(dateObj.getTime())) {
+        const jourIndex = dateObj.getDay();
+        joursSemaineMap[jourIndex] = (joursSemaineMap[jourIndex] || 0) + montantAbs;
+        if (jourIndex === 0 || jourIndex === 6) {
+          depensesWeekend += montantAbs;
+        } else {
+          depensesSemaine += montantAbs;
+        }
+      }
+    }
+
+    // --- Traitement et tri des résultats ---
+    const topCategories = Object.entries(categoriesMap).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([nom, m]) => ({ nom, montant: m }));
+    if (topCategories.length === 0) topCategories.push({ nom: "Aucune", montant: 0 });
+    
+    const joursNoms = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const topJourSemaine = Object.entries(joursSemaineMap).sort((a, b) => b[1] - a[1])[0] || [1, 0];
+
+    const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+    const triMois = Object.entries(moisMap).sort((a, b) => b[1] - a[1]);
+    const topMoisMax = triMois[0] || [0, 0];
+    const topMoisMin = triMois[triMois.length - 1] || [0, 0];
+
+    const pireJourDate = Object.entries(dailySpendingMap).sort((a, b) => b[1] - a[1])[0] || ["-", 0];
+    let pireJourFormate = pireJourDate[0];
+    if (pireJourFormate !== "-" && !pireJourFormate.includes('Inconnu')) {
+      pireJourFormate = new Date(pireJourFormate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    let totalJoursAnnee = 365;
+    if (anneeCible === aujourdhui.getFullYear()) {
+      const debutAnnee = new Date(anneeCible, 0, 1);
+      totalJoursAnnee = Math.max(1, Math.floor((aujourdhui - debutAnnee) / (1000 * 60 * 60 * 24)));
+    }
+    const joursSansDepense = Math.max(0, totalJoursAnnee - Object.keys(dailySpendingMap).filter(k => !k.includes('Inconnu')).length);
+
+    const topSaison = Object.entries(saisonsMap).sort((a, b) => b[1] - a[1])[0] || ["Aucune", 0];
+    const totalSemaineWeekend = depensesSemaine + depensesWeekend;
+    const pctWeekend = totalSemaineWeekend > 0 ? (depensesWeekend / totalSemaineWeekend) * 100 : 0;
+
+    return {
+      totalDepense,
+      totalRevenus,
+      nbVirementsPositifs,
+      plusGrosseDepense,
+      topCategories,
+      vraiTopJour: joursNoms[topJourSemaine[0]],
+      vraiTopMois: moisNoms[topMoisMax[0]],
+      montantTopMois: topMoisMax[1],
+      moisLePlusSage: moisNoms[topMoisMin[0]],
+      montantMoisSage: topMoisMin[1],
+      nombreTotalTransactions,
+      moyenneTransaction: nombreTotalTransactions > 0 ? totalDepense / nombreTotalTransactions : 0,
+      nbPetitesDepenses,
+      tauxEpargne: totalRevenus > 0 ? Math.max(0, ((totalRevenus - totalDepense) / totalRevenus) * 100) : 0,
+      pireJourDate: pireJourFormate,
+      pireJourMontant: pireJourDate[1],
+      joursSansDepense,
+      topSaison: topSaison[0],
+      pctWeekend
+    };
+  }, [toutesLesTransactions, comptesDuProfil, filters.annee, filters.profil]);
+
+  return (
+    <div className="flex-1 w-full p-6 animate-in fade-in zoom-in-98 duration-300 overflow-y-auto custom-scrollbar space-y-6">
+      
+      {/* En-tête */}
+      <div className="space-y-1">
+        <span className="text-[10px] font-black tracking-widest text-rose-500 uppercase">Rétrospective de l'année</span>
+        <h2 className="text-2xl font-black tracking-tight text-[var(--text-main)]">Votre {filters.annee || 2026} Financial Wrapped</h2>
+      </div>
+
+      {/* Grille : 3 colonnes en 1080p, 4 colonnes en 1440p (2xl) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-3 gap-4">
+        
+        {/* CARTE 1 : Total Dépensé */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Cumul annuel des sorties</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-white">
+              {stats.totalDepense.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+            </p>
+            <p className="text-[10px] font-medium text-white/60">Au total sur la période analysée.</p>
+          </div>
+        </div>
+
+        {/* CARTE 2 : NOUVELLE RENTRÉE - Volume global */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Cumul annuel des entrées 💰</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-emerald-400">
+              + {stats.totalRevenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+            </p>
+            <p className="text-[10px] font-medium text-white/60">Salaires, virements et rentrées d'argent.</p>
+          </div>
+        </div>
+
+        {/* CARTE 3 : NOUVELLE RENTRÉE - Fréquence des virements reçus */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Fréquence des bonnes nouvelles 🔔</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-teal-400">
+              {stats.nbVirementsPositifs} virements reçus
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              Nombre de fois où votre compte a été crédité.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 4 : Le plus gros coup dur unique */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le pic unique de l'année 💸</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-rose-400">
+              - {stats.plusGrosseDepense.montant.toLocaleString('fr-FR')} €
+            </p>
+            <p className="text-xs font-bold text-white/80 truncate capitalize">{stats.plusGrosseDepense.nom.toLowerCase()}</p>
+            <p className="text-[10px] font-medium text-white/40">Le {stats.plusGrosseDepense.date}</p>
+          </div>
+        </div>
+
+        {/* CARTE 5 : Le pire jour de l'année (Cumulé) */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le jour noir du compte 🖤</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-lg font-black tracking-tight text-red-500 truncate">
+              {stats.pireJourMontant.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € en 24h
+            </p>
+            <p className="text-xs font-bold text-white/70 truncate">{stats.pireJourDate}</p>
+            <p className="text-[10px] font-medium text-white/40">Toutes transactions cumulées.</p>
+          </div>
+        </div>
+
+        {/* CARTE 6 : Top 3 des Catégories */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Top 3 Catégories</p>
+          <div className="mt-3 space-y-1.5">
+            {stats.topCategories.map((cat, index) => (
+              <div key={index} className="flex items-center justify-between gap-2 border-b border-white/[0.02] last:border-0 pb-1 last:pb-0">
+                <span className="text-xs font-bold text-white/90 uppercase tracking-wide truncate">
+                  {index + 1}. {cat.nom}
+                </span>
+                <span className="text-xs font-mono font-bold text-white/40">
+                  {cat.montant.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CARTE 7 : Le mois le plus cher */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le mois rouge 📈</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-red-400">
+              {stats.vraiTopMois}
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              Un sommet de <span className="font-bold text-white">{stats.montantTopMois.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</span>.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 8 : Le mois le plus sage */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">L'Oasis Financière 🏝️</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-emerald-400">
+              {stats.moisLePlusSage}
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              Calme avec seulement <span className="font-bold text-white">{stats.montantMoisSage.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</span>.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 9 : Jour de faiblesse hebdomadaire */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Faiblesse hebdomadaire</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-amber-400">
+              Chaque {stats.vraiTopJour}
+            </p>
+            <p className="text-[10px] font-medium text-white/60">Le jour de la semaine le plus chargé.</p>
+          </div>
+        </div>
+
+        {/* CARTE 10 : Style de vie (Semaine vs Weekend) */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Profil : Weekend vs Semaine</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-indigo-400">
+              {stats.pctWeekend.toFixed(0)} %
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              De vos budgets s'envolent le weekend.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 11 : Saison Dorée */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Votre Saison "Flambeur" ☀️</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-fuchsia-400">
+            {stats.topSaison.toLowerCase()}
+            </p>
+            <p className="text-[10px] font-medium text-white/60">La saison où le budget est le plus lâche.</p>
+          </div>
+        </div>
+
+        {/* CARTE 12 : Jours No-Spend (Discipline) */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl relative overflow-hidden">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Jours de pure discipline 🧘‍♂️</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-teal-400">
+              {stats.joursSansDepense} Jours
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              À 0,00 € de dépenses carte.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 13 : Panier Moyen */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le coût d'un bip de carte</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-cyan-400">
+              {stats.moyenneTransaction.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} €
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              Coût moyen sur {stats.nombreTotalTransactions} transactions.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 14 : Micro-dépenses */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">L'impact des petits riens</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-lime-400">
+              {stats.nbPetitesDepenses} fois
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              Achat inférieur à 10 €.
+            </p>
+          </div>
+        </div>
+
+        {/* CARTE 15 : Taux d'Épargne */}
+        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Ce qu'il reste dans le réservoir</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-violet-400">
+              {stats.tauxEpargne.toFixed(1)} %
+            </p>
+            <p className="text-[10px] font-medium text-white/60">
+              De vos entrées annuelles préservées.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+});
+
+WrappedSection.displayName = 'WrappedSection';
+
+
+
+
 
 function FinanceApp() {
 
@@ -5838,17 +6213,17 @@ const confirmerCalculAssistant = async () => {
 // État pour afficher ou masquer le popup flash
 const [showPatchModal, setShowPatchModal] = useState(false);
 
-// Version du patch actuel (incrémente-la à chaque grosse mise à jour !)
-const CURRENT_VERSION = "3.3"; 
+// Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
+const CURRENT_VERSION = "3.4"; 
 
 useEffect(() => {
   if (!user) return;
-  //localStorage.removeItem(`patch_tests_count_${user}`);
 
-  // 🧪 MODE TEST : On récupère le nombre de fois où le patch a été affiché
-  const viewCount = parseInt(localStorage.getItem(`patch_tests_count_${user}`)) || 0;
+  // En incluant CURRENT_VERSION dans la clé, on crée un compteur unique par mise à jour
+  const patchKey = `patch_view_count_v${CURRENT_VERSION}_${user}`;
+  const viewCount = parseInt(localStorage.getItem(patchKey)) || 0;
 
-  // On l'affiche tant qu'on a pas atteint la limite (ex: 3 fois)
+  // On l'affiche tant qu'on n'a pas atteint la limite (ici, 2 fois)
   if (viewCount < 2) {
     const timer = setTimeout(() => {
       setShowPatchModal(true);
@@ -5856,14 +6231,15 @@ useEffect(() => {
 
     return () => clearTimeout(timer);
   }
-}, [user]);
+}, [user, CURRENT_VERSION]); // Ajout de CURRENT_VERSION dans les dépendances par sécurité
 
 const handleClosePatchModal = () => {
   setShowPatchModal(false);
 
-  // 🧪 MODE TEST : On incrémente le compteur à chaque fermeture
-  const currentCount = parseInt(localStorage.getItem(`patch_tests_count_${user}`)) || 0;
-  localStorage.setItem(`patch_tests_count_${user}`, currentCount + 1);
+  // On incrémente sur la clé qui contient la version actuelle
+  const patchKey = `patch_view_count_v${CURRENT_VERSION}_${user}`;
+  const currentCount = parseInt(localStorage.getItem(patchKey)) || 0;
+  localStorage.setItem(patchKey, currentCount + 1);
 };
 
 
@@ -6229,7 +6605,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.3</span>
+        Kleea <span className="text-[var(--primary)]">v.3.4</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -6734,6 +7110,7 @@ if (!user) {
                         >
                           <List size={14} />
                         </button>
+                        
                         <button 
                           onClick={() => setAnnualTab('chart')}
                           className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
@@ -6742,6 +7119,7 @@ if (!user) {
                         >
                           <PieChartIcon size={14} />
                         </button>
+
                         {/* NOUVEAU TAB : CALENDRIER ACTIVITY HEATMAP */}
                         <button 
                           onClick={() => setAnnualTab('calendar')}
@@ -6751,6 +7129,17 @@ if (!user) {
                           title="Activité des dépenses"
                         >
                           <CalendarDays size={14} />
+                        </button>
+
+                        {/* ONGLET AJOUTÉ : RÉTROSPECTIVE / WRAPPED */}
+                        <button 
+                          onClick={() => setAnnualTab('wrapped')}
+                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                            annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+                          }`}
+                          title="Rétrospective annuelle (Wrapped)"
+                        >
+                          <Sparkles size={14} />
                         </button>
                       </div>
                     </div>
@@ -6819,6 +7208,15 @@ if (!user) {
                       {/* NOVEL ONGLET : HEATMAP DE L'ANNÉE */}
                 {annualTab === 'calendar' && (
                   <CalendarSection 
+                    toutesLesTransactions={toutesLesTransactions}
+                    comptesDuProfil={comptesDuProfil}
+                    filters={filters}
+                    moisListe={moisListe}
+                  />
+                )}
+
+                {annualTab === 'wrapped' && (
+                  <WrappedSection 
                     toutesLesTransactions={toutesLesTransactions}
                     comptesDuProfil={comptesDuProfil}
                     filters={filters}
@@ -11140,16 +11538,16 @@ if (!user) {
     <div className="w-full max-w-xl bg-slate-900/90 border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden transform transition-all scale-100">
       
       {/* Effets de lumière néon en tâche de fond */}
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-cyan-500/10 blur-2xl rounded-full" />
-      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-emerald-500/10 blur-2xl rounded-full" />
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-rose-500/10 blur-2xl rounded-full" />
+      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-cyan-500/10 blur-2xl rounded-full" />
 
       {/* En-tête */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(6,182,212,0.15)]">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.15)]">
           <span className="text-xl">🚀</span>
         </div>
         <div>
-          <span className="text-[8px] font-black text-cyan-400 uppercase tracking-[0.2em] bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+          <span className="text-[8px] font-black text-rose-400 uppercase tracking-[0.2em] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
             Mise à jour v{CURRENT_VERSION}
           </span>
           <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-wider mt-1">
@@ -11161,107 +11559,28 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* 💡 NOUVEAUTÉ 1 : ENVELOPPES BUDGÉTAIRES ET SYSTÈME REFAIT */}
-        <div className="p-3 bg-violet-500/5 border border-violet-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(139,92,246,0.03)]">
-          <span className="text-base mt-0.5">📦</span>
+        {/* 💡 NOUVEAUTÉ 1 : FINANCIAL WRAPPED */}
+        <div className="p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(244,63,94,0.03)]">
+          <span className="text-base mt-0.5">🎸</span>
           <div>
-            <h4 className="text-[15px] font-black text-violet-400 uppercase tracking-wide">
-              Gestion Discrète des Enveloppes
+            <h4 className="text-[15px] font-black text-rose-400 uppercase tracking-wide">
+              Financial Wrapped Annuel
             </h4>
             <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Associe tes transactions à tes projets en un éclair ! Clique sur le bouton discret <strong className="text-violet-400">3 points (···)</strong> en bout de ligne pour dérouler le sélecteur d'enveloppe. 
-              Le module <strong className="text-violet-400">Répartition</strong> calcule automatiquement le solde réel restant de tes enveloppes en déduisant tes dépenses au centime près.
+              Découvre la rétrospective complète de ton année ! Un tableau de bord à <strong className="text-rose-400">15 cartes statistiques interactives</strong> pour analyser ton comportement financier : cumul annuel des entrées/sorties, taux d'épargne précis, jours de pure discipline (no-spend) et tes records de dépenses.
             </p>
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 2 : TAUX D'INTÉRÊT SUR LES COMPTES */}
-        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">📈</span>
-          <div>
-            <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
-              Simulateur d'Intérêts Annuels
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Renseigne directement le **taux d'intérêt** de tes livrets (Livret A, LEP, etc.) pour voir s'afficher en temps réel sur tes cartes une estimation de ce qu'ils vont te rapporter d'ici la **fin de l'année**.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION : ACCÈS */}
-        <div className="p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">🔐</span>
-          <div>
-            <h4 className="text-[15px] font-black text-blue-400 uppercase tracking-wide">
-              Connexion simplifiée
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Plus besoin de chercher ton identifiant : tu peux désormais te connecter directement en utilisant ton **adresse email**.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION : IMPORTATION (DOUBLONS CSV) */}
-        <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">📥</span>
-          <div>
-            <h4 className="text-[15px] font-black text-amber-400 uppercase tracking-wide">
-              Nettoyage automatique des CSV
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              La page d'importation traque désormais les doublons **à l'intérieur** de tes fichiers CSV pour les supprimer automatiquement avant traitement.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION : IMPORTATION (DOUBLONS BDD) */}
-        <div className="p-3 bg-orange-500/5 border border-orange-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">🛡️</span>
-          <div>
-            <h4 className="text-[15px] font-black text-orange-400 uppercase tracking-wide">
-              Protection anti-doublons
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              À l'import, si une transaction possède déjà **la même date, le même nom et le même montant** en base de données, elle sera ignorée en toute sécurité.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION : PRÉVISIONS (DUPLICATION) */}
-        <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">📋</span>
-          <div>
-            <h4 className="text-[15px] font-black text-purple-400 uppercase tracking-wide">
-              Copier/Coller de masse
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Gagne du temps sur ta saisie ! Une nouvelle option te permet de **copier et coller tes prévisions d'un mois sur les mois suivants** en un clic.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION : PRÉVISIONS (JAUGE) */}
-        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">🔮</span>
-          <div>
-            <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
-              Jauge d'Épargne Prévisionnelle
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Ajout d'un nouvel indicateur visuel en bas du budget prévisionnel pour suivre en direct ton pourcentage d'objectif d'épargne annuel projeté.
-            </p>
-          </div>
-        </div>
-
-        {/* SECTION : MASQUAGE DES PRÉVISIONS */}
-        <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">👁️‍🗨️</span>
+        {/* 💡 NOUVEAUTÉ 2 : CALENDRIER DES DÉPENSES */}
+        <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
+          <span className="text-base mt-0.5">📅</span>
           <div>
             <h4 className="text-[15px] font-black text-cyan-400 uppercase tracking-wide">
-              Masquage à la carte
+              Calendrier des Dépenses
             </h4>
             <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Besoin d'alléger ta vue ? Tu peux désormais **masquer tes lignes de prévisions individuellement** pour ne garder sous les yeux que l'essentiel de ton budget.
+              Visualise l'évolution et l'intensité de ton budget au jour le jour. Le nouveau module calendrier te permet de repérer en un clin d'œil tes pics de dépenses et de suivre tes habitudes de manière ultra-visuelle tout au long des mois.
             </p>
           </div>
         </div>
@@ -11271,9 +11590,9 @@ if (!user) {
       {/* Bouton de fermeture */}
       <button
         onClick={handleClosePatchModal}
-        className="w-full py-2.5 bg-gradient-to-r from-cyan-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-cyan-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
+        className="w-full py-2.5 bg-gradient-to-r from-rose-600 to-cyan-600 hover:from-rose-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-rose-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
       >
-        C'est parti !
+        Découvrir les nouveautés !
       </button>
 
     </div>
