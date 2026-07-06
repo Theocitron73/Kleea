@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -2411,38 +2411,35 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
               </BarChart>
             </ResponsiveContainer>
           </div>
+            {/* PARTIE LÉGENDE (Droite) */}
+            <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
+              <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
+                Analyse Légende
+              </p>
+              <div className="flex flex-col gap-2">
+                {statsCategories.map((item, i) => {
+                  const isHidden = hiddenCategories.includes(item.name);
 
-          {/* PARTIE LÉGENDE (Droite) */}
-          <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
-            <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
-              Analyse Légende
-            </p>
-            <div className="flex flex-col gap-2">
-              {statsCategories.map((item, i) => {
-                const isHidden = hiddenCategories.includes(item.name);
-                const hasEvolution = item.evolution !== undefined && item.evolution !== 0;
+                  return (
+                    <button 
+                      key={i} 
+                      onClick={() => toggleCategory(item.name)} 
+                      className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
+                        isHidden 
+                          ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
+                          : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        {/* Puce dynamique */}
+                        <div 
+                          className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
+                          style={{ 
+                            backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
+                            boxShadow: isHidden ? 'none' : `0 0 10px ${depensesColor}66`
+                          }} 
+                        />
 
-                return (
-                  <button 
-                    key={i} 
-                    onClick={() => toggleCategory(item.name)} 
-                    className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
-                      isHidden 
-                        ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
-                        : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      {/* Puce dynamique */}
-                      <div 
-                        className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
-                        style={{ 
-                          backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
-                          boxShadow: isHidden ? 'none' : `0 0 10px ${depensesColor}66`
-                        }} 
-                      />
-
-                      {/* Dans ton .map de la légende dans CategoriesView */}
                         <div className="flex flex-col items-start overflow-hidden">
                           <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
                             isHidden ? 'text-white/20' : 'text-white/80 group-hover:text-white'
@@ -2450,55 +2447,31 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                             {item.name}
                           </span>
                           
-                          {/* On affiche le badge seulement si l'évolution n'est pas null et n'est pas 0 */}
-                          {/* Dans CategoriesView, au niveau du badge d'évolution */}
-                            {!isHidden && item.evolution !== null && item.evolution !== 0 && (
-                              <div className={`flex items-center gap-1 text-[10px] font-bold mt-0.5 ${
-                                item.evolution > 0 ? 'text-rose-400' : 'text-emerald-400'
-                              }`}>
-                                {item.evolution > 0 ? <TrendingUp size={8}/> : <TrendingDown size={8}/>}
-                                
-                                {/* Pourcentage */}
-                                <span>{Math.abs(item.evolution)}%</span>
-                                
-                                {/* Séparateur discret */}
-                                <span className="opacity-20 mx-0.5">|</span>
-                                
-                                {/* Valeur en € */}
-                                <span>
-                                  {item.diffEuro > 0 ? '+' : ''}
-                                  {Math.round(item.diffEuro)}€
-                                </span>
-
-                                <span className="opacity-40 font-medium ml-0.5 italic">vs M-1</span>
-                              </div>
-                            )}
-
-                          {/* Optionnel : Un indicateur très discret si c'est nouveau, sans chiffre */}
+                          {/* On garde seulement l'indicateur "Nouveau" car c'est une info de statut utile */}
                           {!isHidden && item.isNew && (
                             <span className="text-[7px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
                               Nouveau ce mois
                             </span>
                           )}
                         </div>
-                    </div>
-
-                    <div className="shrink-0 ml-2">
-                      {isHidden ? (
-                        <EyeOff size={11} className="text-white/10 transition-colors" />
-                      ) : (
-                        <Eye 
-                          size={11} 
-                          style={{ color: depensesColor }} 
-                          className="opacity-40 group-hover:opacity-100 transition-all" 
-                        />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                      </div>
+ 
+                      <div className="shrink-0 ml-2">
+                        {isHidden ? (
+                          <EyeOff size={11} className="text-white/10 transition-colors" />
+                        ) : (
+                          <Eye 
+                            size={11} 
+                            style={{ color: depensesColor }} 
+                            className="opacity-40 group-hover:opacity-100 transition-all" 
+                          />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          </div>
         </>
       ) : (
         <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black">
@@ -3219,6 +3192,245 @@ const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProfil, fil
 });
 
 WrappedSection.displayName = 'WrappedSection';
+
+
+
+
+export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) => {
+  // On tronque le mois à 3 lettres (ex: "janvier" -> "jan.")
+  const shortPrevMonth = prevMonthLabel 
+    ? prevMonthLabel.substring(0, 3).toLowerCase() + '.' 
+    : 'm-1';
+
+  // 1. Tri et filtrage : On garde tout ce qui a du mouvement ou qui est stable, tant que la catégorie est active
+  const Variations = [...statsCategories]
+    .filter(item => item.value > 0) 
+    .sort((a, b) => {
+      const aIsNew = a.evolution === null || a.isNew;
+      const bIsNew = b.evolution === null || b.isNew;
+      if (aIsNew && !bIsNew) return -1;
+      if (!aIsNew && bIsNew) return 1;
+      return (b.evolution || 0) - (a.evolution || 0);
+    });
+
+  if (Variations.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center py-4 px-4 text-center">
+        <div className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-1">
+          <CheckCircle size={10} className="text-emerald-400" />
+        </div>
+        <h4 className="text-[var(--text-main)] font-black text-[8px] uppercase tracking-[0.2em] opacity-40">
+          Stable
+        </h4>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full gap-1">
+      {/* Grille de micro-briques */}
+      <div className="grid grid-cols-4 min-[420px]:grid-cols-2 gap-1.5 overflow-y-auto min-h-0 pr-0.5 custom-scrollbar">
+        {Variations.map((item, i) => {
+          const isNewCategory = item.evolution === null || item.isNew;
+          const isStable = !isNewCategory && item.evolution === 0; // ✅ Détection du montant égal
+          const isAugmentation = item.evolution > 0;
+          const isCritique = !isNewCategory && isAugmentation && (item.evolution >= 20 || item.diffEuro >= 50);
+
+          return (
+            <div 
+              key={i} 
+              className={`relative flex flex-col justify-between p-1.5 rounded-lg border h-11 transition-all ${
+                isNewCategory
+                  ? 'bg-indigo-500/[0.03] border-indigo-500/20 shadow-[0_0_8px_rgba(99,102,241,0.01)]'
+                  : isStable
+                    ? 'bg-white/[0.01] border-white/5 opacity-80' // ✅ Style plus discret si stable
+                    : isCritique 
+                      ? 'bg-rose-500/5 border-rose-500/20 shadow-[0_0_8px_rgba(244,63,94,0.02)]' 
+                      : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
+              }`}
+            >
+              {/* Ligne du haut : Nom de la catégorie (En haut à gauche) + Contexte temporel TOUJOURS en haut à droite */}
+              <div className="flex items-center justify-between w-full leading-none gap-1">
+                <span className="text-[8px] font-bold uppercase tracking-tight text-white/40 truncate flex-1">
+                  {item.name}
+                </span>
+                
+                <span className="text-[7px] font-black tracking-widest uppercase shrink-0 italic text-white/30">
+                  vs {shortPrevMonth}
+                </span>
+              </div>
+
+              {/* Ligne du bas : Flèche/Badge (En bas à gauche) + Montant € (En bas à droite) */}
+              <div className="flex items-end justify-between w-full mt-auto leading-none gap-1">
+                
+                {/* Gauche : Pourcentage OU Badge Stable "Identique" OU Badge Nouveau */}
+                <div className="flex items-center gap-0.5 min-w-0">
+                  {isNewCategory ? (
+                    <div className="flex items-center gap-0.5 text-indigo-400">
+                      <Sparkles size={8} />
+                      <span className="text-[7px] font-black tracking-widest uppercase italic">Nouveau</span>
+                    </div>
+                  ) : isStable ? (
+                    <div className="flex items-center gap-0.5 text-white/40">
+                      <Minus size={8} strokeWidth={3} />
+                      <span className="text-[7px] font-black tracking-widest uppercase italic">Identique</span>
+                    </div>
+                  ) : (
+                    <>
+                      <span className={`shrink-0 ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {isAugmentation ? <ArrowUpRight size={9} strokeWidth={3} /> : <ArrowDownRight size={9} strokeWidth={3} />}
+                      </span>
+                      <span className={`text-[10px] font-black tracking-tighter ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {Math.abs(item.evolution)}%
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                {/* Droite : Valeur brute (ou différentiel) */}
+                <span className={`text-[10px] font-black tracking-tight shrink-0 ${
+                  isNewCategory ? 'text-white' : isStable ? 'text-white/40' : isAugmentation ? 'text-rose-400' : 'text-emerald-400'
+                }`}>
+                  {isNewCategory ? '' : isStable ? '=' : isAugmentation ? '+' : '-'}{Math.abs(Math.round(isNewCategory ? item.value : item.diffEuro))}€
+                </span>
+              </div>
+
+              {/* Points de focus / Alerte */}
+              {isCritique && (
+                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+              )}
+              {isNewCategory && (
+                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-indigo-500" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+
+
+export const FlashInsightsView = ({ statsCategories, transactions = [] }) => {
+  
+  const insights = useMemo(() => {
+    const list = [];
+
+    // --- INSIGHT 1 : Détecteur de pics budgétaires (Dépenses qui bondissent) ---
+    const pireAugmentation = [...statsCategories]
+      .filter(item => item.evolution !== null && item.evolution > 25) // Plus de 25% d'augmentation
+      .sort((a, b) => b.evolution - a.evolution)[0];
+
+    if (pireAugmentation) {
+      list.push({
+        id: 'pic-categorie',
+        type: 'danger',
+        icon: <Flame size={14} className="text-rose-400 animate-pulse" />,
+        text: `Vos dépenses en ${pireAugmentation.name} ont bondi de ${pireAugmentation.evolution}% par rapport au mois dernier (+${Math.round(pireAugmentation.diffEuro)}€).`
+      });
+    }
+
+    // --- INSIGHT 2 : Analyse poussée de l'Alimentation (Global + moins de 30€) ---
+    const transacAlim = transactions.filter(t => {
+      const cat = (t.categorie || "").toLowerCase();
+      return cat.includes("alimentation") || cat.includes("courses");
+    });
+
+    if (transacAlim.length > 0) {
+      const totalAlim = transacAlim.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant)), 0);
+      const alimMoinsDe30 = transacAlim.filter(t => Math.abs(parseFloat(t.montant)) <= 30);
+
+      list.push({
+        id: 'compteur-alimentation',
+        type: 'info',
+        icon: <ShoppingCart size={14} className="text-emerald-400" />,
+        text: `Ce mois-ci, vous avez passé ${transacAlim.length} transactions au rayon Alimentation (${Math.round(totalAlim)}€ au total), dont ${alimMoinsDe30.length} achats de moins de 30€.`
+      });
+    }
+
+    // --- INSIGHT 3 : Détecteur de "Fourmis" (Accumulation globale de micro-dépenses de < 10€) ---
+    const microTransactions = transactions.filter(t => {
+      const montant = parseFloat(t.montant);
+      return montant < 0 && Math.abs(montant) <= 10;
+    });
+
+    if (microTransactions.length >= 8) {
+      const totalMicroMontant = microTransactions.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant)), 0);
+      list.push({
+        id: 'micro-depenses',
+        type: 'warning',
+        icon: <Terminal size={14} className="text-amber-400" />,
+        text: `Attention aux fuites discrètes : vous avez accumulé ${microTransactions.length} micro-dépenses de moins de 10€ ce mois-ci, pour un total de ${Math.round(totalMicroMontant)}€.`
+      });
+    }
+
+    // --- INSIGHT 4 : Analyse de la plus grosse dépense unique ---
+    const depensesPures = transactions.filter(t => parseFloat(t.montant) < 0);
+    if (depensesPures.length > 0) {
+      const plusGrosseDepense = [...depensesPures].sort((a, b) => parseFloat(a.montant) - parseFloat(b.montant))[0];
+      const montantAbs = Math.abs(parseFloat(plusGrosseDepense.montant));
+      
+      if (montantAbs > 150) { // S'il y a un achat majeur de plus de 150€
+        list.push({
+          id: 'gros-achat',
+          type: 'info',
+          icon: <Lightbulb size={14} className="text-indigo-400" />,
+          text: `Le pic de transaction le plus lourd provient de "${plusGrosseDepense.nom}" avec une sortie unique de ${Math.round(montantAbs)}€.`
+        });
+      }
+    }
+
+    return list;
+  }, [statsCategories, transactions]);
+
+  // État si aucun insight n'est levé ce mois-ci
+  if (insights.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center py-8 px-4 text-center">
+        <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-2">
+          <Lightbulb size={14} className="text-emerald-400" />
+        </div>
+        <h4 className="text-[var(--text-main)] font-black text-[9px] uppercase tracking-[0.2em] opacity-40">
+          Rien à signaler
+        </h4>
+        <p className="text-[var(--text-main)]/20 text-[8px] font-bold uppercase tracking-wide mt-1">
+          Vos habitudes de consommation sont parfaitement stables ce mois-ci.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 h-full overflow-y-auto pr-0.5 custom-scrollbar">
+      <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] px-1 mb-1">
+        Détecteur de comportement budgétaire
+      </p>
+
+      {insights.map((insight) => (
+        <div 
+          key={insight.id}
+          className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
+            insight.type === 'danger' ? 'bg-rose-500/[0.03] border-rose-500/10' :
+            insight.type === 'warning' ? 'bg-amber-500/[0.03] border-amber-500/10' :
+            'bg-white/[0.01] border-white/5'
+          }`}
+        >
+          {/* Icône à gauche */}
+          <div className="shrink-0 mt-0.5">
+            {insight.icon}
+          </div>
+
+          {/* Corps du texte */}
+          <p className="text-[10px] font-bold text-white/70 leading-relaxed tracking-wide">
+            {insight.text}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+};
 
 
 
@@ -6214,7 +6426,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "3.4"; 
+const CURRENT_VERSION = "3.5"; 
 
 useEffect(() => {
   if (!user) return;
@@ -6344,6 +6556,43 @@ const donneesAffichees = estPeriode ? donneesPeriodeDirecte : {
   epargne: totauxAnnuels.epargne,
   tauxEffort: tauxEpargneMoyen
 };
+
+
+const TAB_CONFIG = {
+  revenus: { icon: ArrowUpCircle, label: 'Revenus', className: '' },
+  depenses: { icon: ArrowDownCircle, label: 'Dépenses', className: '' },
+  transferts: { icon: RefreshCw, label: 'Transferts', className: '' },
+  // ✅ Désormais synchronisé sur ton point de rupture exact (2000px)
+  Catégories: { icon: BarChartHorizontal, label: 'Catégories', className: 'min-[2000px]:hidden' }, 
+  Variations: { icon: TrendingUp, label: 'Variations', className: '' },
+  flash: { icon: Zap, label: 'Insights', className: '' }
+};
+
+
+
+useEffect(() => {
+  // 1. On crée le media query calqué sur ton point de rupture de 2000px
+  const mediaQuery = window.matchMedia('(min-width: 2000px)');
+
+  // 2. La fonction qui vérifie si on doit réinitialiser l'onglet
+  const handleScreenChange = (e) => {
+    // Si l'écran est grand ET que l'onglet actif est 'Catégories' (qui va disparaître)
+    if (e.matches && tabActive === 'Catégories') {
+      setTabActive('revenus'); // On bascule sur le 1er onglet par défaut
+    }
+  };
+
+  // 3. On exécute la vérification au montage initial
+  handleScreenChange(mediaQuery);
+
+  // 4. On écoute les changements de taille d'écran (resize / changement de moniteur)
+  mediaQuery.addEventListener('change', handleScreenChange);
+
+  // Clean-up à la destruction du composant
+  return () => mediaQuery.removeEventListener('change', handleScreenChange);
+}, [tabActive]); // On re-déclenche si tabActive change pour garder la logique synchrone
+
+
 
 useEffect(() => {
   if (user) {
@@ -6605,7 +6854,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.4</span>
+        Kleea <span className="text-[var(--primary)]">v.3.5</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -6849,98 +7098,127 @@ if (!user) {
               <div className="flex-1 grid grid-cols-12 gap-4 min-h-0 mb-4 h-auto lg:h-full">
                 
                 {/* --- COLONNE 1 : LE JOURNAL --- */}
-                  <div className="col-span-12 lg:col-span-4 flex flex-col h-[400px] lg:h-full min-h-0 gap-4">
+                <div className="col-span-12 lg:col-span-4 flex flex-col h-[400px] lg:h-full min-h-0 gap-4">
 
-                    {/* CONTENEUR PRINCIPAL */}
-                    <div className="flex flex-col flex-1 min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden min-[2000px]:p-4">
+                  {/* CONTENEUR PRINCIPAL (Suppression du p-4 sur grand écran pour correspondre au bilan annuel) */}
+                  <div className="flex flex-col flex-1 min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden">
 
-                      {/* --- PARTIE 1 : TRANSACTIONS (Scrollable) --- */}
-                      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                        
-                        {/* HEADER DU FLUX */}
-                        <div className="p-4 shrink-0 border-b border-white/5">
-                          <div className="flex flex-col">
-                            <div className="flex items-baseline gap-3">
-                              <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-                                Flux mensuel
-                              </h3>
-                              <div className="border-l border-white/10 pl-3 flex flex-col">
-                                <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
-                                  {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
-                                </span>
-                              </div>
+                    {/* --- PARTIE 1 : TRANSACTIONS & MODULES (Scrollable) --- */}
+                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                      
+                      {/* HEADER DU FLUX (Bordure passée à border-white/10 pour être identique) */}
+                      <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
+                        <div className="flex flex-col">
+                          <div className="flex items-baseline gap-3">
+                            <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+                              Flux mensuel
+                            </h3>
+                            <div className="border-l border-white/10 pl-3 flex flex-col">
+                              <span className="text-indigo-400 text-[10px] font-black tracking-[0.2em] uppercase">
+                                {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
+                              </span>
                             </div>
-                            <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
                           </div>
+                          <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
                         </div>
 
-                        {/* TABS DE NAVIGATION */}
-                        <div className="px-4 pt-4">
-                          <div className="flex bg-black/40 p-1 rounded-2xl mb-4">
-                            {['revenus', 'depenses', 'transferts', 'Catégories'].map((tab) => (
+                        {/* ✅ SÉLECTEUR DE TABS COMPACT LOGÉ À DROITE */}
+                        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
+                          {Object.keys(TAB_CONFIG).map((tab) => {
+                            const config = TAB_CONFIG[tab];
+                            const IconComponent = config.icon;
+                            const isActive = tabActive === tab;
+
+                            return (
                               <button
                                 key={tab}
                                 onClick={() => setTabActive(tab)}
-                                className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                  tabActive === tab ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-lg' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]/60'
-                                } ${tab === 'Catégories' ? 'min-[2000px]:hidden' : 'block'}`}
+                                title={config.label}
+                                className={`px-2.5 py-1.5 flex items-center justify-center rounded-lg transition-all duration-300 ${config.className} ${
+                                  isActive 
+                                    ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md border border-white/5' 
+                                    : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
+                                }`}
                               >
-                                {tab}
+                                <IconComponent 
+                                  size={14} 
+                                  strokeWidth={isActive ? 2.5 : 2} 
+                                  className={isActive ? 'opacity-100' : 'opacity-60'} 
+                                />
                               </button>
-                            ))}
-                          </div>
+                            );
+                          })}
+                        </div>
+                      </div>
 
-                          {/* RÉSUMÉ RAPIDE (TOTAL) */}
-                          {tabActive !== 'Catégories' && (
-                            <div className="flex justify-between items-end px-1 pb-1">
-                              <div className="flex flex-col gap-1">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
-                                    Total {tabActive}
-                                  </span>
-                                  <span className="flex items-center justify-center bg-[var(--glass-bg)] border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-[var(--glass-blur)]">
-                                    {(financeData.journal[tabActive] || []).length} transactions
-                                  </span>
-                                </div>
-                              </div>
-
-                              <div className="flex flex-col items-end">
-                               <span 
-                                  className="text-2xl font-black leading-none transition-colors"
-                                  style={{ 
-                                    color: 
-                                      tabActive === 'revenus' ? (userTheme.color_revenus || '#10b981') : 
-                                      tabActive === 'depenses' ? (userTheme.color_depenses || '#f43f5e') : 
-                                      'var(--primary)'
-                                  }}
-                                >
-                                  <span className="text-sm mr-0.5 opacity-70">
-                                    {tabActive === 'revenus' ? '+' : tabActive === 'depenses' ? '-' : ''}
-                                  </span>
-                                  {Math.abs(
-                                    (financeData.journal[tabActive] || []).reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0)
-                                  ).toLocaleString()}
-                                  <span className="text-xs ml-1 opacity-50">€</span>
+                      {/* ZONE COMPLÉMENTAIRE : RÉSUMÉ FINANCIER RAPIDE */}
+                      <div className="px-4 pt-3 shrink-0">
+                        {tabActive !== 'Catégories' && tabActive !== 'Variations' && tabActive !== 'flash' && (
+                          <div className="flex justify-between items-end px-1 pb-2 border-b border-white/[0.02]">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
+                                  Total {tabActive}
+                                </span>
+                                <span className="flex items-center justify-center bg-[var(--glass-bg)] border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-[var(--glass-blur)]">
+                                  {(financeData.journal[tabActive] || []).length} transactions
                                 </span>
                               </div>
                             </div>
-                          )}
-                        </div>
 
-                        {/* ZONE SCROLLABLE (LISTE OU MESSAGE VIDE) */}
-                        <div className="flex-1 overflow-y-auto min-h-0 p-3 custom-scrollbar">
-                          {tabActive === 'Catégories' && (
-                            <div className="h-full min-[2000px]:hidden">
-                              <CategoriesView 
-                                statsCategories={statsCategories}
-                                chartData={chartData}
-                                hiddenCategories={hiddenCategories}
-                                toggleCategory={toggleCategory}
-                                userTheme={userTheme}
-                              />
+                            <div className="flex flex-col items-end">
+                              <span 
+                                className="text-2xl font-black leading-none transition-colors"
+                                style={{ 
+                                  color: 
+                                    tabActive === 'revenus' ? (userTheme.color_revenus || '#10b981') : 
+                                    tabActive === 'depenses' ? (userTheme.color_depenses || '#f43f5e') : 
+                                    'var(--primary)'
+                                }}
+                              >
+                                <span className="text-sm mr-0.5 opacity-70">
+                                  {tabActive === 'revenus' ? '+' : tabActive === 'depenses' ? '-' : ''}
+                                </span>
+                                {Math.abs(
+                                  (financeData.journal[tabActive] || []).reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0)
+                                ).toLocaleString()}
+                                <span className="text-xs ml-1 opacity-50">€</span>
+                              </span>
                             </div>
-                          )}
+                          </div>
+                        )}
+                      </div>
 
+                      {/* ZONE SCROLLABLE */}
+                      <div className="flex-1 overflow-y-auto min-h-0 p-4 custom-scrollbar"> {/* Ajout de p-4 pour correspondre à l'alignement */}
+                        {tabActive === 'Catégories' && (
+                          <div className="h-full min-[2000px]:hidden">
+                            <CategoriesView 
+                              statsCategories={statsCategories}
+                              chartData={chartData}
+                              hiddenCategories={hiddenCategories}
+                              toggleCategory={toggleCategory}
+                              userTheme={userTheme}
+                            />
+                          </div>
+                        )}
+
+                        {tabActive === 'Variations' && (
+                          <VariationsView 
+                            statsCategories={statsCategories} 
+                            userTheme={userTheme}
+                            prevMonthLabel={financeData?.periodeComparee?.mois || "M-1"}
+                          />
+                        )}
+
+                        {tabActive === 'flash' && (
+                          <FlashInsightsView 
+                            statsCategories={statsCategories} 
+                            transactions={financeData?.journal?.depenses || []} 
+                          />
+                        )}
+
+                        {tabActive !== 'Variations' && tabActive !== 'flash' && (
                           <div className={`${tabActive === 'Catégories' ? 'hidden min-[2000px]:block' : 'block'} space-y-1.5 h-full`}>
                             {(() => {
                               const currentTransactions = [...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])];
@@ -6949,24 +7227,23 @@ if (!user) {
                                 return currentTransactions
                                   .sort((a, b) => new Date(b.date) - new Date(a.date))
                                   .map((t, i) => (
-                                   <TransactionCard 
-                                    key={i} 
-                                    t={t} 
-                                    color={
-                                      tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
-                                      tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
-                                      '#6366f1' // Remplace var(--primary) par une couleur Hex si ça bug
-                                    }
-                                    bg={
-                                      tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
-                                      tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
-                                      'rgba(99, 102, 241, 0.1)'
-                                    }
-                                  />
+                                    <TransactionCard 
+                                      key={i} 
+                                      t={t} 
+                                      color={
+                                        tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
+                                        tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
+                                        '#6366f1'
+                                      }
+                                      bg={
+                                        tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
+                                        tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
+                                        'rgba(99, 102, 241, 0.1)'
+                                      }
+                                    />
                                   ));
                               } 
-                              
-                              // État vide si aucune transaction
+
                               if (tabActive !== 'Catégories') {
                                 return (
                                   <div className="h-full flex flex-col items-center justify-center py-12 px-6 text-center">
@@ -6985,97 +7262,95 @@ if (!user) {
                               return null;
                             })()}
                           </div>
-                        </div>
+                        )}
                       </div>
+                    </div>
 
-                      {/* --- PARTIE 2 : GRAPHE (Seulement visible > 2000px) --- */}
-                      <div className="hidden min-[2000px]:flex basis-[300px] max-h-[350px] bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/5 p-3 my-4 flex-col overflow-hidden shrink-0">
-                        <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4">
-                          Analyse par Catégorie
-                        </h3>
-                        <div className="flex-1 min-h-0">
-                          <CategoriesView 
-                            statsCategories={statsCategories}
-                            chartData={chartData}
-                            hiddenCategories={hiddenCategories}
-                            toggleCategory={toggleCategory}
-                            userTheme={userTheme}
-                          />
-                        </div>
+                    {/* --- PARTIE 2 : GRAPHE (Seulement visible > 2000px) --- */}
+                    <div className="hidden min-[2000px]:flex basis-[350px] max-h-[350px] bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/5 p-4 my-4 flex-col overflow-hidden shrink-0 mx-4">
+                      <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4">
+                        Analyse par Catégorie
+                      </h3>
+                      <div className="flex-1 min-h-0">
+                        <CategoriesView 
+                          statsCategories={statsCategories}
+                          chartData={chartData}
+                          hiddenCategories={hiddenCategories}
+                          toggleCategory={toggleCategory}
+                          userTheme={userTheme}
+                        />
                       </div>
+                    </div>
 
-                      {/* --- PARTIE 3 : OBJECTIFS BUDGÉTAIRES --- */}
-                      <div className="shrink-0 w-full p-2 bg-white/[0.02] border-t border-white/5 mt-auto">
-                        <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em] mb-1">
-                          Objectifs Budgétaires
-                        </h3>
+                    {/* --- PARTIE 3 : OBJECTIFS BUDGÉTAIRES --- */}
+                    <div className="shrink-0 w-full p-4 bg-white/[0.02] border-t border-white/10 mt-auto">
+                      <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em] mb-3">
+                        Objectifs Budgétaires
+                      </h3>
 
-                        {budgetGauges.length > 0 ? (
-                          /* GRILLE DES JAUGES SI DES OBJECTIFS EXISTENT */
-                          <div className=" flex flex-row md:grid md:grid-cols-5 gap-4 overflow-x-auto pb-2 scrollbar-hide gap-y-10 gap-x-2"> 
-                         
-                            {budgetGauges.map((bg, i) => {
-                              const radius = 30;
-                              const circumference = Math.PI * radius;
-                              const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
+                      {budgetGauges.length > 0 ? (
+                        <div className="flex flex-row md:grid md:grid-cols-5 gap-4 overflow-x-auto pb-2 scrollbar-hide gap-y-10 gap-x-2"> 
+                          {budgetGauges.map((bg, i) => {
+                            const radius = 30;
+                            const circumference = Math.PI * radius;
+                            const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
 
-                              return (
-                                <div key={i} className="flex flex-col items-center min-w-[70px]">
-                                  <div className="relative w-20 h-10">
-                                    <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
-                                      <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
-                                      <path
-                                        d="M 10,40 A 30,30 0 0 1 70,40"
-                                        fill="none"
-                                        stroke={bg.depasse ? '#fb7185' : '#34d399'}
-                                        strokeWidth="6"
-                                        strokeDasharray={circumference}
-                                        strokeDashoffset={strokeDashoffset}
-                                        strokeLinecap="round"
-                                        className="transition-all duration-1000 ease-out"
-                                        style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
-                                      />
-                                    </svg>
-                                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-sm mb-[-2px]">
-                                      {bg.nom.split(' ')[0]}
-                                    </div>
-                                    <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
-                                      <span className="text-[8px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
-                                      <span className="text-[8px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
-                                    </div>
+                            return (
+                              <div key={i} className="flex flex-col items-center min-w-[70px]">
+                                <div className="relative w-20 h-10">
+                                  <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
+                                    <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
+                                    <path
+                                      d="M 10,40 A 30,30 0 0 1 70,40"
+                                      fill="none"
+                                      stroke={bg.depasse ? '#fb7185' : '#34d399'}
+                                      strokeWidth="6"
+                                      strokeDasharray={circumference}
+                                      strokeDashoffset={strokeDashoffset}
+                                      strokeLinecap="round"
+                                      className="transition-all duration-1000 ease-out"
+                                      style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
+                                    />
+                                  </svg>
+                                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-sm mb-[-2px]">
+                                    {bg.nom.split(' ')[0]}
                                   </div>
-
-                                  <div className="text-center mt-7">
-                                    <p className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-16 leading-none">
-                                      {bg.nom.split(' ').slice(1).join(' ')}
-                                    </p>
-                                    <p className={`text-[11px] font-black mt-1 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
-                                      {bg.pourcentage}%
-                                    </p>
+                                  <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
+                                    <span className="text-[8px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
+                                    <span className="text-[8px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
                                   </div>
                                 </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          /* MESSAGE SI AUCUN OBJECTIF DÉFINI */
-                          <div className="py-6 px-4 flex items-center justify-between bg-white/[0.01] border border-dashed border-white/5 rounded-2xl mt-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-lg opacity-30">🎯</span>
-                              <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest leading-tight">
-                                Aucune limite de budget définie ce mois-ci <br/> pour vos catégories.
-                              </p>
-                            </div>
-                            <button 
-                              onClick={() => setActiveTab('gerer')}
-                              className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all border border-white/5"
-                            >
-                              Limites →
-                            </button>
-                          </div>
-                        )}
+
+                                <div className="text-center mt-7">
+                                  <p className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-16 leading-none">
+                                    {bg.nom.split(' ').slice(1).join(' ')}
+                                  </p>
+                                  <p className={`text-[11px] font-black mt-1 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
+                                    {bg.pourcentage}%
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
-      
+                      ) : (
+                        <div className="py-6 px-4 flex items-center justify-between bg-white/[0.01] border border-dashed border-white/10 rounded-2xl mt-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-lg opacity-30">🎯</span>
+                            <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest leading-tight">
+                              Aucune limite de budget définie ce mois-ci <br/> pour vos catégories.
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => setActiveTab('gerer')}
+                            className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all border border-white/5"
+                          >
+                            Limites →
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    
                   </div>
                 </div>
                   
@@ -11572,7 +11847,20 @@ if (!user) {
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 2 : CALENDRIER DES DÉPENSES */}
+        {/* 💡 NOUVEAUTÉ 2 : REFONTE FLUX MENSUEL, VARIATIONS & INSIGHTS */}
+        <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
+          <span className="text-base mt-0.5">📊</span>
+          <div>
+            <h4 className="text-[15px] font-black text-indigo-400 uppercase tracking-wide">
+              Refonte du Flux Mensuel & Radar d'Insights
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              La barre de navigation a été revue pour intégrer de nouvelles analyses puissantes. L'onglet <strong className="text-indigo-400">Variations</strong> traque l'évolution précise de tes enveloppes (mises en avant des hausses critiques, des montants stables et des nouvelles catégories de dépenses). Le nouvel onglet <strong className="text-indigo-400">Insights</strong> agit comme un détecteur de comportement budgétaire pour surveiller le volume de tes transactions d'alimentation, les micro-fuites financières de moins de 10€ et tes plus gros achats d'un coup d'œil.
+            </p>
+          </div>
+        </div>
+
+        {/* 💡 NOUVEAUTÉ 3 : CALENDRIER DES DÉPENSES */}
         <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
           <span className="text-base mt-0.5">📅</span>
           <div>
