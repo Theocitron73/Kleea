@@ -3360,7 +3360,7 @@ const calculerMontantStatPerso = (config, transactions) => {
 
 
 // Ajout de la prop "user" indispensable pour l'appel de l'API personnalisée
-export const FlashInsightsView = ({ statsCategories = [], transactions = [], user }) => {
+export const FlashInsightsView = ({ statsCategories = [], transactions = [], user, filters }) => {
   const [question, setQuestion] = useState("");
   const [reponseAI, setReponseAI] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3429,6 +3429,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
         
         const nouvelleStat = {
           utilisateur: user.toLowerCase(),
+          profil: filters?.profil || filters || "Tous", // 👈 On associe la statistique au profil actif du dashboard
           titre: data.creation_stat.titre,
           flux_type: data.creation_stat.flux_type,
           operateur: data.creation_stat.operateur,
@@ -3541,21 +3542,24 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     }
 
     // --- 🌟 INJECTION DES STATS PERSO DE LA BDD (CRÉÉES PAR L'IA) ---
-    customStats.forEach((config) => {
-      const total = calculerMontantStatPerso(config, transactions);
-      list.push({
-        id: config.id,
-        isDefault: false, // Ce n'est pas une stat système par défaut
-        isAI: true,       // On ajoute ce flag pour le JSX si besoin
-        type: 'info',
-        // On remplace le Lightbulb par des Sparkles scintillants ✨
-        icon: <Sparkles size={14} className="text-indigo-400" />,
-        text: `Indicateur Personnalisé "${config.titre}" : vous avez cumulé ${total.toLocaleString()}€ ce mois-ci.`
+    customStats
+      // 👈 Affiche la stat si elle correspond au profil actif OU si c'est une stat globale "Tous"
+      .filter(config => config.profil === filters.profil || config.profil === "Tous") 
+      .forEach((config) => {
+        const total = calculerMontantStatPerso(config, transactions);
+        list.push({
+          id: config.id,
+          isDefault: false,
+          isAI: true,
+          type: 'info',
+          icon: <Sparkles size={14} className="text-indigo-400" />,
+          text: `Indicateur Personnalisé "${config.titre}" : vous avez cumulé ${total.toLocaleString()}€ ce mois-ci.`
+        });
       });
-    });
 
     return list;
-  }, [statsCategories, transactions, customStats]); // Ajout de customStats dans les dépendances
+    // 🌟 IMPORTANT : Ajoute filters.profil dans les dépendances du useMemo pour réenclencher le calcul au changement de profil
+  }, [statsCategories, transactions, customStats, filters.profil]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto pr-0.5 custom-scrollbar">
@@ -7458,6 +7462,7 @@ if (!user) {
                             transactions={financeData?.journal?.depenses || []} 
                             // ⚠️ LA PROP USER EST INDISPENSABLE ICI :
                             user={user} // Remplace 'username' par la variable qui contient le nom de l'utilisateur connecté dans FinanceApp
+                            filters={filters}
                           />
                         )}
 

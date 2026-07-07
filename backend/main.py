@@ -1826,27 +1826,29 @@ class CustomStatRule(BaseModel):
 
 class CustomStatCreate(BaseModel):
     utilisateur: str
+    profil: str 
     titre: str
     flux_type: str   # 'depenses' ou 'revenus'
     operateur: str   # 'AND' ou 'OR'
     regles: List[CustomStatRule]
 
-# --- 1. AJOUTER UNE STAT PERSO ---
+# --- 1. AJOUTER UNE STAT PERSO (CORRIGÉ ✨) ---
 @app.post("/custom-stats")
 def create_custom_stat(stat: CustomStatCreate):
+    # Ajout du champ 'profil' dans la structure de l'INSERT SQL
     query = text("""
-        INSERT INTO custom_stats (utilisateur, titre, flux_type, operateur, regles)
-        VALUES (:u, :t, :f, :o, :r)
+        INSERT INTO custom_stats (utilisateur, profil, titre, flux_type, operateur, regles)
+        VALUES (:u, :p, :t, :f, :o, :r)
         RETURNING id
     """)
     try:
         with engine.connect() as conn:
-            # Remplacement de r.dict() par r.model_dump() (Standard Pydantic v2)
             regles_liste = [r.model_dump() for r in stat.regles]
             regles_json = json.dumps(regles_liste)
             
             result = conn.execute(query, {
                 "u": stat.utilisateur.lower(),
+                "p": stat.profil,  # 👈 On envoie enfin la valeur reçue du frontend !
                 "t": stat.titre,
                 "f": stat.flux_type,
                 "o": stat.operateur,
@@ -1859,10 +1861,11 @@ def create_custom_stat(stat: CustomStatCreate):
         print(f"Erreur SQL custom_stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- 2. RÉCUPÉRER LES STATS D'UN UTILISATEUR ---
+# --- 2. RÉCUPÉRER LES STATS D'UN UTILISATEUR (CORRIGÉ ✨) ---
 @app.get("/custom-stats/{username}")
 def get_custom_stats(username: str):
-    query = text("SELECT id, titre, flux_type, operateur, regles FROM custom_stats WHERE LOWER(utilisateur) = :u")
+    # Ajout du champ 'profil' dans le SELECT pour que le frontend puisse l'avoir dans 'config.profil'
+    query = text("SELECT id, profil, titre, flux_type, operateur, regles FROM custom_stats WHERE LOWER(utilisateur) = :u")
     try:
         with engine.connect() as conn:
             result = conn.execute(query, {"u": username.lower()})
@@ -1871,7 +1874,6 @@ def get_custom_stats(username: str):
             for row in result.fetchall():
                 row_dict = dict(zip(columns, row))
                 
-                # Gestion propre du format selon le driver SQL (chaîne ou dict déjà parsé)
                 if isinstance(row_dict['regles'], str):
                     row_dict['regles'] = json.loads(row_dict['regles'])
                 elif row_dict['regles'] is None:
