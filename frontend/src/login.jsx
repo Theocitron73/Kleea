@@ -23,6 +23,7 @@ registerLocale('fr', fr); // Pour avoir le calendrier en français
 import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut de ton fichier
 import { createPortal } from 'react-dom';
 import api from './api';
+import ReactMarkdown from 'react-markdown';
 
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
@@ -3313,26 +3314,180 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
 
 
 
-export const FlashInsightsView = ({ statsCategories, transactions = [] }) => {
+
+
+// Moteur de calcul éphémère pour les statistiques créées sur-mesure
+const calculerMontantStatPerso = (config, transactions) => {
+  const transactionsFiltrees = transactions.filter(t => {
+    const montant = parseFloat(t.montant) || 0;
+    if (config.flux_type === "depenses" && montant > 0) return false;
+    if (config.flux_type === "revenus" && montant < 0) return false;
+
+    const resultatsRegles = config.regles.map(r => {
+      let valeurChamp = "";
+
+      if (r.champ === "categorie") {
+        valeurChamp = (t.categorie || "").toLowerCase();
+      } else if (r.champ === "nom") {
+        valeurChamp = (t.nom || "").toLowerCase();
+      } else if (r.champ === "jour") {
+        if (!t.date) return false;
+        const dateObj = new Date(t.date);
+        valeurChamp = dateObj.toLocaleDateString('fr-FR', { weekday: 'long' }).toLowerCase();
+      } else if (r.champ === "montant") {
+        const valeurAbsolue = Math.abs(montant);
+        const seuilCible = parseFloat(r.valeur);
+        if (r.condition === "GREATER_THAN") return valeurAbsolue > seuilCible;
+        if (r.condition === "LESS_THAN") return valeurAbsolue < seuilCible;
+      }
+
+      const valeurCible = r.valeur.toLowerCase();
+      
+      if (r.condition === "EQUALS") return valeurChamp === valeurCible;
+      if (r.condition === "CONTAINS") return valeurChamp.includes(valeurCible);
+      return false;
+    });
+
+    // Comme Gemini a mis "OR", si la transaction contient "orange" OU "twitch" OU "mutuelle", elle sera comptée !
+    return config.operateur === "OR" 
+      ? resultatsRegles.some(res => res === true)
+      : resultatsRegles.every(res => res === true);
+  });
+
+  return transactionsFiltrees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+};
+
+
+
+// Ajout de la prop "user" indispensable pour l'appel de l'API personnalisée
+export const FlashInsightsView = ({ statsCategories = [], transactions = [], user }) => {
+  const [question, setQuestion] = useState("");
+  const [reponseAI, setReponseAI] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [customStats, setCustomStats] = useState([]); // Stockage des statistiques persistantes de la BDD
+
+  // On récupère l'URL de l'API définie dans le .env de Vite (avec fallback en localhost au cas où)
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+  // 1. Charger les statistiques enregistrées en BDD au démarrage
+  useEffect(() => {
+    const fetchCustomStats = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/custom-stats/${user}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setCustomStats(data);
+        }
+      } catch (err) {
+        console.error("Erreur chargement des widgets personnalisés:", err);
+      }
+    };
+    if (user) fetchCustomStats();
+  }, [user, apiUrl]);
+
+  // 2. Supprimer un widget personnalisé en BDD
+  const supprimerStatPerso = async (id) => {
+    try {
+      const res = await fetch(`${apiUrl}/custom-stats/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        // Supprime localement de l'état pour rafraîchir l'interface sans recharger
+        setCustomStats(customStats.filter(stat => stat.id !== id));
+      }
+    } catch (err) {
+      console.error("Erreur lors de la suppression de la statistique:", err);
+    }
+  };
+
+  const analyserDonneesAvecGemini = async () => {
+    if (!question.trim() || transactions.length === 0) return;
+    setLoading(true); //  CORRIGÉ ICI (C'était loading(true))
+    setReponseAI(""); 
+
+    try {
+      // 1. On interroge le chat Gemini
+      const res = await fetch(`${apiUrl}/api/insights-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          question: question, 
+          transactions: transactions 
+        })
+      });
+      
+      const data = await res.json();
+      
+      // 🔍 AJOUTE CE LOG ICI POUR LE DEBUGGING :
+      console.log("Retour brut de Gemini :", data);
+
+      if (data.error) throw new Error(data.error);
+      
+      setReponseAI(data.reponse);
+      setQuestion(""); 
+
+      if (data && data.creation_stat && Object.keys(data.creation_stat).length > 0) {
+        console.log("Objet creation_stat détecté ! Envoi à la BDD...", data.creation_stat);
+        
+        const nouvelleStat = {
+          utilisateur: user.toLowerCase(),
+          titre: data.creation_stat.titre,
+          flux_type: data.creation_stat.flux_type,
+          operateur: data.creation_stat.operateur,
+          regles: data.creation_stat.regles
+        };
+
+        // Envoi au backend
+        const saveRes = await fetch(`${apiUrl}/custom-stats`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(nouvelleStat)
+        });
+        
+        const saveData = await saveRes.json();
+        
+        if (saveData.status === "success" || saveData.id) {
+          const statEnregistree = {
+            id: saveData.id,
+            ...nouvelleStat
+          };
+          
+          // 🌟 On met à jour l'état local immédiatement pour provoquer le recalcul de useMemo(insights)
+          setCustomStats(prev => [...prev, statEnregistree]);
+          
+          // On ajoute la confirmation dans la fenêtre de chat
+          setReponseAI(prev => prev + "\n\n\n✨ **Indicateur configuré avec succès !** Le suivi permanent *" + nouvelleStat.titre + "* a été ajouté à votre tableau de bord ci-dessous.");
+        } else {
+          console.error("Le backend n'a pas renvoyé un statut success:", saveData);
+        }
+      }
+
+    } catch (err) {
+      console.error("Erreur avec l'analyste AI:", err);
+      setReponseAI("⚠️ Une erreur est survenue lors de l'analyse ou de l'enregistrement de l'indicateur.");
+    } finally {
+      setLoading(false);
+    }
+  };
   
+  // 4. Calcul et fusion des statistiques automatiques ET personnalisées
   const insights = useMemo(() => {
     const list = [];
 
-    // --- INSIGHT 1 : Détecteur de pics budgétaires (Dépenses qui bondissent) ---
+    // --- INSIGHT 1 : Détecteur de pics budgétaires (Défaut) ---
     const pireAugmentation = [...statsCategories]
-      .filter(item => item.evolution !== null && item.evolution > 25) // Plus de 25% d'augmentation
+      .filter(item => item.evolution !== null && item.evolution > 25) 
       .sort((a, b) => b.evolution - a.evolution)[0];
 
     if (pireAugmentation) {
       list.push({
         id: 'pic-categorie',
+        isDefault: true, // Pour savoir que c'est une stat par défaut
         type: 'danger',
         icon: <Flame size={14} className="text-rose-400 animate-pulse" />,
         text: `Vos dépenses en ${pireAugmentation.name} ont bondi de ${pireAugmentation.evolution}% par rapport au mois dernier (+${Math.round(pireAugmentation.diffEuro)}€).`
       });
     }
 
-    // --- INSIGHT 2 : Analyse poussée de l'Alimentation (Global + moins de 30€) ---
+    // --- INSIGHT 2 : Analyse poussée de l'Alimentation (Défaut) ---
     const transacAlim = transactions.filter(t => {
       const cat = (t.categorie || "").toLowerCase();
       return cat.includes("alimentation") || cat.includes("courses");
@@ -3344,13 +3499,14 @@ export const FlashInsightsView = ({ statsCategories, transactions = [] }) => {
 
       list.push({
         id: 'compteur-alimentation',
+        isDefault: true,
         type: 'info',
         icon: <ShoppingCart size={14} className="text-emerald-400" />,
         text: `Ce mois-ci, vous avez passé ${transacAlim.length} transactions au rayon Alimentation (${Math.round(totalAlim)}€ au total), dont ${alimMoinsDe30.length} achats de moins de 30€.`
       });
     }
 
-    // --- INSIGHT 3 : Détecteur de "Fourmis" (Accumulation globale de micro-dépenses de < 10€) ---
+    // --- INSIGHT 3 : Détecteur de "Fourmis" (Défaut) ---
     const microTransactions = transactions.filter(t => {
       const montant = parseFloat(t.montant);
       return montant < 0 && Math.abs(montant) <= 10;
@@ -3360,21 +3516,23 @@ export const FlashInsightsView = ({ statsCategories, transactions = [] }) => {
       const totalMicroMontant = microTransactions.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant)), 0);
       list.push({
         id: 'micro-depenses',
+        isDefault: true,
         type: 'warning',
         icon: <Terminal size={14} className="text-amber-400" />,
         text: `Attention aux fuites discrètes : vous avez accumulé ${microTransactions.length} micro-dépenses de moins de 10€ ce mois-ci, pour un total de ${Math.round(totalMicroMontant)}€.`
       });
     }
 
-    // --- INSIGHT 4 : Analyse de la plus grosse dépense unique ---
+    // --- INSIGHT 4 : Analyse de la plus grosse dépense unique (Défaut) ---
     const depensesPures = transactions.filter(t => parseFloat(t.montant) < 0);
     if (depensesPures.length > 0) {
       const plusGrosseDepense = [...depensesPures].sort((a, b) => parseFloat(a.montant) - parseFloat(b.montant))[0];
       const montantAbs = Math.abs(parseFloat(plusGrosseDepense.montant));
       
-      if (montantAbs > 150) { // S'il y a un achat majeur de plus de 150€
+      if (montantAbs > 150) { 
         list.push({
           id: 'gros-achat',
+          isDefault: true,
           type: 'info',
           icon: <Lightbulb size={14} className="text-indigo-400" />,
           text: `Le pic de transaction le plus lourd provient de "${plusGrosseDepense.nom}" avec une sortie unique de ${Math.round(montantAbs)}€.`
@@ -3382,52 +3540,131 @@ export const FlashInsightsView = ({ statsCategories, transactions = [] }) => {
       }
     }
 
-    return list;
-  }, [statsCategories, transactions]);
+    // --- 🌟 INJECTION DES STATS PERSO DE LA BDD (CRÉÉES PAR L'IA) ---
+    customStats.forEach((config) => {
+      const total = calculerMontantStatPerso(config, transactions);
+      list.push({
+        id: config.id,
+        isDefault: false, // Ce n'est pas une stat système par défaut
+        isAI: true,       // On ajoute ce flag pour le JSX si besoin
+        type: 'info',
+        // On remplace le Lightbulb par des Sparkles scintillants ✨
+        icon: <Sparkles size={14} className="text-indigo-400" />,
+        text: `Indicateur Personnalisé "${config.titre}" : vous avez cumulé ${total.toLocaleString()}€ ce mois-ci.`
+      });
+    });
 
-  // État si aucun insight n'est levé ce mois-ci
-  if (insights.length === 0) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center py-8 px-4 text-center">
-        <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-2">
-          <Lightbulb size={14} className="text-emerald-400" />
-        </div>
-        <h4 className="text-[var(--text-main)] font-black text-[9px] uppercase tracking-[0.2em] opacity-40">
-          Rien à signaler
-        </h4>
-        <p className="text-[var(--text-main)]/20 text-[8px] font-bold uppercase tracking-wide mt-1">
-          Vos habitudes de consommation sont parfaitement stables ce mois-ci.
-        </p>
-      </div>
-    );
-  }
+    return list;
+  }, [statsCategories, transactions, customStats]); // Ajout de customStats dans les dépendances
 
   return (
-    <div className="flex flex-col gap-2 h-full overflow-y-auto pr-0.5 custom-scrollbar">
-      <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] px-1 mb-1">
-        Détecteur de comportement budgétaire
-      </p>
-
-      {insights.map((insight) => (
-        <div 
-          key={insight.id}
-          className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
-            insight.type === 'danger' ? 'bg-rose-500/[0.03] border-rose-500/10' :
-            insight.type === 'warning' ? 'bg-amber-500/[0.03] border-amber-500/10' :
-            'bg-white/[0.01] border-white/5'
-          }`}
-        >
-          {/* Icône à gauche */}
-          <div className="shrink-0 mt-0.5">
-            {insight.icon}
+    <div className="flex flex-col gap-4 h-full overflow-y-auto pr-0.5 custom-scrollbar">
+      
+      {/* SECTION 1 : ANALYSTE CHAT INTELLIGENT GEMINI (VERSION DISCRÈTE) */}
+      <div className="flex flex-col gap-2 transition-all duration-300">
+        
+        {/* En-tête minimaliste et réponse dépliable */}
+        {reponseAI && (
+          <div className="flex flex-col gap-1.5 p-3 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl relative group animate-fadeIn">
+            {/* Bouton de fermeture discret pour nettoyer l'espace */}
+            <button 
+              onClick={() => setReponseAI("")}
+              className="absolute top-2 right-2 text-white/20 hover:text-white/60 text-[9px] uppercase tracking-widest transition-all px-1.5 py-0.5 rounded bg-white/0 hover:bg-white/5"
+            >
+              Fermer
+            </button>
+            
+            <p className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-0.5">
+              ✨ Analyse de l'assistant
+            </p>
+            <div className="text-[11px] text-white/80 prose prose-invert max-w-none leading-relaxed break-words max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
+              <ReactMarkdown>{reponseAI}</ReactMarkdown>
+            </div>
           </div>
+        )}
 
-          {/* Corps du texte */}
-          <p className="text-[10px] font-bold text-white/70 leading-relaxed tracking-wide">
-            {insight.text}
-          </p>
+        {/* Barre de saisie ultra-compacte */}
+        <div className="relative flex items-center bg-white/[0.01] hover:bg-white/[0.03] focus-within:bg-black/40 rounded-xl border border-white/5 focus-within:border-indigo-500/30 p-0.5 transition-all">
+          <input 
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            disabled={loading}
+            placeholder={loading ? "Analyse en cours..." : "Ajouter une stat (ex: 'Mes UberEats', 'Dépenses du lundi')"}
+            className="flex-1 bg-transparent border-0 outline-none px-2.5 text-[11px] text-white/80 placeholder-white/40 h-7 disabled:opacity-50"
+            onKeyDown={(e) => e.key === 'Enter' && analyserDonneesAvecGemini()}
+          />
+          <button
+            onClick={analyserDonneesAvecGemini}
+            disabled={loading || !question.trim()}
+            className="h-7 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white disabled:bg-white/0 disabled:text-white/50 text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center justify-center"
+          >
+            {loading ? (
+              <span className="w-3 h-3 border-2 border-white/50 border-t-indigo-400 rounded-full animate-spin" />
+            ) : (
+              "Demander"
+            )}
+          </button>
         </div>
-      ))}
+      </div>
+
+      {/* SECTION 2 : AFFICHAGE DE TOUTES LES STATISTIQUES EN GRILLE DE 2 */}
+      <div className="flex flex-col gap-2">
+
+        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] px-1 mb-1">
+          Détecteur de comportement budgétaire & indicateurs
+        </p>
+
+        {insights.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-6 px-4 text-center bg-white/[0.01] border border-white/5 rounded-xl">
+            <div className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-2">
+              <Lightbulb size={12} className="text-emerald-400" />
+            </div>
+            <h4 className="text-[var(--text-main)] font-black text-[8px] uppercase tracking-[0.2em] opacity-40">
+              Rien à signaler
+            </h4>
+            <p className="text-[var(--text-main)]/20 text-[7px] font-bold uppercase tracking-wide mt-0.5">
+              Habitudes de consommation parfaitement stables.
+            </p>
+          </div>
+        ) : (
+          // 🌟 LA GRILLE : 2 colonnes sur écran normal, s'adapte en 1 colonne si l'écran devient minuscule (sm:grid-cols-2)
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {insights.map((insight) => (
+              <div 
+                key={insight.id}
+                className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-all ${
+                  insight.type === 'danger' ? 'bg-rose-500/[0.03] border-rose-500/10' :
+                  insight.type === 'warning' ? 'bg-amber-500/[0.03] border-amber-500/10' :
+                  insight.isAI ? 'bg-indigo-500/[0.02] border-indigo-500/20 shadow-[0_0_12px_rgba(99,102,241,0.03)]' :
+                  'bg-white/[0.01] border-white/5'
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    {insight.icon}
+                  </div>
+                  <p className="text-[10px] font-bold text-white/70 leading-relaxed tracking-wide">
+                    {insight.text}
+                  </p>
+                </div>
+
+                {/* S'il s'agit d'une statistique personnalisée de la BDD, on affiche le bouton Supprimer */}
+                {!insight.isDefault && (
+                  <button 
+                    onClick={() => supprimerStatPerso(insight.id)}
+                    className="text-white/20 hover:text-rose-400 p-1.5 rounded-lg bg-white/0 hover:bg-rose-500/10 transition-all shrink-0 ms-2"
+                    title="Supprimer cet indicateur permanent"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 };
@@ -6594,6 +6831,9 @@ useEffect(() => {
 
 
 
+
+
+
 useEffect(() => {
   if (user) {
     fetchTransactions();
@@ -7214,7 +7454,10 @@ if (!user) {
                         {tabActive === 'flash' && (
                           <FlashInsightsView 
                             statsCategories={statsCategories} 
+                            // Passe TOUTES les transactions (ou ajoute les revenus si séparés, ex: [...depenses, ...revenus])
                             transactions={financeData?.journal?.depenses || []} 
+                            // ⚠️ LA PROP USER EST INDISPENSABLE ICI :
+                            user={user} // Remplace 'username' par la variable qui contient le nom de l'utilisateur connecté dans FinanceApp
                           />
                         )}
 

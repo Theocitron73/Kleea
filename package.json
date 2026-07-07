@@ -1,7 +1,9 @@
 {
   "dependencies": {
+    "@google/genai": "^2.10.0",
     "axios": "^1.13.5",
     "cors": "^2.8.6",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.3"
   }
 }

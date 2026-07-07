@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional
 from typing import List
 import io
@@ -20,7 +20,9 @@ import uuid
 import resend
 import re
 import unicodedata
-
+import json
+from google import genai
+from google.genai import types
 
 
 def get_ascii_hostname():
@@ -1811,3 +1813,205 @@ def get_members(username: str, group_name: str):
                 membres.add(nom.strip())
                 
         return sorted(list(membres))
+    
+
+
+
+
+# --- SCHÉMAS PYDANTIC POUR LES STATS PERSONNALISÉES ---
+class CustomStatRule(BaseModel):
+    champ: str       # 'nom' ou 'categorie'
+    condition: str   # 'EQUALS' ou 'CONTAINS'
+    valeur: str      # ex: 'UberEats', 'Macdo', etc.
+
+class CustomStatCreate(BaseModel):
+    utilisateur: str
+    titre: str
+    flux_type: str   # 'depenses' ou 'revenus'
+    operateur: str   # 'AND' ou 'OR'
+    regles: List[CustomStatRule]
+
+# --- 1. AJOUTER UNE STAT PERSO ---
+@app.post("/custom-stats")
+def create_custom_stat(stat: CustomStatCreate):
+    query = text("""
+        INSERT INTO custom_stats (utilisateur, titre, flux_type, operateur, regles)
+        VALUES (:u, :t, :f, :o, :r)
+        RETURNING id
+    """)
+    try:
+        with engine.connect() as conn:
+            # Remplacement de r.dict() par r.model_dump() (Standard Pydantic v2)
+            regles_liste = [r.model_dump() for r in stat.regles]
+            regles_json = json.dumps(regles_liste)
+            
+            result = conn.execute(query, {
+                "u": stat.utilisateur.lower(),
+                "t": stat.titre,
+                "f": stat.flux_type,
+                "o": stat.operateur,
+                "r": regles_json
+            })
+            new_id = result.fetchone()[0]
+            conn.commit()
+            return {"id": new_id, "status": "success"}
+    except Exception as e:
+        print(f"Erreur SQL custom_stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- 2. RÉCUPÉRER LES STATS D'UN UTILISATEUR ---
+@app.get("/custom-stats/{username}")
+def get_custom_stats(username: str):
+    query = text("SELECT id, titre, flux_type, operateur, regles FROM custom_stats WHERE LOWER(utilisateur) = :u")
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"u": username.lower()})
+            columns = result.keys()
+            records = []
+            for row in result.fetchall():
+                row_dict = dict(zip(columns, row))
+                
+                # Gestion propre du format selon le driver SQL (chaîne ou dict déjà parsé)
+                if isinstance(row_dict['regles'], str):
+                    row_dict['regles'] = json.loads(row_dict['regles'])
+                elif row_dict['regles'] is None:
+                    row_dict['regles'] = []
+                    
+                records.append(row_dict)
+            return records
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=str(e))
+    
+
+# --- 3. SUPPRIMER UNE STAT PERSO ---
+@app.delete("/custom-stats/{stat_id}")
+def delete_custom_stat(stat_id: int):
+    query = text("DELETE FROM custom_stats WHERE id = :id")
+    try:
+        with engine.connect() as conn:
+            conn.execute(query, {"id": stat_id})
+            conn.commit()
+            return {"status": "success"}
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
+
+
+# 1. PLACE LE SCHÉMA ICI EN PREMIER
+class ChatRequest(BaseModel):
+    question: str
+    transactions: List[dict]
+
+
+# 1. Définition de la structure de sortie attendue par Gemini
+class AISuggestedRule(BaseModel):
+    # On ouvre les vannes sur les types de filtres possibles !
+    champ: str = Field(description="Doit être 'nom', 'categorie', 'jour', 'montant', 'methode' ou 'frequence'")
+    
+    # On ajoute les opérateurs mathématiques pour le montant
+    condition: str = Field(description="Doit être 'EQUALS', 'CONTAINS', 'GREATER_THAN' (strictement supérieur) ou 'LESS_THAN' (strictement inférieur)")
+    
+    valeur: str = Field(description="La valeur cible en minuscules (ex: 'amazon', 'lundi', 'paypal', ou un chiffre comme '50')")
+
+class AICreationStat(BaseModel):
+    titre: str = Field(description="Le titre de l'indicateur donné par l'utilisateur ou résumé proprement (ex: 'Suivi McDo')")
+    flux_type: str = Field(description="Doit être 'depenses' ou 'revenus'")
+    operateur: str = Field(description="Doit être 'AND' ou 'OR'")
+    regles: List[AISuggestedRule]
+
+class ChatResponseSchema(BaseModel):
+    reponse: str = Field(description="Ta réponse d'expert financier en Français au format Markdown (tableaux, gras, listes).")
+    creation_stat: Optional[AICreationStat] = Field(default=None, description="Remplis cet objet UNIQUEMENT si l'utilisateur demande explicitement de créer, enregistrer, suivre ou ajouter une statistique/indicateur permanent.")
+
+# 2. La route modifiée
+@app.post("/api/insights-chat")
+def insights_chat(req: ChatRequest):
+    try:
+        client = genai.Client()
+
+        if not req.transactions:
+            return {"reponse": "Je n'ai détecté aucune transaction à analyser ce mois-ci.", "creation_stat": None}
+
+        payload_pour_gemini = []
+        for t in req.transactions:
+            payload_pour_gemini.append({
+                "date": t.get("date"),
+                "type": t.get("type") or ("revenus" if float(t.get("montant", 0)) > 0 else "depenses"),
+                "cat": t.get("categorie"),
+                "nom": t.get("nom"),
+                "montant": float(t.get("montant") or 0)
+            })
+
+        system_instruction = f"""
+        Tu es un analyste financier privé de haut niveau. Ton but est d'analyser les données et de configurer des filtres automatiques.
+        
+        Données de l'utilisateur :
+        {json.dumps(payload_pour_gemini)}
+
+        RÈGLE D'OR POUR L'OBJET 'creation_stat' (STRICTEMENT OBLIGATOIRE) :
+        Dès que l'utilisateur pose une question centrée sur :
+        1. Une enseigne ou un commerce spécifique (ex: UberEats, McDonald's, Amazon, Netflix...) -> champ="nom", condition="CONTAINS"
+        2. Un mot-clé précis ou une catégorie (ex: Électricité, Loyers, Courses, Salaire...) -> champ="categorie" ou "nom"
+        3. Un jour de la semaine en particulier (ex: "mes dépenses du lundi", "le dimanche"). 
+           Si l'utilisateur cible un jour, utilise champ="jour", condition="EQUALS" et valeur="lundi" (en minuscules).
+           Si l'utilisateur parle du "week-end", crée deux objets dans 'regles' avec l'opérateur "OR" : un pour "samedi" et un pour "dimanche".
+        
+        🌟 4. CAS SPÉCIAL DES ABONNEMENTS / CHARGES RÉCURRENTES :
+        Si l'utilisateur te demande de suivre ses "abonnements", "charges récurrentes", "prélèvements" ou "charges fixes" :
+        - Analyse TOUTES les données de l'utilisateur fournies ci-dessus.
+        - Identifie TOUTES les transactions qui sont manifestement des abonnements ou des prélèvements (ex: Orange, Twitch, Mutuelle, Netflix, EDF, Loyer...).
+        - Tu DOIS configurer l'objet `creation_stat` avec operateur="OR".
+        - Dans la liste `regles`, crée UNE RÈGLE POUR CHAQUE ENSEIGNE d'abonnement ou prélèvement détectée.
+          Exemple de format pour 'regles' si tu as détecté Orange et Twitch :
+          [
+            {{"champ": "nom", "condition": "CONTAINS", "valeur": "orange"}},
+            {{"champ": "nom", "condition": "CONTAINS", "valeur": "twitch"}}
+          ]
+        - Mets comme titre : "Charges Récurrentes (IA)"
+        
+        Tu AS L'OBLIGATION de remplir l'objet `creation_stat` pour lui créer un indicateur permanent, MÊME s'il n'a pas dit explicitement les mots "créer" ou "sauvegarder". S'il s'intéresse à ce sujet, il veut le suivre à l'avenir.
+
+        Règles de formatage globales pour l'objet JSON `creation_stat` :
+        - titre : Le nom propre nettoyé de l'enseigne ou du sujet (ex: "Suivi Amazon", "Indicateur Courses")
+        - flux_type : "depenses" ou "revenus"
+        - operateur : "OR"
+        - regles : Une liste d'objets contenant chacun :
+            * champ : "nom", "categorie" ou "jour" (Ne jamais utiliser d'autres valeurs pour 'champ')
+            * condition : "CONTAINS" ou "EQUALS" (ou "GREATER_THAN"/"LESS_THAN" si l'utilisateur parle de prix)
+            * valeur : La valeur cible en minuscules (ex: "amazon", "lundi", "100")
+
+        Si la question est globale (ex: "Combien j'ai dépensé au total ce mois-ci ?"), alors et seulement alors, tu laisses `creation_stat` vide.
+        """
+
+        # Appel avec contrainte de format (Structured Output)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=req.question,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.1,
+                # On force Gemini à cracher le schéma Pydantic ChatResponseSchema
+                response_mime_type="application/json",
+                response_schema=ChatResponseSchema,
+            )
+        )
+
+        # On convertit la chaîne JSON renvoyée par Gemini en dictionnaire Python
+        import json as python_json
+        result_data = python_json.loads(response.text)
+        return result_data
+
+    except Exception as e:
+        error_str = str(e)
+        # On détecte si c'est un problème de quota épuisé (code 429)
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            return {
+                "reponse": "⚠️ **Quota Gemini épuisé pour aujourd'hui**.\n\nVous avez atteint la limite de l'offre gratuite de Google (20 requêtes/jour). Veuillez réessayer plus tard ou configurer une clé API pay-as-you-go.",
+                "creation_stat": {}
+            }
+        
+        # Pour les autres erreurs, on lève l'exception standard
+        raise HTTPException(status_code=500, detail=error_str)
