@@ -7501,23 +7501,23 @@ if (!user) {
                     </div>
                   </div>
 
-                  {/* CARTE DE SYNTHÈSE TOTAUX (FIXE EN BAS) */}
-                  <div className="mt-4 p-5 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] backdrop-blur-[var(--glass-blur)] shadow-xl">
+                  {/* CARTE DE SYNTHÈSE TOTAUX (FIXE EN BAS - ULTRA COMPACTE) */}
+                  <div className="mt-3 p-3 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] backdrop-blur-[var(--glass-blur)] shadow-xl">
                     
-                    {/* ZONE ONGLETS & SÉLECTEURS */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-white/5 pb-3">
+                    {/* ZONE ONGLETS & SÉLECTEURS (Hauteur et marges réduites) */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pb-2 border-b border-white/5">
                       
-                      <div className="flex items-center gap-3">
-                        <span class="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text-main)]/30">Totaux</span>
-                        {/* SWITCH ONGLETS */}
-                        <div className="flex bg-black/40 p-0.5 rounded-xl border border-white/5 shrink-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Totaux</span>
                         
+                        {/* SWITCH ONGLETS */}
+                        <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 shrink-0">
                           <button
                             type="button"
                             onClick={() => setTotalTab('annuel')}
-                            className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                            className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${
                               !estPeriode 
-                                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-lg' 
+                                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md' 
                                 : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                             }`}
                           >
@@ -7526,9 +7526,9 @@ if (!user) {
                           <button
                             type="button"
                             onClick={() => setTotalTab('periode')}
-                            className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all ${
+                            className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider transition-all ${
                               estPeriode 
-                                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-lg' 
+                                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md' 
                                 : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                             }`}
                           >
@@ -7536,19 +7536,19 @@ if (!user) {
                           </button>
                         </div>
 
-                        {/* SÉLECTEURS DE MOIS (Affichés uniquement si l'onglet Période est actif) */}
+                        {/* SÉLECTEURS DE MOIS TIMING COMPACT */}
                         {estPeriode && (
-                          <div className="flex items-center gap-1.5 animate-in fade-in zoom-in-95 duration-200">
-                            <div className="w-28 text-[10px]">
+                          <div className="flex items-center gap-1 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="w-24 text-[9px]">
                               <CustomSelect 
                                 value={moisDebut}
-                                onChange={(val) => setMoisDebut(val)} // Assure-toi que ton CustomSelect gère bien le onChange
+                                onChange={(val) => setMoisDebut(val)}
                                 icon={Calendar} 
                                 options={moisListe}
                               />
                             </div>
-                            <span className="text-[9px] font-black text-[var(--text-main)]/20 uppercase">à</span>
-                            <div className="w-28 text-[10px]">
+                            <span className="text-[8px] font-black text-[var(--text-main)]/20 uppercase">à</span>
+                            <div className="w-24 text-[9px]">
                               <CustomSelect 
                                 value={moisFin}
                                 onChange={(val) => setMoisFin(val)}
@@ -7559,52 +7559,46 @@ if (!user) {
                           </div>
                         )}
                       </div>
-
-                      {/* TAUX D'EFFORT */}
-                      <div className="flex items-center gap-2 self-end sm:self-auto">
-                        <span className="text-[9px] font-bold text-[var(--text-main)]/20 uppercase">Taux d'effort :</span>
-                        <span className="text-xs font-black text-emerald-400">{donneesAffichees.tauxEffort}%</span>
-                      </div>
                     </div>
 
-                    {/* GRILLE DES COMPTEURS */}
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">
+                    {/* GRILLE DES COMPTEURS (Padding interne p-2 et tailles ajustées) */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                        <p className="text-[7px] font-black text-[var(--text-main)]/20 uppercase mb-0.5 truncate">
                           {estPeriode ? 'Revenus Période' : 'Total Revenus'}
                         </p>
-                        <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_revenus }}>
+                        <p className="text-base font-black tracking-tighter leading-none" style={{ color: userTheme.color_revenus }}>
                           {donneesAffichees.revenus.toLocaleString('fr-FR')}€
                         </p>
                       </div>
 
-                      <div className="bg-black/20 p-3 rounded-2xl border border-white/5">
-                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1">
+                      <div className="bg-black/20 p-2 rounded-xl border border-white/5">
+                        <p className="text-[7px] font-black text-[var(--text-main)]/20 uppercase mb-0.5 truncate">
                           {estPeriode ? 'Dépenses Période' : 'Total Dépenses'}
                         </p>
-                        <p className="text-lg font-black tracking-tighter" style={{ color: userTheme.color_depenses }}>
+                        <p className="text-base font-black tracking-tighter leading-none" style={{ color: userTheme.color_depenses }}>
                           -{donneesAffichees.depenses.toLocaleString('fr-FR')}€
                         </p>
                       </div>
 
-                      <div className="relative overflow-hidden bg-[var(--glass-bg)] p-3 rounded-2xl border border-white/10 group">
+                      <div className="relative overflow-hidden bg-[var(--glass-bg)] p-2 rounded-xl border border-white/10 group">
                         <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
-                        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase mb-1 italic">
+                        <p className="text-[7px] font-black text-[var(--text-main)]/20 uppercase mb-0.5 italic truncate">
                           {estPeriode ? 'Épargne Période' : 'Net Épargné'}
                         </p>
-                        <p className="text-xl font-black tracking-tighter" style={{ color: userTheme.color_epargne }}>
+                        <p className="text-base font-black tracking-tighter leading-none" style={{ color: userTheme.color_epargne }}>
                           {donneesAffichees.epargne.toLocaleString('fr-FR')}€
                         </p>
                       </div>
                     </div>
 
-                    {/* BARRE DE PROGRESSION */}
-                    <div className="mt-4 space-y-1.5">
-                      <div className="flex justify-between text-[8px] font-black uppercase text-[var(--text-main)]/20">
+                    {/* BARRE DE PROGRESSION (Intégrée de façon minimaliste) */}
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-[7px] font-black uppercase text-[var(--text-main)]/20 leading-none">
                         <span>Consommé</span>
-                        <span>Épargné ({donneesAffichees.tauxEffort}%)</span>
+                        <span className="text-emerald-400 font-black">Épargné ({donneesAffichees.tauxEffort}%)</span>
                       </div>
-                      <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden flex border border-white/5">
+                      <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden flex border border-white/5">
                         <div 
                           className="h-full bg-rose-500/50 transition-all duration-500" 
                           style={{ width: `${100 - donneesAffichees.tauxEffort}%` }}
