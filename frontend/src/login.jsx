@@ -12084,15 +12084,15 @@ if (!user) {
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 2 : REFONTE FLUX MENSUEL, VARIATIONS & INSIGHTS */}
+        {/* 💡 NOUVEAUTÉ 2 : REFONTE FLUX MENSUEL, VARIATIONS & INSIGHTS (MODIFIÉ ✨) */}
         <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
           <span className="text-base mt-0.5">📊</span>
           <div>
             <h4 className="text-[15px] font-black text-indigo-400 uppercase tracking-wide">
-              Refonte du Flux Mensuel & Radar d'Insights
+              Refonte du Flux Mensuel & Statistiques IA
             </h4>
             <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              La barre de navigation a été revue pour intégrer de nouvelles analyses puissantes. L'onglet <strong className="text-indigo-400">Variations</strong> traque l'évolution précise de tes enveloppes (mises en avant des hausses critiques, des montants stables et des nouvelles catégories de dépenses). Le nouvel onglet <strong className="text-indigo-400">Insights</strong> agit comme un détecteur de comportement budgétaire pour surveiller le volume de tes transactions d'alimentation, les micro-fuites financières de moins de 10€ et tes plus gros achats d'un coup d'œil.
+              La barre de navigation intègre de nouvelles analyses puissantes. L'onglet <strong className="text-indigo-400">Variations</strong> traque l'évolution précise de tes enveloppes. Le nouvel onglet <strong className="text-indigo-400">Insights</strong> agit comme un détecteur de comportement budgétaire (micro-fuites, alimentation, gros achats) et intègre désormais un <strong className="text-indigo-400">encart textuel intelligent</strong> : écris simplement ta demande à <strong className="text-indigo-400">Gemini</strong> (ex: <i>"Suivre mes UberEats"</i>, <i>"Charges récurrentes"</i>) pour générer, calculer et épingler instantanément tes propres indicateurs personnalisés permanents dans ta grille !
             </p>
           </div>
         </div>
