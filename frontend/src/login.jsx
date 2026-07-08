@@ -2415,7 +2415,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
             {/* PARTIE LÉGENDE (Droite) */}
             <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
               <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
-                Analyse Légende
+                Légende
               </p>
               <div className="flex flex-col gap-2">
                 {statsCategories.map((item, i) => {
@@ -7344,7 +7344,7 @@ if (!user) {
                 {/* --- COLONNE 1 : LE JOURNAL --- */}
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[400px] lg:h-full min-h-0 gap-4">
 
-                  {/* CONTENEUR PRINCIPAL (Suppression du p-4 sur grand écran pour correspondre au bilan annuel) */}
+                  {/* CONTENEUR PRINCIPAL */}
                   <div className="flex flex-col flex-1 min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden">
 
                     {/* --- PARTIE 1 : TRANSACTIONS & MODULES (Scrollable) --- */}
@@ -7670,7 +7670,7 @@ if (!user) {
                     {/* CONTENU DYNAMIQUE */}
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
                       {annualTab === 'list' && (
-                        <div className="flex flex-col h-full">
+                        <div className="flex flex-col h-full w-full overflow-hidden">
                           {/* EN-TÊTE DISCRET */}
                           <div className="grid grid-cols-5 px-6 mb-2 shrink-0">
                             {['Mois', 'Revenus', 'Dépenses', 'Épargne', 'Cumul'].map((h) => (
@@ -7680,35 +7680,40 @@ if (!user) {
                             ))}
                           </div>
 
-                          {/* ZONE SCROLLABLE (LISTE) */}
-                          <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                          {/* ZONE STRICTEMENT BRIDÉE AU 1080P */}
+                          <div className="flex-1 grid grid-rows-12 gap-1 min-h-0 h-full w-full overflow-hidden">
                             {recapAnnuelStats.map((m, i) => (
                               <div 
                                 key={i} 
-                                className="grid grid-cols-5 items-center px-4 py-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-2xl transition-all duration-200 group"
+                                className="grid grid-cols-5 items-center px-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-xl transition-all duration-200 group h-full min-h-0"
                               >
-                                <div className="flex flex-col">
+                                {/* MOIS */}
+                                <div className="flex items-center min-h-0">
                                   <span className="text-[10px] font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors">
                                     {m.nom}
                                   </span>
                                 </div>
 
-                                <div className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap" style={{ color: `${userTheme.color_revenus}e6` }}>
+                                {/* REVENUS */}
+                                <div className="text-[1.5vh] min-[2000px]:text-[1.5vh] font-black tracking-tighter whitespace-nowrap min-h-0" style={{ color: `${userTheme.color_revenus}e6` }}>
                                   {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : '—'}
                                 </div>
 
-                                <div className="text-[13px] xs:text-sm sm:text-base md:text-lg font-black tracking-tighter whitespace-nowrap" style={{ color: `${userTheme.color_depenses}e6` }}>
+                                {/* DÉPENSES */}
+                                <div className="text-[1.5vh] min-[2000px]:text-[1.5vh] font-black tracking-tighter whitespace-nowrap min-h-0" style={{ color: `${userTheme.color_depenses}e6` }}>
                                   {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/5">—</span>}
                                 </div>
 
-                                <div>
-                                  <span className="inline-block px-1.5 py-0.5 rounded-full text-[10px] sm:text-xs font-black whitespace-nowrap" style={{ backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses }}>
+                                {/* ÉPARGNE */}
+                                <div className="flex items-center min-h-0">
+                                  <span className="inline-block px-[0.4vw] py-[0.1vh] rounded-full text-[1vh] min-[2000px]:text-[1vh] font-black whitespace-nowrap" style={{ backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses }}>
                                     {m.epargne !== null ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                 </div>
 
-                                <div className="text-right col-span-1">
-                                  <div className="text-sm xs:text-base sm:text-xl md:text-2xl font-black tracking-tighter leading-none whitespace-nowrap" style={{ color: userTheme.color_patrimoine }}>
+                                {/* CUMUL TOTAL */}
+                                <div className="text-right col-span-1 flex items-center justify-end min-h-0">
+                                  <div className="text-[1.7vh] min-[2000px]:text-[1.9vh] font-black tracking-tighter leading-none whitespace-nowrap" style={{ color: userTheme.color_patrimoine }}>
                                     {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
                                   </div>
                                 </div>
