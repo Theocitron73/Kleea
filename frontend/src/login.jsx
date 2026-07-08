@@ -3252,11 +3252,11 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
             >
               {/* Ligne du haut : Nom de la catégorie (En haut à gauche) + Contexte temporel TOUJOURS en haut à droite */}
               <div className="flex items-center justify-between w-full leading-none gap-1">
-                <span className="text-[8px] font-bold uppercase tracking-tight text-white/40 truncate flex-1">
+                <span className="text-[10px] font-bold uppercase tracking-tight text-white/40 truncate flex-1">
                   {item.name}
                 </span>
                 
-                <span className="text-[7px] font-black tracking-widest uppercase shrink-0 italic text-white/30">
+                <span className="text-[10px] font-black tracking-widest uppercase shrink-0 italic text-white/30">
                   vs {shortPrevMonth}
                 </span>
               </div>
@@ -3268,20 +3268,20 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
                 <div className="flex items-center gap-0.5 min-w-0">
                   {isNewCategory ? (
                     <div className="flex items-center gap-0.5 text-indigo-400">
-                      <Sparkles size={8} />
-                      <span className="text-[7px] font-black tracking-widest uppercase italic">Nouveau</span>
+                      <Sparkles size={10} />
+                      <span className="text-[10px] font-black tracking-widest uppercase italic">Nouveau</span>
                     </div>
                   ) : isStable ? (
                     <div className="flex items-center gap-0.5 text-white/40">
-                      <Minus size={8} strokeWidth={3} />
-                      <span className="text-[7px] font-black tracking-widest uppercase italic">Identique</span>
+                      <Minus size={10} strokeWidth={3} />
+                      <span className="text-[10px] font-black tracking-widest uppercase italic">Identique</span>
                     </div>
                   ) : (
                     <>
                       <span className={`shrink-0 ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {isAugmentation ? <ArrowUpRight size={9} strokeWidth={3} /> : <ArrowDownRight size={9} strokeWidth={3} />}
+                        {isAugmentation ? <ArrowUpRight size={10} strokeWidth={3} /> : <ArrowDownRight size={10} strokeWidth={3} />}
                       </span>
-                      <span className={`text-[10px] font-black tracking-tighter ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      <span className={`text-[12px] font-black tracking-tighter ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
                         {Math.abs(item.evolution)}%
                       </span>
                     </>
@@ -3289,7 +3289,7 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
                 </div>
 
                 {/* Droite : Valeur brute (ou différentiel) */}
-                <span className={`text-[10px] font-black tracking-tight shrink-0 ${
+                <span className={`text-[12px] font-black tracking-tight shrink-0 ${
                   isNewCategory ? 'text-white' : isStable ? 'text-white/40' : isAugmentation ? 'text-rose-400' : 'text-emerald-400'
                 }`}>
                   {isNewCategory ? '' : isStable ? '=' : isAugmentation ? '+' : '-'}{Math.abs(Math.round(isNewCategory ? item.value : item.diffEuro))}€
@@ -3298,7 +3298,7 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
 
               {/* Points de focus / Alerte */}
               {isCritique && (
-                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-rose-500" />
               )}
               {isNewCategory && (
                 <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-indigo-500" />
@@ -3615,7 +3615,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       {/* SECTION 2 : AFFICHAGE DE TOUTES LES STATISTIQUES EN GRILLE DE 2 */}
       <div className="flex flex-col gap-2">
 
-        <p className="text-[8px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] px-1 mb-1">
+        <p className="text-[10px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] px-1 mb-1">
           Détecteur de comportement budgétaire & indicateurs
         </p>
 
@@ -3624,10 +3624,10 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             <div className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-2">
               <Lightbulb size={12} className="text-emerald-400" />
             </div>
-            <h4 className="text-[var(--text-main)] font-black text-[8px] uppercase tracking-[0.2em] opacity-40">
+            <h4 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.2em] opacity-40">
               Rien à signaler
             </h4>
-            <p className="text-[var(--text-main)]/20 text-[7px] font-bold uppercase tracking-wide mt-0.5">
+            <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-wide mt-0.5">
               Habitudes de consommation parfaitement stables.
             </p>
           </div>
@@ -3648,7 +3648,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
                   <div className="shrink-0 mt-0.5">
                     {insight.icon}
                   </div>
-                  <p className="text-[10px] font-bold text-white/70 leading-relaxed tracking-wide">
+                  <p className="text-[11px] font-bold text-white/70 leading-relaxed tracking-wide">
                     {insight.text}
                   </p>
                 </div>
