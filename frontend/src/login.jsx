@@ -9,7 +9,7 @@ import {
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus 
+  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -3229,8 +3229,11 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
 
   return (
     <div className="flex flex-col h-full gap-1">
+      <p className="text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] px-1 mb-1">
+          Variations Catégories par rapport à {shortPrevMonth} </p>
       {/* Grille de micro-briques */}
       <div className="grid grid-cols-4 min-[420px]:grid-cols-2 gap-1.5 overflow-y-auto min-h-0 pr-0.5 custom-scrollbar">
+        
         {Variations.map((item, i) => {
           const isNewCategory = item.evolution === null || item.isNew;
           const isStable = !isNewCategory && item.evolution === 0; // ✅ Détection du montant égal
@@ -3250,6 +3253,7 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
                       : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
               }`}
             >
+              
               {/* Ligne du haut : Nom de la catégorie (En haut à gauche) + Contexte temporel TOUJOURS en haut à droite */}
               <div className="flex items-center justify-between w-full leading-none gap-1">
                 <span className="text-[10px] font-bold uppercase tracking-tight text-white/40 truncate flex-1">
@@ -3313,6 +3317,35 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
 
 
 
+ const MAP_ICONES = {
+  fastfood: <Flame size={14} />,
+  shopping: <ShoppingCart size={14} />,
+  car: <Terminal size={14} />, 
+  home: <Lightbulb size={14} />,
+  sub: <Sparkles size={14} />,
+  salary: <ShoppingCart size={14} />, 
+  star: <Sparkles size={14} />,
+  alert: <AlertTriangle size={14} />,
+  health: <HeartPulse size={14} />,
+  leisure: <Ticket size={14} />,
+  crypto: <Wallet size={14} />,
+  tech: <Cpu size={14} />,
+  travel: <Plane size={14} />,
+  gift: <Gift size={14} />
+};
+
+const MAP_COULEURS = {
+  rose: { bg: "bg-rose-500/[0.03] border-rose-500/10", text: "text-rose-400" },
+  amber: { bg: "bg-amber-500/[0.03] border-amber-500/10", text: "text-amber-400" },
+  emerald: { bg: "bg-emerald-500/[0.03] border-emerald-500/10", text: "text-emerald-400" },
+  indigo: { bg: "bg-indigo-500/[0.02] border-indigo-500/20", text: "text-indigo-400" },
+  cyan: { bg: "bg-cyan-500/[0.03] border-cyan-500/10", text: "text-cyan-400" },
+  violet: { bg: "bg-violet-500/[0.03] border-violet-500/10", text: "text-violet-400" },
+  blue: { bg: "bg-blue-500/[0.03] border-blue-500/10", text: "text-blue-400" },
+  orange: { bg: "bg-orange-500/[0.03] border-orange-500/10", text: "text-orange-400" },
+  red: { bg: "bg-red-500/[0.03] border-red-500/10", text: "text-red-400" },
+  fuchsia: { bg: "bg-fuchsia-500/[0.03] border-fuchsia-500/10", text: "text-fuchsia-400" },
+};
 
 
 
@@ -3433,6 +3466,8 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
           titre: data.creation_stat.titre,
           flux_type: data.creation_stat.flux_type,
           operateur: data.creation_stat.operateur,
+          couleur: data.creation_stat.couleur || "indigo",
+          icone: data.creation_stat.icone || "star",       
           regles: data.creation_stat.regles
         };
 
@@ -3471,6 +3506,9 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
   
   // 4. Calcul et fusion des statistiques automatiques ET personnalisées
   const insights = useMemo(() => {
+
+   
+
     const list = [];
 
     // --- INSIGHT 1 : Détecteur de pics budgétaires (Défaut) ---
@@ -3543,16 +3581,21 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
 
     // --- 🌟 INJECTION DES STATS PERSO DE LA BDD (CRÉÉES PAR L'IA) ---
     customStats
-      // 👈 Affiche la stat si elle correspond au profil actif OU si c'est une stat globale "Tous"
-      .filter(config => config.profil === filters.profil || config.profil === "Tous") 
+      .filter(config => config.profil === filters?.profil || config.profil === "Tous") 
       .forEach((config) => {
         const total = calculerMontantStatPerso(config, transactions);
+        
+        // Sécurité : On pioche dans les dictionnaires globaux déclarés en haut
+        const styleCouleur = MAP_COULEURS[config.couleur] || MAP_COULEURS.indigo;
+        const composantIcone = MAP_ICONES[config.icone] || MAP_ICONES.star;
+
         list.push({
           id: config.id,
           isDefault: false,
           isAI: true,
-          type: 'info',
-          icon: <Sparkles size={14} className="text-indigo-400" />,
+          // On injecte la couleur text-xxx-400 directement dans l'icône choisie
+          icon: React.cloneElement(composantIcone, { className: styleCouleur.text }),
+          customBgClass: styleCouleur.bg,
           text: `Indicateur Personnalisé "${config.titre}" : vous avez cumulé ${total.toLocaleString()}€ ce mois-ci.`
         });
       });
@@ -3615,7 +3658,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       {/* SECTION 2 : AFFICHAGE DE TOUTES LES STATISTIQUES EN GRILLE DE 2 */}
       <div className="flex flex-col gap-2">
 
-        <p className="text-[10px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] px-1 mb-1">
+        <p className="text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] px-1 mb-1">
           Détecteur de comportement budgétaire & indicateurs
         </p>
 
@@ -3638,9 +3681,9 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
               <div 
                 key={insight.id}
                 className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-all ${
+                  insight.customBgClass ? insight.customBgClass : // 👈 PRIORITÉ AU STYLE DYNAMIQUE DE L'IA
                   insight.type === 'danger' ? 'bg-rose-500/[0.03] border-rose-500/10' :
                   insight.type === 'warning' ? 'bg-amber-500/[0.03] border-amber-500/10' :
-                  insight.isAI ? 'bg-indigo-500/[0.02] border-indigo-500/20 shadow-[0_0_12px_rgba(99,102,241,0.03)]' :
                   'bg-white/[0.01] border-white/5'
                 }`}
               >
@@ -7436,14 +7479,23 @@ if (!user) {
                       {/* ZONE SCROLLABLE */}
                       <div className="flex-1 overflow-y-auto min-h-0 p-4 custom-scrollbar"> {/* Ajout de p-4 pour correspondre à l'alignement */}
                         {tabActive === 'Catégories' && (
-                          <div className="h-full min-[2000px]:hidden">
-                            <CategoriesView 
-                              statsCategories={statsCategories}
-                              chartData={chartData}
-                              hiddenCategories={hiddenCategories}
-                              toggleCategory={toggleCategory}
-                              userTheme={userTheme}
-                            />
+                          /* Remplacement de h-full par flex flex-col h-full min-h-0 */
+                          <div className="flex flex-col h-full min-h-0 min-[2000px]:hidden">
+                            {/* Le h3 reste en haut, shrink-0 l'empêche de s'écraser */}
+                            <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4 shrink-0"> 
+                              Analyse par Catégorie 
+                            </h3>
+                            
+                            {/* On encapsule CategoriesView pour forcer sa taille restante */}
+                            <div className="flex-1 min-h-0 w-full">
+                              <CategoriesView 
+                                statsCategories={statsCategories}
+                                chartData={chartData}
+                                hiddenCategories={hiddenCategories}
+                                toggleCategory={toggleCategory}
+                                userTheme={userTheme}
+                              />
+                            </div>
                           </div>
                         )}
 
@@ -7591,7 +7643,7 @@ if (!user) {
                           </div>
                           <button 
                             onClick={() => setActiveTab('gerer')}
-                            className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all border border-white/5"
+                            className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-white/[0.06] hover:border-white/10 rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all duration-200 border border-white/5 active:scale-95"
                           >
                             Limites →
                           </button>

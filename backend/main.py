@@ -1830,6 +1830,8 @@ class CustomStatCreate(BaseModel):
     titre: str
     flux_type: str   # 'depenses' ou 'revenus'
     operateur: str   # 'AND' ou 'OR'
+    couleur: str  # 👈 Ajoute ici
+    icone: str    # 👈 Ajoute ici
     regles: List[CustomStatRule]
 
 # --- 1. AJOUTER UNE STAT PERSO (CORRIGÉ ✨) ---
@@ -1837,8 +1839,8 @@ class CustomStatCreate(BaseModel):
 def create_custom_stat(stat: CustomStatCreate):
     # Ajout du champ 'profil' dans la structure de l'INSERT SQL
     query = text("""
-        INSERT INTO custom_stats (utilisateur, profil, titre, flux_type, operateur, regles)
-        VALUES (:u, :p, :t, :f, :o, :r)
+        INSERT INTO custom_stats (utilisateur, profil, titre, flux_type, operateur, couleur, icone, regles)
+        VALUES (:u, :p, :t, :f, :o, :c, :i, :r)
         RETURNING id
     """)
     try:
@@ -1852,7 +1854,9 @@ def create_custom_stat(stat: CustomStatCreate):
                 "t": stat.titre,
                 "f": stat.flux_type,
                 "o": stat.operateur,
-                "r": regles_json
+                "r": regles_json,
+                "c": stat.couleur,
+                "i": stat.icone,
             })
             new_id = result.fetchone()[0]
             conn.commit()
@@ -1864,8 +1868,8 @@ def create_custom_stat(stat: CustomStatCreate):
 # --- 2. RÉCUPÉRER LES STATS D'UN UTILISATEUR (CORRIGÉ ✨) ---
 @app.get("/custom-stats/{username}")
 def get_custom_stats(username: str):
-    # Ajout du champ 'profil' dans le SELECT pour que le frontend puisse l'avoir dans 'config.profil'
-    query = text("SELECT id, profil, titre, flux_type, operateur, regles FROM custom_stats WHERE LOWER(utilisateur) = :u")
+    # 🌟 AJOUT DE COULEUR ET ICONE DANS LE SELECT :
+    query = text("SELECT id, profil, titre, flux_type, operateur, couleur, icone, regles FROM custom_stats WHERE LOWER(utilisateur) = :u")
     try:
         with engine.connect() as conn:
             result = conn.execute(query, {"u": username.lower()})
@@ -1922,6 +1926,10 @@ class AICreationStat(BaseModel):
     titre: str = Field(description="Le titre de l'indicateur donné par l'utilisateur ou résumé proprement (ex: 'Suivi McDo')")
     flux_type: str = Field(description="Doit être 'depenses' ou 'revenus'")
     operateur: str = Field(description="Doit être 'AND' ou 'OR'")
+    # On ajoute toutes les nouvelles couleurs
+    couleur: str = Field(description="Choisis parmi exclusivement: 'rose', 'amber', 'emerald', 'indigo', 'cyan', 'violet', 'blue', 'orange', 'red', 'fuchsia'")
+    # On ajoute toutes les nouvelles icônes
+    icone: str = Field(description="Choisis parmi exclusivement: 'fastfood', 'shopping', 'car', 'home', 'sub', 'salary', 'star', 'alert', 'health', 'leisure', 'crypto', 'tech', 'travel', 'gift'")
     regles: List[AISuggestedRule]
 
 class ChatResponseSchema(BaseModel):
@@ -1931,8 +1939,12 @@ class ChatResponseSchema(BaseModel):
 # 2. La route modifiée
 @app.post("/api/insights-chat")
 def insights_chat(req: ChatRequest):
+    print(f"--- 🚀 REQUÊTE REÇUE DU FRONTEND POUR GEMINI : {req.question} ---")
     try:
-        client = genai.Client()
+        
+        # On initialise explicitement le client avec cette clé
+        client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        
 
         if not req.transactions:
             return {"reponse": "Je n'ai détecté aucune transaction à analyser ce mois-ci.", "creation_stat": None}
@@ -1986,6 +1998,22 @@ def insights_chat(req: ChatRequest):
             * valeur : La valeur cible en minuscules (ex: "amazon", "lundi", "100")
 
         Si la question est globale (ex: "Combien j'ai dépensé au total ce mois-ci ?"), alors et seulement alors, tu laisses `creation_stat` vide.
+
+        Règles d'esthétique pour 'couleur' et 'icone' (STRICTEMENT OBLIGATOIRE) :
+        - Restauration rapide / Plaisirs coupables (McDo, UberEats, Bar...) -> couleur="rose", icone="fastfood"
+        - Supermarché / Courses alimentaires récurrentes -> couleur="emerald", icone="shopping"
+        - Abonnements / Prélèvements / Licences (Netflix, Spotify, Internet...) -> couleur="indigo", icone="sub"
+        - Revenu / Salaire / Remboursement reçu -> couleur="emerald", icone="salary"
+        - Voiture / Essence / Péage / Transports en commun -> couleur="cyan", icone="car"
+        - Logement / Loyer / Électricité / Meubles -> couleur="blue", icone="home"
+        - Santé / Pharmacie / Docteur / Mutuelle -> couleur="red", icone="health"
+        - Sorties / Cinéma / Concerts / Musées / Loisirs -> couleur="fuchsia", icone="leisure"
+        - Épargne / Bourse / Crypto-monnaies / Investissements -> couleur="violet", icone="crypto"
+        - Technologie / Matériel informatique / Gadgets / Jeux-Vidéo -> couleur="orange", icone="tech"
+        - Voyages / Vacances / Billets d'avion / Hôtel -> couleur="cyan", icone="travel"
+        - Cadeaux / Dons / Anniversaires -> couleur="rose", icone="gift"
+        - Danger / Alerte / Frais bancaires ou anomalies -> couleur="red", icone="alert"
+        - Cas générique / Non classé -> couleur="amber", icone="star"
         """
 
         # Appel avec contrainte de format (Structured Output)
@@ -2008,6 +2036,7 @@ def insights_chat(req: ChatRequest):
 
     except Exception as e:
         error_str = str(e)
+        print(f"❌ CRASH ROUTE AI: {error_str}")
         # On détecte si c'est un problème de quota épuisé (code 429)
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
             return {
