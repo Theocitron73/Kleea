@@ -5140,26 +5140,25 @@ useEffect(() => {
     });
   }
 }, [filters.annee, availablePeriods, currentKey]);
+const menuItems = [
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'previsionnel', label: 'Prévisionnel', icon: ChartCandlestick },
+  { id: 'gerer', label: 'Gérer', icon: Settings2 },
+  { id: 'importer', label: 'Importer', icon: FileUp },
+  { id: 'comptes', label: 'Comptes', icon: Wallet },
+  { id: 'tricount', label: 'Tricount', icon: Users2 },
+  { id: 'theme', label: 'Thème', icon: Palette },
+  { id: 'Guide', label: 'Guide', icon: FileText },
+  { id: 'demenagement', label: 'Déménagement', icon: Truck },
+];
 
-  const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'previsionnel', label: 'Prévisionnel', icon: ChartCandlestick },
-    { id: 'gerer', label: 'Gérer', icon: Settings2 },
-    { id: 'importer', label: 'Importer', icon: FileUp },
-    { id: 'comptes', label: 'Comptes', icon: Wallet },
-    { id: 'tricount', label: 'Tricount', icon: Users2 },
-    { id: 'theme', label: 'Thème', icon: Palette },
-    { id: 'Guide', label: 'Guide', icon: FileText },
-    { id: 'Déménagement', label: 'Déménagement', icon: Truck },
-  ];
-
-  const visibleMenuItems = menuItems.filter(item => {
-    if (item.id === 'theme') {
-      return user?.toLowerCase() === 'theo';
-    }
-    return true;
-  });
-
+const visibleMenuItems = menuItems.filter(item => {
+  // Option propre : on liste les IDs réservés à Théo
+  if (item.id === 'theme' || item.id === 'demenagement') {
+    return user?.toLowerCase() === 'theo';
+  }
+  return true;
+});
 
 
 
@@ -12474,7 +12473,7 @@ if (!user) {
 
 
 
-{activeTab === 'Déménagement' && user === 'theo' && (
+{activeTab === 'demenagement' && user === 'theo' && (
   <DemenagementPage 
     user={user} 
     toutesLesCategories={toutesLesCategories} 
