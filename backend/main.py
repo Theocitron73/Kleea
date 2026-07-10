@@ -23,6 +23,8 @@ import unicodedata
 import json
 from google import genai
 from google.genai import types
+from urllib.parse import unquote
+from datetime import datetime, timezone  # <-- Assure-toi d'importer timezone
 
 
 def get_ascii_hostname():
@@ -772,7 +774,6 @@ def add_category(cat: CategorieCreate):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-from urllib.parse import unquote
 
 @app.delete("/api/categories/{user}/{nom}")
 def delete_category(user: str, nom: str):
@@ -2046,3 +2047,212 @@ def insights_chat(req: ChatRequest):
         
         # Pour les autres erreurs, on lève l'exception standard
         raise HTTPException(status_code=500, detail=error_str)
+    
+
+
+
+
+class SimulationLineCreate(BaseModel):
+    id: int = None  # Ajout de l'ID optionnel pour l'éventuelle modification directe
+    utilisateur: str
+    scenario: str
+    titre: str
+    flux_type: str
+    categorie: str
+    montant: float
+    frequence: str
+    cible: str
+
+@app.post("/api/simulation-demenagement")
+def add_or_update_simulation_line(line: SimulationLineCreate):
+    clean_username = line.utilisateur.lower().strip()
+    
+    # 1. On cherche d'abord si la ligne existe déjà
+    check_query = text("""
+        SELECT id FROM simulations_demenagement 
+        WHERE LOWER(utilisateur) = :u AND scenario = :sc AND titre = :t
+    """)
+    
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(check_query, {
+                "u": clean_username,
+                "sc": line.scenario,
+                "t": line.titre
+            })
+            existing_row = result.fetchone()
+            
+            if existing_row:
+                # 2. Si elle existe, on fait un UPDATE
+                existing_id = existing_row[0]
+                update_query = text("""
+                    UPDATE simulations_demenagement 
+                    SET montant = :m, frequence = :freq, categorie = :c, flux_type = :f, cible = :cible
+                    WHERE id = :id
+                """)
+                conn.execute(update_query, {
+                    "id": existing_id,
+                    "m": line.montant,
+                    "freq": line.frequence,
+                    "c": line.categorie,
+                    "f": line.flux_type,
+                    "cible": line.cible
+                })
+                return {"id": existing_id, "status": "success"}
+                
+            else:
+                # 3. Si elle n'existe pas, on fait un INSERT classique
+                insert_query = text("""
+                    INSERT INTO simulations_demenagement (utilisateur, scenario, titre, flux_type, categorie, montant, frequence, cible)
+                    VALUES (:u, :sc, :t, :f, :c, :m, :freq, :cible)
+                    RETURNING id
+                """)
+                insert_result = conn.execute(insert_query, {
+                    "u": clean_username,
+                    "sc": line.scenario,
+                    "t": line.titre,
+                    "f": line.flux_type,
+                    "c": line.categorie,
+                    "m": line.montant,
+                    "freq": line.frequence,
+                    "cible": line.cible
+                })
+                new_id = insert_result.fetchone()[0]
+                return {"id": new_id, "status": "success"}
+                
+    except Exception as e:
+        print(f"❌ Erreur lors du POST : {str(e)}")  # Cela s'affichera dans ton terminal FastAPI
+        raise HTTPException(status_code=500, detail=f"Erreur base de données : {str(e)}")
+
+@app.get("/api/simulation-demenagement/{username}")
+def get_simulation_demenagement(username: str):
+    query = text("""
+        SELECT id, scenario, titre, flux_type, categorie, montant, frequence, cible 
+        FROM simulations_demenagement 
+        WHERE LOWER(utilisateur) = :u
+    """)
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"u": username.lower().strip()})
+            columns = result.keys()
+            # Utilisation d'une compréhension de dictionnaire plus moderne/robuste
+            return [dict(zip(columns, row)) for row in result.fetchall()]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/simulation-demenagement/{line_id}")
+def delete_simulation_line(line_id: int):
+    query = text("DELETE FROM simulations_demenagement WHERE id = :id")
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(query, {"id": line_id})
+            # Optionnel : vérifier si la ligne existait vraiment
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Ligne introuvable")
+                
+        return {"status": "success"}
+    except HTTPException as http_err:
+        raise http_err
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@app.delete("/api/simulation-demenagement/{username}/{scenario_name}")
+def delete_scenario(username: str, scenario_name: str):
+    # 1. Nettoyage complet des chaînes
+    decoded_scenario = unquote(scenario_name).strip()
+    
+    # Remplacer les espaces insécables (\u00a0 ou \u202f) par des espaces normaux
+    decoded_scenario = re.sub(r'[\u00a0\u202f\s]+', ' ', decoded_scenario).strip()
+    clean_username = username.lower().strip()
+
+    # 2. Requête SQL tolérante aux espaces et à la casse
+    # On applique un LOWER() sur l'utilisateur et un TRIM sur le scénario au cas où
+    query = text("""
+        DELETE FROM simulations_demenagement 
+        WHERE LOWER(utilisateur) = :u 
+          AND (TRIM(scenario) = :sc OR REGEXP_REPLACE(scenario, '[\u00a0\s]+', ' ', 'g') = :sc)
+    """)
+    
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(query, {
+                "u": clean_username,
+                "sc": decoded_scenario
+            })
+            
+            # Si la requête exacte échoue, on tente une suppression plus large avec LIKE
+            if result.rowcount == 0:
+                fallback_query = text("""
+                    DELETE FROM simulations_demenagement 
+                    WHERE LOWER(utilisateur) = :u 
+                      AND scenario LIKE :sc_like
+                """)
+                # On cherche "Loyer%900%€" en remplaçant les espaces par des jokers %
+                like_pattern = f"%{decoded_scenario.replace(' ', '%')}%"
+                result = conn.execute(fallback_query, {
+                    "u": clean_username,
+                    "sc_like": like_pattern
+                })
+
+            if result.rowcount == 0:
+                print(f"⚠️ Aucun match trouvé pour l'utilisateur '{clean_username}' et le scénario '{decoded_scenario}'")
+                raise HTTPException(status_code=404, detail="Scénario introuvable")
+                
+        return {"status": "success", "message": f"{result.rowcount} lignes supprimées."}
+    except HTTPException as http_err:
+        raise http_err
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+class NoteUpdate(BaseModel):
+    utilisateur: str
+    contenu: str
+
+@app.get("/api/notes-demenagement/{username}")
+def get_user_notes(username: str):
+    query = text("SELECT contenu FROM notes_demenagement WHERE LOWER(utilisateur) = :u")
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"u": username.lower().strip()})
+            row = result.fetchone()
+            # Si l'utilisateur n'a pas encore de note, on renvoie une chaîne vide
+            return {"contenu": row[0] if row else ""}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/notes-demenagement")
+def save_user_notes(note: NoteUpdate):
+    clean_username = note.utilisateur.lower().strip()
+    now_utc = datetime.now(timezone.utc)
+    
+    # 1. On vérifie si l'utilisateur existe déjà
+    check_query = text("SELECT utilisateur FROM notes_demenagement WHERE LOWER(utilisateur) = :u")
+    
+    try:
+        with engine.begin() as conn: # engine.begin() gère le commit automatiquement
+            exists = conn.execute(check_query, {"u": clean_username}).fetchone()
+            
+            if exists:
+                # Mode UPDATE
+                query = text("""
+                    UPDATE notes_demenagement 
+                    SET contenu = :c, mis_a_jour_le = :now 
+                    WHERE LOWER(utilisateur) = :u
+                """)
+            else:
+                # Mode INSERT
+                query = text("""
+                    INSERT INTO notes_demenagement (utilisateur, contenu, mis_a_jour_le) 
+                    VALUES (:u, :c, :now)
+                """)
+                
+            conn.execute(query, {
+                "u": clean_username,
+                "c": note.contenu,
+                "now": now_utc
+            })
+            
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
