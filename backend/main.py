@@ -733,7 +733,7 @@ CATEGORIES_DEFAUT = [
     "⚖️ Impôts", "🏦 Frais Bancaires", "🏠 Assurance Habitation", "🎮 Jeux vidéos",
     "🩺 Mutuelle", "💊 Pharmacie", "👨‍⚕️ Médecin/Santé", "🔑 Loyer", 
     "🔨 Bricolage", "🚌 Transports", "⛽ Carburant", "🚗 Auto", 
-    "💸 Virements envoyé", "🏧 Retraits", "🌐 Web/Énergie", 
+    "💸 Virements envoyé", "🏧 Retraits", "🌐 Internet", 
     "🔄 Virement : Livret A vers CCP", "🔄 Virement : CCP vers Livret A", "❓ Autre"
 ]
 
