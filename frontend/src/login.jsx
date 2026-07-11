@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark 
+  Truck,Layers,Landmark,ChevronLeft 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -7685,6 +7685,71 @@ useEffect(() => {
 
 
 
+const carouselRef = useRef(null);
+const [activeIndex, setActiveIndex] = useState(0);
+const [isOverflowing, setIsOverflowing] = useState(false); // <-- Pour savoir si ça déborde
+const [totalDots, setTotalDots] = useState(1);
+const itemsPerPage = 5;
+
+// Détecte si le contenu déborde réellement de l'écran
+useEffect(() => {
+  const container = carouselRef.current;
+  if (!container || budgetGauges.length === 0) return;
+
+  const checkOverflow = () => {
+    const hasOverflow = container.scrollWidth > container.clientWidth;
+    setIsOverflowing(hasOverflow);
+    
+    if (hasOverflow) {
+      setTotalDots(Math.ceil(budgetGauges.length / itemsPerPage));
+    } else {
+      setTotalDots(1);
+      setActiveIndex(0);
+    }
+  };
+
+  // On vérifie tout de suite
+  checkOverflow();
+
+  // On écoute les changements de taille de l'écran (ex: passage de mobile à desktop)
+  const resizeObserver = new ResizeObserver(() => checkOverflow());
+  resizeObserver.observe(container);
+
+  return () => resizeObserver.disconnect();
+}, [budgetGauges]);
+
+const handleScroll = (e) => {
+  if (!isOverflowing) return;
+  const container = e.target;
+  const scrollLeft = container.scrollLeft;
+  const maxScrollLeft = container.scrollWidth - container.clientWidth;
+  if (maxScrollLeft <= 0) return;
+
+  const percentage = scrollLeft / maxScrollLeft;
+  const index = Math.min(Math.round(percentage * (totalDots - 1)), totalDots - 1);
+  setActiveIndex(index);
+};
+
+const navigateCarousel = (direction) => {
+  if (!carouselRef.current) return;
+  const container = carouselRef.current;
+  const scrollAmount = container.clientWidth * 0.8; 
+  
+  container.scrollBy({
+    left: direction === 'next' ? scrollAmount : -scrollAmount,
+    behavior: 'smooth'
+  });
+};
+
+const scrollToPage = (pageIndex) => {
+  if (!carouselRef.current || totalDots <= 1) return;
+  const container = carouselRef.current;
+  const maxScrollLeft = container.scrollWidth - container.clientWidth;
+  const targetScroll = (pageIndex / (totalDots - 1)) * maxScrollLeft;
+  
+  container.scrollTo({ left: targetScroll, behavior: 'smooth' });
+  setActiveIndex(pageIndex);
+};
 
 
 
@@ -8389,74 +8454,134 @@ if (!user) {
                       </div>
                     </div>
 
-                    {/* --- PARTIE 3 : OBJECTIFS BUDGÉTAIRES --- */}
-                    <div className="shrink-0 w-full p-4 bg-white/[0.02] border-t border-white/10 mt-auto">
-                      <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em] mb-3">
-                        Objectifs Budgétaires
-                      </h3>
+{/* --- PARTIE 3 : OBJECTIFS BUDGÉTAIRES (VERSION FLÈCHES + DOTS + NUMÉROTATION) --- */}
+<div className="shrink-0 w-full p-4 bg-white/[0.02] border-t border-white/10 mt-auto flex flex-col gap-3 relative group/carousel">
+  <div className="flex items-center justify-between">
+    <h3 className="text-[var(--text-main)]/30 font-black text-[9px] uppercase tracking-[0.2em]">
+      Objectifs Budgétaires
+    </h3>
+  </div>
 
-                      {budgetGauges.length > 0 ? (
-                        <div className="flex flex-row md:grid md:grid-cols-5 gap-4 overflow-x-auto pb-2 scrollbar-hide gap-y-10 gap-x-2"> 
-                          {budgetGauges.map((bg, i) => {
-                            const radius = 30;
-                            const circumference = Math.PI * radius;
-                            const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
+  {budgetGauges.length > 0 ? (
+    <div className="relative w-full">
+      
+      {/* FLÈCHE GAUCHE (Masquée si on est au tout début ou s'il n'y a qu'une page) */}
+      {totalDots > 1 && activeIndex > 0 && (
+        <button 
+          onClick={() => navigateCarousel('prev')}
+          className="absolute left-[-12px] top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-black/60 hover:bg-[var(--primary)] text-white border border-white/10 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 shadow-lg"
+        >
+          <ChevronLeft size={14} strokeWidth={3} />
+        </button>
+      )}
 
-                            return (
-                              <div key={i} className="flex flex-col items-center min-w-[70px]">
-                                <div className="relative w-20 h-10">
-                                  <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
-                                    <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
-                                    <path
-                                      d="M 10,40 A 30,30 0 0 1 70,40"
-                                      fill="none"
-                                      stroke={bg.depasse ? '#fb7185' : '#34d399'}
-                                      strokeWidth="6"
-                                      strokeDasharray={circumference}
-                                      strokeDashoffset={strokeDashoffset}
-                                      strokeLinecap="round"
-                                      className="transition-all duration-1000 ease-out"
-                                      style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
-                                    />
-                                  </svg>
-                                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-sm mb-[-2px]">
-                                    {bg.nom.split(' ')[0]}
-                                  </div>
-                                  <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
-                                    <span className="text-[8px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
-                                    <span className="text-[8px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
-                                  </div>
-                                </div>
+      {/* FLÈCHE DROITE (Masquée si on est à la fin ou s'il n'y a qu'une page) */}
+      {totalDots > 1 && activeIndex < totalDots - 1 && (
+        <button 
+          onClick={() => navigateCarousel('next')}
+          className="absolute right-[-12px] top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-black/60 hover:bg-[var(--primary)] text-white border border-white/10 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 shadow-lg"
+        >
+          <ChevronRight size={14} strokeWidth={3} />
+        </button>
+      )}
 
-                                <div className="text-center mt-7">
-                                  <p className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-16 leading-none">
-                                    {bg.nom.split(' ').slice(1).join(' ')}
-                                  </p>
-                                  <p className={`text-[11px] font-black mt-1 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
-                                    {bg.pourcentage}%
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="py-6 px-4 flex items-center justify-between bg-white/[0.01] border border-dashed border-white/10 rounded-2xl mt-2">
-                          <div className="flex items-center gap-3">
-                            <span className="text-lg opacity-30">🎯</span>
-                            <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest leading-tight">
-                              Aucune limite de budget définie ce mois-ci <br/> pour vos catégories.
-                            </p>
-                          </div>
-                          <button 
-                            onClick={() => setActiveTab('gerer')}
-                            className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-white/[0.06] hover:border-white/10 rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all duration-200 border border-white/5 active:scale-95"
-                          >
-                            Limites →
-                          </button>
-                        </div>
-                      )}
-                    </div>
+      {/* CARROUSEL CONTAINER */}
+      <div 
+        ref={carouselRef}
+        onScroll={handleScroll}
+        className="flex flex-row gap-4 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      > 
+        {budgetGauges.map((bg, i) => {
+          const radius = 30;
+          const circumference = Math.PI * radius;
+          const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
+
+          return (
+            <div 
+              key={i} 
+              className="flex flex-col items-center min-w-[80px] max-w-[80px] shrink-0 snap-start bg-white/[0.01] border border-white/[0.03] p-2 rounded-xl"
+            >
+              <div className="relative w-20 h-10">
+                <svg width="80" height="40" viewBox="0 0 80 40" className="absolute top-0 left-1/2 -translate-x-1/2">
+                  <path d="M 10,40 A 30,30 0 0 1 70,40" fill="none" stroke="currentColor" strokeWidth="6" className="text-[var(--text-main)]/5" />
+                  <path
+                    d="M 10,40 A 30,30 0 0 1 70,40"
+                    fill="none"
+                    stroke={bg.depasse ? '#fb7185' : '#34d399'}
+                    strokeWidth="6"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeDashoffset}
+                    strokeLinecap="round"
+                    className="transition-all duration-1000 ease-out"
+                    style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
+                  />
+                </svg>
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] font-bold mb-[-2px] tracking-tight truncate w-14 text-center">
+                  {bg.nom.split(' ')[0]}
+                </div>
+                <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
+                  <span className="text-[7px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
+                  <span className="text-[7px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
+                </div>
+              </div>
+
+              <div className="text-center mt-6 w-full">
+                <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-full leading-none">
+                  {bg.nom.split(' ').slice(1).join(' ') || 'Frais'}
+                </p>
+                <p className={`text-[10px] font-black mt-0.5 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
+                  {bg.pourcentage}%
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ZONE DE NAVIGATION INFÉRIEURE (POINTS + NUMÉROTATION CHRONO) */}
+      {totalDots > 1 && (
+        <div className="flex flex-col items-center gap-1.5 mt-3 select-none">
+          {/* Points */}
+          <div className="flex justify-center items-center gap-1.5">
+            {Array.from({ length: totalDots }).map((_, dotIndex) => (
+              <button
+                key={dotIndex}
+                onClick={() => scrollToPage(dotIndex)}
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  activeIndex === dotIndex 
+                    ? 'w-4 bg-[var(--primary)] shadow-[0_0_8px_var(--primary)]' 
+                    : 'w-1 bg-white/20 hover:bg-white/40'
+                }`}
+                aria-label={`Aller à la page ${dotIndex + 1}`}
+              />
+            ))}
+          </div>
+          
+          {/* Chiffres indicateurs (Ex: 1 / 3) */}
+          <span className="text-[8px] font-black uppercase text-[var(--text-main)]/30 tracking-widest tabular-nums">
+            {activeIndex + 1} <span className="opacity-50">/</span> {totalDots}
+          </span>
+        </div>
+      )}
+    </div>
+  ) : (
+    <div className="py-6 px-4 flex items-center justify-between bg-white/[0.01] border border-dashed border-white/10 rounded-2xl mt-2">
+      <div className="flex items-center gap-3">
+        <span className="text-lg opacity-30">🎯</span>
+        <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest leading-tight">
+          Aucune limite de budget définie ce mois-ci <br/> pour vos catégories.
+        </p>
+      </div>
+      <button 
+        onClick={() => setActiveTab('gerer')}
+        className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-white/[0.06] hover:border-white/10 rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all duration-200 border border-white/5 active:scale-95"
+      >
+        Limites →
+      </button>
+    </div>
+  )}
+</div>
                     
                   </div>
                 </div>
