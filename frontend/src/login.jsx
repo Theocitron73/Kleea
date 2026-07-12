@@ -7752,6 +7752,20 @@ const scrollToPage = (pageIndex) => {
 };
 
 
+const [selectedBudgetMonth, setSelectedBudgetMonth] = useState('');
+
+// Récupère dynamiquement la liste unique des mois triés du plus récent au plus ancien
+const listeMoisDisponibles = Array.from(new Set(budgets.map(b => b.mois)))
+  .sort((a, b) => b.localeCompare(a.mois));
+
+// Initialise le mois sélectionné si ce n'est pas déjà fait
+useEffect(() => {
+  if (listeMoisDisponibles.length > 0 && !selectedBudgetMonth) {
+    setSelectedBudgetMonth(listeMoisDisponibles[0]);
+  }
+}, [budgets, listeMoisDisponibles, selectedBudgetMonth]);
+
+
 
 useEffect(() => {
   if (user) {
@@ -10757,149 +10771,174 @@ if (!user) {
             <Plus size={14} strokeWidth={3} /> Fixer le budget
           </button>
         </div>
-       {/* RÉCAPITULATIF DES BUDGETS (CORRIGÉ) */}
-        <div className="relative mt-2">
-          <button 
-            onClick={() => setShowBudgetDetails(!showBudgetDetails)}
-            className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)] transition-all group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
-                <Activity size={14} className="text-[var(--primary)]" />
-              </div>
-              <div className="text-left">
-                <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
-                <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase">
-                  {budgets.length} objectifs en cours
-                </p>
-              </div>
-            </div>
-            <ChevronRight size={14} className={`text-[var(--text-main)]/20 transition-transform ${showBudgetDetails ? 'rotate-90' : ''}`} />
+       {/* RÉCAPITULATIF DES BUDGETS (AVEC SYSTÈME DE TABS PAR MOIS) */}
+<div className="relative mt-2">
+  <button 
+    onClick={() => setShowBudgetDetails(!showBudgetDetails)}
+    className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)] transition-all group"
+  >
+    <div className="flex items-center gap-3">
+      <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
+        <Activity size={14} className="text-[var(--primary)]" />
+      </div>
+      <div className="text-left">
+        <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
+        <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase">
+          {budgets.length} objectifs en cours
+        </p>
+      </div>
+    </div>
+    <ChevronRight size={14} className={`text-[var(--text-main)]/20 transition-transform ${showBudgetDetails ? 'rotate-90' : ''}`} />
+  </button>
+
+  {showBudgetDetails && (
+    <>
+      <div className="fixed inset-0 z-[90]" onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} />
+      <div className="absolute bottom-full mb-3 left-0 right-0 z-[91] bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+        
+        <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+          <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Détails des budgets</h4>
+          <button onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors">
+            <X size={14} />
           </button>
+        </div>
 
-          {showBudgetDetails && (
-            <>
-              <div className="fixed inset-0 z-[90]" onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} />
-              <div className="absolute bottom-full mb-3 left-0 right-0 z-[91] bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
-                
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/5">
-                  <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Détails des budgets</h4>
-                  <button onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors">
-                    <X size={14} />
-                  </button>
-                </div>
+        {/* --- SYSTEME DE TABS NAVIGATION MOIS --- */}
+        {listeMoisDisponibles.length > 1 && (
+          <div className="flex flex-row gap-1 overflow-x-auto pb-2 mb-3 scrollbar-hide border-b border-white/[0.03] select-none">
+            {listeMoisDisponibles.map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setSelectedBudgetMonth(m);
+                  setEditingBudget(null);
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 ${
+                  selectedBudgetMonth === m
+                    ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
+                    : 'bg-white/[0.01] text-[var(--text-main)]/40 border-white/5 hover:text-[var(--text-main)]/70'
+                }`}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+        )}
 
-                <div className="space-y-5 max-h-[200px] overflow-y-auto pr-2 custom-scrollbar">
-                  {budgets.length === 0 ? (
-                    <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget défini</p>
-                  ) : (
-                    [...budgets]
-                      .sort((a, b) => b.mois.localeCompare(a.mois))
-                      .map((b) => {
-                        const depenseReelle = toutesLesTransactions
-                          .filter(t => 
-                            t.categorie === b.nom && 
-                            t.compte === b.compte && 
-                            t.mois === b.mois 
-                          )
-                          .reduce((acc, t) => acc + Math.abs(t.montant), 0);
+        {/* LISTE DES BUDGETS FILTRÉS */}
+        <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+          {budgets.length === 0 ? (
+            <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget défini</p>
+          ) : budgets.filter(b => b.mois === (selectedBudgetMonth || b.mois)).length === 0 ? (
+            <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget pour ce mois</p>
+          ) : (
+            [...budgets]
+              .filter(b => b.mois === (selectedBudgetMonth || b.mois))
+              .sort((a, b) => a.nom.localeCompare(b.nom)) // Trié par nom de catégorie maintenant que le mois est filtré
+              .map((b) => {
+                const depenseReelle = toutesLesTransactions
+                  .filter(t => 
+                    t.categorie === b.nom && 
+                    t.compte === b.compte && 
+                    t.mois === b.mois 
+                  )
+                  .reduce((acc, t) => acc + Math.abs(t.montant), 0);
 
-                        const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
-                        const estDepasse = depenseReelle > b.somme;
+                const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
+                const estDepasse = depenseReelle > b.somme;
 
-                        // --- CLÉ UNIQUE IDENTIQUE POUR LA VÉRIFICATION ET LE CLIC ---
-                        const uniqueKey = b.id || `${b.nom}-${b.compte}-${b.mois}`;
-                        const isEditing = editingBudget && editingBudget.id_ref === uniqueKey;
+                const uniqueKey = b.id || `${b.nom}-${b.compte}-${b.mois}`;
+                const isEditing = editingBudget && editingBudget.id_ref === uniqueKey;
 
-                        return (
-                          <div key={uniqueKey} className="group relative">
-                            {isEditing ? (
-                              /* --- VUE ÉDITION --- */
-                              <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
-                                <div className="flex flex-col gap-2">
-                                  <input 
-                                    className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                                    value={editingBudget.nom}
-                                    onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
-                                    autoFocus
-                                  />
-                                  <div className="flex items-center gap-2">
-                                    <input 
-                                      type="number"
-                                      className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                                      value={editingBudget.somme}
-                                      onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
-                                    />
-                                    <button 
-                                      onClick={() => handleUpdateBudget(editingBudget, b.nom)}
-                                      className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
-                                    >
-                                      <Check size={12} />
-                                    </button>
-                                    <button 
-                                      onClick={() => setEditingBudget(null)}
-                                      className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              /* --- VUE AFFICHAGE --- */
-                              <div className="group/item py-1">
-                                <div className="flex justify-between items-start mb-1">
-                                  <div className="flex flex-col">
-                                    <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[7px] px-1.2 py-0.2 bg-[var(--glass-bg)] rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
-                                        {b.compte}
-                                      </span>
-                                      <span className="text-[7px] text-[var(--primary)]/50 font-black uppercase tracking-tighter">
-                                        {b.mois}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                      {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
-                                    </span>
-                                    
-                                    <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                      <button 
-                                        onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
-                                        className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
-                                      >
-                                        <Edit3 size={12} />
-                                      </button>
-                                      <button 
-                                        onClick={() => confirmDelete2(b)} // On passe 'b' (l'objet) et pas juste 'b.nom'
-                                        className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="relative w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden">
-                                  <div 
-                                    className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
-                                    style={{ width: `${pourcentage}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )}
+                return (
+                  <div key={uniqueKey} className="group relative">
+                    {isEditing ? (
+                      /* --- VUE ÉDITION --- */
+                      <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
+                        <div className="flex flex-col gap-2">
+                          <input 
+                            className="bg-black/40 border border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+                            value={editingBudget.nom}
+                            onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
+                            autoFocus
+                          />
+                          <div className="flex items-center gap-2">
+                            <input 
+                              type="number"
+                              className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+                              value={editingBudget.somme}
+                              onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
+                            />
+                            <button 
+                              onClick={() => handleUpdateBudget(editingBudget, b.nom)}
+                              className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
+                            >
+                              <Check size={12} />
+                            </button>
+                            <button 
+                              onClick={() => setEditingBudget(null)}
+                              className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
+                            >
+                              <X size={12} />
+                            </button>
                           </div>
-                        );
-                      })
-                  )}
-                </div>
-              </div>
-            </>
+                        </div>
+                      </div>
+                    ) : (
+                      /* --- VUE AFFICHAGE --- */
+                      <div className="group/item py-1">
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="flex flex-col">
+                            <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[7px] px-1.2 py-0.2 bg-[var(--glass-bg)] rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
+                                {b.compte}
+                              </span>
+                              <span className="text-[7px] text-[var(--primary)]/50 font-black uppercase tracking-tighter">
+                                {b.mois}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
+                              {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
+                            </span>
+                            
+                            <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
+                                className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
+                              >
+                                <Edit3 size={12} />
+                              </button>
+                              <button 
+                                onClick={() => confirmDelete2(b)}
+                                className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="relative w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden">
+                          <div 
+                            className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
+                            style={{ width: `${pourcentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
           )}
         </div>
+      </div>
+    </>
+  )}
+</div>
         </div>
 
               </div>
