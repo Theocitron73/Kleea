@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft 
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -6342,6 +6342,26 @@ const fetchMemoire = async () => {
 };
 
 
+const handleDeleteMemory = async (itemNom) => {
+  try {
+    const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+    if (!nomUtilisateur) return;
+
+    // Encodage du nom pour gérer les caractères spéciaux ou espaces dans l'URL
+    const encodedNom = encodeURIComponent(itemNom.toLowerCase());
+    
+    // Appel à l'API DELETE
+    await api.delete(`/memoire/${nomUtilisateur.toLowerCase()}/${encodedNom}`);
+
+    // Mise à jour locale de l'état pour que l'UI réagisse instantanément
+    setElementsAppris(prev => prev.filter(item => item.nom.toLowerCase() !== itemNom.toLowerCase()));
+
+  } catch (error) {
+    console.error("Erreur lors de la suppression de l'élément mémoire :", error);
+    alert("Impossible de supprimer cet élément de la mémoire.");
+  }
+};
+
 const [tempTransactions, setTempTransactions] = useState([]);
 
 
@@ -6393,7 +6413,7 @@ const [notification, setNotification] = useState(null);
 // 1. L'état (Inchangé)
 const [categoriesConfig, setCategoriesConfig] = useState([]);
 const [memoireRegles, setMemoireRegles] = useState([]);
-
+const [signType, setSignType] = useState("both");
 
 
 
@@ -6423,10 +6443,12 @@ useEffect(() => {
 
 
 const handleAddKeyword = async (catName, newKeyword) => {
-  const cleanKeyword = newKeyword.trim().toLowerCase();
-  if (!cleanKeyword) return;
+  const cleanBase = newKeyword.trim().toLowerCase();
+  if (!cleanBase) return;
 
-  // On définit la variable ici !
+  // On assemble le mot-clé avec son modificateur de signe
+  const cleanKeyword = `${cleanBase}:${signType}`;
+
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
 
   const targetCat = categoriesConfig.find(c => c.categorie === catName);
@@ -6445,19 +6467,18 @@ const handleAddKeyword = async (catName, newKeyword) => {
     
     await fetchCategoriesConfig(); 
     
-    // 1. On affiche la notification
+    // Reset du sélecteur à la valeur par défaut
+    setSignType("both");
+
     setNotification({ message: `Intelligence apprise : ${catName}`, type: "success" });
 
-    // 2. On programme sa disparition (null ou objet vide selon comment ton composant est géré)
     setTimeout(() => {
       setNotification(null); 
-    }, 2000); // 2000 millisecondes = 2 secondes
+    }, 2000);
 
   } catch (e) {
     console.error(e);
     setNotification({ message: "Erreur de mémorisation", type: "error" });
-
-    // Optionnel : faire disparaître l'erreur aussi après 2 ou 3 secondes
     setTimeout(() => {
       setNotification(null);
     }, 2000);
@@ -6523,22 +6544,38 @@ const appliquerIntelligence = (transactions, config, utilisateurActuel) => {
   return transactions.map(t => {
     let nouvelleCategorie = t.categorie; 
     const nomNettoye = t.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+    const montant = parseFloat(t.montant) || 0;
 
-    // 1. On filtre la config pour ne garder que :
-    // - Les catégories "globales" (celles qui n'ont pas de propriétaire ou créées par 'admin')
-    // - Les catégories appartenant à l'utilisateur actuel
     const configPertinente = config.filter(c => 
       !c.proprietaire || c.proprietaire === "admin" || c.proprietaire === utilisateurActuel
     );
 
-    configPertinente.forEach(cat => {
-      cat.mots_cles.forEach(keyword => {
-        const keywordNettoye = keyword.toLowerCase().replace(/\s+/g, ' ').trim();
+    let matchTrouve = false;
+
+    for (const cat of configPertinente) {
+      for (const rawKeyword of cat.mots_cles) {
+        // On sépare le mot-clé du filtre de signe (par défaut "both" s'il n'y a pas de ':')
+        const parts = rawKeyword.split(':');
+        const keywordNettoye = parts[0].toLowerCase().replace(/\s+/g, ' ').trim();
+        const filtreSigne = parts[1] || "both"; 
+
+        if (!keywordNettoye) continue;
+
         if (nomNettoye.includes(keywordNettoye)) {
-          nouvelleCategorie = cat.categorie;
+          // Validation de la condition sur le montant
+          const matchPositif = (filtreSigne === "positive" && montant > 0);
+          const matchNegatif = (filtreSigne === "negative" && montant < 0);
+          const matchDeux = (filtreSigne === "both" || filtreSigne === "all");
+
+          if (matchPositif || matchNegatif || matchDeux) {
+            nouvelleCategorie = cat.categorie;
+            matchTrouve = true;
+            break;
+          }
         }
-      });
-    });
+      }
+      if (matchTrouve) break;
+    }
 
     return { ...t, categorie: nouvelleCategorie };
   });
@@ -10772,173 +10809,173 @@ if (!user) {
           </button>
         </div>
        {/* RÉCAPITULATIF DES BUDGETS (AVEC SYSTÈME DE TABS PAR MOIS) */}
-<div className="relative mt-2">
-  <button 
-    onClick={() => setShowBudgetDetails(!showBudgetDetails)}
-    className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)] transition-all group"
-  >
-    <div className="flex items-center gap-3">
-      <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
-        <Activity size={14} className="text-[var(--primary)]" />
-      </div>
-      <div className="text-left">
-        <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
-        <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase">
-          {budgets.length} objectifs en cours
-        </p>
-      </div>
-    </div>
-    <ChevronRight size={14} className={`text-[var(--text-main)]/20 transition-transform ${showBudgetDetails ? 'rotate-90' : ''}`} />
-  </button>
-
-  {showBudgetDetails && (
-    <>
-      <div className="fixed inset-0 z-[90]" onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} />
-      <div className="absolute bottom-full mb-3 left-0 right-0 z-[91] bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
-        
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
-          <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Détails des budgets</h4>
-          <button onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors">
-            <X size={14} />
+        <div className="relative mt-2">
+          <button 
+            onClick={() => setShowBudgetDetails(!showBudgetDetails)}
+            className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)] transition-all group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
+                <Activity size={14} className="text-[var(--primary)]" />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
+                <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase">
+                  {budgets.length} objectifs en cours
+                </p>
+              </div>
+            </div>
+            <ChevronRight size={14} className={`text-[var(--text-main)]/20 transition-transform ${showBudgetDetails ? 'rotate-90' : ''}`} />
           </button>
-        </div>
 
-        {/* --- SYSTEME DE TABS NAVIGATION MOIS --- */}
-        {listeMoisDisponibles.length > 1 && (
-          <div className="flex flex-row gap-1 overflow-x-auto pb-2 mb-3 scrollbar-hide border-b border-white/[0.03] select-none">
-            {listeMoisDisponibles.map((m) => (
-              <button
-                key={m}
-                onClick={() => {
-                  setSelectedBudgetMonth(m);
-                  setEditingBudget(null);
-                }}
-                className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 ${
-                  selectedBudgetMonth === m
-                    ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
-                    : 'bg-white/[0.01] text-[var(--text-main)]/40 border-white/5 hover:text-[var(--text-main)]/70'
-                }`}
-              >
-                {m}
-              </button>
-            ))}
-          </div>
-        )}
+          {showBudgetDetails && (
+            <>
+              <div className="fixed inset-0 z-[90]" onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} />
+              <div className="absolute bottom-full mb-3 left-0 right-0 z-[91] bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
+                  <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Détails des budgets</h4>
+                  <button onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors">
+                    <X size={14} />
+                  </button>
+                </div>
 
-        {/* LISTE DES BUDGETS FILTRÉS */}
-        <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-          {budgets.length === 0 ? (
-            <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget défini</p>
-          ) : budgets.filter(b => b.mois === (selectedBudgetMonth || b.mois)).length === 0 ? (
-            <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget pour ce mois</p>
-          ) : (
-            [...budgets]
-              .filter(b => b.mois === (selectedBudgetMonth || b.mois))
-              .sort((a, b) => a.nom.localeCompare(b.nom)) // Trié par nom de catégorie maintenant que le mois est filtré
-              .map((b) => {
-                const depenseReelle = toutesLesTransactions
-                  .filter(t => 
-                    t.categorie === b.nom && 
-                    t.compte === b.compte && 
-                    t.mois === b.mois 
-                  )
-                  .reduce((acc, t) => acc + Math.abs(t.montant), 0);
-
-                const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
-                const estDepasse = depenseReelle > b.somme;
-
-                const uniqueKey = b.id || `${b.nom}-${b.compte}-${b.mois}`;
-                const isEditing = editingBudget && editingBudget.id_ref === uniqueKey;
-
-                return (
-                  <div key={uniqueKey} className="group relative">
-                    {isEditing ? (
-                      /* --- VUE ÉDITION --- */
-                      <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
-                        <div className="flex flex-col gap-2">
-                          <input 
-                            className="bg-black/40 border border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                            value={editingBudget.nom}
-                            onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
-                            autoFocus
-                          />
-                          <div className="flex items-center gap-2">
-                            <input 
-                              type="number"
-                              className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                              value={editingBudget.somme}
-                              onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
-                            />
-                            <button 
-                              onClick={() => handleUpdateBudget(editingBudget, b.nom)}
-                              className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
-                            >
-                              <Check size={12} />
-                            </button>
-                            <button 
-                              onClick={() => setEditingBudget(null)}
-                              className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* --- VUE AFFICHAGE --- */
-                      <div className="group/item py-1">
-                        <div className="flex justify-between items-start mb-1">
-                          <div className="flex flex-col">
-                            <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="text-[7px] px-1.2 py-0.2 bg-[var(--glass-bg)] rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
-                                {b.compte}
-                              </span>
-                              <span className="text-[7px] text-[var(--primary)]/50 font-black uppercase tracking-tighter">
-                                {b.mois}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
-                              {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
-                            </span>
-                            
-                            <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                              <button 
-                                onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
-                                className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
-                              >
-                                <Edit3 size={12} />
-                              </button>
-                              <button 
-                                onClick={() => confirmDelete2(b)}
-                                className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="relative w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden">
-                          <div 
-                            className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
-                            style={{ width: `${pourcentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
+                {/* --- SYSTEME DE TABS NAVIGATION MOIS --- */}
+                {listeMoisDisponibles.length > 1 && (
+                  <div className="flex flex-row gap-1 overflow-x-auto pb-2 mb-3 scrollbar-hide border-b border-white/[0.03] select-none">
+                    {listeMoisDisponibles.map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setSelectedBudgetMonth(m);
+                          setEditingBudget(null);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 ${
+                          selectedBudgetMonth === m
+                            ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
+                            : 'bg-white/[0.01] text-[var(--text-main)]/40 border-white/5 hover:text-[var(--text-main)]/70'
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
                   </div>
-                );
-              })
+                )}
+
+                {/* LISTE DES BUDGETS FILTRÉS */}
+                <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                  {budgets.length === 0 ? (
+                    <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget défini</p>
+                  ) : budgets.filter(b => b.mois === (selectedBudgetMonth || b.mois)).length === 0 ? (
+                    <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget pour ce mois</p>
+                  ) : (
+                    [...budgets]
+                      .filter(b => b.mois === (selectedBudgetMonth || b.mois))
+                      .sort((a, b) => a.nom.localeCompare(b.nom)) // Trié par nom de catégorie maintenant que le mois est filtré
+                      .map((b) => {
+                        const depenseReelle = toutesLesTransactions
+                          .filter(t => 
+                            t.categorie === b.nom && 
+                            t.compte === b.compte && 
+                            t.mois === b.mois 
+                          )
+                          .reduce((acc, t) => acc + Math.abs(t.montant), 0);
+
+                        const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
+                        const estDepasse = depenseReelle > b.somme;
+
+                        const uniqueKey = b.id || `${b.nom}-${b.compte}-${b.mois}`;
+                        const isEditing = editingBudget && editingBudget.id_ref === uniqueKey;
+
+                        return (
+                          <div key={uniqueKey} className="group relative">
+                            {isEditing ? (
+                              /* --- VUE ÉDITION --- */
+                              <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
+                                <div className="flex flex-col gap-2">
+                                  <input 
+                                    className="bg-black/40 border border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+                                    value={editingBudget.nom}
+                                    onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
+                                    autoFocus
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <input 
+                                      type="number"
+                                      className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+                                      value={editingBudget.somme}
+                                      onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
+                                    />
+                                    <button 
+                                      onClick={() => handleUpdateBudget(editingBudget, b.nom)}
+                                      className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
+                                    >
+                                      <Check size={12} />
+                                    </button>
+                                    <button 
+                                      onClick={() => setEditingBudget(null)}
+                                      className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              /* --- VUE AFFICHAGE --- */
+                              <div className="group/item py-1">
+                                <div className="flex justify-between items-start mb-1">
+                                  <div className="flex flex-col">
+                                    <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[7px] px-1.2 py-0.2 bg-[var(--glass-bg)] rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
+                                        {b.compte}
+                                      </span>
+                                      <span className="text-[7px] text-[var(--primary)]/50 font-black uppercase tracking-tighter">
+                                        {b.mois}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                      {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
+                                    </span>
+                                    
+                                    <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                      <button 
+                                        onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
+                                        className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
+                                      >
+                                        <Edit3 size={12} />
+                                      </button>
+                                      <button 
+                                        onClick={() => confirmDelete2(b)}
+                                        className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
+                                      >
+                                        <Trash2 size={12} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="relative w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden">
+                                  <div 
+                                    className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
+                                    style={{ width: `${pourcentage}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
-      </div>
-    </>
-  )}
-</div>
         </div>
 
               </div>
@@ -11097,29 +11134,43 @@ if (!user) {
                         </button>
 
                         {/* --- PANNEAU FLOTTANT (OVERLAY) --- */}
-                        {showLearningList && (
-                          <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#16191f] border border-white/10 rounded-2xl shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
-                            <div className="flex justify-between items-center px-2 py-1 mb-2 border-b border-white/5">
-                              <span className="text-[8px] font-black uppercase text-[var(--text-main)]/40 tracking-widest">Base Mémoire</span>
-                              <button onClick={() => setShowLearningList(false)}>
-                                <X size={10} className="text-white/20 hover:text-white" />
-                              </button>
+                          {showLearningList && (
+                            <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#16191f] border border-white/10 rounded-2xl shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+                              <div className="flex justify-between items-center px-2 py-1 mb-2 border-b border-white/5">
+                                <span className="text-[8px] font-black uppercase text-[var(--text-main)]/40 tracking-widest">Base Mémoire</span>
+                                <button onClick={() => setShowLearningList(false)}>
+                                  <X size={10} className="text-white/20 hover:text-white" />
+                                </button>
+                              </div>
+                              
+                              <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1">
+                                {elementsAppris.length > 0 ? (
+                                  elementsAppris.map((item, i) => (
+                                    <div key={i} className="flex justify-between items-center p-2 bg-white/[0.02] rounded-lg border border-white/5 group/item">
+                                      <span className="text-[9px] text-white/80 font-bold uppercase truncate pr-2" title={item.nom}>
+                                        {item.nom}
+                                      </span>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <span className="text-[8px] text-[var(--primary)] font-black uppercase bg-[var(--primary)]/10 px-1.5 py-0.5 rounded">
+                                          {item.categorie}
+                                        </span>
+                                        {/* BOUTON SUPPRIMER */}
+                                        <button 
+                                          onClick={() => handleDeleteMemory(item.nom)}
+                                          className="opacity-0 group-hover/item:opacity-100 transition-opacity p-0.5 hover:bg-white/10 rounded text-rose-500/70 hover:text-rose-400"
+                                          title="Supprimer cet apprentissage"
+                                        >
+                                          <X size={10} />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <p className="text-[8px] text-center py-4 text-white/20 uppercase font-bold">Vide</p>
+                                )}
+                              </div>
                             </div>
-                            
-                            <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1">
-                              {elementsAppris.length > 0 ? (
-                                elementsAppris.map((item, i) => (
-                                  <div key={i} className="flex justify-between items-center p-2 bg-white/[0.02] rounded-lg border border-white/5 group/item">
-                                    <span className="text-[9px] text-white/80 font-bold uppercase truncate pr-2">{item.nom}</span>
-                                    <span className="text-[8px] text-[var(--primary)] font-black uppercase bg-[var(--primary)]/10 px-1.5 py-0.5 rounded">{item.categorie}</span>
-                                  </div>
-                                ))
-                              ) : (
-                                <p className="text-[8px] text-center py-4 text-white/20 uppercase font-bold">Vide</p>
-                              )}
-                            </div>
-                          </div>
-                        )}
+                          )}
                       </div>
                     </div>
 
@@ -11845,30 +11896,30 @@ if (!user) {
           )}
       </div>
 
-      {/* COLONNE DROITE : INTELLIGENCE (Largeur fixe) */}
-        <div className="w-full lg:w-150 flex flex-col gap-4 shrink-0">
-          <div className="flex flex-col gap-1 px-2">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
-                <Brain size={16} className="text-[var(--primary)]" />
-              </div>
-              <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">Intelligence</h3>
+{/* COLONNE DROITE : INTELLIGENCE (Largeur fixe) */}
+      <div className="w-full lg:w-150 flex flex-col gap-4 shrink-0">
+        <div className="flex flex-col gap-1 px-2">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
+              <Brain size={16} className="text-[var(--primary)]" />
             </div>
-            {/* TEXTE EXPLICATIF AJOUTÉ ICI */}
-            <p className="text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-1 italic">
-              Configuration des mots-clés pour la catégorisation automatique.
-            </p>
+            <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">Intelligence</h3>
           </div>
+          {/* TEXTE EXPLICATIF */}
+          <p className="text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-1 italic">
+            Configuration des mots-clés pour la catégorisation automatique.
+          </p>
+        </div>
 
-          <div className="px-1">
-            <CustomSelect 
-              label="Cible d'apprentissage"
-              value={intelSelectedCat}
-              icon={Search}
-              options={categoriesPourIntelligence.map(cat => ({ v: cat, l: cat }))}
-              onChange={(val) => setIntelSelectedCat(val)}
-            />
-          </div>
+        <div className="px-1">
+          <CustomSelect 
+            label="Cible d'apprentissage"
+            value={intelSelectedCat}
+            icon={Search}
+            options={categoriesPourIntelligence.map(cat => ({ v: cat, l: cat }))}
+            onChange={(val) => setIntelSelectedCat(val)}
+          />
+        </div>
 
         <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[3rem] p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-[500px]">
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
@@ -11886,34 +11937,102 @@ if (!user) {
               </div>
             </div>
 
+            {/* LISTE DES MOTS-CLÉS EXISTANTS */}
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-8">
               <div className="flex flex-wrap gap-2.5">
-                {activeCategoryData?.mots_cles?.map((keyword, kIdx) => (
-                  <div key={kIdx} className="group flex items-center gap-3 px-4 py-2 bg-white/[0.05] border border-white/10 rounded-2xl text-[10px] font-bold text-[var(--text-main)]/70 uppercase hover:bg-[var(--primary)] hover:text-black transition-all">
-                    {keyword.replace(/"/g, '')}
-                    <button onClick={() => handleRemoveKeyword(intelSelectedCat, keyword)} className="opacity-40 hover:opacity-100 transition-opacity">
-                      <X size={12} />
-                    </button>
-                  </div>
-                ))}
+                {activeCategoryData?.mots_cles?.map((keyword, kIdx) => {
+                  const [keywordText, rawSign] = keyword.split(':');
+                  const sign = rawSign || 'both';
+
+                  return (
+                    <div 
+                      key={kIdx} 
+                      className="group flex items-center gap-3 px-4 py-2 bg-white/[0.05] border border-white/10 rounded-2xl text-[10px] font-bold text-[var(--text-main)]/70 uppercase hover:bg-[var(--primary)] hover:text-black transition-all"
+                    >
+                      <span className="flex items-center gap-2">
+                        {keywordText.replace(/"/g, '')}
+                        {sign === "positive" && <ArrowUpRight size={12} className="text-emerald-500 stroke-[3px]" title="Crédits uniquement" />}
+                        {sign === "negative" && <ArrowDownLeft size={12} className="text-rose-500 stroke-[3px]" title="Débits uniquement" />}
+                        {sign === "both" && <ArrowRightLeft size={11} className="text-[var(--text-main)]/40 stroke-[3px]" title="Tous montants" />}
+                      </span>
+                      <button 
+                        onClick={() => handleRemoveKeyword(intelSelectedCat, keyword)} 
+                        className="opacity-40 hover:opacity-100 transition-opacity"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
-            <div className="mt-auto relative">
-              <input 
-                type="text"
-                placeholder="Nouvel apprentissage..."
-                className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[1.5rem] px-6 py-5 text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/10"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && e.target.value.trim()) {
-                    handleAddKeyword(intelSelectedCat, e.target.value);
-                    e.target.value = '';
-                  }
-                }}
-              />
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-[var(--primary)]/10 rounded-xl">
-                <Plus size={16} className="text-[var(--primary)]" />
+            {/* ZONE D'AJOUT AVEC LE FILTRE DE SIGNE */}
+            <div className="mt-auto flex flex-col gap-4 relative">
+              
+              {/* TITRE ET SÉLECTEUR DE FILTRE DE MONTANT */}
+              <div className="flex flex-col gap-2">
+                <span className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.15em] pl-1">
+                  Filtrer l'apprentissage sur :
+                </span>
+                <div className="flex gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => setSignType("both")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                      signType === "both" 
+                        ? "bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]" 
+                        : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
+                    }`}
+                  >
+                    <ArrowRightLeft size={11} className="stroke-[2.5px]" />
+                    Tous montants
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setSignType("positive")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                      signType === "positive" 
+                        ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" 
+                        : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
+                    }`}
+                  >
+                    <ArrowUpRight size={11} className="stroke-[2.5px]" />
+                    Positifs
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setSignType("negative")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all ${
+                      signType === "negative" 
+                        ? "bg-rose-500/10 border-rose-500/50 text-rose-400" 
+                        : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
+                    }`}
+                  >
+                    <ArrowDownLeft size={11} className="stroke-[2.5px]" />
+                    Négatifs
+                  </button>
+                </div>
               </div>
+
+              {/* Input texte pour le mot-clé */}
+              <div className="relative">
+                <input 
+                  type="text"
+                  placeholder="Nouvel apprentissage..."
+                  className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[1.5rem] pl-6 pr-14 py-5 text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/10"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && e.target.value.trim()) {
+                      handleAddKeyword(intelSelectedCat, e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-[var(--primary)]/10 rounded-xl pointer-events-none">
+                  <Plus size={16} className="text-[var(--primary)]" />
+                </div>
+              </div>
+
             </div>
           </div>
         </div>

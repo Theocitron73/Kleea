@@ -835,6 +835,20 @@ def get_memoire(username: str):
         return [{"nom": row[0], "categorie": row[1]} for row in result]
 
 
+
+@app.delete("/memoire/{username}/{nom}")
+def delete_from_memory(username: str, nom: str):
+    query = text("""
+        DELETE FROM memoire 
+        WHERE LOWER(utilisateur) = :u AND LOWER(nom) = :n
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": username.lower(), "n": nom.lower()})
+        conn.commit()
+        
+    return {"status": "success", "message": "Élément supprimé de la mémoire"}
+
+
 # --- Récupérer les catégories masquées ---
 @app.get("/api/categories_masquees/{user}")
 def get_masked_categories(user: str):
@@ -1008,8 +1022,30 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 # C. Priorité 3 : Intelligence (Mots-clés de la configuration)
                 if cat == "❓ Autre":
                     for rule in mots_cles_rules:
-                        if any(k in nom_t_lower for k in rule["keywords"]):
-                            cat = rule["categorie"]
+                        matched = False
+                        for raw_k in rule["keywords"]:
+                            # On décode le mot-clé et le filtre de signe
+                            parts = raw_k.split(':')
+                            keyword_clean = parts[0].strip().lower()
+                            
+                            # Si aucun filtre n'est spécifié, on considère "both" par défaut
+                            filtre_signe = parts[1].strip().lower() if len(parts) > 1 else "both"
+                            
+                            if not keyword_clean:
+                                continue
+
+                            # On vérifie si le mot-clé est présent dans le libellé
+                            if keyword_clean in nom_t_lower:
+                                # Validation de la condition sur le signe du montant
+                                match_positif = (filtre_signe == "positive" and montant_float > 0)
+                                match_negatif = (filtre_signe == "negative" and montant_float < 0)
+                                match_deux = (filtre_signe in ["both", "all"])
+
+                                if match_positif or match_negatif or match_deux:
+                                    matched = True
+                                    cat = rule["categorie"]
+                                    break
+                        if matched:
                             break
 
                 # --- DATE ET FORMATAGE FINAL ---
