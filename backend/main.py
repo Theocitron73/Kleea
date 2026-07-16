@@ -289,44 +289,48 @@ class ResetRequest(BaseModel):
 
 @app.post("/forgot-password")
 async def forgot_password(req: ResetRequest):
-    # 1. Vérifier si l'email existe
-    with engine.connect() as conn:
+    # Réponse générique constante pour éviter l'énumération d'e-mails (sécurité)
+    response_msg = {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
+    
+    # 1. On ouvre une transaction unique pour chercher et mettre à jour le token
+    with engine.begin() as conn:
+        # Vérifier si l'utilisateur existe
         query = text("SELECT username FROM users WHERE email = :email")
         user = conn.execute(query, {"email": req.email}).fetchone()
-        
-        # Réponse générique pour la sécurité
-        response_msg = {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
         
         if not user:
             return response_msg
             
-    # 2. Générer un token unique
-    token = secrets.token_urlsafe(32)
-    
-    # 3. Sauvegarder le token en base
-    with engine.begin() as conn:
+        # 2. Générer le token unique
+        token = secrets.token_urlsafe(32)
+        
+        # 3. Sauvegarder le token en base (dans la même transaction)
         update_query = text("UPDATE users SET reset_token = :t WHERE email = :e")
         conn.execute(update_query, {"t": token, "e": req.email})
 
-    # 4. Préparer le lien (Vercel ou Localhost)
-    frontend_url = os.getenv("FRONTEND_URL", "https://kleea.vercel.app")
+    # 4. Préparer le lien (Dynamique selon l'environnement)
+    # Configurez FRONTEND_URL=https://kleea.theolebarbier.fr dans vos variables d'environnement sur Render !
+    frontend_url = os.getenv("SOUS_DOMAINE_URL", "http://localhost:5173")
     reset_link = f"{frontend_url}/reset-password?token={token}"
 
     resend.api_key = os.getenv("RESEND_API_KEY")
-    # 5. Envoyer le mail via l'API Resend (Port 443 - Jamais bloqué)
+
+    # 5. Envoyer le mail via l'API Resend
     try:
         html_content = f"""
         <html>
             <body style="font-family: sans-serif;">
-                <h2 style="color: #10b981;">Reinitialisation demandee</h2>
+                <h2 style="color: #10b981;">Réinitialisation demandée</h2>
                 <p>Bonjour,</p>
                 <p>Pour changer votre mot de passe Kleea, cliquez sur le bouton ci-dessous :</p>
-                <a href="{reset_link}" 
-                   style="background-color: #ffffff; color: #000000; padding: 12px 24px; 
-                          text-decoration: none; border-radius: 8px; font-weight: bold; 
-                          display: inline-block; border: 1px solid #e5e7eb;">
-                   Changer mon mot de passe
-                </a>
+                <div style="margin: 24px 0;">
+                    <a href="{reset_link}" 
+                       style="background-color: #ffffff; color: #000000; padding: 12px 24px; 
+                              text-decoration: none; border-radius: 8px; font-weight: bold; 
+                              display: inline-block; border: 1px solid #e5e7eb;">
+                       Changer mon mot de passe
+                    </a>
+                </div>
                 <p style="font-size: 12px; color: #6b7280; margin-top: 20px;">
                     Si vous n'avez pas demandé ce changement, ignorez ce mail.
                 </p>
@@ -336,16 +340,15 @@ async def forgot_password(req: ResetRequest):
 
         # Envoi via l'API Resend
         resend.Emails.send({
-            "from": "Kleea <onboarding@resend.dev>", # Utilise cette adresse exacte pour le test gratuit
+            "from": "Kleea <noreply@theolebarbier.fr>", 
             "to": [req.email],
-            "subject": "Kleea - Recuperation de votre acces",
+            "subject": "Kleea - Récupération de votre accès",
             "html": html_content
         })
 
     except Exception as e:
+        # On log l'erreur mais on ne bloque pas l'UI
         print(f"ERREUR RESEND : {str(e)}")
-        # On ne bloque pas l'utilisateur si le mail a un souci technique
-        # mais on log l'erreur sur Render pour nous.
     
     return response_msg
 
@@ -358,20 +361,20 @@ class NewPasswordRequest(BaseModel):
 async def reset_password_confirm(req: NewPasswordRequest):
     hashed_password = pwd_context.hash(req.new_password)
     
-    with engine.connect() as conn:
-        # Dans un vrai système, on chercherait l'utilisateur qui a CE token.
-        # Pour ton test actuel, on va simplifier : on met à jour l'utilisateur par son token
-        # (Assure-toi d'avoir une colonne 'reset_token' ou d'adapter selon ta logique)
-        
-        query = text("UPDATE users SET password = :pwd WHERE reset_token = :token")
+    # On utilise engine.begin() pour s'assurer que le UPDATE est bien commit et fermé
+    with engine.begin() as conn:
+        # On met à jour le mot de passe ET on vide le reset_token pour qu'il ne serve qu'une fois !
+        query = text("""
+            UPDATE users 
+            SET password = :pwd, reset_token = NULL 
+            WHERE reset_token = :token
+        """)
         result = conn.execute(query, {"pwd": hashed_password, "token": req.token})
-        conn.commit()
         
         if result.rowcount == 0:
             raise HTTPException(status_code=400, detail="Lien invalide ou expiré")
             
     return {"status": "success", "message": "Mot de passe mis à jour !"}
-
 
 
 # 💡 1. AJOUT DE TAUX DANS LE MODÈLE PYDANTIC
