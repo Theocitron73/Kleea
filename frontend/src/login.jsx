@@ -4522,7 +4522,412 @@ export const DemenagementPage = ({ user, toutesLesCategories = [], comptes = [] 
 
 
 
+const ProfileTab = ({ user }) => {
+  const [profileData, setProfileData] = useState(null);
+  const [transactionCount, setTransactionCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
 
+  // États pour l'édition des détails personnels
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  // États pour le changement de mot de passe
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState({ type: '', msg: '' });
+
+  // États pour la suppression de compte
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const isAdmin = user?.toLowerCase() === 'theo';
+
+  const fetchProfileAndStats = async () => {
+    try {
+      setError(false);
+      const [profileRes, statsRes] = await Promise.all([
+        api.get(`/profile/${user}`),
+        api.get(`/transactions/stats/count/${user}`)
+      ]);
+
+      if (profileRes.data) {
+        setProfileData(profileRes.data);
+        // On initialise les champs du formulaire d'édition
+        setEditName(profileRes.data.name || '');
+        setEditEmail(profileRes.data.email || '');
+      } else {
+        setError(true);
+      }
+
+      if (statsRes.data) {
+        setTransactionCount(statsRes.data.user_transactions_count || 0);
+      }
+    } catch (err) {
+      console.error("Erreur lors du chargement des données du profil", err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) {
+      setLoading(true);
+      return;
+    }
+    fetchProfileAndStats();
+  }, [user]);
+
+  // Fonction pour enregistrer les modifications du profil
+  const handleSaveDetails = async (e) => {
+    e.preventDefault();
+    try {
+      setEditLoading(true);
+      await api.put(`/profile/${user}/details`, {
+        name: editName,
+        email: editEmail
+      });
+      
+      // On met à jour l'état local pour refléter les changements immédiatement
+      setProfileData(prev => ({ ...prev, name: editName, email: editEmail }));
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Erreur lors de la modification des détails", err);
+      alert("Impossible de mettre à jour les informations.");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  // Fonction pour mettre à jour le mot de passe
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (!newPassword.trim()) return;
+
+    try {
+      setPasswordLoading(true);
+      setPasswordStatus({ type: '', msg: '' });
+      await api.put(`/profile/${user}/password`, { new_password: newPassword });
+      setPasswordStatus({ type: 'success', msg: 'Mot de passe mis à jour !' });
+      setNewPassword('');
+      setTimeout(() => setShowPasswordForm(false), 2000);
+    } catch (err) {
+      console.error(err);
+      setPasswordStatus({ type: 'error', msg: 'Erreur lors de la modification.' });
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  // Fonction pour supprimer le compte
+  const handleDeleteAccount = async () => {
+    try {
+      setDeleteLoading(true);
+      await api.delete(`/profile/${user}`);
+      localStorage.clear(); 
+      window.location.reload(); 
+    } catch (err) {
+      console.error("Erreur lors de la suppression du compte", err);
+      alert("Une erreur est survenue lors de la suppression de votre compte.");
+      setDeleteLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[300px] gap-3">
+        <div className="w-8 h-8 border-2 border-t-transparent border-[var(--primary)] rounded-full animate-spin" />
+        <p className="text-[10px] font-black uppercase text-white/30 tracking-[0.2em]">Chargement du coffre...</p>
+      </div>
+    );
+  }
+
+  const data = error || !profileData ? {
+    username: user || "Non défini",
+    email: "email@non-configure.fr",
+    name: "Utilisateur Kleea"
+  } : profileData;
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* HEADER DU PROFIL */}
+      <div 
+        className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden"
+        style={{ boxShadow: `0 0 40px -15px var(--primary)` }}
+      >
+        <div className="absolute top-[-20%] right-[-10%] w-[150px] h-[150px] bg-[var(--primary)]/10 blur-[50px] rounded-full" />
+        
+        <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10">
+          <div className="w-20 h-20 rounded-2xl bg-[var(--primary)] flex items-center justify-center text-3xl font-black text-white shadow-[0_0_30px_rgba(var(--primary-rgb),0.4)] border border-white/20">
+            {((data.name || data.username || "U").substring(0, 1).toUpperCase())}
+          </div>
+          
+          <div className="text-center sm:text-left leading-tight">
+            <h3 className="text-2xl font-black text-white tracking-tight uppercase">
+              {data.name}
+            </h3>
+            <p className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-widest mt-1">
+              {isAdmin ? 'Fondateur Kleea' : 'Membre Kleea Premium'}
+            </p>
+            <p className="text-[9px] font-semibold text-white/30 uppercase tracking-[0.2em] mt-2">
+              @ {data.username}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* DÉTAILS DU COMPTE */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Informations personnelles (Modifiables) */}
+        <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/5 space-y-4 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.22em]">
+                Détails Personnels
+              </h4>
+              {!isEditing && (
+                <button 
+                  onClick={() => setIsEditing(true)}
+                  className="text-[9px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+                >
+                  Modifier
+                </button>
+              )}
+            </div>
+            
+            {!isEditing ? (
+              <div className="space-y-3">
+                <div>
+                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Nom Complet</span>
+                  <span className="text-sm font-bold text-white">{data.name}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Identifiant (Username)</span>
+                  <span className="text-sm font-bold text-white/50">@{data.username}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Adresse E-mail</span>
+                  <span className="text-sm font-bold text-white/80 break-all">{data.email}</span>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSaveDetails} className="space-y-3">
+                <div>
+                  <label className="text-[9px] font-bold text-white/30 uppercase block tracking-wider mb-1">Nom Complet</label>
+                  <input 
+                    type="text" 
+                    value={editName} 
+                    onChange={e => setEditName(e.target.value)} 
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-white/30 uppercase block tracking-wider mb-1">Identifiant (Non modifiable)</label>
+                  <input 
+                    type="text" 
+                    value={`@${data.username}`} 
+                    disabled 
+                    className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/30 cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] font-bold text-white/30 uppercase block tracking-wider mb-1">Adresse E-mail</label>
+                  <input 
+                    type="email" 
+                    value={editEmail} 
+                    onChange={e => setEditEmail(e.target.value)} 
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
+                    required 
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <button 
+                    type="submit" 
+                    disabled={editLoading}
+                    className="bg-[var(--primary)] text-white font-black text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition"
+                  >
+                    {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
+                    className="bg-white/5 text-white/70 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition border border-white/5"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* Sécurité et statut */}
+        <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/5 space-y-4 flex flex-col justify-between">
+          <div>
+            <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.22em] mb-4">
+              Sécurité du Coffre
+            </h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
+                  {isAdmin ? (
+                    <span className="text-xs font-black text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-md inline-block mt-1 uppercase">
+                      Administrateur
+                    </span>
+                  ) : (
+                    <span className="text-xs font-black text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md inline-block mt-1 uppercase">
+                      Utilisateur
+                    </span>
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Transactions enregistrée</span>
+                  <span className="text-sm font-black text-white bg-white/5 px-2.5 py-0.5 rounded-md inline-block mt-1 border border-white/5 shadow-inner">
+                    {transactionCount}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="pt-1">
+                <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Statut du mot de passe</span>
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-sm font-bold text-emerald-400">Sécurisé (Chiffré)</span>
+                  <button 
+                    onClick={() => setShowPasswordForm(!showPasswordForm)}
+                    className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-1 rounded-lg transition uppercase tracking-wider"
+                  >
+                    {showPasswordForm ? 'Annuler' : 'Modifier Mot de passe'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-white/5">
+            <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Version d'application</span>
+            <span className="text-xs font-black text-white/60">Kleea v.3.6 (Stable Build)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* FORMULAIRE DE MODIFICATION DU MOT DE PASSE */}
+      {showPasswordForm && (
+        <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in-95 duration-300">
+          <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.22em] mb-4">
+            Mettre à jour le mot de passe
+          </h4>
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            <div>
+              <label className="text-[9px] font-bold text-white/40 uppercase block tracking-wider mb-1">
+                Nouveau mot de passe
+              </label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••••••"
+                required
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-semibold text-white placeholder-white/20 focus:outline-none focus:border-[var(--primary)] transition shadow-inner"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                passwordStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+              }`}>
+                {passwordStatus.msg}
+              </span>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest px-5 py-2.5 rounded-xl transition shadow-[0_0_25px_rgba(var(--primary-rgb),0.3)]"
+              >
+                {passwordLoading ? 'Chiffrement...' : 'Confirmer'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ZONE DE DANGER : SUPPRESSION DE COMPTE */}
+      <div className="bg-rose-500/5 backdrop-blur-md p-6 rounded-3xl border border-rose-500/20 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-[10px] font-black text-rose-400 uppercase tracking-[0.22em]">
+              Supprimer mon compte
+            </h4>
+            <p className="text-xs text-white/40 mt-1">
+              Supprimer définitivement le compte Kleea et toutes les données du coffre.
+            </p>
+          </div>
+          {!showDeleteConfirm && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-3 py-2 rounded-xl transition uppercase tracking-wider"
+            >
+              Supprimer
+            </button>
+          )}
+        </div>
+
+        {showDeleteConfirm && (
+          <div className="pt-2 border-t border-rose-500/10 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+            <p className="text-xs font-semibold text-rose-300/80">
+              ⚠️ Attention : Cette action est irréversible. Toutes vos données seront purgées de nos serveurs.
+            </p>
+            
+            {/* CHAMP DE CONFIRMATION */}
+            <div className="flex flex-col gap-2 max-w-sm">
+              <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">
+                Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded">delete</span> pour confirmer :
+              </label>
+              <input
+                type="text"
+                value={deleteInput}
+                onChange={(e) => setDeleteInput(e.target.value)}
+                placeholder="Écrivez 'delete' ici"
+                disabled={deleteLoading}
+                className="bg-slate-950/40 border border-white/10 focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/40 text-xs text-white rounded-xl px-3 py-2 outline-none transition-all placeholder:text-white/20 font-mono"
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                // Le bouton est désactivé si ça charge OU si le texte saisi n'est pas strictement égal à "delete"
+                disabled={deleteLoading || deleteInput !== 'delete'}
+                onClick={handleDeleteAccount}
+                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 disabled:hover:bg-rose-600 disabled:cursor-not-allowed text-white font-black text-[10px] uppercase tracking-widest px-4 py-2 rounded-xl transition shadow-[0_0_20px_rgba(225,29,72,0.2)]"
+              >
+                {deleteLoading ? 'Purge en cours...' : 'Oui, détruire mon compte'}
+              </button>
+              <button
+                disabled={deleteLoading}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteInput(''); // On vide le champ à l'annulation
+                }}
+                className="bg-white/5 hover:bg-white/10 text-white/80 font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition border border-white/5"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+};
 
 
 
@@ -7554,7 +7959,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "3.5"; 
+const CURRENT_VERSION = "3.6"; 
 
 useEffect(() => {
   if (!user) return;
@@ -8064,7 +8469,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.5</span>
+        Kleea <span className="text-[var(--primary)]">v.3.6</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -8096,8 +8501,16 @@ if (!user) {
   
   <div className="w-px h-4 bg-[var(--glass-bg)] mx-2" />
   
-  {/* --- BADGE UTILISATEUR CONNECTÉ --- */}
-  <div className="flex items-center gap-3 px-3 py-1.5 bg-[var(--glass-bg)] border border-white/5 rounded-xl ml-1">
+  {/* --- BADGE UTILISATEUR CONNECTÉ (DEVIENT CLIQUABLE) --- */}
+  <button
+    onClick={() => setActiveTab('profile')} // 👈 Change ici si l'id de ton onglet profil est différent (ex: 'profil')
+    className={`flex items-center gap-3 px-3 py-1.5 border rounded-xl ml-1 transition-all duration-300 cursor-pointer ${
+      activeTab === 'profile'
+      ? 'bg-white/15 border-[var(--primary)] shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]'
+      : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/5 hover:border-white/10'
+    }`}
+    title="Mon Profil"
+  >
     <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]">
       {user.substring(0, 1).toUpperCase()}
     </div>
@@ -8106,7 +8519,7 @@ if (!user) {
         {user}
       </span>
     </div>
-  </div>
+  </button>
 
   <button 
     onClick={handleLogout} 
@@ -12763,6 +13176,13 @@ if (!user) {
     comptes={comptes}
   />
 )}
+
+
+
+{activeTab === 'profile' && <ProfileTab user={user} />}
+
+
+
       </main>
 
       </div>
@@ -13247,7 +13667,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 2 : REFONTE FLUX MENSUEL, VARIATIONS & INSIGHTS (MODIFIÉ ✨) */}
+        {/* 💡 NOUVEAUTÉ 2 : REFONTE FLUX MENSUEL, VARIATIONS & INSIGHTS */}
         <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
           <span className="text-base mt-0.5">📊</span>
           <div>
@@ -13255,7 +13675,7 @@ if (!user) {
               Refonte du Flux Mensuel & Statistiques IA
             </h4>
             <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              La barre de navigation intègre de nouvelles analyses puissantes. L'onglet <strong className="text-indigo-400">Variations</strong> traque l'évolution précise de tes enveloppes. Le nouvel onglet <strong className="text-indigo-400">Insights</strong> agit comme un détecteur de comportement budgétaire (micro-fuites, alimentation, gros achats) et intègre désormais un <strong className="text-indigo-400">encart textuel intelligent</strong> : écris simplement ta demande à <strong className="text-indigo-400">Gemini</strong> (ex: <i>"Suivre mes UberEats"</i>, <i>"Charges récurrentes"</i>) pour générer, calculer et épingler instantanément tes propres indicateurs personnalisés permanents dans ta grille !
+              La barre de navigation intègre de nouvelles analyses puissantes. L'onglet <strong className="text-indigo-400">Variations</strong> traque l'évolution précise de tes enveloppes. Le nouvel onglet <strong className="text-indigo-400">Insights</strong> agit comme un détecteur de comportement budgétaire (micro-fuites, alimentation, gros achats) et intègre désormais un <strong className="text-indigo-400">encart textuel intelligent</strong> : écris simplement ta demande à <strong className="text-indigo-400">Gemini</strong> (ex: <i>"Suivre mes UberEats"</i>, <i>"Charges récurrentes"</i>) pour générer, calculer et épingler instantanément tes proprios indicateurs personnalisés permanents dans ta grille !
             </p>
           </div>
         </div>
@@ -13269,6 +13689,19 @@ if (!user) {
             </h4>
             <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
               Visualise l'évolution et l'intensité de ton budget au jour le jour. Le nouveau module calendrier te permet de repérer en un clin d'œil tes pics de dépenses et de suivre tes habitudes de manière ultra-visuelle tout au long des mois.
+            </p>
+          </div>
+        </div>
+
+        {/* ✨ NOUVEAUTÉ 4 : PAGE PROFIL & STATISTIQUES COMPTE (AJOUTÉ ✅) */}
+        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(16,185,129,0.03)]">
+          <span className="text-base mt-0.5">👤</span>
+          <div>
+            <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
+              Espace Profil & Sécurité renforcée
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Accède instantanément à ton profil via ton badge utilisateur à coté du bouton déconnexion. Cette nouvelle page intègre un <strong className="text-emerald-400">compteur de transactions en temps réel</strong> indexé sur ta base de données, la possibilité de <strong className="text-emerald-400">modifier tes détails personnels</strong> (Nom et e-mail), la mise à jour de ton Master Password, ainsi qu'une procédure de purge de compte sécurisée par <strong className="text-emerald-400">double confirmation textuelle</strong>.
             </p>
           </div>
         </div>

@@ -208,6 +208,21 @@ def delete_transactions(ids: List[int]):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/transactions/stats/count/{username}")
+def get_user_transactions_count(username: str):
+    """Renvoie le nombre total de transactions associées à un utilisateur précis"""
+    query = text("SELECT COUNT(*) FROM transactions WHERE LOWER(utilisateur) = :u")
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query, {"u": username.lower()}).scalar()
+            return {
+                "username": username,
+                "user_transactions_count": result
+            }
+    except Exception as e:
+        print(f"Erreur lors du calcul de la stat pour {username}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur BDD: {str(e)}")
+
 
 
 class LoginRequest(BaseModel):
@@ -283,6 +298,27 @@ def login(req: LoginRequest):
         # peu importe comment l'utilisateur s'est connecté
         return {"status": "success", "user": db_username}
 
+
+# --- ROUTE : OBTENIR LE PROFIL D'UN UTILISATEUR ---
+@app.get("/profile/{username}")
+def get_profile(username: str):
+    # On passe le username en minuscules dans la requête SQL
+    query = text("""
+        SELECT username, email, name 
+        FROM users 
+        WHERE LOWER(username) = LOWER(:username)
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"username": username}).fetchone()
+        if not result:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        
+        db_username, db_email, db_name = result
+        return {
+            "username": db_username,
+            "email": db_email,
+            "name": db_name if db_name else db_username
+        }
 
 class ResetRequest(BaseModel):
     email: EmailStr
@@ -375,6 +411,92 @@ async def reset_password_confirm(req: NewPasswordRequest):
             raise HTTPException(status_code=400, detail="Lien invalide ou expiré")
             
     return {"status": "success", "message": "Mot de passe mis à jour !"}
+
+
+
+
+class UpdatePasswordRequest(BaseModel):
+    new_password: str
+
+# --- ROUTE : CHANGER LE MOT DE PASSE ---
+@app.put("/profile/{username}/password")
+def update_password(username: str, req: UpdatePasswordRequest):
+    # 1. On hache le nouveau mot de passe
+    hashed_password = pwd_context.hash(req.new_password)
+    
+    with engine.connect() as conn:
+        # 2. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
+        check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
+        user_exists = conn.execute(check_query, {"username": username}).fetchone()
+        
+        if not user_exists:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        
+        # 3. Mise à jour du mot de passe
+        update_query = text("""
+            UPDATE users 
+            SET password = :password 
+            WHERE LOWER(username) = LOWER(:username)
+        """)
+        
+        conn.execute(update_query, {
+            "password": hashed_password,
+            "username": username
+        })
+        conn.commit()
+        
+    return {"status": "success", "message": "Mot de passe mis à jour avec succès"}
+
+
+# --- ROUTE : SUPPRIMER DÉFINITIVEMENT LE COMPTE ---
+@app.delete("/profile/{username}")
+def delete_account(username: str):
+    with engine.connect() as conn:
+        # 1. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
+        check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
+        user_exists = conn.execute(check_query, {"username": username}).fetchone()
+        
+        if not user_exists:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        
+        # 2. Suppression de l'utilisateur (Les cascades en BDD nettoieront le reste)
+        delete_query = text("DELETE FROM users WHERE LOWER(username) = LOWER(:username)")
+        conn.execute(delete_query, {"username": username})
+        conn.commit()
+        
+    return {"status": "success", "message": "Compte et données associés détruits définitivement"}
+
+
+# Modèle pour la mise à jour des infos personnelles
+class UpdateProfileRequest(BaseModel):
+    name: str
+    email: str
+
+# --- ROUTE : MODIFIER LES INFOS PERSONNELLES ---
+@app.put("/profile/{username}/details")
+def update_profile_details(username: str, req: UpdateProfileRequest):
+    with engine.connect() as conn:
+        # 1. Vérifier si l'utilisateur existe
+        check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
+        user_exists = conn.execute(check_query, {"username": username}).fetchone()
+        
+        if not user_exists:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+        
+        # 2. Mettre à jour le nom et l'email
+        update_query = text("""
+            UPDATE users 
+            SET name = :name, email = :email 
+            WHERE LOWER(username) = LOWER(:username)
+        """)
+        conn.execute(update_query, {
+            "name": req.name,
+            "email": req.email,
+            "username": username
+        })
+        conn.commit()
+        
+    return {"status": "success", "message": "Profil mis à jour avec succès"}
 
 
 # 💡 1. AJOUT DE TAUX DANS LE MODÈLE PYDANTIC
