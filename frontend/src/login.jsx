@@ -8218,6 +8218,18 @@ useEffect(() => {
 
 const isPageScrollable = activeTab === 'demenagement' || activeTab === 'Guide'|| activeTab === 'tricount';
 
+
+// État pour le premier graphique (Annuel)
+const [visibleAnnuel, setVisibleAnnuel] = useState({
+  revenus: true,
+  depenses: true,
+  epargne: true
+});
+
+// État pour le deuxième graphique (Détaillé)
+// On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
+const [hiddenComptes, setHiddenComptes] = useState({});
+
 useEffect(() => {
   if (user) {
     fetchTransactions();
@@ -9432,304 +9444,306 @@ if (!user) {
                           </div>
                         )}
                       </div>
-                      {/* Évolution */}
-                      <div className="flex-1 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-[var(--glass-blur)] min-h-0">
-                        <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
-                        {/* SECTION GRAPHIQUE ANNUEL */}
+                        {/* Évolution */}
+                        <div className="flex-1 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-[var(--glass-blur)] min-h-0">
+                          <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
                           
-                            
-                            
-                            <div className="h-full w-full pb-8">
-                              <ResponsiveContainer width="100%" height="110%">
-                                <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
-                                  <defs>
-                                    {/* Gradient Revenus */}
-                                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.3}/>
-                                      <stop offset="95%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0}/>
-                                    </linearGradient>
+                          {/* SECTION GRAPHIQUE ANNUEL */}
+                          <div className="h-full w-full pb-8">
+                            <ResponsiveContainer width="100%" height="110%">
+                              <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0}/>
+                                  </linearGradient>
+                                  <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.3}/>
+                                    <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
+                                  </linearGradient>
+                                  <linearGradient id="colorEp" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.2}/>
+                                    <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
+                                  </linearGradient>
+                                </defs>
 
-                                    {/* Gradient Dépenses */}
-                                    <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.3}/>
-                                      <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
-                                    </linearGradient>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                                
+                                <XAxis 
+                                  dataKey="nom" 
+                                  axisLine={false} 
+                                  tickLine={false} 
+                                  tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}}
+                                  dy={10}
+                                />
 
-                                    {/* Gradient Épargne */}
-                                    <linearGradient id="colorEp" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.2}/>
-                                      <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
-                                    </linearGradient>
-                                  </defs>
-
-                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                                  
-                                  <XAxis 
-                                    dataKey="nom" 
-                                    axisLine={false} 
-                                    tickLine={false} 
-                                    tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}}
-                                    dy={10}
-                                  />
-
-                                  <YAxis 
-                                  hide={false} // On l'affiche enfin !
-                                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} // Texte gris clair discret
-                                  axisLine={false} // On cache la ligne verticale pour un look moderne
-                                  tickLine={false} // On cache les petits tirets
-                                  width={60} // On laisse un peu de place pour les chiffres
+                                <YAxis 
+                                  hide={false}
+                                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                  width={60}
                                   tickFormatter={(value) => {
-                                    // Formate les chiffres : 1000 -> 1k, 1000000 -> 1M
                                     if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
                                     if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
                                     return `${value}€`;
                                   }}
                                 />
-                                  
-                                  <Tooltip 
-                                    cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
-                                    contentStyle={{ 
-                                      backgroundColor: '#0f172a', 
-                                      border: '1px solid rgba(255,255,255,0.1)', 
-                                      borderRadius: '12px',
-                                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
-                                      padding: '12px'
-                                    }}
-                                    // FORMATAGE : [Valeur, Nom]
-                                    formatter={(value, name) => {
-                                      const formattedValue = new Intl.NumberFormat('fr-FR', { 
-                                        style: 'currency', 
-                                        currency: 'EUR',
-                                        minimumFractionDigits: 2 
-                                      }).format(value);
+                                
+                                <Tooltip 
+                                  cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
+                                  contentStyle={{ 
+                                    backgroundColor: '#0f172a', 
+                                    border: '1px solid rgba(255,255,255,0.1)', 
+                                    borderRadius: '12px',
+                                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
+                                    padding: '12px'
+                                  }}
+                                  formatter={(value, name) => {
+                                    const formattedValue = new Intl.NumberFormat('fr-FR', { 
+                                      style: 'currency', 
+                                      currency: 'EUR',
+                                      minimumFractionDigits: 2 
+                                    }).format(value);
 
-                                      // On transforme les noms internes en noms propres pour l'affichage
-                                      const labelMap = {
-                                        revenus: 'Revenus',
-                                        depenses: 'Dépenses',
-                                        epargne: 'Épargne'
-                                      };
+                                    const labelMap = {
+                                      revenus: 'Revenus',
+                                      depenses: 'Dépenses',
+                                      epargne: 'Épargne'
+                                    };
 
-                                      return [formattedValue, labelMap[name] || name];
-                                    }}
-                                    itemStyle={{ 
-                                      fontSize: '12px', 
-                                      fontWeight: '900', 
-                                      textTransform: 'uppercase',
-                                      padding: '2px 0'
-                                    }}
-                                    labelStyle={{ 
-                                      color: 'rgba(255,255,255,0.5)', 
-                                      fontWeight: 'bold', 
-                                      marginBottom: '8px',
-                                      fontSize: '10px',
-                                      textTransform: 'uppercase'
-                                    }}
-                                  />
+                                    return [formattedValue, labelMap[name] || name];
+                                  }}
+                                  itemStyle={{ 
+                                    fontSize: '12px', 
+                                    fontWeight: '900', 
+                                    textTransform: 'uppercase',
+                                    padding: '2px 0'
+                                  }}
+                                  labelStyle={{ 
+                                    color: 'rgba(255,255,255,0.5)', 
+                                    fontWeight: 'bold', 
+                                    marginBottom: '8px',
+                                    fontSize: '10px',
+                                    textTransform: 'uppercase'
+                                  }}
+                                />
 
-                                  <Legend 
-                                    verticalAlign="top" 
-                                    align="right" 
-                                    iconType="circle"
-                                    iconSize={8}
-                                    content={({ payload }) => (
-                                      <div className="flex justify-end gap-6 mb-4">
-                                        {payload.map((entry, index) => (
-                                          <div key={`item-${index}`} className="flex items-center gap-2">
+                                <Legend 
+                                  verticalAlign="top" 
+                                  align="right" 
+                                  iconType="circle"
+                                  iconSize={8}
+                                  content={({ payload }) => (
+                                    <div className="flex justify-end gap-6 mb-4">
+                                      {payload.map((entry, index) => {
+                                        const key = entry.value; // 'revenus', 'depenses' ou 'epargne'
+                                        const isVisible = visibleAnnuel[key];
+                                        return (
+                                          <div 
+                                            key={`item-${index}`} 
+                                            className="flex items-center gap-2 cursor-pointer select-none transition-opacity duration-200"
+                                            style={{ opacity: isVisible ? 1 : 0.3 }}
+                                            onClick={() => setVisibleAnnuel(prev => ({ ...prev, [key]: !prev[key] }))}
+                                          >
                                             <div 
                                               className="w-2 h-2 rounded-full" 
                                               style={{ backgroundColor: entry.color }} 
                                             />
                                             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
-                                              {entry.value === 'revenus' ? 'Revenus' : entry.value === 'depenses' ? 'Dépenses' : 'Épargne'}
+                                              {key === 'revenus' ? 'Revenus' : key === 'depenses' ? 'Dépenses' : 'Épargne'}
                                             </span>
                                           </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  />
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                />
 
-                                  {/* REVENUS */}
-                                    <Area 
-                                      type="monotone" 
-                                      dataKey="revenus" 
-                                      stroke={userTheme.color_revenus || "#10b981"} 
-                                      strokeWidth={4}
-                                      fillOpacity={1} 
-                                      fill="url(#colorRev)"
-                                      connectNulls={true}
-                                      dot={{ r: 4, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
-                                      activeDot={{ r: 6, strokeWidth: 0 }}
-                                    />
+                                {/* REVENUS */}
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="revenus" 
+                                  hide={!visibleAnnuel.revenus}
+                                  stroke={userTheme.color_revenus || "#10b981"} 
+                                  strokeWidth={4}
+                                  fillOpacity={1} 
+                                  fill="url(#colorRev)"
+                                  connectNulls={true}
+                                  dot={{ r: 4, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
+                                  activeDot={{ r: 6, strokeWidth: 0 }}
+                                />
 
-                                    {/* DÉPENSES */}
-                                    <Area 
-                                      type="monotone" 
-                                      dataKey="depenses" 
-                                      stroke={userTheme.color_depenses || "#f43f5e"} 
-                                      strokeWidth={4}
-                                      fillOpacity={1} 
-                                      fill="url(#colorDep)"
-                                      connectNulls={true}
-                                      dot={{ r: 4, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
-                                      activeDot={{ r: 6, strokeWidth: 0 }}
-                                    />
+                                {/* DÉPENSES */}
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="depenses" 
+                                  hide={!visibleAnnuel.depenses}
+                                  stroke={userTheme.color_depenses || "#f43f5e"} 
+                                  strokeWidth={4}
+                                  fillOpacity={1} 
+                                  fill="url(#colorDep)"
+                                  connectNulls={true}
+                                  dot={{ r: 4, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
+                                  activeDot={{ r: 6, strokeWidth: 0 }}
+                                />
 
-                                    {/* ÉPARGNE */}
-                                    <Area 
-                                      type="monotone" 
-                                      dataKey="epargne" 
-                                      stroke={userTheme.color_epargne || "#ffffff"} 
-                                      strokeWidth={2}
-                                      fillOpacity={1} 
-                                      fill="url(#colorEp)"
-                                      connectNulls={true}
-                                      dot={{ r: 3, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
-                                      activeDot={{ r: 5, strokeWidth: 0 }}
-                                    />
-                                                            </AreaChart>
-                              </ResponsiveContainer>
-                            </div>
-                        
+                                {/* ÉPARGNE */}
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="epargne" 
+                                  hide={!visibleAnnuel.epargne}
+                                  stroke={userTheme.color_epargne || "#ffffff"} 
+                                  strokeWidth={2}
+                                  fillOpacity={1} 
+                                  fill="url(#colorEp)"
+                                  connectNulls={true}
+                                  dot={{ r: 3, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                                  activeDot={{ r: 5, strokeWidth: 0 }}
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                          
 
                           {/* SECTION PATRIMOINE DÉTAILLÉ */}
-                            
-                            
-                              
-                              <div className="h-full w-full pb-12">
-                                <ResponsiveContainer width="100%" height="120%">
-                                  <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                                    <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} />
-                                    <YAxis 
-                                      hide={false} // On l'affiche enfin !
-                                      tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} // Texte gris clair discret
-                                      axisLine={false} // On cache la ligne verticale pour un look moderne
-                                      tickLine={false} // On cache les petits tirets
-                                      width={60} // On laisse un peu de place pour les chiffres
-                                      tickFormatter={(value) => {
-                                        // Formate les chiffres : 1000 -> 1k, 1000000 -> 1M
-                                        if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
-                                        if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
-                                        return `${value}€`;
-                                      }}
-                                    />
-                                    
-                                    <defs>
-                                      {comptesDuProfil?.map((compte, index) => (
-                                        <linearGradient 
-                                          key={`grad-${index}`} 
-                                          id={`colorGrad-${index}`} // ID unique qu'on utilisera dans le fill
-                                          x1="0" y1="0" x2="0" y2="1"
-                                        >
-                                          <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.4}/>
-                                          <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
-                                        </linearGradient>
-                                      ))}
-                                    </defs>
+                          <div className="h-full w-full pb-12">
+                            <ResponsiveContainer width="100%" height="120%">
+                              <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                                <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} />
+                                <YAxis 
+                                  hide={false}
+                                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                                  axisLine={false}
+                                  tickLine={false}
+                                  width={60}
+                                  tickFormatter={(value) => {
+                                    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
+                                    if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
+                                    return `${value}€`;
+                                  }}
+                                />
+                                
+                                <defs>
+                                  {comptesDuProfil?.map((compte, index) => (
+                                    <linearGradient 
+                                      key={`grad-${index}`} 
+                                      id={`colorGrad-${index}`}
+                                      x1="0" y1="0" x2="0" y2="1"
+                                    >
+                                      <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.4}/>
+                                      <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
+                                    </linearGradient>
+                                  ))}
+                                </defs>
 
-
-                                    <Tooltip 
-                                      // On garde le tri par valeur
-                                      itemSorter={(item) => -item.value}
-                                      content={({ active, payload, label }) => {
-                                        if (active && payload && payload.length) {
-                                          return (
-                                            <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border-none shadow-2xl">
-                                              <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
-                                              <div className="flex flex-col gap-2">
-                                                {payload.map((entry, index) => (
-                                                  <div key={index} className="flex items-center justify-between gap-8">
-                                                    <div className="flex items-center gap-2">
-                                                      {/* Pastille avec la couleur dynamique du compte */}
-                                                      <div 
-                                                        className="w-2 h-2 rounded-full" 
-                                                        style={{ backgroundColor: entry.color }} 
-                                                      />
-                                                      <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
-                                                        {entry.name}
-                                                      </span>
-                                                    </div>
-                                                    <span className="text-[var(--text-main)] font-bold text-xs">
-                                                      {new Intl.NumberFormat('fr-FR', { 
-                                                        style: 'currency', 
-                                                        currency: 'EUR', 
-                                                        maximumFractionDigits: 2 
-                                                      }).format(entry.value)}
-                                                    </span>
-                                                  </div>
-                                                ))}
+                                <Tooltip 
+                                  itemSorter={(item) => -item.value}
+                                  content={({ active, payload, label }) => {
+                                    if (active && payload && payload.length) {
+                                      return (
+                                        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border-none shadow-2xl">
+                                          <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
+                                          <div className="flex flex-col gap-2">
+                                            {payload.map((entry, index) => (
+                                              <div key={index} className="flex items-center justify-between gap-8">
+                                                <div className="flex items-center gap-2">
+                                                  <div 
+                                                    className="w-2 h-2 rounded-full" 
+                                                    style={{ backgroundColor: entry.color }} 
+                                                  />
+                                                  <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
+                                                    {entry.name}
+                                                  </span>
+                                                </div>
+                                                <span className="text-[var(--text-main)] font-bold text-xs">
+                                                  {new Intl.NumberFormat('fr-FR', { 
+                                                    style: 'currency', 
+                                                    currency: 'EUR', 
+                                                    maximumFractionDigits: 2 
+                                                  }).format(entry.value)}
+                                                </span>
                                               </div>
-                                            </div>
-                                          );
-                                        }
-                                        return null;
-                                      }}
-                                    />
-                                    
-                                    <Legend 
-                                      verticalAlign="top" 
-                                      align="right" 
-                                      content={({ payload }) => (
-                                        <div className="flex flex-wrap justify-end gap-x-6 gap-y-2 mb-4">
-                                          {payload.map((entry, index) => (
-                                            <div key={`item-${index}`} className="flex items-center gap-2">
-                                              <div 
-                                                className="w-2 h-2 rounded-full" 
-                                                style={{ backgroundColor: entry.color }} 
-                                              />
-                                              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
-                                                {/* Ici, on affiche la valeur dynamique (le nom du compte ou "Total") */}
-                                                {entry.value}
-                                              </span>
-                                            </div>
-                                          ))}
+                                            ))}
+                                          </div>
                                         </div>
-                                      )}
-                                    />
-                                                                    {/* 1. LES COUCHES (COMPTES) */}
-                                    {comptesDuProfil
-                                      ?.filter(c => c && c.compte)
-                                      // TRÈS IMPORTANT : On trie du plus gros au plus petit solde.
-                                      // Ainsi, les "petites" surfaces sont dessinées en dernier, PAR-DESSUS les grosses.
-                                      .sort((a, b) => (b.soldePeriode || 0) - (a.soldePeriode || 0)) 
-                                      .map((compte, index) => {
-                                        const nomCleData = compte.compte.trim().toUpperCase();
-                                        const maCouleurBdd = compte.couleur || '#64748b';
-                                        
+                                      );
+                                    }
+                                    return null;
+                                  }}
+                                />
+                                
+                                <Legend 
+                                  verticalAlign="top" 
+                                  align="right" 
+                                  content={({ payload }) => (
+                                    <div className="flex flex-wrap justify-end gap-x-6 gap-y-2 mb-4">
+                                      {payload.map((entry, index) => {
+                                        const isHidden = !!hiddenComptes[entry.value];
                                         return (
-                                          <Area
-                                            key={`area-compte-${index}`}
-                                            type="monotone"
-                                            dataKey={nomCleData}
-                                            name={compte.compte}
-                                            stroke={maCouleurBdd}
-                                            // ON UTILISE L'ID DU GRADIENT DÉFINI PLUS HAUT
-                                            fill={`url(#colorGrad-${index})`} 
-                                            fillOpacity={1} // On met 1 car l'opacité est déjà gérée dans le gradient
-                                            strokeWidth={2}
-                                            connectNulls={true}
-                                            dot={{ r: 3, fill: maCouleurBdd, strokeWidth: 1, stroke: '#ffffff' }}
-                                            isAnimationActive={false}
-                                          />
+                                          <div 
+                                            key={`item-${index}`} 
+                                            className="flex items-center gap-2 cursor-pointer select-none transition-opacity duration-200"
+                                            style={{ opacity: isHidden ? 0.3 : 1 }}
+                                            onClick={() => setHiddenComptes(prev => ({ ...prev, [entry.value]: !prev[entry.value] }))}
+                                          >
+                                            <div 
+                                              className="w-2 h-2 rounded-full" 
+                                              style={{ backgroundColor: entry.color }} 
+                                            />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+                                              {entry.value}
+                                            </span>
+                                          </div>
                                         );
-                                    })}
+                                      })}
+                                    </div>
+                                  )}
+                                />
 
-                                    {/* 2. LA LIGNE DU SOLDE GLOBAL */}
-                                    <Area
-                                      type="monotone"
-                                      dataKey="soldeTotal"
-                                      stroke="#ffffff"
-                                      strokeWidth={3}
-                                      fill="transparent" // Pas de couleur pour celle-ci, juste la ligne de tendance
-                                      name="PATRIMOINE TOTAL"
-                                      dot={{ r: 3, fill: '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
-                                      isAnimationActive={false}
-                                    />
-                                  </AreaChart>
-                                </ResponsiveContainer>
-                              </div>
-                            </div>
+                        {/* 1. LES COUCHES (COMPTES) DYNAMIQUES */}
+                                {comptesDuProfil
+                                  ?.filter(c => c && c.compte)
+                                  .sort((a, b) => (b.soldePeriode || 0) - (a.soldePeriode || 0)) 
+                                  .map((compte, index) => {
+                                    const nomCleData = compte.compte.trim().toUpperCase();
+                                    const maCouleurBdd = compte.couleur || '#64748b';
+                                    
+                                    return (
+                                      <Area
+                                        key={`area-compte-${index}`}
+                                        type="monotone"
+                                        dataKey={nomCleData}
+                                        name={compte.compte}
+                                        hide={!!hiddenComptes[compte.compte]} // <-- Modifié : On cache au lieu de return null
+                                        stroke={maCouleurBdd}
+                                        fill={`url(#colorGrad-${index})`} 
+                                        fillOpacity={1}
+                                        strokeWidth={2}
+                                        connectNulls={true}
+                                        dot={{ r: 3, fill: maCouleurBdd, strokeWidth: 1, stroke: '#ffffff' }}
+                                        isAnimationActive={false}
+                                      />
+                                    );
+                                  })}
+
+                                {/* 2. LA LIGNE DU SOLDE GLOBAL */}
+                                <Area
+                                  type="monotone"
+                                  dataKey="soldeTotal"
+                                  stroke="#ffffff"
+                                  strokeWidth={3}
+                                  fill="transparent"
+                                  name="PATRIMOINE TOTAL"
+                                  hide={!!hiddenComptes["PATRIMOINE TOTAL"]} // <-- Modifié : On cache au lieu du bloc IF
+                                  dot={{ r: 3, fill: '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                                  isAnimationActive={false}
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
                           </div>
                       );
 
