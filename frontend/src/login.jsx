@@ -8216,7 +8216,7 @@ useEffect(() => {
   }
 }, [budgets, listeMoisDisponibles, selectedBudgetMonth]);
 
-const isPageScrollable = activeTab === 'demenagement';
+const isPageScrollable = activeTab === 'demenagement' || activeTab === 'Guide'|| activeTab === 'tricount';
 
 useEffect(() => {
   if (user) {
