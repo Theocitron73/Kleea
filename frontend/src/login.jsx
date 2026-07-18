@@ -2062,12 +2062,12 @@ const SortableAccountCard = ({ c }) => {
       style={containerStyle}
       {...attributes}
       {...listeners}
-      className="flex-1 min-w-[160px] h-32 outline-none" 
+      className="flex-1 min-w-[160px] h-28 outline-none" 
     >
       {/* LA CARTE VISUELLE */}
       <div 
         className={`
-          w-full h-full p-4 rounded-[var(--radius)] 
+          w-full h-full p-3 rounded-[var(--radius)] 
           flex flex-col justify-between
           relative overflow-hidden group 
           cursor-grab active:cursor-grabbing shadow-xl
@@ -8207,7 +8207,7 @@ useEffect(() => {
   }
 }, [budgets, listeMoisDisponibles, selectedBudgetMonth]);
 
-
+const isPageScrollable = activeTab === 'demenagement';
 
 useEffect(() => {
   if (user) {
@@ -8446,7 +8446,11 @@ if (!user) {
 
   return (
     <div 
-  className="min-h-screen p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500"
+  className={`p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500 ${
+      isPageScrollable 
+        ? 'min-h-screen overflow-y-auto' 
+        : 'h-screen lg:overflow-hidden'
+    }`}
   style={{
     /* On mélange 20% de ta couleur avec 80% de noir pour créer un "noir coloré" */
     background: `radial-gradient(
@@ -8664,57 +8668,60 @@ if (!user) {
 
 
 
-      {/* SECTION CARTES ALIGNÉES */}
-        <div className="shrink-0 grid grid-cols-12 gap-4 mb-6 items-stretch"> {/* items-stretch est important ici */}
-          
-          {/* COLONNE GAUCHE : RECAP FILTRES + SOLDE TOTAL */}
-          <div className="col-span-12 md:col-span-2 flex flex-col gap-2 h-full">
-            
-            {/* MINI RECAP FILTRES */}
-            <div className="shrink-0 flex flex-col gap-1 px-3 py-2 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)]">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] text-[var(--text-main)]/30 uppercase font-black tracking-tighter italic">
-                  {filters.profil}
-                </span>
-                <div className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
-              </div>
-              <p className="text-[10px] text-[var(--text-main)] font-black truncate">
-                {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
-              </p>
-            </div>
-
-            {/* CARTE SOLDE TOTAL (Celle-ci va maintenant s'ajuster) */}
-            <div 
-              className="flex-1 rounded-[var(--radius)] p-4 text-[var(--text-main)] shadow-xl flex flex-col justify-center transition-all duration-500"
-              style={{ 
-                background: `linear-gradient(135deg, ${userTheme.color_patrimoine || '#37b58f'} 0%, ${(userTheme.color_patrimoine || '#37b58f')}aa 100%)`,
-                border: `1px solid ${(userTheme.color_patrimoine || '#37b58f')}33`,
-                boxShadow: `0 8px 20px -5px rgba(0, 0, 0, 0.3)`
-              }}
-            >
-              <p className="text-[var(--text-main)]/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Total</p>
-              <h2 className="text-xl font-black tracking-tighter leading-none truncate">
-                {soldeGlobal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-              </h2>
-            </div>
-          </div>
-
-          {/* COLONNE DROITE : CONTENEUR DES COMPTES */}
-          <div className="col-span-12 md:col-span-10 min-w-0">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={soldesTries.map(c => c.compte)} strategy={horizontalListSortingStrategy}>
-                {/* On s'assure que le container flex fait bien toute la hauteur */}
-                <div className="flex gap-3 h-full pb-2 overflow-x-auto md:overflow-x-visible no-scrollbar cursor-grab active:cursor-grabbing">
-                  {soldesTries.map(c => (
-                    <div key={c.compte} className="min-w-[160px] md:min-w-0 md:flex-1 h-full">
-                      <SortableAccountCard c={c} />
+            {/* SECTION CARTES ALIGNÉES */}
+            <div className="shrink-0 grid grid-cols-12 gap-4 mb-2 items-stretch"> {/* items-stretch aligne les hauteurs automatiquement */}
+              
+              {/* COLONNE GAUCHE : CARTE UNIQUE FUSIONNÉE */}
+              <div className="col-span-12 md:col-span-2 h-full pb-2">
+                <div 
+                  
+                  className="h-full rounded-[var(--radius)] p-3 text-[var(--text-main)] shadow-xl flex flex-col justify-between transition-all duration-500 relative overflow-hidden"
+                  style={{ 
+                    background: `linear-gradient(135deg, ${userTheme.color_patrimoine || '#37b58f'} 0%, ${(userTheme.color_patrimoine || '#37b58f')}aa 100%)`,
+                    border: `1px solid ${(userTheme.color_patrimoine || '#37b58f')}33`,
+                    boxShadow: `0 8px 20px -5px rgba(0, 0, 0, 0.3)`
+                  }}
+                >
+                  {/* HAUT DE LA CARTE : MINI RECAP INTEGRÉ */}
+                  {/* 🛠️ Ajustement : mb-2 au lieu de mb-4 pour s'adapter au format h-28 */}
+                  <div className="flex flex-col gap-0.5 mb-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] text-white/50 uppercase font-black tracking-tighter italic">
+                        {filters.profil}
+                      </span>
+                      <div className="flex h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.5)]" />
                     </div>
-                  ))}
+                    <p className="text-[10px] text-white/90 font-black truncate">
+                      {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
+                    </p>
+                  </div>
+
+                  {/* BAS DE LA CARTE : SOLDE TOTAL */}
+                  <div className="mt-auto">
+                    <p className="text-white/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Total</p>
+                    <h2 className="text-xl font-black tracking-tighter leading-none text-white truncate">
+                      {soldeGlobal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                    </h2>
+                  </div>
                 </div>
-              </SortableContext>
-            </DndContext>
-          </div>
-        </div>
+              </div>
+
+              {/* COLONNE DROITE : CONTENEUR DES COMPTES */}
+              <div className="col-span-12 md:col-span-10 min-w-0">
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={soldesTries.map(c => c.compte)} strategy={horizontalListSortingStrategy}>
+                    <div className="flex gap-3 h-full pb-2 overflow-x-auto md:overflow-x-visible no-scrollbar cursor-grab active:cursor-grabbing">
+                      {soldesTries.map(c => (
+                        <div key={c.compte} className="min-w-[160px] md:min-w-0 md:flex-1 h-full">
+                          <SortableAccountCard c={c} />
+                        </div>
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              </div>
+
+            </div>
 
                                 
             {/* --- LE CONTENEUR GRILLE PRINCIPAL --- */}
@@ -10273,55 +10280,61 @@ if (!user) {
       </div>
     </div>
 
-    {/* 2. SECTION CARTES ALIGNÉES */}
-    <div className="shrink-0 grid grid-cols-12 gap-4 mb-6 items-stretch">
-      
-      {/* COLONNE GAUCHE : RECAP FILTRES + SOLDE TOTAL */}
-      <div className="col-span-12 md:col-span-2 flex flex-col gap-2 h-full">
-        <div className="shrink-0 flex flex-col gap-1 px-3 py-2 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)]">
-          <div className="flex justify-between items-center">
-            <span className="text-[9px] text-[var(--text-main)]/30 uppercase font-black tracking-tighter italic">
-              {filters.profil}
-            </span>
-            <div className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.5)]" />
+      {/* 2. SECTION CARTES ALIGNÉES */}
+      <div className="shrink-0 grid grid-cols-12 gap-4 mb-2 items-stretch">
+        
+        {/* COLONNE GAUCHE : CARTE UNIQUE FUSIONNÉE (PRÉVISIONS) */}
+        <div className="col-span-12 md:col-span-2 h-full pb-2">
+          <div 
+            
+            className="h-full rounded-[var(--radius)] p-3 text-[var(--text-main)] shadow-xl flex flex-col justify-between transition-all duration-500 relative overflow-hidden"
+            style={{ 
+              background: `linear-gradient(135deg, ${userTheme.color_patrimoine || '#37b58f'} 0%, ${(userTheme.color_patrimoine || '#37b58f')}aa 100%)`,
+              border: `1px solid ${(userTheme.color_patrimoine || '#37b58f')}33`,
+              boxShadow: `0 8px 20px -5px rgba(0, 0, 0, 0.3)`
+            }}
+          >
+            {/* HAUT DE LA CARTE : MINI RECAP INTEGRÉ */}
+            {/* 🛠️ Ajustement : réduction de mb-4 à mb-2 */}
+            <div className="flex flex-col gap-0.5 mb-2">
+              <div className="flex justify-between items-center">
+                <span className="text-[9px] text-white/50 uppercase font-black tracking-tighter italic">
+                  {filters.profil}
+                </span>
+                <div className="flex h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.5)]" />
+              </div>
+              <p className="text-[10px] text-white/90 font-black truncate">
+                {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
+              </p>
+            </div>
+
+            {/* BAS DE LA CARTE : SOLDE FINAL ESTIMÉ */}
+            <div className="mt-auto">
+              {/* 🛠️ Ajustement : mb-0.5 pour aérer sans casser le layout compact */}
+              <p className="text-white/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Solde Final Estimé</p>
+              <h2 className="text-xl font-black tracking-tighter leading-none text-white truncate">
+                {soldeGlobalProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+              </h2>
+            </div>
           </div>
-          <p className="text-[10px] text-[var(--text-main)] font-black truncate">
-            {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
-          </p>
         </div>
 
-        <div 
-          className="flex-1 rounded-[var(--radius)] p-4 text-[var(--text-main)] shadow-xl flex flex-col justify-center transition-all duration-500"
-          style={{ 
-            background: `linear-gradient(135deg, ${userTheme.color_patrimoine || '#37b58f'} 0%, ${(userTheme.color_patrimoine || '#37b58f')}aa 100%)`,
-            border: `1px solid ${(userTheme.color_patrimoine || '#37b58f')}33`,
-            boxShadow: `0 8px 20px -5px rgba(0, 0, 0, 0.3)`
-          }}
-        >
-          <p className="text-[var(--text-main)]/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Solde Final Estimé</p>
-          <h2 className="text-xl font-black tracking-tighter leading-none truncate">
-        {soldeGlobalProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-      </h2>
+        {/* COLONNE DROITE : CONTENEUR DES COMPTES PREVISIONNELS */}
+        <div className="col-span-12 md:col-span-10 min-w-0">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={soldesPrevisionnels.map(c => c.compte)} strategy={horizontalListSortingStrategy}>
+              <div className="flex gap-3 h-full pb-2 no-scrollbar cursor-grab active:cursor-grabbing">
+                {soldesPrevisionnels.map(c => (
+                  <div key={c.compte} className="min-w-[160px] md:min-w-0 md:flex-1 h-full">
+                    <SortableAccountCard c={c} />
+                  </div>
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         </div>
-      </div>
 
-      {/* COLONNE DROITE : CONTENEUR DES COMPTES */}
-      <div className="col-span-12 md:col-span-10 min-w-0">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          {/* On garde soldesTries pour l'ordre du DnD, mais on affiche les données de comptesAvecSoldePrevu */}
-          <SortableContext items={soldesPrevisionnels.map(c => c.compte)} strategy={horizontalListSortingStrategy}>
-        <div className="flex gap-3 h-full pb-2 no-scrollbar cursor-grab active:cursor-grabbing">
-          {soldesPrevisionnels.map(c => (
-        <div key={c.compte} className="min-w-[160px] md:min-w-0 md:flex-1 h-full">
-          {/* Ici on envoie l'objet 'c' complet qui contient le solde projeté */}
-          <SortableAccountCard c={c} />
-        </div>
-      ))}
-        </div>
-      </SortableContext>
-        </DndContext>
       </div>
-          </div>
           
       {/* CONTENEUR PRINCIPAL : Divisé en 2 colonnes */}
       <div className="flex flex-col lg:flex-row gap-6 h-full min-h-0 overflow-hidden p-2">
