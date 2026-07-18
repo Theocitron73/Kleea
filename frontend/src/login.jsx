@@ -1838,7 +1838,7 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
 
 
 
-const CustomSelect = ({ label, value, options, onChange, icon: Icon }) => {
+const CustomSelect = ({ label, value, options, onChange, icon: Icon, className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
@@ -1875,16 +1875,16 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon }) => {
       <div
         className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
           isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
-        } p-3.5 rounded-2xl transition-all outline-none cursor-text`}
+        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none cursor-text`}
         onClick={() => setIsOpen(true)}
       >
         <div className="flex items-center gap-3 w-full">
-          {Icon && <Icon size={14} className="text-[var(--primary)] shrink-0" />}
+          {Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />}
           
           <input
             type="text"
-            className="bg-transparent border-none outline-none text-[var(--text-main)] text-xs font-bold w-full placeholder:text-[var(--text-main)]/20"
-            // Si c'est ouvert, on montre ce qu'on tape, sinon on montre la valeur sélectionnée
+            // On s'assure que le texte s'adapte bien en taille
+            className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20"
             value={isOpen ? searchTerm : currentLabel}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => setIsOpen(true)}
@@ -1892,7 +1892,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon }) => {
           />
         </div>
         <ChevronDown 
-          size={14} 
+          size={12} 
           className={`text-[var(--text-main)]/20 transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
         />
       </div>
@@ -6083,8 +6083,21 @@ const pourcentageAnnuel = objectifAnnuelGlobal > 0
 const [budgets, setBudgets] = useState([]);
 const [formBudget, setFormBudget] = useState({ nom: '', somme: '' });
 const [showBudgetDetails, setShowBudgetDetails] = useState(false);
-// 2. On crée la fonction qui va chercher les données chez Python
-// 2. Fonction modifiée pour accepter un mode "tout"
+
+// 🛠️ AJOUT : État pour stocker l'année sélectionnée (par défaut l'année en cours)
+const [selectedBudgetYear, setSelectedBudgetYear] = useState(new Date().getFullYear()); 
+
+
+// Extraction et tri des années uniques (ex: [2026, 2025])
+const anneesUniques = [...new Set(budgets.map(b => b.Année || b.annee || new Date().getFullYear()))].sort((a, b) => b - a);
+
+// Formatage pour ton CustomSelect { v: valeur, l: label }
+const optionsAnnees = anneesUniques.map(annee => ({
+  v: annee,
+  l: annee.toString()
+}));
+
+// 2. Fonction de chargement mise à jour
 const loadBudgets = async (fetchAll = false) => {
   try {
     const url = fetchAll 
@@ -6093,7 +6106,6 @@ const loadBudgets = async (fetchAll = false) => {
       
     const res = await api.get(url);
     
-    // On ne met à jour que si on a reçu des données valides
     if (Array.isArray(res.data)) {
         setBudgets(res.data);
     }
@@ -6103,13 +6115,14 @@ const loadBudgets = async (fetchAll = false) => {
 };
 
 
-
 const handleAddBudget = async (e) => {
   if (e) e.preventDefault();
   
   const budgetData = {
     utilisateur: String(user || "theo"), 
     mois: String(formBudget.mois || filters.mois), 
+    // Optionnel : tu peux ajouter l'année ici ou laisser Python s'en occuper
+    // annee: new Date().getFullYear(), 
     compte: String(formBudget.compte || "tous"),
     type: "Categorie",
     nom: String(formBudget.nom),
@@ -6120,9 +6133,6 @@ const handleAddBudget = async (e) => {
     const res = await api.post(`/save-budget`, budgetData);
     if (res.status === 200) {
       setFormBudget({ ...formBudget, nom: '', somme: '' });
-      
-      // ✅ LA CORRECTION ICI : 
-      // On recharge selon l'onglet actif pour garder la cohérence
       const fetchAll = activeTab === 'gerer';
       await loadBudgets(fetchAll); 
     }
@@ -6130,6 +6140,7 @@ const handleAddBudget = async (e) => {
     console.error("Erreur lors de l'ajout :", err.response?.data);
   }
 };
+
 
 const [budgetToDelete, setBudgetToDelete] = useState(null);
 const confirmDelete2 = (budgetObj) => {
@@ -6140,11 +6151,11 @@ const executeDeleteBudget = async () => {
   if (!budgetToDelete) return;
   
   try {
-    // On utilise les données précises de l'objet à supprimer
-    const { nom, mois } = budgetToDelete; 
-    await api.delete(`/delete-budget/${encodeURIComponent(nom)}/${user}/${mois}`);
+    // 🛠️ AJOUT : On récupère aussi l'année de l'objet à supprimer
+    const { nom, mois, annee } = budgetToDelete; 
+    await api.delete(`/delete-budget/${encodeURIComponent(nom)}/${user}/${mois}/${annee}`);
     
-    loadBudgets(activeTab === 'gerer'); // Recharge avec le bon mode
+    loadBudgets(activeTab === 'gerer');
     setBudgetToDelete(null); 
   } catch (err) {
     console.error("Erreur suppression budget:", err);
@@ -6155,13 +6166,13 @@ const executeDeleteBudget = async () => {
 const [editingBudget, setEditingBudget] = useState(null); // Stockera l'objet budget complet
 const handleUpdateBudget = async (updatedBudget, oldName) => {
   try {
-    // 1. Mise à jour optimiste ultra-précise
     const updatedLocalBudgets = budgets.map(b => {
-      // On vérifie TOUS les critères pour éviter de toucher au budget du voisin (autre compte)
+      // 🛠️ AJOUT : Prise en compte de l'année dans la vérification optimiste
       const isTarget = 
         b.nom === oldName && 
         b.compte === updatedBudget.compte && 
-        b.mois === updatedBudget.mois;
+        b.mois === updatedBudget.mois &&
+        b.annee === updatedBudget.annee;
       
       if (isTarget) {
         return { ...b, nom: updatedBudget.nom, somme: parseFloat(updatedBudget.somme) };
@@ -6172,10 +6183,10 @@ const handleUpdateBudget = async (updatedBudget, oldName) => {
     setBudgets(updatedLocalBudgets);
     setEditingBudget(null);
 
-    // 2. Envoi au serveur
     const payload = {
       utilisateur: user,
       mois: updatedBudget.mois,
+      annee: updatedBudget.annee, // 🛠️ Transmission de l'année au serveur
       compte: updatedBudget.compte,
       type: "Categorie",
       nom: updatedBudget.nom,
@@ -6184,13 +6195,11 @@ const handleUpdateBudget = async (updatedBudget, oldName) => {
 
     const url = `/update-budget?old_name=${encodeURIComponent(oldName)}`;
     await api.post(url, payload);
-
-    // 3. Rechargement propre depuis le serveur (le Python filtrera correctement maintenant)
     await loadBudgets(true); 
 
   } catch (err) {
     console.error("Erreur:", err);
-    loadBudgets(true); // Annule l'optimisme en cas d'erreur
+    loadBudgets(true);
   }
 };
 
@@ -11234,174 +11243,224 @@ if (!user) {
             <Plus size={14} strokeWidth={3} /> Fixer le budget
           </button>
         </div>
-       {/* RÉCAPITULATIF DES BUDGETS (AVEC SYSTÈME DE TABS PAR MOIS) */}
-        <div className="relative mt-2">
-          <button 
-            onClick={() => setShowBudgetDetails(!showBudgetDetails)}
-            className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)] transition-all group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
-                <Activity size={14} className="text-[var(--primary)]" />
+          {/* BOUTON D'OUVERTURE DE LA MODALE */}
+          <div className="mt-2">
+            <button 
+              onClick={() => setShowBudgetDetails(true)}
+              className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)]/80 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
+                  <Activity size={14} className="text-[var(--primary)]" />
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
+                  <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase">
+                    {budgets.length} objectifs au total
+                  </p>
+                </div>
               </div>
-              <div className="text-left">
-                <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
-                <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase">
-                  {budgets.length} objectifs en cours
-                </p>
-              </div>
-            </div>
-            <ChevronRight size={14} className={`text-[var(--text-main)]/20 transition-transform ${showBudgetDetails ? 'rotate-90' : ''}`} />
-          </button>
+              <ChevronRight size={14} className="text-[var(--text-main)]/20 group-hover:translate-x-0.5 transition-transform" />
+            </button>
 
-          {showBudgetDetails && (
-            <>
-              <div className="fixed inset-0 z-[90]" onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} />
-              <div className="absolute bottom-full mb-3 left-0 right-0 z-[91] bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-4 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
+            {/* --- PORTAL INJECTÉ DIRECTEMENT DANS LE BODY DU SITE --- */}
+            {showBudgetDetails && createPortal(
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                {/* Arrière-plan flouté et sombre (cliquable pour fermer) */}
+                <div 
+                  className="absolute inset-0 bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+                  onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} 
+                />
                 
-                <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
-                  <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Détails des budgets</h4>
-                  <button onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors">
-                    <X size={14} />
-                  </button>
-                </div>
+                {/* Conteneur de la Modale - Désormais obligatoirement au centre de l'écran */}
+                <div className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.8)] p-6 z-[10000] animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300 origin-center overflow-visible">
+                  
+                  {/* En-tête de la modale */}
+                  <div className="flex items-center justify-between mb-5 pb-3 border-b border-white/5">
+                    <div>
+                      <h4 className="text-[11px] font-black uppercase text-[var(--primary)] tracking-widest leading-none mb-1">Détails des budgets</h4>
+                      <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase tracking-wider">Structure des dépenses</p>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      {/* Custom Select pour l'Année (Compact) */}
+                      <div className="w-24">
+                        <CustomSelect 
+                          value={selectedBudgetYear || new Date().getFullYear()}
+                          options={optionsAnnees}
+                          onChange={(valeurSelectionnee) => {
+                            setSelectedBudgetYear(Number(valeurSelectionnee));
+                            setEditingBudget(null);
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-[10px]" 
+                        />
+                      </div>
 
-                {/* --- SYSTEME DE TABS NAVIGATION MOIS --- */}
-                {listeMoisDisponibles.length > 1 && (
-                  <div className="flex flex-row gap-1 overflow-x-auto pb-2 mb-3 scrollbar-hide border-b border-white/[0.03] select-none">
-                    {listeMoisDisponibles.map((m) => (
-                      <button
-                        key={m}
-                        onClick={() => {
-                          setSelectedBudgetMonth(m);
-                          setEditingBudget(null);
-                        }}
-                        className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 ${
-                          selectedBudgetMonth === m
-                            ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
-                            : 'bg-white/[0.01] text-[var(--text-main)]/40 border-white/5 hover:text-[var(--text-main)]/70'
-                        }`}
+                      {/* Bouton Fermer */}
+                      <button 
+                        onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} 
+                        className="p-1.5 bg-white/5 hover:bg-white/10 rounded-xl text-[var(--text-main)]/40 hover:text-[var(--text-main)] transition-all"
                       >
-                        {m}
+                        <X size={14} />
                       </button>
-                    ))}
+                    </div>
                   </div>
-                )}
 
-                {/* LISTE DES BUDGETS FILTRÉS */}
-                <div className="space-y-4 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
-                  {budgets.length === 0 ? (
-                    <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget défini</p>
-                  ) : budgets.filter(b => b.mois === (selectedBudgetMonth || b.mois)).length === 0 ? (
-                    <p className="text-[10px] text-center py-6 text-[var(--text-main)]/20 font-bold uppercase italic">Aucun budget pour ce mois</p>
-                  ) : (
-                    [...budgets]
-                      .filter(b => b.mois === (selectedBudgetMonth || b.mois))
-                      .sort((a, b) => a.nom.localeCompare(b.nom)) // Trié par nom de catégorie maintenant que le mois est filtré
-                      .map((b) => {
-                        const depenseReelle = toutesLesTransactions
-                          .filter(t => 
-                            t.categorie === b.nom && 
-                            t.compte === b.compte && 
-                            t.mois === b.mois 
-                          )
-                          .reduce((acc, t) => acc + Math.abs(t.montant), 0);
+                  {/* Système d'onglets de navigation pour les mois */}
+                  {/* Système d'onglets de navigation pour les mois (Toujours visible désormais) */}
+                  <div className="flex flex-row gap-1 overflow-x-auto pb-2 mb-4 scrollbar-hide border-b border-white/[0.03] select-none">
+                    {listeMoisDisponibles.length > 0 ? (
+                      listeMoisDisponibles.map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => {
+                            setSelectedBudgetMonth(m);
+                            setEditingBudget(null);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 ${
+                            selectedBudgetMonth === m
+                              ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
+                              : 'bg-white/[0.01] text-[var(--text-main)]/40 border-white/5 hover:text-[var(--text-main)]/70'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))
+                    ) : (
+                      /* Optionnel : Un petit indicateur discret si aucun mois n'existe du tout */
+                      <span className="text-[8px] font-black uppercase text-[var(--text-main)]/20 tracking-wider py-1.5">
+                        Aucun mois enregistré
+                      </span>
+                    )}
+                  </div>
 
-                        const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
-                        const estDepasse = depenseReelle > b.somme;
+                  {/* Liste des Budgets Filtrés */}
+                  <div className="space-y-4 h-[700px] overflow-y-auto pr-1 custom-scrollbar">
+                    {(() => {
+                      const anneeCible = selectedBudgetYear || new Date().getFullYear();
+                      
+                      const budgetsFiltres = budgets.filter(b => {
+                        const bAnnee = b.Année || b.annee;
+                        return bAnnee === anneeCible && b.mois === (selectedBudgetMonth || b.mois);
+                      });
 
-                        const uniqueKey = b.id || `${b.nom}-${b.compte}-${b.mois}`;
-                        const isEditing = editingBudget && editingBudget.id_ref === uniqueKey;
+                      if (budgets.length === 0) {
+                        return <p className="text-[10px] text-center py-12 text-[var(--text-main)]/20 font-bold uppercase italic tracking-widest">Aucun budget défini</p>;
+                      }
+                      if (budgetsFiltres.length === 0) {
+                        return <p className="text-[10px] text-center py-12 text-[var(--text-main)]/20 font-bold uppercase italic tracking-widest">Aucun budget pour cette période</p>;
+                      }
 
-                        return (
-                          <div key={uniqueKey} className="group relative">
-                            {isEditing ? (
-                              /* --- VUE ÉDITION --- */
-                              <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
-                                <div className="flex flex-col gap-2">
-                                  <input 
-                                    className="bg-black/40 border border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                                    value={editingBudget.nom}
-                                    onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
-                                    autoFocus
-                                  />
-                                  <div className="flex items-center gap-2">
+                      return [...budgetsFiltres]
+                        .sort((a, b) => a.nom.localeCompare(b.nom))
+                        .map((b) => {
+                          const bAnnee = b.Année || b.annee;
+                          
+                          const depenseReelle = toutesLesTransactions
+                            .filter(t => 
+                              t.categorie === b.nom && 
+                              t.compte === b.compte && 
+                              t.mois === b.mois &&
+                              (t.Année || t.annee || new Date().getFullYear()) === bAnnee
+                            )
+                            .reduce((acc, t) => acc + Math.abs(t.montant), 0);
+
+                          const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
+                          const estDepasse = depenseReelle > b.somme;
+
+                          const uniqueKey = b.id || `${b.nom}-${b.compte}-${b.mois}-${bAnnee}`;
+                          const isEditing = editingBudget && editingBudget.id_ref === uniqueKey;
+
+                          return (
+                            <div key={uniqueKey} className="group relative">
+                              {isEditing ? (
+                                /* --- VUE ÉDITION --- */
+                                <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
+                                  <div className="flex flex-col gap-2">
                                     <input 
-                                      type="number"
-                                      className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                                      value={editingBudget.somme}
-                                      onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
+                                      className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+                                      value={editingBudget.nom}
+                                      onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
+                                      autoFocus
                                     />
-                                    <button 
-                                      onClick={() => handleUpdateBudget(editingBudget, b.nom)}
-                                      className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
-                                    >
-                                      <Check size={12} />
-                                    </button>
-                                    <button 
-                                      onClick={() => setEditingBudget(null)}
-                                      className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
-                                    >
-                                      <X size={12} />
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            ) : (
-                              /* --- VUE AFFICHAGE --- */
-                              <div className="group/item py-1">
-                                <div className="flex justify-between items-start mb-1">
-                                  <div className="flex flex-col">
-                                    <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className="text-[7px] px-1.2 py-0.2 bg-[var(--glass-bg)] rounded text-[var(--text-main)]/30 font-bold uppercase tracking-tighter border border-white/5">
-                                        {b.compte}
-                                      </span>
-                                      <span className="text-[7px] text-[var(--primary)]/50 font-black uppercase tracking-tighter">
-                                        {b.mois}
-                                      </span>
+                                    <div className="flex items-center gap-2">
+                                      <input 
+                                        type="number"
+                                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+                                        value={editingBudget.somme}
+                                        onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
+                                      />
+                                      <button 
+                                        onClick={() => handleUpdateBudget(editingBudget, b.nom)}
+                                        className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
+                                      >
+                                        <Check size={12} />
+                                      </button>
+                                      <button 
+                                        onClick={() => setEditingBudget(null)}
+                                        className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
+                                      >
+                                        <X size={12} />
+                                      </button>
                                     </div>
                                   </div>
-                                  
-                                  <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                      {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
-                                    </span>
+                                </div>
+                              ) : (
+                                /* --- VUE AFFICHAGE --- */
+                                <div className="group/item py-1">
+                                  <div className="flex justify-between items-start mb-1.5">
+                                    <div className="flex flex-col">
+                                      <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded text-[var(--text-main)]/40 font-bold uppercase tracking-tighter border border-white/5">
+                                          {b.compte}
+                                        </span>
+                                        <span className="text-[7px] text-[var(--primary)]/60 font-black uppercase tracking-tighter">
+                                          {b.mois} {bAnnee}
+                                        </span>
+                                      </div>
+                                    </div>
                                     
-                                    <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                      <button 
-                                        onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
-                                        className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
-                                      >
-                                        <Edit3 size={12} />
-                                      </button>
-                                      <button 
-                                        onClick={() => confirmDelete2(b)}
-                                        className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
-                                      >
-                                        <Trash2 size={12} />
-                                      </button>
+                                    <div className="flex items-center gap-3">
+                                      <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                        {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
+                                      </span>
+                                      
+                                      <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                        <button 
+                                          onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
+                                          className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
+                                        >
+                                          <Edit3 size={12} />
+                                        </button>
+                                        <button 
+                                          onClick={() => confirmDelete2(b)}
+                                          className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
+                                        >
+                                          <Trash2 size={12} />
+                                        </button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
 
-                                <div className="relative w-full h-1.5 bg-[var(--glass-bg)] rounded-full overflow-hidden">
-                                  <div 
-                                    className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
-                                    style={{ width: `${pourcentage}%` }}
-                                  />
+                                  <div className="relative w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
+                                      style={{ width: `${pourcentage}%` }}
+                                    />
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                  )}
+                              )}
+                            </div>
+                          );
+                        });
+                    })()}
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
+              </div>,
+              document.body // C'est ici que la magie opère : la modale est téléportée directement sur le body
+            )}
+          </div>
         </div>
 
               </div>
@@ -13342,7 +13401,7 @@ if (!user) {
 
           {/* MODALE DE CONFIRMATION DE SUPPRESSION */}
 {budgetToDelete && (
-  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4">
     {/* Overlay sombre et flou */}
     <div 
       className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"

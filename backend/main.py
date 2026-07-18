@@ -25,6 +25,7 @@ from google import genai
 from google.genai import types
 from urllib.parse import unquote
 from datetime import datetime, timezone  # <-- Assure-toi d'importer timezone
+from sqlalchemy import text
 
 
 def get_ascii_hostname():
@@ -761,29 +762,36 @@ def delete_projet(nom: str, profil: str):
     return {"status": "deleted"}
 
 
+
 class Budget(BaseModel):
     utilisateur: str
     mois: str
+    annee: int = Field(default_factory=lambda: date.today().year) # Détecte l'année actuelle par défaut (ex: 2026)
     compte: str
     type: str = "Categorie"
     nom: str
     somme: float
 
+
 @app.get("/get-budgets/{utilisateur}")
 @app.get("/get-budgets/{utilisateur}/{mois}")
 def get_budgets(utilisateur: str, mois: Optional[str] = None):
-    # Si 'mois' est fourni, on filtre. Sinon, on prend tout.
+    # Si 'mois' est fourni, on filtre par mois ET par année en cours
     if mois:
         query = text("""
             SELECT * FROM budgets 
-            WHERE LOWER(utilisateur) = :u AND mois = :m 
+            WHERE LOWER(utilisateur) = :u AND mois = :m AND "annee" = :a
         """)
-        params = {"u": utilisateur.lower(), "m": mois}
+        params = {
+            "u": utilisateur.lower(), 
+            "m": mois, 
+            "a": date.today().year  # Filtre par défaut sur l'année en cours
+        }
     else:
-        # Requête pour la page "Gérer" : on récupère tout l'historique
         query = text("""
             SELECT * FROM budgets 
             WHERE LOWER(utilisateur) = :u
+            ORDER BY "annee" DESC, mois DESC
         """)
         params = {"u": utilisateur.lower()}
 
@@ -792,17 +800,18 @@ def get_budgets(utilisateur: str, mois: Optional[str] = None):
         return [dict(r) for r in res]
 
 
-
 @app.post("/save-budget")
 def save_budget(b: Budget):
+    
     query = text("""
-        INSERT INTO budgets (utilisateur, mois, compte, type, nom, somme)
-        VALUES (:u, :m, :c, :t, :n, :s)
+        INSERT INTO budgets (utilisateur, mois, annee, compte, type, nom, somme)
+        VALUES (:u, :m, :a, :c, :t, :n, :s)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
             "u": b.utilisateur.lower(),
             "m": b.mois,
+            "a": b.annee, # Utilise l'année détectée ou reçue
             "c": b.compte,
             "t": b.type,
             "n": b.nom,
@@ -814,15 +823,17 @@ def save_budget(b: Budget):
 
 @app.post("/update-budget")
 def update_budget(b: Budget, old_name: str):
+    #   SÉCURISATION : On filtre aussi par année pour l'UPDATE
     query = text("""
         UPDATE budgets 
         SET nom = :new_n, somme = :s, compte = :c
-        WHERE nom = :old_n AND utilisateur = :u AND mois = :m
+        WHERE nom = :old_n AND utilisateur = :u AND mois = :m AND annee = :a
     """)
     with engine.connect() as conn:
         conn.execute(query, {
             "u": b.utilisateur.lower(),
             "m": b.mois,
+            "a": b.annee,
             "new_n": b.nom,
             "old_n": old_name,
             "s": b.somme,
@@ -831,21 +842,23 @@ def update_budget(b: Budget, old_name: str):
         conn.commit()
     return {"status": "success"}
 
-@app.delete("/delete-budget/{nom}/{utilisateur}/{mois}")
-def delete_budget(nom: str, utilisateur: str, mois: str):
+
+#   AJOUT DE L'ANNÉE DANS L'URL POUR LE DELETE
+@app.delete("/delete-budget/{nom}/{utilisateur}/{mois}/{annee}")
+def delete_budget(nom: str, utilisateur: str, mois: str, annee: int):
     query = text("""
         DELETE FROM budgets 
-        WHERE nom = :n AND utilisateur = :u AND mois = :m
+        WHERE nom = :n AND utilisateur = :u AND mois = :m AND annee = :a
     """)
     with engine.connect() as conn:
         conn.execute(query, {
             "n": nom, 
             "u": utilisateur.lower(), 
-            "m": mois
+            "m": mois,
+            "a": annee
         })
         conn.commit()
     return {"status": "deleted"}
-
 
 class CategorieCreate(BaseModel):
     nom: str
