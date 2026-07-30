@@ -2336,6 +2336,9 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
 const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
   const depensesColor = userTheme?.color_depenses || "#fb7185";
 
+  // Total du mois pour le calcul des pourcentages
+  const totalMonth = chartData.reduce((acc, curr) => acc + (curr.value || 0), 0);
+
   // --- TOOLTIP PERSONNALISÉ ---
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
@@ -2348,15 +2351,14 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
             <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
               {data.name}
             </p>
-            {/* Dans le CustomTooltip de CategoriesView */}
-              {evolution !== null && evolution !== 0 && (
-                <div className={`flex items-center gap-2 text-[10px] font-black px-2 py-1 rounded-lg ${
-                  evolution > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
-                }`}>
-                  <span>{evolution > 0 ? '▲' : '▼'} {Math.abs(evolution)}%</span>
-                  <span className="opacity-30">({payload[0].payload.diffEuro > 0 ? '+' : ''}{Math.round(payload[0].payload.diffEuro)}€)</span>
-                </div>
-              )}
+            {evolution !== null && evolution !== 0 && (
+              <div className={`flex items-center gap-2 text-[10px] font-black px-2 py-1 rounded-lg ${
+                evolution > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
+              }`}>
+                <span>{evolution > 0 ? '▲' : '▼'} {Math.abs(evolution)}%</span>
+                <span className="opacity-30">({payload[0].payload.diffEuro > 0 ? '+' : ''}{Math.round(payload[0].payload.diffEuro)}€)</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: depensesColor }} />
@@ -2377,7 +2379,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
           {/* PARTIE GRAPHIQUE (Gauche) */}
           <div className="flex-[2] min-h-0">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 30, left: 0, bottom: 0 }}>
+              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 65, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
@@ -2406,74 +2408,87 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                     dataKey="value" 
                     position="right" 
                     offset={10} 
-                    formatter={(val) => `${Math.round(val)}€`} 
-                    style={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: '900' }} 
+                    content={(props) => {
+                      const { x, y, width, height, value } = props;
+                      const percentage = totalMonth > 0 ? ((value / totalMonth) * 100).toFixed(1) : 0;
+                      return (
+                        <text 
+                          x={x + width + 10} 
+                          y={y + height / 2} 
+                          dy={4} 
+                          fontSize={10} 
+                          fontWeight="900"
+                        >
+                          <tspan fill="rgba(245, 238, 238, 0.8)">{Math.round(value)}€ </tspan>
+                          <tspan fill="rgba(68, 79, 233, 0.8)">({percentage}%)</tspan>
+                        </text>
+                      );
+                    }}
                   />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-            {/* PARTIE LÉGENDE (Droite) */}
-            <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
-              <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
-                Légende
-              </p>
-              <div className="flex flex-col gap-2">
-                {statsCategories.map((item, i) => {
-                  const isHidden = hiddenCategories.includes(item.name);
 
-                  return (
-                    <button 
-                      key={i} 
-                      onClick={() => toggleCategory(item.name)} 
-                      className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
-                        isHidden 
-                          ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
-                          : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        {/* Puce dynamique */}
-                        <div 
-                          className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
-                          style={{ 
-                            backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
-                            boxShadow: isHidden ? 'none' : `0 0 10px ${depensesColor}66`
-                          }} 
-                        />
+          {/* PARTIE LÉGENDE (Droite) */}
+          <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
+            <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
+              Légende
+            </p>
+            <div className="flex flex-col gap-2">
+              {statsCategories.map((item, i) => {
+                const isHidden = hiddenCategories.includes(item.name);
 
-                        <div className="flex flex-col items-start overflow-hidden">
-                          <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
-                            isHidden ? 'text-white/20' : 'text-white/80 group-hover:text-white'
-                          }`}>
-                            {item.name}
+                return (
+                  <button 
+                    key={i} 
+                    onClick={() => toggleCategory(item.name)} 
+                    className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
+                      isHidden 
+                        ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
+                        : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div 
+                        className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
+                        style={{ 
+                          backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
+                          boxShadow: isHidden ? 'none' : `0 0 10px ${depensesColor}66`
+                        }} 
+                      />
+
+                      <div className="flex flex-col items-start overflow-hidden">
+                        <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
+                          isHidden ? 'text-white/20' : 'text-white/80 group-hover:text-white'
+                        }`}>
+                          {item.name}
+                        </span>
+                        
+                        {!isHidden && item.isNew && (
+                          <span className="text-[7px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
+                            Nouveau ce mois
                           </span>
-                          
-                          {/* On garde seulement l'indicateur "Nouveau" car c'est une info de statut utile */}
-                          {!isHidden && item.isNew && (
-                            <span className="text-[7px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
-                              Nouveau ce mois
-                            </span>
-                          )}
-                        </div>
-                      </div>
- 
-                      <div className="shrink-0 ml-2">
-                        {isHidden ? (
-                          <EyeOff size={11} className="text-white/10 transition-colors" />
-                        ) : (
-                          <Eye 
-                            size={11} 
-                            style={{ color: depensesColor }} 
-                            className="opacity-40 group-hover:opacity-100 transition-all" 
-                          />
                         )}
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
+                    </div>
+
+                    <div className="shrink-0 ml-2">
+                      {isHidden ? (
+                        <EyeOff size={11} className="text-white/10 transition-colors" />
+                      ) : (
+                        <Eye 
+                          size={11} 
+                          style={{ color: depensesColor }} 
+                          className="opacity-40 group-hover:opacity-100 transition-all" 
+                        />
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
+          </div>
         </>
       ) : (
         <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black">
