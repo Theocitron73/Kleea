@@ -3390,14 +3390,13 @@ const calculerMontantStatPerso = (config, transactions) => {
         if (r.condition === "LESS_THAN") return valeurAbsolue < seuilCible;
       }
 
-      const valeurCible = r.valeur.toLowerCase();
+      const valeurCible = (r.valeur || "").toLowerCase();
       
       if (r.condition === "EQUALS") return valeurChamp === valeurCible;
       if (r.condition === "CONTAINS") return valeurChamp.includes(valeurCible);
       return false;
     });
 
-    // Comme Gemini a mis "OR", si la transaction contient "orange" OU "twitch" OU "mutuelle", elle sera comptée !
     return config.operateur === "OR" 
       ? resultatsRegles.some(res => res === true)
       : resultatsRegles.every(res => res === true);
@@ -3595,31 +3594,39 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       }
     }
 
-    // --- 🌟 INJECTION DES STATS PERSO DE LA BDD (CRÉÉES PAR L'IA) ---
-    customStats
-      .filter(config => config.profil === filters?.profil || config.profil === "Tous") 
-      .forEach((config) => {
-        const total = calculerMontantStatPerso(config, transactions);
-        
-        // Sécurité : On pioche dans les dictionnaires globaux déclarés en haut
-        const styleCouleur = MAP_COULEURS[config.couleur] || MAP_COULEURS.indigo;
-        const composantIcone = MAP_ICONES[config.icone] || MAP_ICONES.star;
+    // Calcul des totaux globaux du mois pour le calcul des pourcentages
+  const totalDepensesGlobales = transactions
+    .filter(t => parseFloat(t.montant) < 0)
+    .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
 
-        list.push({
-          id: config.id,
-          isDefault: false,
-          isAI: true,
-          // On injecte la couleur text-xxx-400 directement dans l'icône choisie
-          icon: React.cloneElement(composantIcone, { className: styleCouleur.text }),
-          customBgClass: styleCouleur.bg,
-          text: `Indicateur Personnalisé "${config.titre}" : vous avez cumulé ${total.toLocaleString()}€ ce mois-ci.`
-        });
+  const totalRevenusGlobaux = transactions
+    .filter(t => parseFloat(t.montant) > 0)
+    .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+
+  // INJECTION DES STATS PERSO
+  customStats
+    .filter(config => config.profil === filters?.profil || config.profil === "Tous") 
+    .forEach((config) => {
+      const total = calculerMontantStatPerso(config, transactions);
+      
+      const totalRef = config.flux_type === "revenus" ? totalRevenusGlobaux : totalDepensesGlobales;
+      const pourcentage = totalRef > 0 ? ((total / totalRef) * 100).toFixed(1) : "0";
+
+      const styleCouleur = MAP_COULEURS[config.couleur] || MAP_COULEURS.indigo;
+      const composantIcone = MAP_ICONES[config.icone] || MAP_ICONES.star;
+
+      list.push({
+        id: config.id,
+        isDefault: false,
+        isAI: true,
+        icon: React.cloneElement(composantIcone, { className: styleCouleur.text }),
+        customBgClass: styleCouleur.bg,
+        text: `Indicateur "${config.titre}" : ${total.toLocaleString()}€ (${pourcentage}% des ${config.flux_type}).`
       });
+    });
 
-    return list;
-    // 🌟 IMPORTANT : Ajoute filters.profil dans les dépendances du useMemo pour réenclencher le calcul au changement de profil
-  }, [statsCategories, transactions, customStats, filters.profil]);
-
+  return list;
+}, [statsCategories, transactions, customStats, filters?.profil]);
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto pr-0.5 custom-scrollbar">
       
@@ -8770,180 +8777,212 @@ if (!user) {
                   <div className="flex flex-col flex-1 min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden">
 
                     {/* --- PARTIE 1 : TRANSACTIONS & MODULES (Scrollable) --- */}
-                    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                      
-                      {/* HEADER DU FLUX (Bordure passée à border-white/10 pour être identique) */}
-                      <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
-                        <div className="flex flex-col">
-                          <div className="flex items-baseline gap-3">
-                            <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-                              Flux mensuel
-                            </h3>
-                            <div className="border-l border-white/10 pl-3 flex flex-col">
-                              <span className="text-indigo-400 text-[10px] font-black tracking-[0.2em] uppercase">
-                                {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
-                        </div>
+<div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+  
+  {/* HEADER DU FLUX */}
+  <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
+    <div className="flex flex-col">
+      <div className="flex items-baseline gap-3">
+        <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+          Flux mensuel
+        </h3>
+        <div className="border-l border-white/10 pl-3 flex flex-col">
+          <span className="text-indigo-400 text-[10px] font-black tracking-[0.2em] uppercase">
+            {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
+          </span>
+        </div>
+      </div>
+      <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
+    </div>
 
-                        {/* ✅ SÉLECTEUR DE TABS COMPACT LOGÉ À DROITE */}
-                        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
-                          {Object.keys(TAB_CONFIG).map((tab) => {
-                            const config = TAB_CONFIG[tab];
-                            const IconComponent = config.icon;
-                            const isActive = tabActive === tab;
+    {/* SÉLECTEUR DE TABS COMPACT */}
+    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
+      {Object.keys(TAB_CONFIG).map((tab) => {
+        const config = TAB_CONFIG[tab];
+        const IconComponent = config.icon;
+        const isActive = tabActive === tab;
 
-                            return (
-                              <button
-                                key={tab}
-                                onClick={() => setTabActive(tab)}
-                                title={config.label}
-                                className={`px-2.5 py-1.5 flex items-center justify-center rounded-lg transition-all duration-300 ${config.className} ${
-                                  isActive 
-                                    ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md border border-white/5' 
-                                    : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
-                                }`}
-                              >
-                                <IconComponent 
-                                  size={14} 
-                                  strokeWidth={isActive ? 2.5 : 2} 
-                                  className={isActive ? 'opacity-100' : 'opacity-60'} 
-                                />
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+        return (
+          <button
+            key={tab}
+            onClick={() => {
+              setTabActive(tab);
+              setSearchTerm('');
+            }}
+            title={config.label}
+            className={`px-2.5 py-1.5 flex items-center justify-center rounded-lg transition-all duration-300 ${config.className} ${
+              isActive 
+                ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md border border-white/5' 
+                : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
+            }`}
+          >
+            <IconComponent 
+              size={14} 
+              strokeWidth={isActive ? 2.5 : 2} 
+              className={isActive ? 'opacity-100' : 'opacity-60'} 
+            />
+          </button>
+        );
+      })}
+    </div>
+  </div>
 
-                      {/* ZONE COMPLÉMENTAIRE : RÉSUMÉ FINANCIER RAPIDE */}
-                      <div className="px-4 pt-3 shrink-0">
-                        {tabActive !== 'Catégories' && tabActive !== 'Variations' && tabActive !== 'flash' && (
-                          <div className="flex justify-between items-end px-1 pb-2 border-b border-white/[0.02]">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
-                                  Total {tabActive}
-                                </span>
-                                <span className="flex items-center justify-center bg-[var(--glass-bg)] border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-[var(--glass-blur)]">
-                                  {(financeData.journal[tabActive] || []).length} transactions
-                                </span>
-                              </div>
-                            </div>
+  {/* LOGIQUE DE FILTRAGE DES TRANSACTIONS */}
+  {(() => {
+    const rawTransactions = [...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])];
+    
+    // Filtrage multi-critères
+    const filteredTransactions = rawTransactions.filter(t => {
+      if (!searchTerm.trim()) return true;
+      
+      const term = searchTerm.toLowerCase().trim();
+      const nom = (t.nom || t.libelle || t.description || '').toLowerCase();
+      const categorie = (t.categorie || t.category || '').toLowerCase();
+      const montant = (t.montant || '').toString();
+      const dateStr = t.date ? new Date(t.date).toLocaleDateString('fr-FR') : '';
+      const rawDate = (t.date || '').toLowerCase();
 
-                            <div className="flex flex-col items-end">
-                              <span 
-                                className="text-2xl font-black leading-none transition-colors"
-                                style={{ 
-                                  color: 
-                                    tabActive === 'revenus' ? (userTheme.color_revenus || '#10b981') : 
-                                    tabActive === 'depenses' ? (userTheme.color_depenses || '#f43f5e') : 
-                                    'var(--primary)'
-                                }}
-                              >
-                                <span className="text-sm mr-0.5 opacity-70">
-                                  {tabActive === 'revenus' ? '+' : tabActive === 'depenses' ? '-' : ''}
-                                </span>
-                                {Math.abs(
-                                  (financeData.journal[tabActive] || []).reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0)
-                                ).toLocaleString()}
-                                <span className="text-xs ml-1 opacity-50">€</span>
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+      return nom.includes(term) ||
+             categorie.includes(term) ||
+             montant.includes(term) ||
+             dateStr.includes(term) ||
+             rawDate.includes(term);
+    });
 
-                      {/* ZONE SCROLLABLE */}
-                      <div className="flex-1 overflow-y-auto min-h-0 p-4 custom-scrollbar"> {/* Ajout de p-4 pour correspondre à l'alignement */}
-                        {tabActive === 'Catégories' && (
-                          /* Remplacement de h-full par flex flex-col h-full min-h-0 */
-                          <div className="flex flex-col h-full min-h-0 min-[2000px]:hidden">
-                            {/* Le h3 reste en haut, shrink-0 l'empêche de s'écraser */}
-                            <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4 shrink-0"> 
-                              Analyse par Catégorie 
-                            </h3>
-                            
-                            {/* On encapsule CategoriesView pour forcer sa taille restante */}
-                            <div className="flex-1 min-h-0 w-full">
-                              <CategoriesView 
-                                statsCategories={statsCategories}
-                                chartData={chartData}
-                                hiddenCategories={hiddenCategories}
-                                toggleCategory={toggleCategory}
-                                userTheme={userTheme}
-                              />
-                            </div>
-                          </div>
-                        )}
+    // Calcul du total sur les transactions filtrées
+    const currentTotal = filteredTransactions.reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0);
 
-                        {tabActive === 'Variations' && (
-                          <VariationsView 
-                            statsCategories={statsCategories} 
-                            userTheme={userTheme}
-                            prevMonthLabel={financeData?.periodeComparee?.mois || "M-1"}
-                          />
-                        )}
+    return (
+      <>
+        {/* ZONE COMPLÉMENTAIRE : RÉSUMÉ FINANCIER & RECHERCHE ACOLLÉE */}
+        <div className="px-4 pt-3 shrink-0">
+          {tabActive !== 'Catégories' && tabActive !== 'Variations' && tabActive !== 'flash' && (
+            <div className="flex justify-between items-center px-1 pb-2 border-b border-white/[0.02] gap-3">
+              
+              {/* GROUPE GAUCHE : Label + Badge Nombre + Barre de Recherche collée */}
+              <div className="flex items-center gap-2.5 shrink-0">
+                <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
+                  Total {tabActive}
+                </span>
+                <span className="flex items-center justify-center bg-[var(--glass-bg)] border border-white/5 px-2 py-0.5 rounded-full text-[9px] font-bold text-[var(--text-main)] backdrop-blur-[var(--glass-blur)] transition-all">
+                  {filteredTransactions.length} transaction{filteredTransactions.length > 1 ? 's' : ''}
+                </span>
 
-                        {tabActive === 'flash' && (
-                          <FlashInsightsView 
-                            statsCategories={statsCategories} 
-                            // Passe TOUTES les transactions (ou ajoute les revenus si séparés, ex: [...depenses, ...revenus])
-                            transactions={financeData?.journal?.depenses || []} 
-                            // ⚠️ LA PROP USER EST INDISPENSABLE ICI :
-                            user={user} // Remplace 'username' par la variable qui contient le nom de l'utilisateur connecté dans FinanceApp
-                            filters={filters}
-                          />
-                        )}
+                {/* BARRE DE RECHERCHE ACCOLLÉE */}
+                <div className="relative w-36 ml-1">
+                  <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-black/30 border border-white/10 rounded-lg pl-7 pr-6 py-1 text-[10px] text-white placeholder:text-white/20 focus:outline-none focus:border-indigo-500/50 transition-all"
+                  />
+                  {searchTerm && (
+                    <button 
+                      onClick={() => setSearchTerm('')} 
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
+                </div>
+              </div>
 
-                        {tabActive !== 'Variations' && tabActive !== 'flash' && (
-                          <div className={`${tabActive === 'Catégories' ? 'hidden min-[2000px]:block' : 'block'} space-y-1.5 h-full`}>
-                            {(() => {
-                              const currentTransactions = [...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])];
-                              
-                              if (currentTransactions.length > 0) {
-                                return currentTransactions
-                                  .sort((a, b) => new Date(b.date) - new Date(a.date))
-                                  .map((t, i) => (
-                                    <TransactionCard 
-                                      key={i} 
-                                      t={t} 
-                                      color={
-                                        tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
-                                        tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
-                                        '#6366f1'
-                                      }
-                                      bg={
-                                        tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
-                                        tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
-                                        'rgba(99, 102, 241, 0.1)'
-                                      }
-                                    />
-                                  ));
-                              } 
+              {/* À DROITE : Total Adaptatif en € */}
+              <div className="flex flex-col items-end shrink-0">
+                <span 
+                  className="text-2xl font-black leading-none transition-colors"
+                  style={{ 
+                    color: 
+                      tabActive === 'revenus' ? (userTheme.color_revenus || '#10b981') : 
+                      tabActive === 'depenses' ? (userTheme.color_depenses || '#f43f5e') : 
+                      'var(--primary)'
+                  }}
+                >
+                  <span className="text-sm mr-0.5 opacity-70">
+                    {tabActive === 'revenus' ? '+' : tabActive === 'depenses' ? '-' : ''}
+                  </span>
+                  {Math.abs(currentTotal).toLocaleString()}
+                  <span className="text-xs ml-1 opacity-50">€</span>
+                </span>
+              </div>
 
-                              if (tabActive !== 'Catégories') {
-                                return (
-                                  <div className="h-full flex flex-col items-center justify-center py-12 px-6 text-center">
-                                    <div className="w-16 h-16 rounded-full bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4">
-                                      <span className="text-2xl opacity-20">📑</span>
-                                    </div>
-                                    <h4 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.2em] opacity-40">
-                                      Aucun flux détecté
-                                    </h4>
-                                    <p className="text-[var(--text-main)]/20 text-[9px] font-bold uppercase tracking-widest mt-2 max-w-[200px]">
-                                      Il n'y a aucune transaction enregistrée ici pour ce mois.
-                                    </p>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            })()}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+            </div>
+          )}
+        </div>
+
+        {/* ZONE SCROLLABLE */}
+        <div className="flex-1 overflow-y-auto min-h-0 p-4 custom-scrollbar">
+          {tabActive === 'Catégories' && (
+            <div className="flex flex-col h-full min-h-0 min-[2000px]:hidden">
+              <h3 className="text-[var(--text-main)]/30 font-black text-[10px] uppercase tracking-[0.2em] mb-4 shrink-0"> 
+                Analyse par Catégorie 
+              </h3>
+              
+              <div className="flex-1 min-h-0 w-full">
+                <CategoriesView 
+                  statsCategories={statsCategories}
+                  chartData={chartData}
+                  hiddenCategories={hiddenCategories}
+                  toggleCategory={toggleCategory}
+                  userTheme={userTheme}
+                />
+              </div>
+            </div>
+          )}
+
+          {tabActive === 'Variations' && (
+            <VariationsView 
+              statsCategories={statsCategories} 
+              userTheme={userTheme}
+              prevMonthLabel={financeData?.periodeComparee?.mois || "M-1"}
+            />
+          )}
+
+          {tabActive === 'flash' && (
+            <FlashInsightsView 
+              statsCategories={statsCategories} 
+              transactions={financeData?.journal?.depenses || []} 
+              user={user}
+              filters={filters}
+            />
+          )}
+
+          {tabActive !== 'Variations' && tabActive !== 'flash' && (
+            <div className={`${tabActive === 'Catégories' ? 'hidden min-[2000px]:block' : 'block'} space-y-1.5 h-full`}>
+              {filteredTransactions.length > 0 ? (
+                filteredTransactions
+                  .sort((a, b) => new Date(b.date) - new Date(a.date))
+                  .map((t, i) => (
+                    <TransactionCard 
+                      key={t.id || i} 
+                      t={t} 
+                      color={
+                        tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
+                        tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
+                        '#6366f1'
+                      }
+                      bg={
+                        tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
+                        tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
+                        'rgba(99, 102, 241, 0.1)'
+                      }
+                    />
+                  ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-white/30 text-xs font-bold uppercase tracking-wider">
+                  <span>Aucune transaction trouvée</span>
+                  {searchTerm && <span className="text-[10px] font-normal normal-case mt-1 opacity-60">pour « {searchTerm} »</span>}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  })()}
+</div>
 
                     {/* --- PARTIE 2 : GRAPHE (Seulement visible > 2000px) --- */}
                     <div className="hidden min-[2000px]:flex basis-[350px] max-h-[350px] bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/5 p-4 my-4 flex-col overflow-hidden shrink-0 mx-4">

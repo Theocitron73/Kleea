@@ -2089,27 +2089,21 @@ class ChatRequest(BaseModel):
 
 # 1. Définition de la structure de sortie attendue par Gemini
 class AISuggestedRule(BaseModel):
-    # On ouvre les vannes sur les types de filtres possibles !
     champ: str = Field(description="Doit être 'nom', 'categorie', 'jour', 'montant', 'methode' ou 'frequence'")
-    
-    # On ajoute les opérateurs mathématiques pour le montant
-    condition: str = Field(description="Doit être 'EQUALS', 'CONTAINS', 'GREATER_THAN' (strictement supérieur) ou 'LESS_THAN' (strictement inférieur)")
-    
-    valeur: str = Field(description="La valeur cible en minuscules (ex: 'amazon', 'lundi', 'paypal', ou un chiffre comme '50')")
+    condition: str = Field(description="Doit être 'EQUALS', 'CONTAINS', 'GREATER_THAN' ou 'LESS_THAN'")
+    valeur: str = Field(description="La valeur cible en minuscules (ex: 'shopping', 'loisirs', 'amazon', 'lundi')")
 
 class AICreationStat(BaseModel):
-    titre: str = Field(description="Le titre de l'indicateur donné par l'utilisateur ou résumé proprement (ex: 'Suivi McDo')")
+    titre: str = Field(description="Le titre de l'indicateur (ex: 'Shopping & Loisirs')")
     flux_type: str = Field(description="Doit être 'depenses' ou 'revenus'")
     operateur: str = Field(description="Doit être 'AND' ou 'OR'")
-    # On ajoute toutes les nouvelles couleurs
     couleur: str = Field(description="Choisis parmi exclusivement: 'rose', 'amber', 'emerald', 'indigo', 'cyan', 'violet', 'blue', 'orange', 'red', 'fuchsia'")
-    # On ajoute toutes les nouvelles icônes
     icone: str = Field(description="Choisis parmi exclusivement: 'fastfood', 'shopping', 'car', 'home', 'sub', 'salary', 'star', 'alert', 'health', 'leisure', 'crypto', 'tech', 'travel', 'gift'")
     regles: List[AISuggestedRule]
 
 class ChatResponseSchema(BaseModel):
     reponse: str = Field(description="Ta réponse d'expert financier en Français au format Markdown (tableaux, gras, listes).")
-    creation_stat: Optional[AICreationStat] = Field(default=None, description="Remplis cet objet UNIQUEMENT si l'utilisateur demande explicitement de créer, enregistrer, suivre ou ajouter une statistique/indicateur permanent.")
+    creation_stat: Optional[AICreationStat] = Field(default=None, description="Remplis cet objet si l'utilisateur demande explicitement de créer/suivre une stat OU s'il s'intéresse à une/plusieurs catégories/enseignes/jours spécifiques.")
 
 # 2. La route modifiée
 @app.post("/api/insights-chat")
@@ -2160,6 +2154,17 @@ def insights_chat(req: ChatRequest):
             {{"champ": "nom", "condition": "CONTAINS", "valeur": "twitch"}}
           ]
         - Mets comme titre : "Charges Récurrentes (IA)"
+
+        🌟 5. CAS MULTI-CATÉGORIES OU MULTI-ENSEIGNES :
+        Si l'utilisateur demande d'analyser ou de suivre plusieurs catégories ou enseignes ensemble (ex: "Shopping et Loisirs", "UberEats et McDo") :
+        - Configuration de `creation_stat` avec operateur="OR".
+        - Dans `regles`, crée UNE RÈGLE POUR CHAQUE catégorie ou enseigne ciblée.
+          Exemple pour "Shopping et Loisirs" :
+          [
+            {{"champ": "categorie", "condition": "CONTAINS", "valeur": "shopping"}},
+            {{"champ": "categorie", "condition": "CONTAINS", "valeur": "loisirs"}}
+          ]
+        - Titre propre combinant les sujets (ex: "Shopping & Loisirs").
         
         Tu AS L'OBLIGATION de remplir l'objet `creation_stat` pour lui créer un indicateur permanent, MÊME s'il n'a pas dit explicitement les mots "créer" ou "sauvegarder". S'il s'intéresse à ce sujet, il veut le suivre à l'avenir.
 
