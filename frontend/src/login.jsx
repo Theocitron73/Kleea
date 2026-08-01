@@ -3407,17 +3407,20 @@ const calculerMontantStatPerso = (config, transactions) => {
 
 
 
-// Ajout de la prop "user" indispensable pour l'appel de l'API personnalisée
 export const FlashInsightsView = ({ statsCategories = [], transactions = [], user, filters }) => {
   const [question, setQuestion] = useState("");
   const [reponseAI, setReponseAI] = useState("");
   const [loading, setLoading] = useState(false);
-  const [customStats, setCustomStats] = useState([]); // Stockage des statistiques persistantes de la BDD
+  const [customStats, setCustomStats] = useState([]);
 
-  // On récupère l'URL de l'API définie dans le .env de Vite (avec fallback en localhost au cas où)
+  // 1. GESTION DE L'INDICATEUR D'ÉCONOMIES + CACHE LOCAL
+  const [savingsIndicator, setSavingsIndicator] = useState(null);
+  const [loadingSavings, setLoadingSavings] = useState(false);
+  const [savingsCache, setSavingsCache] = useState({}); // Clé: "Profil-Mois-Année"
+
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-  // 1. Charger les statistiques enregistrées en BDD au démarrage
+  // Charger les statistiques enregistrées en BDD
   useEffect(() => {
     const fetchCustomStats = async () => {
       try {
@@ -3433,12 +3436,68 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     if (user) fetchCustomStats();
   }, [user, apiUrl]);
 
-  // 2. Supprimer un widget personnalisé en BDD
+  // Synchroniser l'indicateur d'économies selon le profil courant (depuis le cache si disponible)
+  useEffect(() => {
+    const cacheKey = `${filters?.profil || 'Tous'}-${filters?.mois}-${filters?.annee}`;
+    if (savingsCache[cacheKey]) {
+      setSavingsIndicator(savingsCache[cacheKey]);
+    } else {
+      setSavingsIndicator(null); // Réinitialise si non encore analysé
+    }
+  }, [filters?.profil, filters?.mois, filters?.annee, savingsCache]);
+
+  // 2. FONCTION DE DÉCLENCHEMENT MANUEL (Appelée UNIQUEMENT lors du clic sur le bouton)
+  const genererAnalyseEconomies = async () => {
+    const depensesMois = transactions.filter(t => parseFloat(t.montant) < 0);
+    if (depensesMois.length === 0) return;
+
+    const cacheKey = `${filters?.profil || 'Tous'}-${filters?.mois}-${filters?.annee}`;
+    setLoadingSavings(true);
+
+    // Groupement des dépenses par catégorie
+    const categoriesMap = {};
+    let totalDepenses = 0;
+
+    depensesMois.forEach(t => {
+      const cat = t.categorie || "Autres";
+      const montant = Math.abs(parseFloat(t.montant) || 0);
+      categoriesMap[cat] = (categoriesMap[cat] || 0) + montant;
+      totalDepenses += montant;
+    });
+
+    const payload = {
+      mois: filters?.mois || "Mois en cours",
+      annee: filters?.annee || new Date().getFullYear(),
+      total_depenses: parseFloat(totalDepenses.toFixed(2)),
+      categories: Object.keys(categoriesMap).map(cat => ({
+        nom: cat,
+        montant: parseFloat(categoriesMap[cat].toFixed(2))
+      }))
+    };
+
+    try {
+      const res = await fetch(`${apiUrl}/api/indicators/savings-analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Sauvegarde en cache + mise à jour de l'affichage
+        setSavingsCache(prev => ({ ...prev, [cacheKey]: data }));
+        setSavingsIndicator(data);
+      }
+    } catch (err) {
+      console.error("Erreur calcul indicateur d'économies:", err);
+    } finally {
+      setLoadingSavings(false);
+    }
+  };
+
   const supprimerStatPerso = async (id) => {
     try {
       const res = await fetch(`${apiUrl}/custom-stats/${id}`, { method: "DELETE" });
       if (res.ok) {
-        // Supprime localement de l'état pour rafraîchir l'interface sans recharger
         setCustomStats(customStats.filter(stat => stat.id !== id));
       }
     } catch (err) {
@@ -3452,14 +3511,13 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     setReponseAI(""); 
 
     try {
-      // 1. Envoi de la question + transactions + customStats existants
       const res = await fetch(`${apiUrl}/api/insights-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           question: question, 
           transactions: transactions,
-          custom_stats: customStats // 👈 On transmet la liste des stats actuelles
+          custom_stats: customStats 
         })
       });
       
@@ -3469,13 +3527,11 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       setReponseAI(data.reponse);
       setQuestion(""); 
 
-     // 2. Traitement de creation_stat (Création / Modification / Suppression)
       if (data && data.creation_stat && Object.keys(data.creation_stat).length > 0) {
         const statData = data.creation_stat;
         const action = statData.action || "CREATE";
-        const targetId = Number(statData.id); // 👈 Convertit en Number pour éviter les bugs de comparaison
+        const targetId = Number(statData.id);
 
-        // CAS A : MODIFICATION (UPDATE)
         if (action === "UPDATE" && targetId) {
           const payloadUpdate = {
             id: targetId,
@@ -3496,24 +3552,17 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
           });
 
           if (updateRes.ok) {
-            // 🔄 Mise à jour réactive immédiate du State React
             setCustomStats(prev => prev.map(s => Number(s.id) === targetId ? { ...s, ...payloadUpdate } : s));
             setReponseAI(prev => prev + "\n\n✨ **Indicateur mis à jour en direct !**");
           }
         } 
-        // CAS B : SUPPRESSION (DELETE)
         else if (action === "DELETE" && targetId) {
-          const deleteRes = await fetch(`${apiUrl}/custom-stats/${targetId}`, {
-            method: "DELETE"
-          });
-
+          const deleteRes = await fetch(`${apiUrl}/custom-stats/${targetId}`, { method: "DELETE" });
           if (deleteRes.ok) {
-            // 🔄 Retrait immédiat du State React
             setCustomStats(prev => prev.filter(s => Number(s.id) !== targetId));
             setReponseAI(prev => prev + "\n\n🗑️ **Indicateur supprimé en direct.**");
           }
         } 
-        // CAS C : CRÉATION (CREATE)
         else {
           const nouvelleStat = {
             utilisateur: user.toLowerCase(),
@@ -3535,7 +3584,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
           const saveData = await saveRes.json();
           if (saveData.status === "success" || saveData.id) {
             const statCreee = { id: Number(saveData.id), ...nouvelleStat };
-            // 🔄 Ajout immédiat au State React
             setCustomStats(prev => [...prev, statCreee]);
             setReponseAI(prev => prev + "\n\n✨ **Indicateur configuré en direct !**");
           }
@@ -3550,14 +3598,40 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     }
   };
   
-  // 4. Calcul et fusion des statistiques automatiques ET personnalisées
+  // 3. CONSTRUCTION DE LA LISTE D'INSIGHTS
   const insights = useMemo(() => {
-
-   
-
     const list = [];
 
-    // --- INSIGHT 1 : Détecteur de pics budgétaires (Défaut) ---
+    // INSIGHT OPTIMISATION : affiché uniquement si déjà généré
+    if (savingsIndicator && savingsIndicator.potentiel_total > 0) {
+      const topConseil = savingsIndicator.conseils?.[0];
+      list.push({
+        id: 'permanent-savings-target',
+        isDefault: true,
+        type: 'success',
+        customBgClass: 'bg-emerald-500/[0.04] border-emerald-500/20 col-span-1 sm:col-span-2',
+        icon: <Sparkles size={16} className="text-emerald-400 shrink-0 mt-0.5" />,
+        text: (
+          <div className="flex flex-col gap-1 w-full">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400">
+                Opportunité d'économie du mois
+              </span>
+              <span className="text-xs font-black text-emerald-400 flex items-center gap-1">
+                <TrendingDown size={14} /> +{savingsIndicator.potentiel_total.toLocaleString('fr-FR')}€
+              </span>
+            </div>
+            {topConseil && (
+              <p className="text-[11px] text-white/80 leading-snug">
+                <strong className="text-white">{topConseil.categorie} :</strong> {topConseil.action_concrete} (Gain estimé : -{topConseil.economie_potentielle}€)
+              </p>
+            )}
+          </div>
+        )
+      });
+    }
+
+    // INSIGHT 1 : Pics budgétaires
     const pireAugmentation = [...statsCategories]
       .filter(item => item.evolution !== null && item.evolution > 25) 
       .sort((a, b) => b.evolution - a.evolution)[0];
@@ -3565,14 +3639,14 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     if (pireAugmentation) {
       list.push({
         id: 'pic-categorie',
-        isDefault: true, // Pour savoir que c'est une stat par défaut
+        isDefault: true,
         type: 'danger',
         icon: <Flame size={14} className="text-rose-400 animate-pulse" />,
         text: `Vos dépenses en ${pireAugmentation.name} ont bondi de ${pireAugmentation.evolution}% par rapport au mois dernier (+${Math.round(pireAugmentation.diffEuro)}€).`
       });
     }
 
-    // --- INSIGHT 2 : Analyse poussée de l'Alimentation (Défaut) ---
+    // INSIGHT 2 : Alimentation
     const transacAlim = transactions.filter(t => {
       const cat = (t.categorie || "").toLowerCase();
       return cat.includes("alimentation") || cat.includes("courses");
@@ -3591,7 +3665,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       });
     }
 
-    // --- INSIGHT 3 : Détecteur de "Fourmis" (Défaut) ---
+    // INSIGHT 3 : Micro-dépenses
     const microTransactions = transactions.filter(t => {
       const montant = parseFloat(t.montant);
       return montant < 0 && Math.abs(montant) <= 10;
@@ -3608,7 +3682,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       });
     }
 
-    // --- INSIGHT 4 : Analyse de la plus grosse dépense unique (Défaut) ---
+    // INSIGHT 4 : Plus grosse dépense
     const depensesPures = transactions.filter(t => parseFloat(t.montant) < 0);
     if (depensesPures.length > 0) {
       const plusGrosseDepense = [...depensesPures].sort((a, b) => parseFloat(a.montant) - parseFloat(b.montant))[0];
@@ -3625,56 +3699,51 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       }
     }
 
-    // Calcul des totaux globaux du mois pour le calcul des pourcentages
-  const totalDepensesGlobales = transactions
-    .filter(t => parseFloat(t.montant) < 0)
-    .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+    const totalDepensesGlobales = transactions
+      .filter(t => parseFloat(t.montant) < 0)
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
 
-  const totalRevenusGlobaux = transactions
-    .filter(t => parseFloat(t.montant) > 0)
-    .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+    const totalRevenusGlobaux = transactions
+      .filter(t => parseFloat(t.montant) > 0)
+      .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
 
-  // INJECTION DES STATS PERSO
-  customStats
-    .filter(config => config.profil === filters?.profil || config.profil === "Tous") 
-    .forEach((config) => {
-      const total = calculerMontantStatPerso(config, transactions);
-      
-      const totalRef = config.flux_type === "revenus" ? totalRevenusGlobaux : totalDepensesGlobales;
-      const pourcentage = totalRef > 0 ? ((total / totalRef) * 100).toFixed(1) : "0";
+    // INJECTION DES STATS PERSO BDD
+    customStats
+      .filter(config => config.profil === filters?.profil || config.profil === "Tous") 
+      .forEach((config) => {
+        const total = calculerMontantStatPerso(config, transactions);
+        const totalRef = config.flux_type === "revenus" ? totalRevenusGlobaux : totalDepensesGlobales;
+        const pourcentage = totalRef > 0 ? ((total / totalRef) * 100).toFixed(1) : "0";
 
-      const styleCouleur = MAP_COULEURS[config.couleur] || MAP_COULEURS.indigo;
-      const composantIcone = MAP_ICONES[config.icone] || MAP_ICONES.star;
+        const styleCouleur = MAP_COULEURS[config.couleur] || MAP_COULEURS.indigo;
+        const composantIcone = MAP_ICONES[config.icone] || MAP_ICONES.star;
 
-      list.push({
-        id: config.id,
-        isDefault: false,
-        isAI: true,
-        icon: React.cloneElement(composantIcone, { className: styleCouleur.text }),
-        customBgClass: styleCouleur.bg,
-        text: `Indicateur "${config.titre}" : ${total.toLocaleString()}€ (${pourcentage}% des ${config.flux_type}).`
+        list.push({
+          id: config.id,
+          isDefault: false,
+          isAI: true,
+          icon: React.cloneElement(composantIcone, { className: styleCouleur.text }),
+          customBgClass: styleCouleur.bg,
+          text: `Indicateur "${config.titre}" : ${total.toLocaleString()}€ (${pourcentage}% des ${config.flux_type}).`
+        });
       });
-    });
 
-  return list;
-}, [statsCategories, transactions, customStats, filters?.profil]);
+    return list;
+  }, [statsCategories, transactions, customStats, filters?.profil, savingsIndicator]);
+
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto pr-0.5 custom-scrollbar">
       
-      {/* SECTION 1 : ANALYSTE CHAT INTELLIGENT GEMINI (VERSION DISCRÈTE) */}
+      {/* SECTION 1 : CHAT GEMINI */}
       <div className="flex flex-col gap-2 transition-all duration-300">
-        
-        {/* En-tête minimaliste et réponse dépliable */}
         {reponseAI && (
           <div className="flex flex-col gap-1.5 p-3 bg-indigo-500/[0.02] border border-indigo-500/10 rounded-xl relative group animate-fadeIn">
-            {/* Bouton de fermeture discret pour nettoyer l'espace */}
             <button 
               onClick={() => setReponseAI("")}
-              className="absolute top-2 right-2 text-white/20 hover:text-white/60 text-[9px] uppercase tracking-widest transition-all px-1.5 py-0.5 rounded bg-white/0 hover:bg-white/5"
+              className="absolute top-2 right-2 text-white/20 hover:text-white/60 text-[9px] uppercase tracking-widest transition-all px-1.5 py-0.5 rounded hover:bg-white/5"
             >
               Fermer
             </button>
-            
             <p className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-0.5">
               ✨ Analyse de l'assistant
             </p>
@@ -3684,7 +3753,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
           </div>
         )}
 
-        {/* Barre de saisie ultra-compacte */}
         <div className="relative flex items-center bg-white/[0.01] hover:bg-white/[0.03] focus-within:bg-black/40 rounded-xl border border-white/5 focus-within:border-indigo-500/30 p-0.5 transition-all">
           <input 
             type="text"
@@ -3709,12 +3777,32 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
         </div>
       </div>
 
-      {/* SECTION 2 : AFFICHAGE DE TOUTES LES STATISTIQUES EN GRILLE DE 2 */}
+      {/* SECTION 2 : BOUTON MANUEL DE L'IA & GRILLE D'INSIGHTS */}
       <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between px-1 mb-1">
+          <p className="text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
+            Détecteur de comportement budgétaire & indicateurs
+          </p>
 
-        <p className="text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] px-1 mb-1">
-          Détecteur de comportement budgétaire & indicateurs
-        </p>
+          {/* 🔘 BOUTON MANUEL POUR ÉCONOMISER LES CRÉDITS GEMINI */}
+          <button
+            onClick={genererAnalyseEconomies}
+            disabled={loadingSavings}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50"
+          >
+            {loadingSavings ? (
+              <>
+                <RefreshCw size={11} className="animate-spin text-emerald-400" />
+                <span>Analyse...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles size={11} />
+                <span className="text-[10px]">{savingsIndicator ? "Re-calculer" : "Conseils"}</span>
+              </>
+            )}
+          </button>
+        </div>
 
         {insights.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 px-4 text-center bg-white/[0.01] border border-white/5 rounded-xl">
@@ -3729,32 +3817,30 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             </p>
           </div>
         ) : (
-          // 🌟 LA GRILLE : 2 colonnes sur écran normal, s'adapte en 1 colonne si l'écran devient minuscule (sm:grid-cols-2)
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {insights.map((insight) => (
               <div 
                 key={insight.id}
-                className={`flex items-center justify-between gap-3 p-3 rounded-xl border transition-all ${
-                  insight.customBgClass ? insight.customBgClass : // 👈 PRIORITÉ AU STYLE DYNAMIQUE DE L'IA
+                className={`flex items-start justify-between gap-3 p-3 rounded-xl border transition-all ${
+                  insight.customBgClass ? insight.customBgClass : 
                   insight.type === 'danger' ? 'bg-rose-500/[0.03] border-rose-500/10' :
                   insight.type === 'warning' ? 'bg-amber-500/[0.03] border-amber-500/10' :
                   'bg-white/[0.01] border-white/5'
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-start gap-3 w-full">
                   <div className="shrink-0 mt-0.5">
                     {insight.icon}
                   </div>
-                  <p className="text-[11px] font-bold text-white/70 leading-relaxed tracking-wide">
+                  <div className="text-[11px] font-bold text-white/70 leading-relaxed tracking-wide w-full">
                     {insight.text}
-                  </p>
+                  </div>
                 </div>
 
-                {/* S'il s'agit d'une statistique personnalisée de la BDD, on affiche le bouton Supprimer */}
                 {!insight.isDefault && (
                   <button 
                     onClick={() => supprimerStatPerso(insight.id)}
-                    className="text-white/20 hover:text-rose-400 p-1.5 rounded-lg bg-white/0 hover:bg-rose-500/10 transition-all shrink-0 ms-2"
+                    className="text-white/20 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-all shrink-0 ms-2"
                     title="Supprimer cet indicateur permanent"
                   >
                     <Trash2 size={12} />
@@ -3769,7 +3855,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     </div>
   );
 };
-
 
 
 
@@ -9204,78 +9289,78 @@ if (!user) {
                   <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-[var(--glass-blur)]">
                     
                {/* EN-TÊTE FIXE */}
-<div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
-  <div className="flex flex-col">
-    <div className="flex items-baseline gap-3">
-      <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-        Bilan Annuel
-      </h3>
-      <div className="border-l border-white/10 pl-3 flex flex-col">
-        <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
-          {filters.annee}
-        </span>
-      </div>
-    </div>
-    
-    {/* BARRE VERTE ET SOLDE AU 1ER JANVIER CÔTE À CÔTE */}
-    <div className="mt-2 flex items-center gap-3">
-      <div className="h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] shrink-0" />
-      
-      <div className="flex items-center gap-1.5 leading-none">
-        <span className="text-[10px] font-bold text-[var(--text-main)]/40 uppercase tracking-wider">
-          Solde 1er janvier :
-        </span>
-        <span 
-          className="text-[12px] font-black tracking-tight"
-          style={{ color: userTheme.color_patrimoine }}
-        >
-          {soldePremierJanvier.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
-        </span>
-      </div>
-    </div>
-  </div>
+                <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <div className="flex items-baseline gap-3">
+                      <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+                        Bilan Annuel
+                      </h3>
+                      <div className="border-l border-white/10 pl-3 flex flex-col">
+                        <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
+                          {filters.annee}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* BARRE VERTE ET SOLDE AU 1ER JANVIER CÔTE À CÔTE */}
+                    <div className="mt-2 flex items-center gap-3">
+                      <div className="h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] shrink-0" />
+                      
+                      <div className="flex items-center gap-1.5 leading-none">
+                        <span className="text-[10px] font-bold text-[var(--text-main)]/40 uppercase tracking-wider">
+                          Solde 1er janvier :
+                        </span>
+                        <span 
+                          className="text-[12px] font-black tracking-tight"
+                          style={{ color: userTheme.color_patrimoine }}
+                        >
+                          {soldePremierJanvier.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-  {/* SÉLECTEUR DE TABS MIS À JOUR */}
-  <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
-    <button 
-      onClick={() => setAnnualTab('list')}
-      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-        annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-      }`}
-    >
-      <List size={14} />
-    </button>
-    
-    <button 
-      onClick={() => setAnnualTab('chart')}
-      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-        annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-      }`}
-    >
-      <PieChartIcon size={14} />
-    </button>
+                  {/* SÉLECTEUR DE TABS MIS À JOUR */}
+                  <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                    <button 
+                      onClick={() => setAnnualTab('list')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                        annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+                      }`}
+                    >
+                      <List size={14} />
+                    </button>
+                    
+                    <button 
+                      onClick={() => setAnnualTab('chart')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                        annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+                      }`}
+                    >
+                      <PieChartIcon size={14} />
+                    </button>
 
-    <button 
-      onClick={() => setAnnualTab('calendar')}
-      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-        annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-      }`}
-      title="Activité des dépenses"
-    >
-      <CalendarDays size={14} />
-    </button>
+                    <button 
+                      onClick={() => setAnnualTab('calendar')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                        annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+                      }`}
+                      title="Activité des dépenses"
+                    >
+                      <CalendarDays size={14} />
+                    </button>
 
-    <button 
-      onClick={() => setAnnualTab('wrapped')}
-      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-        annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-      }`}
-      title="Rétrospective annuelle (Wrapped)"
-    >
-      <Sparkles size={14} />
-    </button>
-  </div>
-</div>
+                    <button 
+                      onClick={() => setAnnualTab('wrapped')}
+                      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+                        annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+                      }`}
+                      title="Rétrospective annuelle (Wrapped)"
+                    >
+                      <Sparkles size={14} />
+                    </button>
+                  </div>
+                </div>
 
                     {/* CONTENU DYNAMIQUE */}
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">

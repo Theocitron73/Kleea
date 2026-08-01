@@ -2269,6 +2269,73 @@ def insights_chat(req: ChatRequest):
 
 
 
+class ConseilCategorie(BaseModel):
+  categorie: str = Field(description='Nom de la catégorie visée')
+  depense_actuelle: float = Field(
+      description='Montant dépensé ce mois-ci dans cette catégorie'
+  )
+  economie_potentielle: float = Field(
+      description='Montant réaliste économisable le mois prochain'
+  )
+  action_concrete: str = Field(
+      description='Conseil court et ultra-spécifique (1 à 2 phrases max)'
+  )
+
+
+class PermanentSavingsIndicatorResponse(BaseModel):
+  potentiel_total: float = Field(
+      description='Somme globale des économies identifiées'
+  )
+  score_sante_budget: str = Field(
+      description='Évaluation globale courte (ex: Bon, À surveiller, Critique)'
+  )
+  conseils: list[ConseilCategorie] = Field(
+      description='Liste des 2 à 3 meilleures opportunités d’économies'
+  )
+
+
+# 1. Initialisation du client Gemini (pense à bien définir GEMINI_API_KEY dans tes variables d'environnement)
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+
+@app.post(
+    '/api/indicators/savings-analysis',
+    response_model=PermanentSavingsIndicatorResponse,
+)
+def get_savings_indicator(data: dict):
+    system_prompt = """
+    Tu es un assistant financier intégré à un tableau de bord.
+    Ta mission est d'analyser le panier de dépenses mensuel et d'extraire AUTOMATIQUEMENT les 2 ou 3 postes d'économies les plus pertinents pour le mois prochain.
+    Reste synthétique, pragmatique et focalise-toi sur des gains réels.
+    """
+
+    prompt_user = f"""
+    Mois : {data.get('mois')} {data.get('annee')}
+    Total des dépenses : {data.get('total_depenses')}€
+    Dépenses par catégorie : {json.dumps(data.get('categories'))}
+    """
+
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt_user,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type='application/json',
+                response_schema=PermanentSavingsIndicatorResponse,
+                temperature=0.2,
+            ),
+        )
+
+        # Avec response_schema, response.text contient déjà du JSON valide
+        return json.loads(response.text)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 class SimulationLineCreate(BaseModel):
     id: int = None  # Ajout de l'ID optionnel pour l'éventuelle modification directe
     utilisateur: str
