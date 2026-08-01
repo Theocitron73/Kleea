@@ -3448,72 +3448,103 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
 
   const analyserDonneesAvecGemini = async () => {
     if (!question.trim() || transactions.length === 0) return;
-    setLoading(true); //  CORRIGÉ ICI (C'était loading(true))
+    setLoading(true);
     setReponseAI(""); 
 
     try {
-      // 1. On interroge le chat Gemini
+      // 1. Envoi de la question + transactions + customStats existants
       const res = await fetch(`${apiUrl}/api/insights-chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           question: question, 
-          transactions: transactions 
+          transactions: transactions,
+          custom_stats: customStats // 👈 On transmet la liste des stats actuelles
         })
       });
       
       const data = await res.json();
-      
-      // 🔍 AJOUTE CE LOG ICI POUR LE DEBUGGING :
-      console.log("Retour brut de Gemini :", data);
-
       if (data.error) throw new Error(data.error);
       
       setReponseAI(data.reponse);
       setQuestion(""); 
 
+     // 2. Traitement de creation_stat (Création / Modification / Suppression)
       if (data && data.creation_stat && Object.keys(data.creation_stat).length > 0) {
-        console.log("Objet creation_stat détecté ! Envoi à la BDD...", data.creation_stat);
-        
-        const nouvelleStat = {
-          utilisateur: user.toLowerCase(),
-          profil: filters?.profil || filters || "Tous", // 👈 On associe la statistique au profil actif du dashboard
-          titre: data.creation_stat.titre,
-          flux_type: data.creation_stat.flux_type,
-          operateur: data.creation_stat.operateur,
-          couleur: data.creation_stat.couleur || "indigo",
-          icone: data.creation_stat.icone || "star",       
-          regles: data.creation_stat.regles
-        };
+        const statData = data.creation_stat;
+        const action = statData.action || "CREATE";
+        const targetId = Number(statData.id); // 👈 Convertit en Number pour éviter les bugs de comparaison
 
-        // Envoi au backend
-        const saveRes = await fetch(`${apiUrl}/custom-stats`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(nouvelleStat)
-        });
-        
-        const saveData = await saveRes.json();
-        
-        if (saveData.status === "success" || saveData.id) {
-          const statEnregistree = {
-            id: saveData.id,
-            ...nouvelleStat
+        // CAS A : MODIFICATION (UPDATE)
+        if (action === "UPDATE" && targetId) {
+          const payloadUpdate = {
+            id: targetId,
+            utilisateur: user.toLowerCase(),
+            profil: filters?.profil || "Tous",
+            titre: statData.titre,
+            flux_type: statData.flux_type,
+            operateur: statData.operateur,
+            couleur: statData.couleur || "indigo",
+            icone: statData.icone || "star",      
+            regles: statData.regles
           };
+
+          const updateRes = await fetch(`${apiUrl}/custom-stats/${targetId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payloadUpdate)
+          });
+
+          if (updateRes.ok) {
+            // 🔄 Mise à jour réactive immédiate du State React
+            setCustomStats(prev => prev.map(s => Number(s.id) === targetId ? { ...s, ...payloadUpdate } : s));
+            setReponseAI(prev => prev + "\n\n✨ **Indicateur mis à jour en direct !**");
+          }
+        } 
+        // CAS B : SUPPRESSION (DELETE)
+        else if (action === "DELETE" && targetId) {
+          const deleteRes = await fetch(`${apiUrl}/custom-stats/${targetId}`, {
+            method: "DELETE"
+          });
+
+          if (deleteRes.ok) {
+            // 🔄 Retrait immédiat du State React
+            setCustomStats(prev => prev.filter(s => Number(s.id) !== targetId));
+            setReponseAI(prev => prev + "\n\n🗑️ **Indicateur supprimé en direct.**");
+          }
+        } 
+        // CAS C : CRÉATION (CREATE)
+        else {
+          const nouvelleStat = {
+            utilisateur: user.toLowerCase(),
+            profil: filters?.profil || "Tous",
+            titre: statData.titre,
+            flux_type: statData.flux_type,
+            operateur: statData.operateur,
+            couleur: statData.couleur || "indigo",
+            icone: statData.icone || "star",      
+            regles: statData.regles
+          };
+
+          const saveRes = await fetch(`${apiUrl}/custom-stats`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(nouvelleStat)
+          });
           
-          // 🌟 On met à jour l'état local immédiatement pour provoquer le recalcul de useMemo(insights)
-          setCustomStats(prev => [...prev, statEnregistree]);
-          
-          // On ajoute la confirmation dans la fenêtre de chat
-          setReponseAI(prev => prev + "\n\n\n✨ **Indicateur configuré avec succès !** Le suivi permanent *" + nouvelleStat.titre + "* a été ajouté à votre tableau de bord ci-dessous.");
-        } else {
-          console.error("Le backend n'a pas renvoyé un statut success:", saveData);
+          const saveData = await saveRes.json();
+          if (saveData.status === "success" || saveData.id) {
+            const statCreee = { id: Number(saveData.id), ...nouvelleStat };
+            // 🔄 Ajout immédiat au State React
+            setCustomStats(prev => [...prev, statCreee]);
+            setReponseAI(prev => prev + "\n\n✨ **Indicateur configuré en direct !**");
+          }
         }
       }
 
     } catch (err) {
       console.error("Erreur avec l'analyste AI:", err);
-      setReponseAI("⚠️ Une erreur est survenue lors de l'analyse ou de l'enregistrement de l'indicateur.");
+      setReponseAI("⚠️ Une erreur est survenue lors de l'analyse ou de la modification de l'indicateur.");
     } finally {
       setLoading(false);
     }
@@ -6073,6 +6104,41 @@ const recapAnnuelStats = useMemo(() => {
     };
   });
 }, [toutesLesTransactions, comptes, filters.annee, filters.profil, moisListe]);
+
+
+// CALCUL DU SOLDE AU 1ER JANVIER DE L'ANNÉE SÉLECTIONNÉE
+const soldePremierJanvier = useMemo(() => {
+  const anneeFiltre = parseInt(filters.annee);
+
+  // 1. Définition des comptes appartenant au profil sélectionné
+  const comptesDuProfil = comptes.filter(c => 
+    filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
+  );
+  const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
+
+  // 2. Initialisation avec les soldes de base des comptes du profil
+  let soldes = {};
+  comptesDuProfil.forEach(c => {
+    soldes[c.compte.trim().toUpperCase()] = parseFloat(c.solde) || 0;
+  });
+
+  // 3. Application de toutes les transactions des années PRÉCÉDENTES (strictement < anneeFiltre)
+  (toutesLesTransactions || []).forEach(t => {
+    const anneeT = parseInt(t.année);
+    const compteSrc = (t.compte || "").trim().toUpperCase();
+
+    // On ne prend que les années passées
+    if (anneeT < anneeFiltre && nomsComptesProfil.includes(compteSrc)) {
+      const montant = parseFloat(t.montant) || 0;
+      if (soldes.hasOwnProperty(compteSrc)) {
+        soldes[compteSrc] += montant;
+      }
+    }
+  });
+
+  // 4. Somme des soldes de tous les comptes du profil au 01/01
+  return Object.values(soldes).reduce((acc, val) => acc + val, 0);
+}, [toutesLesTransactions, comptes, filters.annee, filters.profil]);
 
 
 const totauxAnnuels = recapAnnuelStats.reduce((acc, m) => ({
@@ -9137,65 +9203,79 @@ if (!user) {
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[500px] lg:h-full min-h-0">
                   <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-[var(--glass-blur)]">
                     
-                {/* EN-TÊTE FIXE */}
-                    <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <div className="flex items-baseline gap-3">
-                          <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-                            Bilan Annuel
-                          </h3>
-                          <div className="border-l border-white/10 pl-3 flex flex-col">
-                            <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
-                              {filters.annee}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
-                      </div>
+               {/* EN-TÊTE FIXE */}
+<div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
+  <div className="flex flex-col">
+    <div className="flex items-baseline gap-3">
+      <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+        Bilan Annuel
+      </h3>
+      <div className="border-l border-white/10 pl-3 flex flex-col">
+        <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
+          {filters.annee}
+        </span>
+      </div>
+    </div>
+    
+    {/* BARRE VERTE ET SOLDE AU 1ER JANVIER CÔTE À CÔTE */}
+    <div className="mt-2 flex items-center gap-3">
+      <div className="h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] shrink-0" />
+      
+      <div className="flex items-center gap-1.5 leading-none">
+        <span className="text-[10px] font-bold text-[var(--text-main)]/40 uppercase tracking-wider">
+          Solde 1er janvier :
+        </span>
+        <span 
+          className="text-[12px] font-black tracking-tight"
+          style={{ color: userTheme.color_patrimoine }}
+        >
+          {soldePremierJanvier.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+        </span>
+      </div>
+    </div>
+  </div>
 
-                      {/* SÉLECTEUR DE TABS MIS À JOUR */}
-                      <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
-                        <button 
-                          onClick={() => setAnnualTab('list')}
-                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                            annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-                          }`}
-                        >
-                          <List size={14} />
-                        </button>
-                        
-                        <button 
-                          onClick={() => setAnnualTab('chart')}
-                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                            annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-                          }`}
-                        >
-                          <PieChartIcon size={14} />
-                        </button>
+  {/* SÉLECTEUR DE TABS MIS À JOUR */}
+  <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+    <button 
+      onClick={() => setAnnualTab('list')}
+      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+        annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+      }`}
+    >
+      <List size={14} />
+    </button>
+    
+    <button 
+      onClick={() => setAnnualTab('chart')}
+      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+        annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+      }`}
+    >
+      <PieChartIcon size={14} />
+    </button>
 
-                        {/* NOUVEAU TAB : CALENDRIER ACTIVITY HEATMAP */}
-                        <button 
-                          onClick={() => setAnnualTab('calendar')}
-                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                            annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-                          }`}
-                          title="Activité des dépenses"
-                        >
-                          <CalendarDays size={14} />
-                        </button>
+    <button 
+      onClick={() => setAnnualTab('calendar')}
+      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+        annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+      }`}
+      title="Activité des dépenses"
+    >
+      <CalendarDays size={14} />
+    </button>
 
-                        {/* ONGLET AJOUTÉ : RÉTROSPECTIVE / WRAPPED */}
-                        <button 
-                          onClick={() => setAnnualTab('wrapped')}
-                          className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
-                            annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
-                          }`}
-                          title="Rétrospective annuelle (Wrapped)"
-                        >
-                          <Sparkles size={14} />
-                        </button>
-                      </div>
-                    </div>
+    <button 
+      onClick={() => setAnnualTab('wrapped')}
+      className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
+        annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'
+      }`}
+      title="Rétrospective annuelle (Wrapped)"
+    >
+      <Sparkles size={14} />
+    </button>
+  </div>
+</div>
 
                     {/* CONTENU DYNAMIQUE */}
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">

@@ -1995,9 +1995,9 @@ def get_members(username: str, group_name: str):
 
 # --- SCHÉMAS PYDANTIC POUR LES STATS PERSONNALISÉES ---
 class CustomStatRule(BaseModel):
-    champ: str       # 'nom' ou 'categorie'
-    condition: str   # 'EQUALS' ou 'CONTAINS'
-    valeur: str      # ex: 'UberEats', 'Macdo', etc.
+    champ: str       # 'nom', 'categorie' ou 'jour'
+    condition: str   # 'EQUALS', 'CONTAINS', 'GREATER_THAN', 'LESS_THAN'
+    valeur: str      # ex: 'UberEats', 'Macdo', 'lundi', etc.
 
 class CustomStatCreate(BaseModel):
     utilisateur: str
@@ -2076,6 +2076,42 @@ def delete_custom_stat(stat_id: int):
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
 
+# --- SCHÉMA DE MISE À JOUR ---
+class CustomStatUpdate(BaseModel):
+    titre: str
+    flux_type: str
+    operateur: str
+    couleur: str
+    icone: str
+    regles: List[CustomStatRule]
+
+# --- 4. MODIFIER UNE STAT PERSO (NOUVEAU ✨) ---
+@app.put("/custom-stats/{stat_id}")
+def update_custom_stat(stat_id: int, stat: CustomStatUpdate):
+    query = text("""
+        UPDATE custom_stats 
+        SET titre = :t, flux_type = :f, operateur = :o, couleur = :c, icone = :i, regles = :r
+        WHERE id = :id
+    """)
+    try:
+        with engine.connect() as conn:
+            regles_liste = [r.model_dump() for r in stat.regles]
+            regles_json = json.dumps(regles_liste)
+            
+            conn.execute(query, {
+                "id": stat_id,
+                "t": stat.titre,
+                "f": stat.flux_type,
+                "o": stat.operateur,
+                "c": stat.couleur,
+                "i": stat.icone,
+                "r": regles_json
+            })
+            conn.commit()
+            return {"status": "success", "id": stat_id}
+    except Exception as e:
+        print(f"Erreur SQL update custom_stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 
@@ -2085,6 +2121,7 @@ def delete_custom_stat(stat_id: int):
 class ChatRequest(BaseModel):
     question: str
     transactions: List[dict]
+    custom_stats: Optional[List[dict]] = []
 
 
 # 1. Définition de la structure de sortie attendue par Gemini
@@ -2094,7 +2131,9 @@ class AISuggestedRule(BaseModel):
     valeur: str = Field(description="La valeur cible en minuscules (ex: 'shopping', 'loisirs', 'amazon', 'lundi')")
 
 class AICreationStat(BaseModel):
-    titre: str = Field(description="Le titre de l'indicateur (ex: 'Shopping & Loisirs')")
+    action: str = Field(description="Doit être 'CREATE' pour une création, 'UPDATE' pour une modification d'un indicateur existant, ou 'DELETE' si l'utilisateur veut le supprimer.")
+    id: Optional[str] = Field(default=None, description="L'ID exact de l'indicateur existant si action='UPDATE' ou 'DELETE'. Laisser null si 'CREATE'.")
+    titre: str = Field(description="Le titre de l'indicateur nettoyé (ex: 'Suivi Shopping')")
     flux_type: str = Field(description="Doit être 'depenses' ou 'revenus'")
     operateur: str = Field(description="Doit être 'AND' ou 'OR'")
     couleur: str = Field(description="Choisis parmi exclusivement: 'rose', 'amber', 'emerald', 'indigo', 'cyan', 'violet', 'blue', 'orange', 'red', 'fuchsia'")
@@ -2110,10 +2149,7 @@ class ChatResponseSchema(BaseModel):
 def insights_chat(req: ChatRequest):
     print(f"--- 🚀 REQUÊTE REÇUE DU FRONTEND POUR GEMINI : {req.question} ---")
     try:
-        
-        # On initialise explicitement le client avec cette clé
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-        
 
         if not req.transactions:
             return {"reponse": "Je n'ai détecté aucune transaction à analyser ce mois-ci.", "creation_stat": None}
@@ -2133,6 +2169,9 @@ def insights_chat(req: ChatRequest):
         
         Données de l'utilisateur :
         {json.dumps(payload_pour_gemini)}
+
+        Indicateurs / Stats actuellement enregistrés par l'utilisateur :
+        {json.dumps(req.custom_stats or [])}
 
         RÈGLE D'OR POUR L'OBJET 'creation_stat' (STRICTEMENT OBLIGATOIRE) :
         Dès que l'utilisateur pose une question centrée sur :
@@ -2159,23 +2198,28 @@ def insights_chat(req: ChatRequest):
         Si l'utilisateur demande d'analyser ou de suivre plusieurs catégories ou enseignes ensemble (ex: "Shopping et Loisirs", "UberEats et McDo") :
         - Configuration de `creation_stat` avec operateur="OR".
         - Dans `regles`, crée UNE RÈGLE POUR CHAQUE catégorie ou enseigne ciblée.
-          Exemple pour "Shopping et Loisirs" :
-          [
-            {{"champ": "categorie", "condition": "CONTAINS", "valeur": "shopping"}},
-            {{"champ": "categorie", "condition": "CONTAINS", "valeur": "loisirs"}}
-          ]
         - Titre propre combinant les sujets (ex: "Shopping & Loisirs").
-        
-        Tu AS L'OBLIGATION de remplir l'objet `creation_stat` pour lui créer un indicateur permanent, MÊME s'il n'a pas dit explicitement les mots "créer" ou "sauvegarder". S'il s'intéresse à ce sujet, il veut le suivre à l'avenir.
+
+        🌟 6. MODIFICATION OU SUPPRESSION D'UN INDICATEUR EXISTANT :
+        Si l'utilisateur demande de modifier un indicateur déjà existant (ex: "Retire les loisirs de l'indicateur Shopping & Loisirs" ou "Enlève UberEats") :
+        - Repère l'indicateur correspondant dans la liste des indicateurs enregistrés ci-dessus.
+        - Définis `action="UPDATE"` et reprends son `id` exact dans la propriété `id`.
+        - Ajuste la liste `regles` en retirant ou ajoutant le critère demandé.
+        - Met à jour le `titre` si nécessaire (ex: "Shopping & Loisirs" devient "Suivi Shopping").
+        - Si l'utilisateur demande de supprimer complètement l'indicateur, mets `action="DELETE"` et indique son `id`.
+
+        Tu AS L'OBLIGATION de remplir l'objet `creation_stat` pour lui créer ou adapter un indicateur permanent, MÊME s'il n'a pas dit explicitement les mots "créer" ou "sauvegarder".
 
         Règles de formatage globales pour l'objet JSON `creation_stat` :
-        - titre : Le nom propre nettoyé de l'enseigne ou du sujet (ex: "Suivi Amazon", "Indicateur Courses")
+        - action : "CREATE", "UPDATE" ou "DELETE"
+        - id : L'ID string de la stat en cas de UPDATE/DELETE, sinon null
+        - titre : Le nom propre nettoyé de l'enseigne ou du sujet
         - flux_type : "depenses" ou "revenus"
         - operateur : "OR"
         - regles : Une liste d'objets contenant chacun :
-            * champ : "nom", "categorie" ou "jour" (Ne jamais utiliser d'autres valeurs pour 'champ')
-            * condition : "CONTAINS" ou "EQUALS" (ou "GREATER_THAN"/"LESS_THAN" si l'utilisateur parle de prix)
-            * valeur : La valeur cible en minuscules (ex: "amazon", "lundi", "100")
+            * champ : "nom", "categorie" ou "jour"
+            * condition : "CONTAINS", "EQUALS", "GREATER_THAN" ou "LESS_THAN"
+            * valeur : La valeur cible en minuscules
 
         Si la question est globale (ex: "Combien j'ai dépensé au total ce mois-ci ?"), alors et seulement alors, tu laisses `creation_stat` vide.
 
@@ -2196,20 +2240,17 @@ def insights_chat(req: ChatRequest):
         - Cas générique / Non classé -> couleur="amber", icone="star"
         """
 
-        # Appel avec contrainte de format (Structured Output)
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=req.question,
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,
                 temperature=0.1,
-                # On force Gemini à cracher le schéma Pydantic ChatResponseSchema
                 response_mime_type="application/json",
                 response_schema=ChatResponseSchema,
             )
         )
 
-        # On convertit la chaîne JSON renvoyée par Gemini en dictionnaire Python
         import json as python_json
         result_data = python_json.loads(response.text)
         return result_data
@@ -2217,14 +2258,11 @@ def insights_chat(req: ChatRequest):
     except Exception as e:
         error_str = str(e)
         print(f"❌ CRASH ROUTE AI: {error_str}")
-        # On détecte si c'est un problème de quota épuisé (code 429)
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
             return {
-                "reponse": "⚠️ **Quota Gemini épuisé pour aujourd'hui**.\n\nVous avez atteint la limite de l'offre gratuite de Google (20 requêtes/jour). Veuillez réessayer plus tard ou configurer une clé API pay-as-you-go.",
+                "reponse": "⚠️ **Quota Gemini épuisé pour aujourd'hui**.",
                 "creation_stat": {}
             }
-        
-        # Pour les autres erreurs, on lève l'exception standard
         raise HTTPException(status_code=500, detail=error_str)
     
 
