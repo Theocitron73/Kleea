@@ -7555,6 +7555,8 @@ const confirmBatchImport = async () => {
 // 1. État pour afficher/masquer la modale de sélection
 const [showPowensModal, setShowPowensModal] = useState(false);
 const [isSyncingPowens, setIsSyncingPowens] = useState(false);
+// Remplace ou ajoute cet état en haut de ton composant
+const [isSyncingData, setIsSyncingData] = useState(false);
 const [isOpen, setIsOpen] = useState(false);
 // 2. État pour stocker la liste des connexions et comptes
 const [powensData, setPowensData] = useState({
@@ -12887,12 +12889,17 @@ if (!user) {
           
           {/* ACTION 1 : CONNECTER NOUVELLE BANQUE */}
           <div 
-            onClick={handleConnectNewBank}
+            onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
             title="Ajouter une banque via Powens"
-            className="rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px] bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40 group"
+            className={`
+              rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+              ${isSyncingPowens 
+                ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
+                : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
+            `}
           >
-            <div className="p-3 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)] group-hover:bg-[var(--primary)] group-hover:text-black transition-all duration-500 shrink-0">
-              <Plus size={18} />
+            <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingPowens ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'}`}>
+              {isSyncingPowens ? <RefreshCw size={18} /> : <Plus size={18} />}
             </div>
             <div className="flex flex-col min-w-0">
               <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">Connecter un compte</h3>
@@ -12902,16 +12909,16 @@ if (!user) {
 
           {/* ACTION 2 : SYNCHRONISER */}
           <div 
-            onClick={!isSyncingPowens ? handleSyncPowens : undefined}
+            onClick={!isSyncingData ? handleSyncPowens : undefined}
             className={`
               rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
-              ${isSyncingPowens 
+              ${isSyncingData 
                 ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
                 : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
             `}
           >
-            <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingPowens ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'}`}>
-              {isSyncingPowens ? <RefreshCw size={18} /> : <Download size={18} />}
+            <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingData ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'}`}>
+              {isSyncingData ? <RefreshCw size={18} /> : <Download size={18} />}
             </div>
             <div className="flex flex-col min-w-0">
               <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">Synchroniser</h3>
