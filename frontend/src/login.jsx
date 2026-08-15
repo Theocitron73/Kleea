@@ -7566,14 +7566,38 @@ const [powensData, setPowensData] = useState({
   accounts: []
 });
 
-// 🟢 Fonction de récupération des données Powens (déportée pour réutilisation)
+// 🟢 Fonction de récupération des données Powens synchronisée avec la BDD
 const fetchPowensConnections = useCallback(async () => {
   try {
-    // 💡 Correction de la clé ici : 'powens_user_token' au lieu de 'powens_token'
-    const userToken = localStorage.getItem("powens_user_token"); 
+    const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
+    if (!nomUtilisateur) return;
+
+    let userToken = null;
+
+    // 1. Récupération depuis la BDD
+    try {
+      const resToken = await api.get(`/powens/recuperer-token?utilisateur=${encodeURIComponent(nomUtilisateur)}`);
+      userToken = resToken.data?.user_token;
+    } catch (e) {
+      console.log("Vérification locale du token...");
+    }
+
+    // 2. Fallback localStorage
+    if (!userToken) {
+      userToken = localStorage.getItem("powens_user_token");
+      if (userToken) {
+        await api.post('/powens/sauvegarder-token', {
+          utilisateur: nomUtilisateur,
+          user_token: userToken
+        });
+      }
+    } else {
+      localStorage.setItem("powens_user_token", userToken);
+    }
+
     if (!userToken) return;
 
-    // Utilisation de ton instance `api` (ou de l'URL directe)
+    // 3. Récupération des comptes
     const res = await api.get(`/powens/connections-and-accounts?user_token=${encodeURIComponent(userToken)}`);
     if (res.data) {
       setPowensData(res.data);
@@ -7581,7 +7605,7 @@ const fetchPowensConnections = useCallback(async () => {
   } catch (err) {
     console.error("Erreur lors du chargement des banques/comptes Powens:", err);
   }
-}, []);
+}, [user]); // Assure-toi que `user` est bien stable ou utilise ses propriétés primitives si besoin
 
 // 🟢 1. GESTION DU CALLBACK REDIRECT DE POWENS AU CHARGEMENT DE LA PAGE
 useEffect(() => {
@@ -7591,18 +7615,18 @@ useEffect(() => {
     const connectionId = urlParams.get('connection_id'); // Renvoyé lors de l'ajout d'un établissement
 
     const existingToken = localStorage.getItem('powens_user_token');
+    const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
 
     // -------------------------------------------------------------
     // CAS 1 : L'utilisateur a DÉJÀ un token (Ajout d'une 2e+ banque)
     // -------------------------------------------------------------
     if (existingToken && (powensCode || connectionId)) {
-      // Ne PAS échanger le code ! La banque a déjà été rattachée sur le backend Powens.
       setNotification({ message: "Nouvel établissement connecté avec succès !", type: "success" });
       
       // Nettoyer l'URL
       window.history.replaceState({}, document.title, window.location.pathname);
 
-      // Recharger la liste des banques avec LE MÊME token
+      // Recharger la liste des banques
       await fetchPowensConnections();
       setShowPowensModal(true);
       return;
@@ -7615,12 +7639,23 @@ useEffect(() => {
       try {
         const redirectUri = window.location.origin + window.location.pathname;
         const res = await api.get(
-          `/powens/callback?code=${encodeURIComponent(powensCode)}&redirect_uri=${encodeURIComponent(redirectUri)}`
+          `/powens/callback?code=${encodeURIComponent(powensCode)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(nomUtilisateur || '')}`
         );
 
         if (res.data?.access_token) {
-          // Premier enregistrement du token unique
-          localStorage.setItem('powens_user_token', res.data.access_token);
+          const newToken = res.data.access_token;
+          
+          // Enregistrement du token dans le localStorage
+          localStorage.setItem('powens_user_token', newToken);
+
+          // Sauvegarde explicite du token dans la table `users` de la BDD
+          if (nomUtilisateur) {
+            await api.post('/powens/sauvegarder-token', {
+              utilisateur: nomUtilisateur,
+              user_token: newToken
+            });
+          }
+
           setNotification({ message: "Compte bancaire connecté avec succès !", type: "success" });
           
           // Nettoyer l'URL
@@ -7638,7 +7673,7 @@ useEffect(() => {
   };
 
   handlePowensCallback();
-}, [fetchPowensConnections]);
+}, [fetchPowensConnections, user]);
 
 // 🟢 2. CHARGEMENT AUTOMATIQUE AU CHANGEMENT D'ONGLET
 useEffect(() => {
@@ -7649,8 +7684,8 @@ useEffect(() => {
 
 // 🟢 3. ACTION DU BOUTON "SYNCHRONISATION POWENS"
 const handleSyncPowens = async () => {
-  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-  const token = localStorage.getItem('powens_user_token'); // 💡 Bonne clé ici aussi
+  const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
+  const token = localStorage.getItem('powens_user_token');
 
   // Si pas de token valide, redirection WebView
   if (!token) {
@@ -7710,10 +7745,10 @@ const handleConnectNewBank = async () => {
     const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
     const redirectUri = window.location.origin + window.location.pathname;
     
-    // 🟢 Récupérer le token existant
+    // Récupérer le token existant
     const existingToken = localStorage.getItem('powens_user_token') || '';
 
-    // 🟢 Transmettre le token existant pour AJOUTER la banque au compte actuel
+    // Transmettre le token existant pour AJOUTER la banque au compte actuel
     const resUrl = await api.get(
       `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`
     );
@@ -12830,58 +12865,64 @@ if (!user) {
           </div>
 
           {/* LISTE DISCRÈTE ET PLIABLE DES COMPTES BANCAIRES / POWENS */}
-{powensData?.connections && powensData.connections.length > 0 && (
-  <div className="relative z-50">
-    {/* BOUTON DÉCLENCHEUR */}
-    <button
-      onClick={() => setIsOpen(!isOpen)}
-      className="w-full flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none"
-    >
-      <span className="flex items-center gap-2">
-        <Building2 size={12} className="text-[var(--primary)]" />
-        Comptes synchronisés ({powensData?.accounts_count || 0})
-      </span>
-      <span className={`text-[8px] opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-    </button>
-
-    {/* POPUP ABSOLU (Ne pousse pas les éléments en dessous) */}
-    {isOpen && (
-      <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
-        <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
-          {powensData.connections.map((conn) => {
-            const connAccounts = powensData.accounts?.filter(
-              (acc) => acc.connection_id === conn.id || acc.bank_name === conn.connector_name
-            ) || [];
-
-            if (connAccounts.length === 0) return null;
-
-            return (
-              <div key={conn.id} className="space-y-1.5">
-                <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1">
-                  <span>{conn.connector_name}</span>
-                  <span className="text-[7px] text-[var(--text-main)]/30">ID: {conn.id}</span>
+            {powensData?.connections && powensData.connections.length > 0 && (
+              <div className="relative z-50 space-y-2">
+                {/* BARRE D'ACTIONS : BOUTON DÉCLENCHEUR + BOUTON AUDIT */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="flex-1 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Building2 size={12} className="text-[var(--primary)]" />
+                      Comptes synchronisés ({powensData?.accounts_count || 0})
+                    </span>
+                    <span className={`text-[8px] opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+                  </button>
                 </div>
-                
-                <div className="space-y-1">
-                  {connAccounts.map((acc) => (
-                    <div key={acc.id} className="flex items-center justify-between text-[9px] py-1.5 px-2 rounded-xl bg-white/[0.02] border border-white/5">
-                      <span className="text-[var(--text-main)]/70 truncate">{acc.name}</span>
-                      <span className="font-bold text-[var(--text-main)]">
-                        {acc.balance !== null && acc.balance !== undefined 
-                          ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` 
-                          : "—"}
-                      </span>
+
+                {/* POPUP ABSOLU (Ne pousse pas les éléments en dessous) */}
+                {isOpen && (
+                  <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
+                    <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
+                      {powensData.connections.map((conn) => {
+                        const connAccounts = powensData.accounts?.filter(
+                          (acc) => acc.connection_id === conn.id || acc.bank_name === conn.connector_name
+                        ) || [];
+
+                        if (connAccounts.length === 0) return null;
+
+                        return (
+                          <div key={conn.id} className="space-y-1.5">
+                            <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1">
+                              <span>{conn.connector_name}</span>
+                              <span className="text-[7px] text-[var(--text-main)]/30">ID: {conn.id}</span>
+                            </div>
+                            
+                            <div className="space-y-1">
+                              {connAccounts.map((acc) => {
+                                return (
+                                  <div key={acc.id} className="flex items-center justify-between text-[9px] py-1.5 px-2 rounded-xl bg-white/[0.02] border border-white/5">
+                                    <div className="flex flex-col truncate pr-2">
+                                      <span className="text-[var(--text-main)]/70 truncate">{acc.name}</span>
+                                    </div>
+                                    <span className="font-bold text-[var(--text-main)] shrink-0">
+                                      {acc.balance !== null && acc.balance !== undefined 
+                                        ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` 
+                                        : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      </div>
-    )}
-  </div>
-)}
+            )}
         </div>
 
         {/* 2. BLOC D'IMPORTATION : 3 BOUTONS CÔTE À CÔTE */}

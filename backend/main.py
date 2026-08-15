@@ -2631,6 +2631,25 @@ def powens_callback(code: str, redirect_uri: str = None, state: str = None):
     data = res.json()
     access_token = data.get("access_token") or data.get("token")
 
+    # 🟢 AJOUT : Sauvegarde automatique du token dans la table users si 'state' (l'utilisateur) est présent
+    if state and access_token:
+        try:
+            update_query = text("""
+                UPDATE users 
+                SET powens_token = :token 
+                WHERE username = :username OR email = :username
+            """)
+            with engine.connect() as conn:
+                conn.execute(update_query, {"token": access_token, "username": state})
+                conn.commit()
+        except Exception as e:
+            print(f"⚠️ Erreur lors de l'enregistrement automatique du token en BDD : {e}")
+
+    return {
+        "access_token": access_token,
+        "utilisateur": state
+    }
+
     return {
         "access_token": access_token,
         "utilisateur": state
@@ -2946,3 +2965,35 @@ def get_connections_and_accounts(user_token: str):
         "accounts_count": len(filtered_accounts),
         "accounts": filtered_accounts
     }
+
+class SavePowensTokenRequest(BaseModel):
+    utilisateur: str
+    user_token: str
+
+@app.post("/powens/sauvegarder-token")
+def sauvegarder_token(req: SavePowensTokenRequest):
+    query = text("""
+        UPDATE users 
+        SET powens_token = :token 
+        WHERE username = :username OR email = :username
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"token": req.user_token, "username": req.utilisateur})
+        conn.commit()
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+    return {"status": "success", "message": "Token Powens sauvegardé en BDD."}
+
+@app.get("/powens/recuperer-token")
+def recuperer_token(utilisateur: str):
+    query = text("""
+        SELECT powens_token 
+        FROM users 
+        WHERE username = :username OR email = :username
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"username": utilisateur}).fetchone()
+        if not result or not result[0]:
+            return {"status": "success", "user_token": None}
+        token_bdd = result[0]
+    return {"status": "success", "user_token": token_bdd}
