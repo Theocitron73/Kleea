@@ -7627,6 +7627,10 @@ useEffect(() => {
     // -------------------------------------------------------------
     if (existingToken && (powensCode || connectionId)) {
       setNotification({ message: "Nouvel établissement connecté avec succès !", type: "success" });
+
+      setTimeout(() => {
+        setNotification(null); 
+      }, 2000);
       
       // Nettoyer l'URL
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -7662,6 +7666,9 @@ useEffect(() => {
           }
 
           setNotification({ message: "Compte bancaire connecté avec succès !", type: "success" });
+          setTimeout(() => {
+            setNotification(null); 
+          }, 2000);
           
           // Nettoyer l'URL
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -7673,6 +7680,9 @@ useEffect(() => {
       } catch (err) {
         console.error("Erreur lors de l'échange du token Powens:", err);
         setNotification({ message: "Échec de l'association du compte Powens.", type: "error" });
+        setTimeout(() => {
+          setNotification(null); 
+        }, 3000);
       }
     }
   };
@@ -7707,6 +7717,10 @@ const handleSyncPowens = async () => {
       }
     } catch (error) {
       setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
+      setTimeout(() => {
+        setNotification(null); 
+        }, 2000);
+
     } finally {
       setIsSyncingPowens(false);
     }
@@ -7740,6 +7754,10 @@ const handlePowensImportSuccess = (transactions, accountName) => {
     type: "success" 
   });
 
+  setTimeout(() => {
+    setNotification(null); 
+  }, 2000);
+
   // 🔄 Mettre à jour la liste des banques/comptes
   fetchPowensConnections();
 };
@@ -7768,6 +7786,10 @@ const handleConnectNewBank = async () => {
   } catch (err) {
     console.error("Erreur génération lien Powens:", err);
     setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
+
+    setTimeout(() => {
+      setNotification(null); 
+    }, 3000);
   } finally {
     setIsSyncingPowens(false);
   }
