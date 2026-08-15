@@ -2709,7 +2709,7 @@ def normalize_powens_transactions(
     date_debut: str = None, # Format "YYYY-MM-DD"
     date_fin: str = None   # Format "YYYY-MM-DD"
 ):
-    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
     normalized = []
 
     target_id_str = str(target_account_id).strip() if target_account_id else None
