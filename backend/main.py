@@ -2972,10 +2972,6 @@ class SavePowensTokenRequest(BaseModel):
 
 @app.post("/powens/sauvegarder-token")
 def sauvegarder_token(req: SavePowensTokenRequest):
-    print("--------------------------------------------------")
-    print(f"📥 [POST] /powens/sauvegarder-token reçu pour l'utilisateur : '{req.utilisateur}'")
-    print(f"🔑 Token reçu (premiers caractères) : {req.user_token[:10]}...") if req.user_token else print("🔑 Token reçu : vide/None")
-
     query = text("""
         UPDATE users 
         SET powens_token = :token 
@@ -2984,54 +2980,36 @@ def sauvegarder_token(req: SavePowensTokenRequest):
     
     try:
         with engine.connect() as conn:
-            print("🔄 Exécution de la requête UPDATE en BDD...")
             result = conn.execute(query, {"token": req.user_token, "username": req.utilisateur})
             conn.commit()
             
-            print(f"📊 Nombre de lignes modifiées : {result.rowcount}")
-            
             if result.rowcount == 0:
-                print(f"⚠️ Avertissement : Aucun utilisateur trouvé en BDD pour '{req.utilisateur}'")
                 raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
                 
-        print("✅ Token Powens sauvegardé avec succès en BDD.")
-        print("--------------------------------------------------")
         return {"status": "success", "message": "Token Powens sauvegardé en BDD."}
         
     except Exception as e:
-        print(f"❌ ERREUR lors de la sauvegarde du token : {str(e)}")
-        print("--------------------------------------------------")
         raise e
 
 
 @app.get("/powens/recuperer-token")
 def recuperer_token(utilisateur: str):
-    print("--------------------------------------------------")
-    print(f"📥 [GET] /powens/recuperer-token demandé pour : '{utilisateur}'")
-
     query = text("""
         SELECT powens_token 
         FROM users 
-        WHERE username = :username OR email = :username
+        WHERE LOWER(username) = LOWER(:username) OR LOWER(email) = LOWER(:username)
     """)
     
     try:
         with engine.connect() as conn:
-            print("🔄 Exécution de la requête SELECT en BDD...")
             result = conn.execute(query, {"username": utilisateur}).fetchone()
             
             if not result or not result[0]:
-                print(f"⚠️ Aucun token trouvé en BDD pour l'utilisateur : '{utilisateur}'")
-                print("--------------------------------------------------")
                 return {"status": "success", "user_token": None}
                 
             token_bdd = result[0]
-            print(f"✅ Token trouvé (premiers caractères) : {token_bdd[:10]}...")
-            print("--------------------------------------------------")
             
         return {"status": "success", "user_token": token_bdd}
         
     except Exception as e:
-        print(f"❌ ERREUR lors de la récupération du token : {str(e)}")
-        print("--------------------------------------------------")
         raise e

@@ -7578,8 +7578,13 @@ const fetchPowensConnections = useCallback(async () => {
     try {
       const resToken = await api.get(`/powens/recuperer-token?utilisateur=${encodeURIComponent(nomUtilisateur)}`);
       userToken = resToken.data?.user_token;
+      
+      // S'il est trouvé en BDD, on met à jour le localStorage pour que le reste de l'app le voit
+      if (userToken) {
+        localStorage.setItem("powens_user_token", userToken);
+      }
     } catch (e) {
-      console.log("Vérification locale du token...");
+      console.log("Vérification BDD échouée...");
     }
 
     // 2. Fallback localStorage
