@@ -1,4 +1,4 @@
-import { useState, useEffect,useMemo,useRef,forwardRef} from 'react'
+import { useState, useEffect,useMemo,useRef,forwardRef,useCallback} from 'react'
 import React from 'react'; // <-- Ajoute cette ligne tout en haut du fichier
 
 import { 
@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft 
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -5068,7 +5068,253 @@ const ProfileTab = ({ user }) => {
 };
 
 
+export function ImportPowensModal({ userToken, utilisateur, onClose, onSuccess }) {
+  const [accounts, setAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
 
+  // Mode de sélection : 'current_month' ou 'custom_date'
+  const [modeDate, setModeDate] = useState('current_month');
+
+  // Dates par défaut
+  const now = new Date();
+  const defaultStartDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const defaultEndDate = now.toISOString().split('T')[0];
+
+  const [dateDebut, setDateDebut] = useState(defaultStartDate);
+  const [dateFin, setDateFin] = useState(defaultEndDate);
+
+  const handleModeChange = (mode) => {
+    setModeDate(mode);
+    if (mode === 'current_month') {
+      setDateDebut(defaultStartDate);
+      setDateFin(defaultEndDate);
+    }
+  };
+
+  useEffect(() => {
+    async function fetchAccounts() {
+      if (!userToken) return;
+      try {
+        setLoading(true);
+        const res = await api.get(`/powens/accounts?user_token=${encodeURIComponent(userToken)}`);
+        const fetchedAccounts = res.data || [];
+        
+        setAccounts(fetchedAccounts);
+
+        // 🟢 Conserve le compte sélectionné s'il existe toujours, sinon prends le premier
+        if (fetchedAccounts.length > 0) {
+          setSelectedAccount((prev) => {
+            const exists = fetchedAccounts.some(a => String(a.id) === String(prev));
+            return exists ? prev : String(fetchedAccounts[0].id);
+          });
+        }
+      } catch (err) {
+        console.error("Erreur chargement comptes:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchAccounts();
+  }, [userToken]);
+
+  // 🟢 Formater les options pour le CustomSelect (nom de banque inclus si disponible)
+  const accountOptions = accounts.map((acc) => ({
+    v: String(acc.id),
+    l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} ${acc.balance !== undefined ? `(${acc.balance}€)` : ''}`
+  }));
+
+  const handleImport = async () => {
+    if (!selectedAccount) return;
+    setImporting(true);
+    try {
+      const accountObj = accounts.find(a => String(a.id) === String(selectedAccount));
+      const accountName = accountObj ? accountObj.name : "Powens";
+
+      const res = await api.get(
+        `/import-powens?utilisateur=${encodeURIComponent(utilisateur)}&user_token=${encodeURIComponent(userToken)}&account_id=${selectedAccount}&compte_nom=${encodeURIComponent(accountName)}&date_debut=${dateDebut}&date_fin=${dateFin}`
+      );
+
+      onSuccess(res.data, accountName);
+      onClose();
+    } catch (err) {
+      console.error("Erreur import Powens:", err);
+      alert("Erreur lors de l'importation");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <div className="bg-[#0f0f10] border border-white/10 rounded-[2.5rem] p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-6">
+        
+        {/* En-tête */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-[var(--primary)]/10 rounded-2xl text-[var(--primary)] border border-[var(--primary)]/20">
+              <Landmark size={20} />
+            </div>
+            <div>
+              <h3 className="text-[13px] font-black uppercase tracking-widest text-[var(--text-main)]">
+                Comptes Powens
+              </h3>
+              <p className="text-[9px] text-[var(--text-main)]/30 font-bold uppercase tracking-wider">
+                Compte et période d'import
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="text-[var(--text-main)]/30 hover:text-rose-500 p-2 text-xs font-black uppercase transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-8 gap-3">
+            <RefreshCw size={24} className="text-[var(--primary)] animate-spin" />
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+              Chargement des comptes bancaires...
+            </p>
+          </div>
+        ) : accounts.length === 0 ? (
+          <p className="text-center text-xs text-rose-400 py-4 font-bold">
+            Aucun compte trouvé sur cette connexion bancaire.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            
+            {/* CustomSelect */}
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+                Compte à importer
+              </label>
+              
+              <CustomSelect 
+                value={selectedAccount}
+                onChange={(val) => setSelectedAccount(val)}
+                options={accountOptions}
+                icon={Landmark}
+              />
+            </div>
+
+            {/* Toggle Sélection Période */}
+            <div className="space-y-2">
+              <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+                Période des transactions
+              </label>
+              <div className="grid grid-cols-2 gap-2 p-1 bg-white/[0.03] border border-white/10 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('current_month')}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                    modeDate === 'current_month'
+                      ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
+                      : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+                  }`}
+                >
+                  <Clock size={12} /> Mois en cours
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleModeChange('custom_date')}
+                  className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${
+                    modeDate === 'custom_date'
+                      ? 'bg-[var(--primary)] text-black shadow-lg shadow-[var(--primary)]/20'
+                      : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+                  }`}
+                >
+                  <Calendar size={12} /> Personnalisé
+                </button>
+              </div>
+            </div>
+
+            {/* Dates personnalisées */}
+              {modeDate === 'custom_date' && (
+                <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  
+                  {/* DATE DÉBUT */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+                      Du
+                    </label>
+                    <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[var(--primary)] transition-all">
+                      <DatePicker
+                        selected={dateDebut ? new Date(dateDebut) : null}
+                        onChange={(date) => {
+                          // Convertit l'objet Date en string 'YYYY-MM-DD' pour ton état
+                          const formatted = date ? date.toISOString().split('T')[0] : '';
+                          setDateDebut(formatted);
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        className="bg-transparent border-none outline-none text-[var(--text-main)] text-xs font-bold w-full cursor-pointer"
+                        calendarClassName="custom-calendar-dark"
+                        popperPlacement="bottom-start"
+                        portalId="root-portal"
+                      />
+                    </div>
+                  </div>
+
+                  {/* DATE FIN */}
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+                      Au
+                    </label>
+                    <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[var(--primary)] transition-all">
+                      <DatePicker
+                        selected={dateFin ? new Date(dateFin) : null}
+                        onChange={(date) => {
+                          const formatted = date ? date.toISOString().split('T')[0] : '';
+                          setDateFin(formatted);
+                        }}
+                        dateFormat="dd/MM/yyyy"
+                        className="bg-transparent border-none outline-none text-[var(--text-main)] text-xs font-bold w-full cursor-pointer"
+                        calendarClassName="custom-calendar-dark"
+                        popperPlacement="bottom-start"
+                        portalId="root-portal"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button 
+                onClick={onClose} 
+                className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/30 hover:text-rose-500 uppercase tracking-widest transition-colors"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={handleImport}
+                disabled={importing}
+                className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-black font-black uppercase text-[10px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20 disabled:opacity-50"
+              >
+                {importing ? (
+                  <>
+                    <RefreshCw size={12} className="animate-spin" /> Récupération...
+                  </>
+                ) : (
+                  <>
+                    <Check size={12} strokeWidth={3} /> Importer ce compte
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
 
 function FinanceApp() {
 
@@ -7306,6 +7552,185 @@ const confirmBatchImport = async () => {
 };
 
 
+// 1. État pour afficher/masquer la modale de sélection
+const [showPowensModal, setShowPowensModal] = useState(false);
+const [isSyncingPowens, setIsSyncingPowens] = useState(false);
+const [isOpen, setIsOpen] = useState(false);
+// 2. État pour stocker la liste des connexions et comptes
+const [powensData, setPowensData] = useState({
+  connections_count: 0,
+  connections: [],
+  accounts_count: 0,
+  accounts: []
+});
+
+// 🟢 Fonction de récupération des données Powens (déportée pour réutilisation)
+const fetchPowensConnections = useCallback(async () => {
+  try {
+    // 💡 Correction de la clé ici : 'powens_user_token' au lieu de 'powens_token'
+    const userToken = localStorage.getItem("powens_user_token"); 
+    if (!userToken) return;
+
+    // Utilisation de ton instance `api` (ou de l'URL directe)
+    const res = await api.get(`/powens/connections-and-accounts?user_token=${encodeURIComponent(userToken)}`);
+    if (res.data) {
+      setPowensData(res.data);
+    }
+  } catch (err) {
+    console.error("Erreur lors du chargement des banques/comptes Powens:", err);
+  }
+}, []);
+
+// 🟢 1. GESTION DU CALLBACK REDIRECT DE POWENS AU CHARGEMENT DE LA PAGE
+useEffect(() => {
+  const handlePowensCallback = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const powensCode = urlParams.get('code');
+    const connectionId = urlParams.get('connection_id'); // Renvoyé lors de l'ajout d'un établissement
+
+    const existingToken = localStorage.getItem('powens_user_token');
+
+    // -------------------------------------------------------------
+    // CAS 1 : L'utilisateur a DÉJÀ un token (Ajout d'une 2e+ banque)
+    // -------------------------------------------------------------
+    if (existingToken && (powensCode || connectionId)) {
+      // Ne PAS échanger le code ! La banque a déjà été rattachée sur le backend Powens.
+      setNotification({ message: "Nouvel établissement connecté avec succès !", type: "success" });
+      
+      // Nettoyer l'URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+      // Recharger la liste des banques avec LE MÊME token
+      await fetchPowensConnections();
+      setShowPowensModal(true);
+      return;
+    }
+
+    // -------------------------------------------------------------
+    // CAS 2 : Tout PREMIER ajout de banque (Pas encore de token)
+    // -------------------------------------------------------------
+    if (powensCode && !existingToken) {
+      try {
+        const redirectUri = window.location.origin + window.location.pathname;
+        const res = await api.get(
+          `/powens/callback?code=${encodeURIComponent(powensCode)}&redirect_uri=${encodeURIComponent(redirectUri)}`
+        );
+
+        if (res.data?.access_token) {
+          // Premier enregistrement du token unique
+          localStorage.setItem('powens_user_token', res.data.access_token);
+          setNotification({ message: "Compte bancaire connecté avec succès !", type: "success" });
+          
+          // Nettoyer l'URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          // Recharger la liste & ouvrir la modale
+          await fetchPowensConnections();
+          setShowPowensModal(true);
+        }
+      } catch (err) {
+        console.error("Erreur lors de l'échange du token Powens:", err);
+        setNotification({ message: "Échec de l'association du compte Powens.", type: "error" });
+      }
+    }
+  };
+
+  handlePowensCallback();
+}, [fetchPowensConnections]);
+
+// 🟢 2. CHARGEMENT AUTOMATIQUE AU CHANGEMENT D'ONGLET
+useEffect(() => {
+  if (activeTab === 'importer') {
+    fetchPowensConnections();
+  }
+}, [activeTab, fetchPowensConnections]);
+
+// 🟢 3. ACTION DU BOUTON "SYNCHRONISATION POWENS"
+const handleSyncPowens = async () => {
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+  const token = localStorage.getItem('powens_user_token'); // 💡 Bonne clé ici aussi
+
+  // Si pas de token valide, redirection WebView
+  if (!token) {
+    setIsSyncingPowens(true);
+    try {
+      const redirectUri = window.location.origin + window.location.pathname;
+      const resUrl = await api.get(
+        `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}`
+      );
+      
+      if (resUrl.data?.url) {
+        window.location.href = resUrl.data.url;
+        return;
+      }
+    } catch (error) {
+      setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
+    } finally {
+      setIsSyncingPowens(false);
+    }
+  } else {
+    // Si le token existe, rafraîchir d'abord les comptes puis ouvrir la modale
+    await fetchPowensConnections();
+    setShowPowensModal(true);
+  }
+};
+
+// 🟢 4. RÉSULTAT DE L'IMPORTATION POWENS (appelé par la modale)
+const handlePowensImportSuccess = (transactions, accountName) => {
+  if (!transactions || transactions.length === 0) {
+    setNotification({ message: `Aucune transaction trouvée pour le compte ${accountName}.`, type: "warning" });
+    return;
+  }
+
+  // Déduplication
+  const clesVisitees = new Set();
+  const transactionsUniques = transactions.filter(t => {
+    const key = `${t.date}-${t.nom.trim().toLowerCase()}-${t.montant}`;
+    if (clesVisitees.has(key)) return false;
+    clesVisitees.add(key);
+    return true;
+  });
+
+  setFileName(`Import Powens (${accountName})`);
+  setTempTransactions(transactionsUniques);
+  setNotification({ 
+    message: `${transactionsUniques.length} transactions récupérées pour ${accountName} !`, 
+    type: "success" 
+  });
+
+  // 🔄 Mettre à jour la liste des banques/comptes
+  fetchPowensConnections();
+};
+
+const handleConnectNewBank = async () => {
+  setIsSyncingPowens(true);
+  try {
+    const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
+    const redirectUri = window.location.origin + window.location.pathname;
+    
+    // 🟢 Récupérer le token existant
+    const existingToken = localStorage.getItem('powens_user_token') || '';
+
+    // 🟢 Transmettre le token existant pour AJOUTER la banque au compte actuel
+    const resUrl = await api.get(
+      `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`
+    );
+    
+    const url = resUrl.data?.url || resUrl.data?.redirect_url;
+
+    if (url) {
+      window.location.href = url;
+    } else {
+      setNotification({ message: "URL de connexion Powens introuvable.", type: "error" });
+    }
+  } catch (err) {
+    console.error("Erreur génération lien Powens:", err);
+    setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
+  } finally {
+    setIsSyncingPowens(false);
+  }
+};
+
 
 const [allPrevisions, setallPrevisions] = useState([]);
 
@@ -8141,7 +8566,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "3.6"; 
+const CURRENT_VERSION = "3.7"; 
 
 useEffect(() => {
   if (!user) return;
@@ -8667,7 +9092,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.6</span>
+        Kleea <span className="text-[var(--primary)]">v.3.7</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -12367,7 +12792,6 @@ if (!user) {
 
 {activeTab === 'importer' && (
   <div className="max-w-full mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-20 px-6">
-    
     <div className="flex flex-col lg:flex-row gap-8 items-stretch">
       
       {/* COLONNE GAUCHE : IMPORTATION & RÉCAPITULATIF */}
@@ -12375,246 +12799,249 @@ if (!user) {
         
         {/* Header Section */}
         <div className="flex items-center gap-3 px-2 shrink-0">
-           <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
-             <Upload size={16} className="text-[var(--primary)]" />
-           </div>
-           <div>
-             <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">Gestion des flux</h3>
-             <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase tracking-tighter">Importation et validation</p>
-           </div>
-        </div>
-
-      
-        {/* 1. Zone de configuration & Aide */}
-        <div className="flex items-end gap-3 shrink-0 max-w-2xl">
-          
-          {/* LE SÉLECTEUR (Prend le reste de l'espace disponible) */}
-          <div className="flex-1 min-w-[200px]">
-            <CustomSelect 
-              label="Compte de destination"
-              value={selectedCompte} 
-              icon={Wallet} 
-              options={comptes.map(c => ({ v: c.compte, l: c.compte }))} 
-              onChange={(val) => setSelectedCompte(val)} // 🟢 Tout simple aussi
-            />
+          <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
+            <Upload size={16} className="text-[var(--primary)]" />
           </div>
-
-          <HelpPopover />
+          <div>
+            <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">
+              Gestion des flux
+            </h3>
+            <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase tracking-tighter">
+              Importation et validation
+            </p>
+          </div>
         </div>
 
-        {/* 2. Zone de Drag & Drop (Compacte & Stylisée) */}
-          <div 
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={(e) => { 
-              onDrop(e); 
-              const file = e.dataTransfer.files[0]; 
-              if (file) setFileName(file.name); 
-            }}
-            onClick={() => document.getElementById('csvInput').click()}
-            className={`
-              relative rounded-[2rem] p-4 flex items-center gap-6
-              transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px] shrink-0
-              ${isDragging 
-                ? 'bg-[var(--primary)]/10 scale-[1.01] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
-                : transactionsCalculees?.length > 0 
-                  ? 'bg-emerald-500/5' 
-                  : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] hover:bg-[var(--glass-bg)]'}
-            `}
-          >
-            {/* 1. LES POINTILLÉS QUI TOURNENT (SVG) */}
-            <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              <rect 
-                x="0" y="0" width="100%" height="100%" rx="2rem"
-                fill="none" 
-                strokeWidth="2"
-                stroke={isDragging ? "var(--primary)" : transactionsCalculees?.length > 0 ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.1)"}
-                strokeDasharray="8 6" 
-                className={isDragging || transactionsCalculees?.length === 0 ? "animate-[borderFlow_2s_linear_infinite]" : ""}
+        {/* 1. Zone de configuration, Sélecteur & Liste discrète des comptes */}
+        <div className="flex flex-col gap-3 shrink-0 max-w-2xl">
+          <div className="flex items-end gap-3">
+            <div className="flex-1 min-w-[200px]">
+              <CustomSelect 
+                label="Compte de destination"
+                value={selectedCompte} 
+                icon={Wallet} 
+                options={comptes.map(c => ({ v: c.compte, l: c.compte }))} 
+                onChange={(val) => setSelectedCompte(val)} 
               />
-            </svg>
-
-            {/* Effet de brillance */}
-            <div className={`absolute inset-0 w-[200%] h-full bg-gradient-to-r from-transparent via-white/[0.02] to-transparent -translate-x-full ${transactionsCalculees?.length > 0 ? 'animate-[shimmer_5s_infinite]' : 'group-hover:animate-[shimmer_2s_infinite]'}`} />
-
-            <input type="file" id="csvInput" className="hidden" accept=".csv" onChange={(e) => {
-              const file = e.target.files[0];
-              if (file) {
-                setFileName(file.name);
-                handleFileUpload(file);
-              }
-            }} />
-            
-            {/* Icône Dynamique - Correction du flash blanc */}
-            <div className={`
-              p-3 rounded-xl transition-all duration-500 shrink-0 relative z-10
-              ${isDragging 
-                ? 'bg-[var(--primary)]/20 border border-[var(--primary)] scale-110 shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)] rotate-12' 
-                : transactionsCalculees?.length > 0
-                  ? 'bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.2)] rotate-0'
-                  : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--primary)]'}
-            `}>
-              {transactionsCalculees?.length > 0 && !isDragging ? (
-                <Check size={18} className="text-black" strokeWidth={3} />
-              ) : (
-                <Upload 
-                  size={18} 
-                  className={`transition-colors duration-500 ${isDragging ? 'text-[var(--primary)]' : ''}`} 
-                />
-              )}
             </div>
-            
-            <div className="flex flex-col relative z-10 flex-1 min-w-0">
-              <h3 className={`text-[11px] font-black uppercase tracking-[0.2em] transition-colors duration-500 ${transactionsCalculees?.length > 0 ? 'text-emerald-400' : 'text-[var(--text-main)]'}`}>
-                {isDragging 
-                  ? "Lâcher pour analyser" 
-                  : transactionsCalculees?.length > 0 
-                    ? "Analyse terminée" 
-                    : "Glisser le fichier CSV"}
-              </h3>
-
-              {/* Affichage du nom du fichier si présent */}
-              {transactionsCalculees?.length > 0 && fileName && (
-                <p className="text-[9px] text-[var(--primary)] font-bold truncate mt-0.5 animate-in fade-in slide-in-from-left-2">
-                  {fileName}
-                </p>
-              )}
-
-              <div className="flex items-center gap-2 mt-0.5">
-                <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase tracking-widest truncate">
-                  {transactionsCalculees?.length > 0 
-                    ? `${transactionsCalculees.length} opérations prêtes` 
-                    : "Format .CSV uniquement"}
-                </p>
-
-              </div>
-            </div>
-
-            {/* Bouton de switch rapide */}
-            {transactionsCalculees?.length > 0 && !isDragging && (
-              <div className="ml-auto relative z-10 flex items-center gap-3 animate-in fade-in slide-in-from-right-2">
-                <div className="h-8 w-[1px] bg-[var(--glass-bg)]" />
-                <button 
-                  onClick={(e) => { e.stopPropagation(); document.getElementById('csvInput').click(); }}
-                  className="text-[7px] font-black uppercase tracking-tighter text-[var(--text-main)]/30 hover:text-[var(--primary)] transition-colors px-2 py-1"
-                >
-                  Changer
-                </button>
-              </div>
-            )}
+            <HelpPopover />
           </div>
 
-          {/* CSS à ajouter dans ton fichier global ou bloc <style> */}
-          <style jsx>{`
-            
-            @keyframes shimmer {
-              0% { transform: translateX(-100%); }
-              100% { transform: translateX(200%); }
-            }
-          `}</style>
+          {/* LISTE DISCRÈTE ET PLIABLE DES COMPTES BANCAIRES / POWENS */}
+{powensData?.connections && powensData.connections.length > 0 && (
+  <div className="relative z-50">
+    {/* BOUTON DÉCLENCHEUR */}
+    <button
+      onClick={() => setIsOpen(!isOpen)}
+      className="w-full flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none"
+    >
+      <span className="flex items-center gap-2">
+        <Building2 size={12} className="text-[var(--primary)]" />
+        Comptes synchronisés ({powensData?.accounts_count || 0})
+      </span>
+      <span className={`text-[8px] opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+    </button>
 
-          {/* 3. RÉCAPITULATIF & TABLEAU (Conditionnel) */}
-          {transactionsCalculees && transactionsCalculees.length > 0 && (
-            <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
-              
-              {/* LUEUR D'ARRIÈRE-PLAN (Glow effect) */}
-              <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
+    {/* POPUP ABSOLU (Ne pousse pas les éléments en dessous) */}
+    {isOpen && (
+      <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
+        <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
+          {powensData.connections.map((conn) => {
+            const connAccounts = powensData.accounts?.filter(
+              (acc) => acc.connection_id === conn.id || acc.bank_name === conn.connector_name
+            ) || [];
 
-              {/* MINI STATS BAR & ACTIONS */}
-              <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
-                {/* Groupement des stats à gauche */}
-                <div className="flex items-center gap-2">
-                  {/* Badge du Compte de Destination */}
-                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                    <Wallet size={10} className="text-[var(--primary)]" />
-                    <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
-                    <span className="text-[10px] font-black text-[var(--primary)] uppercase">
-                      {selectedCompte}
-                    </span>
-                  </div>
+            if (connAccounts.length === 0) return null;
 
-                  <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
-
-                  {[
-                    { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
-                    { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
-                    { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
-                  ].map((stat, idx) => (
-                    <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                      <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
-                      <span className={`text-[10px] font-black ${stat.color}`}>
-                        {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+            return (
+              <div key={conn.id} className="space-y-1.5">
+                <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1">
+                  <span>{conn.connector_name}</span>
+                  <span className="text-[7px] text-[var(--text-main)]/30">ID: {conn.id}</span>
+                </div>
+                
+                <div className="space-y-1">
+                  {connAccounts.map((acc) => (
+                    <div key={acc.id} className="flex items-center justify-between text-[9px] py-1.5 px-2 rounded-xl bg-white/[0.02] border border-white/5">
+                      <span className="text-[var(--text-main)]/70 truncate">{acc.name}</span>
+                      <span className="font-bold text-[var(--text-main)]">
+                        {acc.balance !== null && acc.balance !== undefined 
+                          ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` 
+                          : "—"}
                       </span>
                     </div>
                   ))}
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+  </div>
+)}
+        </div>
 
-                {/* Groupement des actions à droite */}
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => { setTempTransactions([]); setFileName(""); }} 
-                    className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
-                  >
-                    Annuler
-                  </button>
-                  <button 
-                    onClick={confirmBatchImport}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main) font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20"
-                  >
-                    <Check size={12} strokeWidth={4} /> Importer {transactionsCalculees.length} lignes
-                  </button>
+        {/* 2. BLOC D'IMPORTATION : 3 BOUTONS CÔTE À CÔTE */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+          
+          {/* ACTION 1 : CONNECTER NOUVELLE BANQUE */}
+          <div 
+            onClick={handleConnectNewBank}
+            title="Ajouter une banque via Powens"
+            className="rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px] bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40 group"
+          >
+            <div className="p-3 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)] group-hover:bg-[var(--primary)] group-hover:text-black transition-all duration-500 shrink-0">
+              <Plus size={18} />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">Connecter un compte</h3>
+              <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase tracking-widest truncate">Nouvelle banque</p>
+            </div>
+          </div>
+
+          {/* ACTION 2 : SYNCHRONISER */}
+          <div 
+            onClick={!isSyncingPowens ? handleSyncPowens : undefined}
+            className={`
+              rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+              ${isSyncingPowens 
+                ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
+                : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
+            `}
+          >
+            <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingPowens ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'}`}>
+              {isSyncingPowens ? <RefreshCw size={18} /> : <Download size={18} />}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">Synchroniser</h3>
+              <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase tracking-widest truncate">Données Powens</p>
+            </div>
+          </div>
+
+          {/* ACTION 3 : CSV */}
+          <div 
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={(e) => { onDrop(e); const file = e.dataTransfer.files[0]; if (file) setFileName(file.name); }}
+            onClick={() => document.getElementById('csvInput').click()}
+            className={`
+              rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+              ${isDragging 
+                ? 'bg-[var(--primary)]/10 border-[var(--primary)] scale-[1.01]' 
+                : transactionsCalculees?.length > 0 
+                  ? 'bg-emerald-500/5 border-emerald-500/30' 
+                  : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)]'}
+            `}
+          >
+            <input type="file" id="csvInput" className="hidden" accept=".csv" onChange={(e) => { const file = e.target.files[0]; if (file) { setFileName(file.name); handleFileUpload(file); } }} />
+            
+            <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${transactionsCalculees?.length > 0 && !isDragging ? 'bg-emerald-500 text-black' : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--primary)]'}`}>
+              {transactionsCalculees?.length > 0 && !isDragging ? <Check size={18} strokeWidth={3} /> : <Upload size={18} />}
+            </div>
+            <div className="flex flex-col min-w-0">
+              <h3 className={`text-[11px] font-black uppercase tracking-[0.15em] ${transactionsCalculees?.length > 0 ? 'text-emerald-400' : 'text-[var(--text-main)]'}`}>GLisser le Fichier CSV</h3>
+              <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase tracking-widest truncate">Import manuel </p>
+            </div>
+          </div>
+
+        </div>
+
+        {/* 3. RÉCAPITULATIF & TABLEAU DE PRÉVISUALISATION */}
+        {transactionsCalculees && transactionsCalculees.length > 0 && (
+          <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
+            <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
+
+            <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
+                  <Wallet size={10} className="text-[var(--primary)]" />
+                  <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
+                  <span className="text-[10px] font-black text-[var(--primary)] uppercase">
+                    {selectedCompte}
+                  </span>
                 </div>
+
+                <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
+
+                {[
+                  { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
+                  { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
+                  { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
+                ].map((stat, idx) => (
+                  <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
+                    <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
+                    <span className={`text-[10px] font-black ${stat.color}`}>
+                      {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+                    </span>
+                  </div>
+                ))}
               </div>
 
-              {/* TABLEAU AVEC EFFET DE BORDURE LUMINEUSE */}
-              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
-                <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
-                      <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
-                        <th className="p-4">Date</th>
-                        <th className="p-4">Désignation</th>
-                        <th className="p-4">Catégorie</th>
-                        <th className="p-4 text-right">Montant</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-white/[0.02]">
-                      {transactionsCalculees.map((t, i) => {
-                        const isTransfert = t.categorie.startsWith('🔄');
-                        return (
-                          <tr key={i} className="hover:bg-[var(--glass-bg)] transition-colors group">
-                            <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">{t.date}</td>
-                            <td className="p-4">
-                              <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px] group-hover:text-[var(--text-main)]">
-                                {t.nom}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
-                                isTransfert 
-                                  ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
-                                  : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
-                              }`}>
-                                {t.categorie}
-                              </span>
-                            </td>
-                            <td className={`p-4 text-right font-black text-[11px] ${
-                              isTransfert ? 'text-violet-400' : t.montant < 0 ? 'text-rose-400' : 'text-emerald-400'
-                            }`}>
-                              {t.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+              <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => { setTempTransactions([]); setFileName(""); }} 
+                  className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
+                >
+                  Annuler
+                </button>
+                <button 
+                  onClick={confirmBatchImport}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20"
+                >
+                  <Check size={12} strokeWidth={4} /> Importer {transactionsCalculees.length} lignes
+                </button>
               </div>
             </div>
-          )}
+
+            <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+              <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse">
+                  <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
+                    <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Désignation</th>
+                      <th className="p-4">Catégorie</th>
+                      <th className="p-4 text-right">Montant</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.02]">
+                    {transactionsCalculees.map((t, i) => {
+                      const isTransfert = t.categorie.startsWith('🔄');
+                      return (
+                        <tr key={i} className="hover:bg-[var(--glass-bg)] transition-colors group">
+                          <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">{t.date}</td>
+                          <td className="p-4">
+                            <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px]">
+                              {t.nom}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
+                              isTransfert 
+                                ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
+                                : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
+                            }`}>
+                              {t.categorie}
+                            </span>
+                          </td>
+                          <td className={`p-4 text-right font-black text-[11px] ${
+                            isTransfert ? 'text-violet-400' : t.montant < 0 ? 'text-rose-400' : 'text-emerald-400'
+                          }`}>
+                            {t.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-{/* COLONNE DROITE : INTELLIGENCE (Largeur fixe) */}
+      {/* COLONNE DROITE : INTELLIGENCE (SEULE) */}
       <div className="w-full lg:w-150 flex flex-col gap-4 shrink-0">
         <div className="flex flex-col gap-1 px-2">
           <div className="flex items-center gap-2">
@@ -12623,7 +13050,6 @@ if (!user) {
             </div>
             <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">Intelligence</h3>
           </div>
-          {/* TEXTE EXPLICATIF */}
           <p className="text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-1 italic">
             Configuration des mots-clés pour la catégorisation automatique.
           </p>
@@ -12639,7 +13065,7 @@ if (!user) {
           />
         </div>
 
-        <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[3rem] p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-[500px]">
+        <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[3rem] p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-[480px]">
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
           
           <div className="flex flex-col h-full animate-in fade-in duration-500 relative z-10">
@@ -12687,8 +13113,6 @@ if (!user) {
 
             {/* ZONE D'AJOUT AVEC LE FILTRE DE SIGNE */}
             <div className="mt-auto flex flex-col gap-4 relative">
-              
-              {/* TITRE ET SÉLECTEUR DE FILTRE DE MONTANT */}
               <div className="flex flex-col gap-2">
                 <span className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.15em] pl-1">
                   Filtrer l'apprentissage sur :
@@ -12755,10 +13179,10 @@ if (!user) {
           </div>
         </div>
       </div>
+
     </div>
   </div>
 )}
-
 
 
 
@@ -13938,16 +14362,16 @@ if (!user) {
     <div className="w-full max-w-xl bg-slate-900/90 border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden transform transition-all scale-100">
       
       {/* Effets de lumière néon en tâche de fond */}
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-rose-500/10 blur-2xl rounded-full" />
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-amber-500/10 blur-2xl rounded-full" />
       <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-cyan-500/10 blur-2xl rounded-full" />
 
       {/* En-tête */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(244,63,94,0.15)]">
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
           <span className="text-xl">🚀</span>
         </div>
         <div>
-          <span className="text-[8px] font-black text-rose-400 uppercase tracking-[0.2em] bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20">
+          <span className="text-[8px] font-black text-amber-400 uppercase tracking-[0.2em] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
             Mise à jour v{CURRENT_VERSION}
           </span>
           <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-wider mt-1">
@@ -13959,54 +14383,15 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* 💡 NOUVEAUTÉ 1 : FINANCIAL WRAPPED */}
-        <div className="p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(244,63,94,0.03)]">
-          <span className="text-base mt-0.5">🎸</span>
+        {/* 💡 NOUVEAUTÉ : SYNCHRONISATION BANCAIRE POWENS */}
+        <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
+          <span className="text-base mt-0.5">🏦</span>
           <div>
-            <h4 className="text-[15px] font-black text-rose-400 uppercase tracking-wide">
-              Financial Wrapped Annuel
+            <h4 className="text-[15px] font-black text-amber-400 uppercase tracking-wide">
+              Synchronisation Bancaire Avancée
             </h4>
             <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Découvre la rétrospective complète de ton année ! Un tableau de bord à <strong className="text-rose-400">15 cartes statistiques interactives</strong> pour analyser ton comportement financier : cumul annuel des entrées/sorties, taux d'épargne précis, jours de pure discipline (no-spend) et tes records de dépenses.
-            </p>
-          </div>
-        </div>
-
-        {/* 💡 NOUVEAUTÉ 2 : REFONTE FLUX MENSUEL, VARIATIONS & INSIGHTS */}
-        <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
-          <span className="text-base mt-0.5">📊</span>
-          <div>
-            <h4 className="text-[15px] font-black text-indigo-400 uppercase tracking-wide">
-              Refonte du Flux Mensuel & Statistiques IA
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              La barre de navigation intègre de nouvelles analyses puissantes. L'onglet <strong className="text-indigo-400">Variations</strong> traque l'évolution précise de tes enveloppes. Le nouvel onglet <strong className="text-indigo-400">Insights</strong> agit comme un détecteur de comportement budgétaire (micro-fuites, alimentation, gros achats) et intègre désormais un <strong className="text-indigo-400">encart textuel intelligent</strong> : écris simplement ta demande à <strong className="text-indigo-400">Gemini</strong> (ex: <i>"Suivre mes UberEats"</i>, <i>"Charges récurrentes"</i>) pour générer, calculer et épingler instantanément tes proprios indicateurs personnalisés permanents dans ta grille !
-            </p>
-          </div>
-        </div>
-
-        {/* 💡 NOUVEAUTÉ 3 : CALENDRIER DES DÉPENSES */}
-        <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
-          <span className="text-base mt-0.5">📅</span>
-          <div>
-            <h4 className="text-[15px] font-black text-cyan-400 uppercase tracking-wide">
-              Calendrier des Dépenses
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Visualise l'évolution et l'intensité de ton budget au jour le jour. Le nouveau module calendrier te permet de repérer en un clin d'œil tes pics de dépenses et de suivre tes habitudes de manière ultra-visuelle tout au long des mois.
-            </p>
-          </div>
-        </div>
-
-        {/* ✨ NOUVEAUTÉ 4 : PAGE PROFIL & STATISTIQUES COMPTE (AJOUTÉ ✅) */}
-        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(16,185,129,0.03)]">
-          <span className="text-base mt-0.5">👤</span>
-          <div>
-            <h4 className="text-[15px] font-black text-emerald-400 uppercase tracking-wide">
-              Espace Profil & Sécurité renforcée
-            </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Accède instantanément à ton profil via ton badge utilisateur à coté du bouton déconnexion. Cette nouvelle page intègre un <strong className="text-emerald-400">compteur de transactions en temps réel</strong> indexé sur ta base de données, la possibilité de <strong className="text-emerald-400">modifier tes détails personnels</strong> (Nom et e-mail), la mise à jour de ton Master Password, ainsi qu'une procédure de purge de compte sécurisée par <strong className="text-emerald-400">double confirmation textuelle</strong>.
+              Connecte et centralise tes banques/comptes réel en toute sécurité grâce à <strong className="text-amber-400">la plateforme <a href="https://powens.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-300 transition-colors">Powens</a></strong>. Retrouve un accès direct à tes soldes en temps réel via le nouveau menu déroulant discret, synchronise tes flux en un clic ou importe tes relevés manuellement en CSV.
             </p>
           </div>
         </div>
@@ -14016,13 +14401,24 @@ if (!user) {
       {/* Bouton de fermeture */}
       <button
         onClick={handleClosePatchModal}
-        className="w-full py-2.5 bg-gradient-to-r from-rose-600 to-cyan-600 hover:from-rose-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-rose-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
+        className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-cyan-600 hover:from-amber-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-amber-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
       >
-        Découvrir les nouveautés !
+        Découvrir la nouveauté !
       </button>
 
     </div>
   </div>
+)}
+
+
+{/* MODALE SELECTION COMPTE POWENS */}
+{showPowensModal && (
+  <ImportPowensModal
+    userToken={localStorage.getItem('powens_user_token')}
+    utilisateur={typeof user === 'object' ? user.nom : user}
+    onClose={() => setShowPowensModal(false)}
+    onSuccess={handlePowensImportSuccess}
+  />
 )}
 
 

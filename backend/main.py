@@ -26,7 +26,9 @@ from google.genai import types
 from urllib.parse import unquote
 from datetime import datetime, timezone  # <-- Assure-toi d'importer timezone
 from sqlalchemy import text
-
+import httpx
+import requests
+from urllib.parse import quote
 
 def get_ascii_hostname():
     return "localhost"
@@ -2540,3 +2542,407 @@ def save_user_notes(note: NoteUpdate):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+    
+POWENS_CLIENT_ID = os.getenv("POWENS_CLIENT_ID")
+POWENS_CLIENT_SECRET = os.getenv("POWENS_CLIENT_SECRET")
+POWENS_DOMAIN = os.getenv("POWENS_DOMAIN", "https://kleea-sandbox.biapi.pro/2.0").rstrip("/")
+
+# Nom d'hôte nettoyé uniquement pour le paramètre ?domain= de la Webview
+POWENS_DOMAIN_HOST = POWENS_DOMAIN.replace("https://", "").replace("http://", "").split("/")[0]
+
+
+@app.get("/powens/connect-url")
+def get_connect_url(utilisateur: str, redirect_url: str, user_token: str = None):
+    """
+    Génère l'URL Powens Webview. 
+    Si user_token est fourni et valide, génère un code temporaire pour RATTACHER la banque au profil existant.
+    """
+    try:
+        encoded_redirect = quote(redirect_url, safe="")
+        encoded_state = quote(utilisateur, safe="")
+
+        domain = POWENS_DOMAIN.rstrip('/')
+        if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+            domain += '/2.0'
+
+        webview_url = (
+            f"https://webview.powens.com/fr/connect"
+            f"?domain={POWENS_DOMAIN_HOST}"
+            f"&client_id={POWENS_CLIENT_ID}"
+            f"&redirect_uri={encoded_redirect}"
+            f"&state={encoded_state}"
+        )
+
+        # 🟢 Vérification : user_token ne doit être ni None, ni "null", ni vide
+        if user_token and user_token.strip() and user_token != "null":
+            # ⚠️ Powens attend un GET pour /auth/token/code
+            code_res = requests.get(
+                f"{domain}/auth/token/code",
+                headers={"Authorization": f"Bearer {user_token}"}
+            )
+            
+            if code_res.status_code == 200:
+                temp_code = code_res.json().get("code")
+                # En passant ce code à la Webview, Powens SAIT qu'il faut ajouter
+                # la banque à l'utilisateur possédant ce token
+                webview_url += f"&code={temp_code}"
+            else:
+                print(f"⚠️ Échec génération code temporaire Powens ({code_res.status_code}): {code_res.text}")
+
+        return {"url": webview_url}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur Webview: {str(e)}")
+
+
+@app.get("/powens/callback")
+def powens_callback(code: str, redirect_uri: str = None, state: str = None):
+    """
+    Échange le code de la WebView contre un access_token.
+    """
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+
+    url = f"{domain}/auth/token/access"
+    
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": POWENS_CLIENT_ID,
+        "client_secret": POWENS_CLIENT_SECRET,
+        "code": code
+    }
+
+    if redirect_uri:
+        payload["redirect_uri"] = redirect_uri
+
+    headers = {"Content-Type": "application/json"}
+    res = requests.post(url, json=payload, headers=headers)
+
+    if res.status_code != 200:
+        print(f"❌ ERREUR POWENS {res.status_code}: {res.text}")
+        raise HTTPException(
+            status_code=res.status_code, 
+            detail=f"Échec échange token Powens ({res.status_code}): {res.text}"
+        )
+
+    data = res.json()
+    access_token = data.get("access_token") or data.get("token")
+
+    return {
+        "access_token": access_token,
+        "utilisateur": state
+    }
+
+@app.get("/powens/accounts")
+def get_powens_accounts(user_token: str):
+    """
+    Récupère la liste de tous les comptes bancaires de l'utilisateur.
+    """
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+
+    url = f"{domain}/users/me/accounts"
+    headers = {"Authorization": f"Bearer {user_token}"}
+
+    res = requests.get(url, headers=headers)
+
+    if res.status_code != 200:
+        raise HTTPException(
+            status_code=res.status_code, 
+            detail=f"Erreur récupération comptes Powens: {res.text}"
+        )
+
+    accounts = res.json().get("accounts", [])
+    
+    return [
+        {
+            "id": acc.get("id"),
+            "name": acc.get("name"),
+            "original_name": acc.get("original_name"),
+            "balance": acc.get("balance"),
+            "bank_name": acc.get("bank", {}).get("name") if isinstance(acc.get("bank"), dict) else None
+        }
+        for acc in accounts
+    ]
+
+def get_powens_transactions(user_token: str):
+    """
+    Récupère la liste des transactions brutes depuis l'API Powens.
+    """
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+
+    url = f"{domain}/users/me/transactions"
+    headers = {
+        "Authorization": f"Bearer {user_token}"
+    }
+    
+    # 🟢 AJOUT DU PARAMÈTRE LIMIT
+    params = {
+        "limit": 1000  # Powens requiert obligatoirement d'expliciter ce paramètre
+    }
+
+    res = requests.get(url, headers=headers, params=params)
+
+    if res.status_code != 200:
+        raise Exception(f"Powens API Error ({res.status_code}): {res.text}")
+
+    data = res.json()
+    # Powens renvoie généralement un objet { "transactions": [...] }
+    return data.get("transactions", [])
+
+
+def normalize_powens_transactions(
+    powens_txs, 
+    utilisateur: str, 
+    compte_nom: str, 
+    target_account_id: str = None,
+    date_debut: str = None, # Format "YYYY-MM-DD"
+    date_fin: str = None   # Format "YYYY-MM-DD"
+):
+    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
+    normalized = []
+
+    target_id_str = str(target_account_id).strip() if target_account_id else None
+
+    # Conversion des bornes si fournies
+    dt_debut = datetime.strptime(date_debut, '%Y-%m-%d') if date_debut else None
+    dt_fin = datetime.strptime(date_fin, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_fin else None
+
+    # Fallback par défaut : si aucune date n'est transmise, prendre le mois en cours
+    if not dt_debut and not dt_fin:
+        aujourdhui = datetime.now()
+        dt_debut = aujourdhui.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        dt_fin = aujourdhui
+
+    for tx in powens_txs:
+        # 1. Filtrage par ID Compte
+        tx_account_id = str(tx.get("id_account")).strip() if tx.get("id_account") is not None else None
+        if target_id_str and tx_account_id:
+            if tx_account_id != target_id_str:
+                continue
+
+        # 2. Filtrage par Date
+        raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+        try:
+            dt = datetime.strptime(raw_date, '%Y-%m-%d')
+        except ValueError:
+            continue
+
+        if dt_debut and dt < dt_debut:
+            continue
+        if dt_fin and dt > dt_fin:
+            continue
+
+        # Normalisation
+        montant_float = float(tx.get("value", 0.0))
+        libelle = (
+            tx.get("simplified_wording") or 
+            tx.get("wording") or 
+            tx.get("raw_wording") or 
+            "Transaction Inconnue"
+        )
+
+        normalized.append({
+            "date": dt.strftime('%Y-%m-%d'),
+            "nom": libelle.strip(),
+            "montant": montant_float,
+            "categorie": "❓ Autre",
+            "utilisateur": utilisateur.lower(),
+            "compte": compte_nom,
+            "mois": mois_fr[dt.month - 1],
+            "annee": int(dt.year)
+        })
+
+    return normalized
+
+
+def get_mots_cles_rules(utilisateur: str):
+    """Charge les règles de mots-clés configurées pour un utilisateur (avec fallback admin)."""
+    mots_cles_rules = []
+    try:
+        with engine.connect() as conn:
+            query_cat = text("""
+                SELECT categorie, mots_cles, utilisateur 
+                FROM config_categories 
+                WHERE utilisateur = :u OR utilisateur = 'admin'
+            """)
+            result = conn.execute(query_cat, {"u": utilisateur}).fetchall()
+            
+            temp_rules = {}
+            for row in result:
+                cat_name, raw_keywords, owner = row
+                if raw_keywords:
+                    keywords_str = str(raw_keywords).replace('{', '').replace('}', '').replace('"', '')
+                    keywords_list = [m.strip().lower() for m in keywords_str.split(',') if m.strip()]
+                    
+                    if cat_name not in temp_rules or owner == utilisateur:
+                        temp_rules[cat_name] = keywords_list
+            
+            for cat, keys in temp_rules.items():
+                mots_cles_rules.append({"categorie": cat, "keywords": keys})
+    except Exception as e:
+        print(f"Erreur chargement mots_cles: {e}")
+    
+    return mots_cles_rules
+
+@app.get("/import-powens")
+async def import_powens(
+    utilisateur: str, 
+    user_token: str, 
+    account_id: str = None, 
+    compte_nom: str = "Powens",
+    date_debut: str = None,
+    date_fin: str = None
+):
+    try:
+        powens_raw = get_powens_transactions(user_token)
+
+        transactions_brutes = normalize_powens_transactions(
+            powens_raw, 
+            utilisateur, 
+            compte_nom, 
+            target_account_id=account_id,
+            date_debut=date_debut,
+            date_fin=date_fin
+        )
+
+        mots_cles_rules = get_mots_cles_rules(utilisateur)
+        memoire_rules = get_memoire(utilisateur)
+
+        transactions_pretes = []
+        mes_comptes = ["LIVRET A", "LDDS", "COMPTE CHEQUES", "COMMUN", "CCP", "REVOLUT"]
+        
+        print("ID recherché :", account_id)
+        if powens_raw:
+            print("Exemple de transaction brute Powens :", powens_raw[0])
+        # 4. Traitement des règles de catégorisation
+        for t in transactions_brutes:
+            nom_t = t["nom"]
+            montant_float = t["montant"]
+            nom_t_lower = nom_t.lower()
+            texte_integral_upper = nom_t.upper()
+            cat = "❓ Autre"
+
+            # A. Virements Internes
+            if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO "]):
+                if "LIVRET A" in texte_integral_upper:
+                    cat = "🔄 Virement : CCP vers Livret A"
+                elif any(c in texte_integral_upper for c in ["COMPTE CHEQUES", "CCP"]):
+                    cat = "🔄 Virement : Livret A vers CCP"
+                elif any(c in texte_integral_upper for c in mes_comptes):
+                    cat = "🔄 Transfert Interne"
+
+            # B. Mémoire Apprise
+            if cat == "❓ Autre":
+                nom_t_normalise = " ".join(nom_t_lower.split())
+                for m in memoire_rules:
+                    nom_memoire_clean = " ".join(m["nom"].lower().split())
+                    if nom_memoire_clean in nom_t_normalise:
+                        cat = m["categorie"]
+                        break
+
+            # C. Mots-Clés
+            if cat == "❓ Autre":
+                for rule in mots_cles_rules:
+                    matched = False
+                    for raw_k in rule["keywords"]:
+                        parts = raw_k.split(':')
+                        keyword_clean = parts[0].strip().lower()
+                        filtre_signe = parts[1].strip().lower() if len(parts) > 1 else "both"
+
+                        if not keyword_clean:
+                            continue
+
+                        if keyword_clean in nom_t_lower:
+                            match_positif = (filtre_signe == "positive" and montant_float > 0)
+                            match_negatif = (filtre_signe == "negative" and montant_float < 0)
+                            match_deux = (filtre_signe in ["both", "all"])
+
+                            if match_positif or match_negatif or match_deux:
+                                matched = True
+                                cat = rule["categorie"]
+                                break
+                    if matched:
+                        break
+
+            t["categorie"] = cat
+            transactions_pretes.append(t)
+
+        return transactions_pretes
+
+    except Exception as e:
+        error_msg = str(e)
+        print(f"Erreur Sync Powens : {error_msg}")
+        if "unauthorized" in error_msg.lower() or "401" in error_msg:
+            raise HTTPException(
+                status_code=401, 
+                detail="Jeton Powens invalide ou expiré. Veuillez reconnecter votre compte bancaire."
+            )
+        raise HTTPException(status_code=500, detail=error_msg)
+
+@app.get("/powens/connections-and-accounts")
+def get_connections_and_accounts(user_token: str):
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+
+    headers = {"Authorization": f"Bearer {user_token}"}
+
+    # 1. Connexions
+    conn_res = requests.get(f"{domain}/users/me/connections", headers=headers)
+    connections = conn_res.json().get("connections", []) if conn_res.status_code == 200 else []
+
+    # Dédoublonnage des connexions par nom de connecteur (pour éviter d'avoir ID 14 et ID 15 si c'est la même banque)
+    unique_connections = {}
+    for c in connections:
+        conn_name = c.get("connector", {}).get("name") or c.get("name")
+        # On garde la première ou on peut prioriser selon l'ID le plus élevé (souvent le plus récent)
+        if conn_name not in unique_connections:
+            unique_connections[conn_name] = {
+                "id": c.get("id"),
+                "connector_name": conn_name,
+                "state": c.get("state"),
+                "last_update": c.get("last_update")
+            }
+
+    filtered_connections = list(unique_connections.values())
+
+    # 2. Comptes
+    acc_res = requests.get(f"{domain}/users/me/accounts", headers=headers)
+    accounts = acc_res.json().get("accounts", []) if acc_res.status_code == 200 else []
+
+    # Dédoublonnage des comptes
+    unique_accounts = {}
+    for a in accounts:
+        name = a.get("name")
+        balance = a.get("balance")
+        key = f"{name}_{balance}"
+        
+        if key not in unique_accounts:
+            unique_accounts[key] = {
+                "id": a.get("id"),
+                "connection_id": a.get("connection_id") or a.get("id_connection"),
+                "name": name,
+                "balance": balance,
+                "currency": a.get("currency", {}).get("symbol", "€") if isinstance(a.get("currency"), dict) else "€",
+                "bank_name": a.get("company_name") or a.get("connector", {}).get("name")
+            }
+
+    filtered_accounts = list(unique_accounts.values())
+
+    return {
+        "connections_count": len(filtered_connections),
+        "connections": filtered_connections,
+        "accounts_count": len(filtered_accounts),
+        "accounts": filtered_accounts
+    }
