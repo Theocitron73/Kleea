@@ -5553,7 +5553,7 @@ const sommeAllocations = sommeEnveloppesNette;
 
 // Ventilation Automatique (Plafonnée strictement par l'épargne libre)
 const ventilationAutomatique = useMemo(() => {
-  console.group("🔍 DEBUT VENTILATION AUTOMATIQUE - Mois sélectionné:", moisCourantStr);
+  //console.group("🔍 DEBUT VENTILATION AUTOMATIQUE - Mois sélectionné:", moisCourantStr);
 
   const epargneBruteMois = Math.max(0, parseFloat(epargneDuMois) || 0);
 
@@ -5701,13 +5701,14 @@ const ventilationAutomatique = useMemo(() => {
     }
   });
 
+  /*
   console.log("🏁 FIN VENTILATION - Résultats finaux:", {
     totalDistribueProjets,
     repart: repartitionProjets,
     cumul: cumulProjets,
   });
   console.groupEnd();
-
+*/
   return {
     partProjets: totalDistribueProjets,
     partEnveloppes: Math.max(0, epargneDuMoisRestante),
@@ -8248,9 +8249,9 @@ const toggleVisibility = async (catName) => {
     // 3. Sauvegarde en BDD via ton instance Axios 'api'
     // Note : On utilise 'api.post' et non 'fetch'
     await api.post(`/api/categories_masquees/${user}`, nouvelleListe);
-    console.log("✅ Préférences de visibilité sauvegardées");
+    //console.log("✅ Préférences de visibilité sauvegardées");
   } catch (err) {
-    console.error("❌ Erreur lors de la sauvegarde SQL:", err);
+    //console.error("❌ Erreur lors de la sauvegarde SQL:", err);
     // Optionnel : revenir à l'état précédent en cas d'erreur
     // setMasquees(masquees); 
   }
@@ -8833,7 +8834,7 @@ const fetchPowensConnections = useCallback(async () => {
         localStorage.setItem("powens_user_token", userToken);
       }
     } catch (e) {
-      console.log("Vérification BDD échouée...");
+      //console.log("Vérification BDD échouée...");
     }
 
     // 2. Fallback localStorage
@@ -8857,7 +8858,7 @@ const fetchPowensConnections = useCallback(async () => {
       setPowensData(res.data);
     }
   } catch (err) {
-    console.error("Erreur lors du chargement des banques/comptes Powens:", err);
+    //console.error("Erreur lors du chargement des banques/comptes Powens:", err);
   }
 }, [user]); // Assure-toi que `user` est bien stable ou utilise ses propriétés primitives si besoin
 
@@ -9044,6 +9045,176 @@ const handleConnectNewBank = async () => {
   }
 };
 
+
+// Remplacez ou ajoutez ces états en haut de votre composant
+const [hasPendingSync, setHasPendingSync] = useState(false);
+const [syncCountByAccount, setSyncCountByAccount] = useState({});
+const [isCheckingSync, setIsCheckingSync] = useState(false);
+
+// 🟢 CHECK SYNC
+const checkNewTransactions = useCallback(async () => {
+  const token = localStorage.getItem("powens_user_token");
+
+  // Si pas de token Powens, on arrête silencieusement
+  if (!token) {
+    //console.log("ℹ️ [CHECK SYNC] Aucun token Powens trouvé.");
+    return;
+  }
+
+  // Si les comptes ne sont pas encore chargés depuis le backend
+  if (!comptes || comptes.length === 0) {
+    //console.log("⏳ [CHECK SYNC] En attente du chargement de 'comptes'...");
+    return;
+  }
+
+  setIsCheckingSync(true);
+  try {
+    const res = await api.get(`/powens/connections-and-accounts`, {
+      params: { user_token: token }
+    });
+
+    const powensAccounts = res.data?.accounts || [];
+
+    // 1. Map de mapping Powens -> BDD
+    const powensToLocalNameMap = {};
+    comptes.forEach((c) => {
+      if (c.powens_name) {
+        powensToLocalNameMap[c.powens_name.trim().toUpperCase()] = c.compte;
+      }
+    });
+
+    // 2. Calcul du solde actuel du site pour CHAQUE compte
+    const currentSiteBalances = {};
+    comptes.forEach((c) => {
+      if (!c.compte) return;
+      const accountKey = c.compte.trim().toUpperCase();
+      const soldeInitial = parseFloat(c.solde || 0);
+
+      // Calcul avec la liste des transactions si chargée
+      const totalTransactions = (toutesLesTransactions || [])
+        .filter((t) => (t.compte || "").trim().toUpperCase() === accountKey)
+        .reduce((sum, t) => sum + parseFloat(t.montant || 0), 0);
+
+      currentSiteBalances[accountKey] = soldeInitial + totalTransactions;
+    });
+
+    // 3. Comparaison avec Powens
+    let hasNewTransactions = false;
+    const accountsNeedingSync = {};
+    const debugTable = [];
+
+    powensAccounts.forEach((acc) => {
+      const bankBalance = parseFloat(acc.balance || 0);
+      const powensRawNameUpper = (acc.name || "").trim().toUpperCase();
+
+      // 1. Récupération du nom associé sur le site
+      const siteAccountName = powensToLocalNameMap[powensRawNameUpper] || acc.name;
+      const siteKeyUpper = siteAccountName.trim().toUpperCase();
+
+      // 2. Définition de isAssociated
+      const isAssociated = Boolean(powensToLocalNameMap[powensRawNameUpper]);
+
+      // 3. Solde actuel du site
+      const siteBalance = currentSiteBalances[siteKeyUpper];
+      const hasMatch = siteBalance !== undefined;
+      const currentSiteBalance = hasMatch ? siteBalance : 0;
+
+      // 4. Calcul de l'écart
+      const diff = Math.abs(bankBalance - currentSiteBalance);
+      const isDesynced = !hasMatch || diff > 0.01;
+
+      // 🟢 On stocke le montant de l'écart (diff) pour l'afficher sur le bouton
+      if (isDesynced && isAssociated) {
+        hasNewTransactions = true;
+        accountsNeedingSync[siteAccountName] = diff; 
+      }
+      /*
+      debugTable.push({
+        "Compte Powens": acc.name,
+        "Compte Associé BDD": siteAccountName,
+        "Solde Powens": `${bankBalance.toFixed(2)} €`,
+        "Solde Actuel Site": hasMatch ? `${currentSiteBalance.toFixed(2)} €` : "Non associé",
+        "Écart": `${diff.toFixed(2)} €`,
+        "Désynchronisé ?": isDesynced ? "❌ OUI" : "✅ OK"
+      });
+      */
+    });
+
+    console.group("🔍 [DEBUG SYNC POWENS] Comparaison Instantanée Globale");
+    console.table(debugTable);
+    console.groupEnd();
+
+    setHasPendingSync(hasNewTransactions);
+    setSyncCountByAccount(accountsNeedingSync);
+
+  } catch (err) {
+    console.error("❌ Erreur checkNewTransactions:", err);
+  } finally {
+    setIsCheckingSync(false);
+  }
+}, [comptes, toutesLesTransactions]);
+
+useEffect(() => {
+  if (comptes && comptes.length > 0) {
+    checkNewTransactions();
+  }
+}, [comptes, toutesLesTransactions, checkNewTransactions]);
+
+
+
+
+// 🟢 ASSOCIATION MANUELLE CORRIGÉE
+const handleAssociateAccount = async (powensAccountName, targetCompte) => {
+  try {
+    // Si targetCompte est vide, on cherche le compte qui avait ce powensAccountName pour le retirer
+    const targetCompteName = targetCompte || "";
+    
+    const localCompteObj = targetCompteName
+      ? comptes?.find((c) => c.compte === targetCompteName)
+      : comptes?.find((c) => (c.powens_name || "").trim().toUpperCase() === powensAccountName.trim().toUpperCase());
+
+    if (!localCompteObj) return;
+
+    const newPowensName = targetCompteName ? powensAccountName : null;
+
+    const updatedCompte = {
+      compte: localCompteObj.compte,
+      groupe: localCompteObj.groupe || "Général",
+      solde: parseFloat(localCompteObj.solde || 0),
+      objectif: parseFloat(localCompteObj.objectif || 0),
+      couleur: localCompteObj.couleur || "#000000",
+      utilisateur: (localCompteObj.utilisateur || currentUser || "defaut").toLowerCase(),
+      taux: parseFloat(localCompteObj.taux || 0),
+      powens_name: newPowensName
+    };
+
+    await api.put(
+      `/config-comptes/${encodeURIComponent(localCompteObj.compte)}`,
+      updatedCompte
+    );
+
+    // Mettre à jour le state local directement
+    if (typeof setComptes === "function") {
+      setComptes((prevComptes) =>
+        prevComptes.map((c) =>
+          c.compte === localCompteObj.compte ? { ...c, powens_name: newPowensName } : c
+        )
+      );
+    }
+
+    if (typeof fetchConfigComptes === "function") {
+      await fetchConfigComptes();
+    }
+    
+    // Relance immédiate après maj du state
+    setTimeout(() => {
+      checkNewTransactions();
+    }, 100);
+
+  } catch (err) {
+    console.error("❌ Erreur lors de l'association:", err.response?.data || err);
+  }
+};
 
 const [allPrevisions, setallPrevisions] = useState([]);
 
@@ -11973,7 +12144,7 @@ if (!user) {
           const isSelected = selectedIds2.includes(prev.id);
           const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
           // 🔍 AJOUTE CE LOG ICI POUR VÉRIFIER :
-          console.log(`Prévision ${prev.nom} (ID: ${prev.id}) -> valeur de actif :`, prev.actif, "Type :", typeof prev.actif);
+          //console.log(`Prévision ${prev.nom} (ID: ${prev.id}) -> valeur de actif :`, prev.actif, "Type :", typeof prev.actif);
           // La ligne est active par défaut. Elle n'est désactivée QUE si prev.actif vaut explicitement false, 0, "0" ou "false"
           const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
 
@@ -13652,14 +13823,15 @@ if (!user) {
                     onClick={() => setIsOpen(!isOpen)}
                     className="flex-1 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none"
                   >
-                    <span className="flex items-center gap-2">
-                      <Building2 size={12} className="text-[var(--primary)]" />
-                      Comptes synchronisés ({powensData?.accounts_count || 0})
+                    <span className="flex items-center gap-2 truncate pr-2">
+                      <Building2 size={12} className="text-[var(--primary)] shrink-0" />
+                      <span className="truncate">
+                        Association des comptes réels & site ({powensData?.accounts_count || 0})
+                      </span>
                     </span>
                     <span className={`text-[8px] opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
                   </button>
                 </div>
-
                 {/* POPUP ABSOLU (Ne pousse pas les éléments en dessous) */}
                 {isOpen && (
                   <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
@@ -13679,17 +13851,73 @@ if (!user) {
                             </div>
                             
                             <div className="space-y-1">
+                              {/* Dans la boucle des comptes du popup absolu */}
                               {connAccounts.map((acc) => {
+                                // 1. Recherche du compte BDD associé
+                                const associatedLocalAccount = comptes?.find(
+                                  (c) => (c.powens_name || "").trim().toUpperCase() === (acc.name || "").trim().toUpperCase()
+                                );
+
+                                const isAssociated = Boolean(associatedLocalAccount);
+
+                                // 2. Vérification de la désynchronisation via le nom du site OU le nom Powens
+                                const siteAccountName = associatedLocalAccount ? associatedLocalAccount.compte : acc.name;
+                                const isDesynced = Boolean(
+                                  syncCountByAccount[siteAccountName] || syncCountByAccount[acc.name]
+                                );
+
                                 return (
-                                  <div key={acc.id} className="flex items-center justify-between text-[9px] py-1.5 px-2 rounded-xl bg-white/[0.02] border border-white/5">
-                                    <div className="flex flex-col truncate pr-2">
-                                      <span className="text-[var(--text-main)]/70 truncate">{acc.name}</span>
+                                  <div key={acc.id} className="flex flex-col gap-1.5 py-2 px-2.5 rounded-xl bg-white/[0.02] border border-white/5">
+                                    {/* Ligne principale : Nom Powens + Badges + Solde */}
+                                    <div className="flex items-center justify-between text-[9px]">
+                                      <div className="flex items-center gap-2 truncate pr-2">
+                                        <span className="text-[var(--text-main)] font-semibold truncate">{acc.name}</span>
+                                        
+                                        {/* Pastille conditionnelle */}
+                                        {!isAssociated ? (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400/80 border border-amber-500/20 text-[7px] font-black uppercase tracking-wider shrink-0">
+                                            Non lié
+                                          </span>
+                                        ) : isDesynced ? (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[7px] font-black uppercase tracking-wider animate-pulse shrink-0 flex items-center gap-1">
+                                            <span className="w-1 h-1 rounded-full bg-rose-400 animate-ping" />
+                                            Nouvelles Transactions
+                                          </span>
+                                        ) : (
+                                          <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[7px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1">
+                                            <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                                            Synchronisé
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <span className="font-bold text-[var(--text-main)] shrink-0">
+                                        {acc.balance !== null && acc.balance !== undefined 
+                                          ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` 
+                                          : "—"}
+                                      </span>
                                     </div>
-                                    <span className="font-bold text-[var(--text-main)] shrink-0">
-                                      {acc.balance !== null && acc.balance !== undefined 
-                                        ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` 
-                                        : "—"}
-                                    </span>
+
+                                    {/* Select d'association dynamique */}
+                                    <div className="flex items-center gap-1.5 pt-1 border-t border-white/5">
+                                      <span className="text-[8px] uppercase tracking-wider text-[var(--text-main)]/40 font-bold shrink-0">
+                                        Lié à :
+                                      </span>
+                                      <select
+                                        value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
+                                        onChange={(e) => handleAssociateAccount(acc.name, e.target.value)}
+                                        className="w-full bg-black/30 text-[8px] font-bold text-[var(--text-main)]/80 rounded-lg border border-white/10 px-1.5 py-0.5 focus:outline-none focus:border-[var(--primary)] transition-colors cursor-pointer"
+                                      >
+                                        <option value="" className="bg-neutral-900 text-white/50">
+                                          -- Aucun compte associé --
+                                        </option>
+                                        {comptes?.map((c) => (
+                                          <option key={c.compte} value={c.compte} className="bg-neutral-900 text-white">
+                                            {c.compte}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -13728,23 +13956,95 @@ if (!user) {
           </div>
 
           {/* ACTION 2 : SYNCHRONISER */}
-          <div 
-            onClick={!isSyncingData ? handleSyncPowens : undefined}
-            className={`
-              rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
-              ${isSyncingData 
-                ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
-                : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
-            `}
-          >
-            <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingData ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'}`}>
-              {isSyncingData ? <RefreshCw size={18} /> : <Download size={18} />}
-            </div>
-            <div className="flex flex-col min-w-0">
-              <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">Synchroniser</h3>
-              <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase tracking-widest truncate">Données Powens</p>
-            </div>
-          </div>
+            {/* Calcul de la liste des comptes du site à synchroniser avec leurs montants */}
+            {(() => {
+              // Optionnel : remplacez 'hasPendingSync' par vos variables réelles
+              const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
+              // unsyncedAccounts = [ ["CCP Theo", 1158.25], ["Compte Commun", 448.99] ]
+
+              return (
+                <div 
+                  onClick={!isSyncingData ? handleSyncPowens : undefined}
+                  className={`
+                    relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+                    ${hasPendingSync 
+                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                      : isSyncingData 
+                        ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
+                        : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
+                  `}
+                >
+                  {/* Pastille clignotante en haut à droite */}
+                  {hasPendingSync && (
+                    <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
+                    </span>
+                  )}
+
+                  {/* Icône */}
+                  <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
+                    isSyncingData || isCheckingSync 
+                      ? 'bg-[var(--primary)] text-black animate-spin' 
+                      : hasPendingSync 
+                        ? 'bg-[var(--primary)] text-black' 
+                        : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+                  }`}>
+                    {isSyncingData || isCheckingSync ? <RefreshCw size={18} /> : <Download size={18} />}
+                  </div>
+
+                  {/* Bloc principal : Titre + Sous-texte à gauche, Badges avec Montants à droite */}
+                  <div className="flex items-center gap-4 min-w-0 pr-6 w-full">
+                    
+                    {/* Titre + Sous-texte */}
+                    <div className="flex flex-col shrink-0">
+                      <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">
+                        Synchroniser
+                      </h3>
+                      
+                      <p className={`text-[8px] font-bold uppercase tracking-widest ${
+                        hasPendingSync ? 'text-rose-400 font-black animate-pulse' : 'text-emerald-400/80 font-bold'
+                      }`}>
+                        {hasPendingSync ? 'Nouvelles transactions' : 'Données Powens'}
+                      </p>
+                    </div>
+
+                    {/* Séparateur vertical + Badges (Nom + Montant) */}
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
+                      {hasPendingSync && unsyncedAccounts.length > 0 ? (
+                        unsyncedAccounts.map(([name, amount]) => {
+                          const formattedAmount = typeof amount === "number"
+                            ? `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                            : "";
+
+                          return (
+                            <span 
+                              key={name} 
+                              className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
+                              title={`${name} : ${formattedAmount}`}
+                            >
+                              <span className="truncate">{name}</span>
+                              {formattedAmount && (
+                                <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
+                                  {formattedAmount}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        /* Pastille verte lorsque tout est à jour */
+                        <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          Tout est synchronisé pour le moment
+                        </span>
+                      )}
+                    </div>
+
+                  </div>
+                </div>
+              );
+            })()}
 
           {/* ACTION 3 : CSV */}
           <div 

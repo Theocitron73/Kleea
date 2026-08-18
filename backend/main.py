@@ -511,30 +511,34 @@ class CompteConfig(BaseModel):
     couleur: str
     utilisateur: str
     taux: float = 0.0  # Optionnel par défaut à 0.0 si absent
+    powens_name: Optional[str] = None
 
 
 @app.get("/config-comptes/{username}")
 def get_config_comptes(username: str):
     u_clean = username.strip().lower()
-    # 💡 2. Le SELECT * récupèrera automatiquement la nouvelle colonne taux
+    # 💡 2. SELECT * récupérera automatiquement la nouvelle colonne powens_name
     query = text("SELECT * FROM configuration WHERE LOWER(utilisateur) = :u")
     with engine.connect() as conn:
         df = pd.read_sql(query, conn, params={"u": u_clean})
+    
+    # Remplacer les valeurs NaN par None pour le JSON
+    df = df.where(pd.notnull(df), None)
     return df.to_dict(orient="records")
 
 
 @app.post("/config-comptes")
 def add_compte(c: CompteConfig):
-    # 💡 3. AJOUT DE TAUX DANS L'INSERT
+    # 💡 3. AJOUT DE POWENS_NAME DANS L'INSERT
     query = text("""
-        INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux) 
-        VALUES (:c, :g, :s, :o, :col, :u, :t)
+        INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux, powens_name) 
+        VALUES (:c, :g, :s, :o, :col, :u, :t, :p)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
             "c": c.compte, "g": c.groupe, "s": c.solde, 
             "o": c.objectif, "col": c.couleur, "u": c.utilisateur.lower(),
-            "t": c.taux
+            "t": c.taux, "p": c.powens_name
         })
         conn.commit()
     return {"status": "success"}
@@ -544,10 +548,10 @@ def add_compte(c: CompteConfig):
 def update_compte(compte_name: str, c: CompteConfig):
     name_clean = compte_name.strip()
     
-    # 💡 4. AJOUT DE TAUX DANS L'UPDATE
+    # 💡 4. AJOUT DE POWENS_NAME DANS L'UPDATE
     query = text("""
         UPDATE configuration 
-        SET groupe = :g, solde = :s, objectif = :o, couleur = :col, taux = :t
+        SET groupe = :g, solde = :s, objectif = :o, couleur = :col, taux = :t, powens_name = :p
         WHERE compte = :c AND LOWER(utilisateur) = :u
     """)
     
@@ -558,6 +562,7 @@ def update_compte(compte_name: str, c: CompteConfig):
             "o": c.objectif, 
             "col": c.couleur, 
             "t": c.taux,
+            "p": c.powens_name,
             "c": name_clean, 
             "u": c.utilisateur.lower()
         })
@@ -567,6 +572,7 @@ def update_compte(compte_name: str, c: CompteConfig):
             print(f"ATTENTION : Aucune ligne mise à jour pour {name_clean}")
             
     return {"status": "updated", "rows_affected": result.rowcount}
+
 @app.delete("/config-comptes/{compte_name}/{username}")
 def delete_compte(compte_name: str, username: str):
     query = text("DELETE FROM configuration WHERE compte = :c AND LOWER(utilisateur) = :u")
@@ -2657,10 +2663,6 @@ def powens_callback(code: str, redirect_uri: str = None, state: str = None):
         "utilisateur": state
     }
 
-    return {
-        "access_token": access_token,
-        "utilisateur": state
-    }
 
 @app.get("/powens/accounts")
 def get_powens_accounts(user_token: str):
@@ -3020,3 +3022,20 @@ def recuperer_token(utilisateur: str):
         
     except Exception as e:
         raise e
+
+@app.get("/powens/transactions")
+def read_powens_transactions(user_token: str):
+    """
+    Endpoint exposé au Front-end pour récupérer les transactions depuis Powens.
+    """
+    try:
+        transactions = get_powens_transactions(user_token)
+        return {"transactions": transactions}
+    except Exception as e:
+        error_msg = str(e)
+        if "unauthorized" in error_msg.lower() or "401" in error_msg:
+            raise HTTPException(
+                status_code=401, 
+                detail="Jeton Powens invalide ou expiré."
+            )
+        raise HTTPException(status_code=500, detail=error_msg)
