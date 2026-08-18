@@ -700,14 +700,15 @@ def save_user_theme(c: UserColorUpdate):
 
 
 
-# Dans main.py
 class Projet(BaseModel):
     utilisateur: str
     profil: str
     nom: str
     cout: float
-    date: str  # Format "YYYY-MM-DD"
+    date: str  # Date d'échéance / cible (Format "YYYY-MM-DD")
     capa: float
+    date_debut: Optional[str] = None  # Format "YYYY-MM-DD" (ou "YYYY-MM")
+    utiliser_capa_stricte: Optional[bool] = False
 
 @app.get("/get-projets/{profil}")
 def get_projets(profil: str):
@@ -718,42 +719,48 @@ def get_projets(profil: str):
 
 @app.post("/save-projet")
 def save_projet(p: Projet):
+    date_start = p.date_debut if p.date_debut else str(date.today())
+
     query = text("""
-        INSERT INTO projets (utilisateur, profil, nom, cout, date, capa)
-        VALUES (:u, :pr, :n, :co, :d, :ca)
-    """)
-    with engine.connect() as conn:
-        conn.execute(query, {
-            "u": p.utilisateur.lower(), "pr": p.profil, "n": p.nom, 
-            "co": p.cout, "d": p.date, "ca": p.capa
-        })
-        conn.commit()
-    return {"status": "success"}
-
-
-# Ajoute 'old_name' à ton modèle Pydantic Projet si nécessaire, 
-# ou passe-le en paramètre supplémentaire.
-
-@app.post("/update-projet")
-def update_projet(p: Projet, old_name: str): 
-    query = text("""
-        UPDATE projets 
-        SET nom = :new_n, cout = :co, date = :d, capa = :ca
-        WHERE nom = :old_n AND profil = :pr AND utilisateur = :u
+        INSERT INTO projets (utilisateur, profil, nom, cout, date, capa, date_debut, utiliser_capa_stricte)
+        VALUES (:u, :pr, :n, :co, :d, :ca, :dd, :ucs)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
             "u": p.utilisateur.lower(), 
             "pr": p.profil, 
-            "new_n": p.nom,  # Le nouveau nom
-            "old_n": old_name, # L'ancien pour le WHERE
+            "n": p.nom, 
             "co": p.cout, 
             "d": p.date, 
-            "ca": p.capa
+            "ca": p.capa,
+            "dd": date_start,
+            "ucs": p.utiliser_capa_stricte or False  # 👈 Paramètre envoyé
         })
         conn.commit()
     return {"status": "success"}
 
+
+@app.post("/update-projet")
+def update_projet(p: Projet, old_name: str):
+    query = text("""
+        UPDATE projets 
+        SET nom = :new_n, cout = :co, date = :d, capa = :ca, date_debut = :dd, utiliser_capa_stricte = :ucs
+        WHERE nom = :old_n AND profil = :pr AND LOWER(utilisateur) = :u
+    """)
+    with engine.connect() as conn:
+        conn.execute(query, {
+            "u": p.utilisateur.lower(), 
+            "pr": p.profil, 
+            "new_n": p.nom,
+            "old_n": old_name,
+            "co": p.cout, 
+            "d": p.date, 
+            "ca": p.capa,
+            "dd": p.date_debut,
+            "ucs": p.utiliser_capa_stricte or False  # 👈 Paramètre envoyé
+        })
+        conn.commit()
+    return {"status": "success"}
 
 @app.delete("/delete-projet/{nom}/{profil}")
 def delete_projet(nom: str, profil: str):

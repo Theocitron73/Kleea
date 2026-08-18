@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -1955,7 +1955,7 @@ function SortableItem({ id, children, disabled }) {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
-      <div className={`group relative border transition-all rounded-[24px] ${
+      <div className={`group relative border-white/70 transition-all rounded-[var(--radius)] ${
         isDragging ? 'shadow-2xl scale-[1.02] rotate-1' : ''
       }`}>
         
@@ -1963,7 +1963,7 @@ function SortableItem({ id, children, disabled }) {
         {!disabled && (
           <div 
             {...listeners} 
-            className="absolute top-0 left-1/2 -translate-x-1/2  w-12 h-6 flex items-center justify-center bg-[var(--glass-bg)] hover:bg-white/20 border border-white/10 rounded-full cursor-grab active:cursor-grabbing z-50 transition-colors backdrop-blur-[var(--glass-blur)]"
+            className="absolute top-1 left-1/2 -translate-x-1/2  w-12 h-6 flex items-center justify-center bg-[var(--glass-bg)] hover:bg-white/20 border border-white/10 rounded-full cursor-grab active:cursor-grabbing z-50 transition-colors backdrop-blur-[var(--glass-blur)]"
           >
             {/* Petit motif de points pour suggérer le drag */}
             <div className="flex gap-0.5">
@@ -5316,6 +5316,1346 @@ export function ImportPowensModal({ userToken, utilisateur, onClose, onSuccess }
   );
 }
 
+
+export function GestionEpargneProjet({
+  soldeGlobal = 0,
+  allocations = [],
+  setAllocations = () => {},
+  projets = [],
+  setProjets = () => {},
+  filters = { profil: 'default' },
+  user = 'Utilisateur',
+  api,
+  fetchAllocations = () => {},
+  recapAnnuelStats = [],
+  transactions = [],
+}) {
+  // ==========================================
+  // 1. STATES LOCAUX
+  // ==========================================
+
+  // Enveloppes
+  const [activeTab, setActiveTab] = useState('envelopes');
+  const [showAddProjet, setShowAddProjet] = useState(false);
+  const [newProjet, setNewProjet] = useState({ nom: '', cout: '' });
+  const [deleteModal, setDeleteModal] = useState({ show: false, projetNom: null });
+
+  // Projets futurs
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [form2, setForm2] = useState({ 
+    nom: '', 
+    cout: '', 
+    apport: '', 
+    capa: '', 
+    date: null, 
+    date_debut: new Date(),
+    utiliser_capa_stricte: false // 👈 Nouveau champ
+  });
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [tempProjet, setTempProjet] = useState({ 
+    nom: '', 
+    cout: '', 
+    apport: '', 
+    date: null, 
+    date_debut: null, 
+    capa: '',
+    utiliser_capa_stricte: false // 👈 À ajouter
+  });
+  const [itemToDelete, setItemToDelete] = useState(null);
+
+  const profilId = filters?.profil;
+
+  // ==========================================
+  // 2. HELPERS / FONCTIONS UTILITAIRES
+  // ==========================================
+
+  const formatDateForApi = (dateInput) => {
+    if (!dateInput) return new Date().toISOString().split('T')[0];
+    const d = new Date(dateInput);
+    return isNaN(d.getTime())
+      ? new Date().toISOString().split('T')[0]
+      : d.toISOString().split('T')[0];
+  };
+
+  const calculerMoisEcoules = (dateDebutStr, moisCourantStr) => {
+    if (!dateDebutStr || !moisCourantStr) return 0;
+
+    const dStr = String(dateDebutStr).slice(0, 7);
+    const cStr = String(moisCourantStr).slice(0, 7);
+
+    if (cStr < dStr) return 0;
+
+    const [dYear, dMonth] = dStr.split('-').map(Number);
+    const [cYear, cMonth] = cStr.split('-').map(Number);
+
+    if (isNaN(dYear) || isNaN(dMonth) || isNaN(cYear) || isNaN(cMonth)) {
+      return 0;
+    }
+
+    const diffMois = (cYear - dYear) * 12 + (cMonth - dMonth) + 1;
+    return Math.max(0, diffMois);
+  };
+
+  const calculerCumulProjet = (projet) => {
+    const aujourdhui = new Date();
+    const dateDebut = new Date(projet.date_debut);
+
+    if (dateDebut > aujourdhui) {
+      return Number(projet.apport) || 0;
+    }
+
+    const moisEcoules =
+      (aujourdhui.getFullYear() - dateDebut.getFullYear()) * 12 +
+      (aujourdhui.getMonth() - dateDebut.getMonth());
+
+    const apportInitial = Number(projet.apport) || 0;
+    const epargneMensuelle = Number(projet.capa) || 0;
+    const coutTotal = Number(projet.cout) || 0;
+
+    const cumulTotal = apportInitial + (moisEcoules * epargneMensuelle);
+
+    return Math.min(cumulTotal, coutTotal);
+  };
+
+  // ==========================================
+// 3. CALCULS MÉMOÏSÉS DE BASE & DÉPENSES
+// ==========================================
+
+// Map des allocations par projet
+const allocationsParProjet = useMemo(() => {
+  const map = {};
+  if (Array.isArray(allocations)) {
+    allocations.forEach((a) => {
+      if (a && a.projet && map[a.projet] === undefined) {
+        map[a.projet] = parseFloat(a.montant_alloue) || 0;
+      }
+    });
+  }
+  return map;
+}, [allocations]);
+
+// 1. Somme des enveloppes brutes (Réserves initiales budgétées)
+const sommeEnveloppes = useMemo(() => {
+  return Object.values(allocationsParProjet).reduce((acc, curr) => acc + curr, 0);
+}, [allocationsParProjet]);
+
+// Dépenses ventilées par enveloppe (pour l'affichage sur les cartes comme VOITURE)
+const depensesParEnveloppe = useMemo(() => {
+  return (transactions || []).reduce((acc, t) => {
+    if (t && t.enveloppe) {
+      const keyClean = String(t.enveloppe).toLowerCase().trim();
+      const montant = Math.abs(parseFloat(t.montant) || 0);
+
+      if (!acc[keyClean]) {
+        acc[keyClean] = { montant: 0, count: 0 };
+      }
+
+      acc[keyClean].montant += montant;
+      acc[keyClean].count += 1;
+    }
+    return acc;
+  }, {});
+}, [transactions]);
+
+// Total des dépenses sur les enveloppes
+const totalDepensesEnveloppes = useMemo(() => {
+  return Object.values(depensesParEnveloppe).reduce((acc, curr) => acc + curr.montant, 0);
+}, [depensesParEnveloppe]);
+
+// 2. Solde global REEL
+// 💡 Le soldeGlobal inclut déjà les dépenses des transactions du bilan.
+const soldeGlobalNet = Math.max(0, parseFloat(soldeGlobal) || 0);
+
+// 3. Réserves nettes restantes
+// On prend la somme des réserves initiales MOINS ce qui a été dépensé dedans
+const sommeEnveloppesNette = useMemo(() => {
+  return Math.max(0, sommeEnveloppes - totalDepensesEnveloppes);
+}, [sommeEnveloppes, totalDepensesEnveloppes]);
+
+// Alias pour la cohérence
+const sommeAllocations = sommeEnveloppesNette;
+
+  // Somme de l'apport réservé aux projets futurs
+  const sommeApportsProjets = useMemo(() => {
+    if (!Array.isArray(projets)) return 0;
+    return projets.reduce((acc, p) => acc + (parseFloat(p.apport || p.apport_initial || 0)), 0);
+  }, [projets]);
+
+  // Liste pour l'affichage sélectif des enveloppes
+  const listeAffichage = useMemo(() => {
+    const allocationsArray = Array.isArray(allocations) ? allocations : [];
+    const enveloppesMap = new Map();
+
+    allocationsArray.forEach((a) => {
+      if (a && a.projet && !enveloppesMap.has(a.projet.toLowerCase())) {
+        enveloppesMap.set(a.projet.toLowerCase(), {
+          id: a.projet,
+          nom: a.projet,
+        });
+      }
+    });
+
+    return Array.from(enveloppesMap.values());
+  }, [allocations]);
+
+  // ==========================================
+  // 4. ÉPARGNE DU MOIS & VENTILATION AUTOMATIQUE
+  // ==========================================
+
+  // Détermination dynamique du mois sélectionné et de son épargne
+  const { epargneDuMois, moisCourantStr } = useMemo(() => {
+    const moisListeLocaux = [
+      'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+      'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'décembre'
+    ];
+
+    const anneeFiltre = filters?.annee || new Date().getFullYear();
+    let moisIndex = new Date().getMonth();
+
+    if (filters?.mois !== undefined && filters?.mois !== null) {
+      if (typeof filters.mois === 'number') {
+        moisIndex = filters.mois;
+      } else if (typeof filters.mois === 'string') {
+        if (!isNaN(parseInt(filters.mois, 10))) {
+          moisIndex = parseInt(filters.mois, 10) - 1;
+        } else {
+          const found = moisListeLocaux.findIndex(
+            (m) => m.toLowerCase() === filters.mois.toLowerCase()
+          );
+          if (found !== -1) moisIndex = found;
+        }
+      }
+    }
+
+    const mm = String(moisIndex + 1).padStart(2, '0');
+    const targetMoisStr = `${anneeFiltre}-${mm}`;
+
+    let epargneTrouvee = 0;
+    if (Array.isArray(recapAnnuelStats)) {
+      const statMois = recapAnnuelStats.find((s) => {
+        const dateStat = String(s.mois || s.date || '').slice(0, 7);
+        return dateStat === targetMoisStr;
+      });
+
+      if (statMois) {
+        epargneTrouvee = parseFloat(statMois.epargne) || 0;
+      } else if (recapAnnuelStats[moisIndex]) {
+        epargneTrouvee = parseFloat(recapAnnuelStats[moisIndex].epargne) || 0;
+      }
+    }
+
+    return {
+      epargneDuMois: Math.max(0, epargneTrouvee),
+      moisCourantStr: targetMoisStr,
+    };
+  }, [filters?.annee, filters?.mois, recapAnnuelStats]);
+
+// Ventilation Automatique (Plafonnée strictement par l'épargne libre)
+const ventilationAutomatique = useMemo(() => {
+  console.group("🔍 DEBUT VENTILATION AUTOMATIQUE - Mois sélectionné:", moisCourantStr);
+
+  const epargneBruteMois = Math.max(0, parseFloat(epargneDuMois) || 0);
+
+  // 1. Épargne globale disponible (Solde net - Enveloppes)
+  const disponibleGlobalBrut = Math.max(0, soldeGlobalNet - sommeEnveloppesNette);
+
+  // L'épargne distribuable du mois ne peut pas dépasser l'épargne libre globale
+  let epargneDuMoisRestante = Math.min(epargneBruteMois, disponibleGlobalBrut);
+
+  let totalDistribueProjets = 0;
+  const repartitionProjets = {};
+  const cumulProjets = {};
+
+  const getIndexMois = (nomMoisStr) => {
+    const clean = String(nomMoisStr || '').toLowerCase().trim();
+    if (clean.includes("janv")) return 0;
+    if (clean.includes("févr") || clean.includes("fevr")) return 1;
+    if (clean.includes("mars")) return 2;
+    if (clean.includes("avr")) return 3;
+    if (clean.includes("mai")) return 4;
+    if (clean.includes("juin")) return 5;
+    if (clean.includes("juil")) return 6;
+    if (clean.includes("aou") || clean.includes("aoû")) return 7;
+    if (clean.includes("sept")) return 8;
+    if (clean.includes("oct")) return 9;
+    if (clean.includes("nov")) return 10;
+    if (clean.includes("déc") || clean.includes("dec")) return 11;
+    return -1;
+  };
+
+  const [, moisSel] = (moisCourantStr || '').split('-').map(Number);
+  const indexMoisCourant = moisSel ? moisSel - 1 : 0;
+
+  // 2. Calcul de la cagnotte passée globale (pour le mode normal)
+  let minIndexMoisDebut = indexMoisCourant;
+  (projets || []).forEach((p) => {
+    const dateDebutStr = p.date_debut ? String(p.date_debut).slice(0, 7) : moisCourantStr;
+    if (dateDebutStr <= moisCourantStr) {
+      const [, mDebut] = dateDebutStr.split('-').map(Number);
+      const idx = mDebut ? mDebut - 1 : 0;
+      if (idx < minIndexMoisDebut) minIndexMoisDebut = idx;
+    }
+  });
+
+  let cagnottePasséeDisponible = 0;
+  if (Array.isArray(recapAnnuelStats)) {
+    recapAnnuelStats.forEach((stat, i) => {
+      let idxMoisStat = getIndexMois(stat.nom || stat.mois);
+      if (idxMoisStat === -1) idxMoisStat = i;
+
+      const epargneMois = Math.max(0, parseFloat(stat.epargne) || 0);
+
+      if (idxMoisStat >= minIndexMoisDebut && idxMoisStat < indexMoisCourant) {
+        cagnottePasséeDisponible += epargneMois;
+      }
+    });
+  }
+
+  // 3. Traitement projet par projet
+  (projets || []).forEach((p, idx) => {
+    const key = String(p.id || p._id || p.nom || idx);
+    const cout = parseFloat(p.cout || p.cout_total || p.montant || 0);
+    const apportInitial = parseFloat(p.apport || p.apport_initial || 0);
+    const dateDebutStr = p.date_debut ? String(p.date_debut).slice(0, 7) : moisCourantStr;
+    const capaProjet = parseFloat(p.capa) || 0;
+    const utiliseCapaStricte = Boolean(p.utiliser_capa_stricte);
+
+    // Si le mois sélectionné est strictement AVANT le mois de début -> Projet inactif
+    if (moisCourantStr < dateDebutStr) {
+      repartitionProjets[key] = 0;
+      cumulProjets[key] = Math.min(apportInitial, cout);
+      return;
+    }
+
+    const besoinTotal = Math.max(0, cout - apportInitial);
+
+    // ==========================================
+    // BRANCHE A : MODE CAPACITÉ STRICTE
+    // ==========================================
+    if (utiliseCapaStricte) {
+      let cumulStrict = apportInitial;
+      let alloueCeMoisStrict = 0;
+
+      const [, mDebut] = dateDebutStr.split('-').map(Number);
+      const idxDebutProjet = mDebut ? mDebut - 1 : indexMoisCourant;
+
+      for (let mIdx = idxDebutProjet; mIdx <= indexMoisCourant; mIdx++) {
+        const estMoisCourant = mIdx === indexMoisCourant;
+
+        let epargneMoisItere = 0;
+        if (estMoisCourant) {
+          epargneMoisItere = epargneDuMoisRestante;
+        } else if (Array.isArray(recapAnnuelStats)) {
+          const statMois = recapAnnuelStats.find((s, i) => {
+            const idxStat = getIndexMois(s.nom || s.mois);
+            return idxStat !== -1 ? idxStat === mIdx : i === mIdx;
+          });
+          if (statMois) {
+            epargneMoisItere = Math.max(0, parseFloat(statMois.epargne) || 0);
+          }
+        }
+
+        const besoinReste = Math.max(0, cout - cumulStrict);
+
+        if (besoinReste > 0 && epargneMoisItere > 0) {
+          const plafond = capaProjet > 0 ? Math.min(besoinReste, capaProjet) : besoinReste;
+          const alloue = Math.min(epargneMoisItere, plafond);
+
+          cumulStrict += alloue;
+          if (estMoisCourant) {
+            alloueCeMoisStrict = alloue;
+          }
+        }
+      }
+
+      repartitionProjets[key] = alloueCeMoisStrict;
+
+      // 💡 CORRECTION CLEF : On plafonne le CUMUL TOTAL du projet par le disponible réel (ex: 300 €)
+      const cumulPlafonne = Math.min(cout, cumulStrict, disponibleGlobalBrut);
+      cumulProjets[key] = Math.max(apportInitial, cumulPlafonne);
+
+      epargneDuMoisRestante -= alloueCeMoisStrict;
+      totalDistribueProjets += alloueCeMoisStrict;
+
+    } else {
+      // ==========================================
+      // BRANCHE B : MODE NORMAL
+      // ==========================================
+      const prisSurPasse = Math.min(cagnottePasséeDisponible, besoinTotal);
+      cagnottePasséeDisponible -= prisSurPasse;
+
+      let alloueMoisCourant = 0;
+      const resteAFinancerGlobal = Math.max(0, besoinTotal - prisSurPasse);
+
+      if (resteAFinancerGlobal > 0 && epargneDuMoisRestante > 0) {
+        alloueMoisCourant = Math.min(epargneDuMoisRestante, resteAFinancerGlobal);
+        epargneDuMoisRestante -= alloueMoisCourant;
+        totalDistribueProjets += alloueMoisCourant;
+      }
+
+      repartitionProjets[key] = alloueMoisCourant;
+      
+      const cumulBrut = apportInitial + prisSurPasse + alloueMoisCourant;
+      cumulProjets[key] = Math.min(cout, cumulBrut, disponibleGlobalBrut);
+    }
+  });
+
+  console.log("🏁 FIN VENTILATION - Résultats finaux:", {
+    totalDistribueProjets,
+    repart: repartitionProjets,
+    cumul: cumulProjets,
+  });
+  console.groupEnd();
+
+  return {
+    partProjets: totalDistribueProjets,
+    partEnveloppes: Math.max(0, epargneDuMoisRestante),
+    repartitionProjets,
+    cumulProjets,
+  };
+}, [epargneDuMois, moisCourantStr, projets, recapAnnuelStats, soldeGlobalNet, sommeEnveloppesNette]);
+
+  // ==========================================
+  // 5. CALCULS DÉPENDANTS DE LA VENTILATION & RÉSULTATS
+  // ==========================================
+
+  const cumulGlobalEpargne = useMemo(() => {
+    return (projets || [])
+      .filter((p) => new Date(p.date_debut) <= new Date())
+      .reduce((acc, p) => acc + calculerCumulProjet(p), 0);
+  }, [projets]);
+
+  // 1. Somme totale dépensée/financée sur l'ensemble des projets
+  const totalDepenseProjets = useMemo(() => {
+    return Object.values(ventilationAutomatique.cumulProjets || {}).reduce(
+      (acc, val) => acc + (parseFloat(val) || 0), 
+      0
+    );
+  }, [ventilationAutomatique.cumulProjets]);
+
+  // 2. Surplus d'épargne restant du mois sélectionné
+  const reliquatEpargneMoisCourant = parseFloat(ventilationAutomatique.partEnveloppes) || 0;
+
+  // 3. Somme réelle financée pour l'ensemble des projets (Déclarée AVANT les soldes dépendants)
+  const sommeFinancementProjets = useMemo(() => {
+    if (!Array.isArray(projets)) return 0;
+    return projets.reduce((acc, p, idx) => {
+      const key = String(p.id || p._id || p.nom || idx);
+      const financeDynamique = ventilationAutomatique.cumulProjets[key];
+      const financeDirect = parseFloat(p.apport || p.apport_initial || p.financement_actuel || p.cumul || 0);
+      return acc + (financeDynamique !== undefined ? financeDynamique : financeDirect);
+    }, 0);
+  }, [projets, ventilationAutomatique]);
+
+  // 4. Calcul du solde disponible réel net
+  const soldeDisponiblePourEnveloppes = useMemo(() => {
+    return Math.max(0, soldeGlobalNet - sommeFinancementProjets);
+  }, [soldeGlobalNet, sommeFinancementProjets]);
+
+  // 5. Calcul du pourcentage exact sanctuarisé
+  const pourcentageSanctuarise = soldeDisponiblePourEnveloppes > 0 
+    ? Math.min(100, Math.round((sommeAllocations / soldeDisponiblePourEnveloppes) * 100)) 
+    : 0;
+
+  // 6. Épargne restant disponible / libre
+  const epargneDisponible = useMemo(() => {
+    return Math.max(0, soldeGlobalNet - (sommeEnveloppesNette + sommeFinancementProjets));
+  }, [soldeGlobalNet, sommeEnveloppesNette, sommeFinancementProjets]);
+
+  const epargneLibre = epargneDisponible;
+
+  // 7. Pourcentages pour la répartition interactive
+  const pctEnveloppes = soldeGlobalNet > 0 ? Math.min(100, Math.max(0, (sommeEnveloppesNette / soldeGlobalNet) * 100)) : 0;
+  const pctProjets = soldeGlobalNet > 0 ? Math.min(100 - pctEnveloppes, Math.max(0, (sommeFinancementProjets / soldeGlobalNet) * 100)) : 0;
+  const pctLibre = Math.max(0, 100 - (pctEnveloppes + pctProjets));
+  const pctDisponible = pctLibre;
+
+  // ==========================================
+  // 6. FETCHING & EFFETS DE BORD
+  // ==========================================
+
+  const fetchProjets = useCallback(async () => {
+    if (!api || !profilId) return;
+    try {
+      const res = await api.get(`/get-projets/${encodeURIComponent(profilId)}`);
+      if (Array.isArray(res.data)) {
+        setProjets(res.data);
+      }
+    } catch (error) {
+      console.error("Erreur Fetch Projets:", error.response?.data || error);
+    }
+  }, [api, profilId, setProjets]);
+
+  const handleFetchAllocations = useCallback(async () => {
+    if (!filters?.profil || !api) return;
+    try {
+      const response = await api.get(`/get-allocations/${filters.profil}`);
+      setAllocations(response.data);
+    } catch (error) {
+      console.error("Erreur lors de la récupération des allocations:", error);
+    }
+  }, [filters?.profil, api, setAllocations]);
+
+  useEffect(() => {
+    if (profilId) {
+      handleFetchAllocations();
+      fetchProjets();
+    }
+  }, [profilId, handleFetchAllocations, fetchProjets]);
+
+  // ==========================================
+  // 7. DRAG AND DROP & HANDLERS D'ACTIONS
+  // ==========================================
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd2 = (event) => {
+    const { active, over } = event;
+    if (active && over && active.id !== over.id) {
+      setProjets((items) => {
+        const oldIndex = items.findIndex((i) => (i.id || i.nom) === active.id);
+        const newIndex = items.findIndex((i) => (i.id || i.nom) === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  // Actions Enveloppes
+  const handleSaveAllocation = async (nomEnveloppe, montant) => {
+    const userName = typeof user === 'string' ? user : (user?.username || user?.nom || 'Anonyme');
+
+    if (!nomEnveloppe || !montant) {
+      alert("Données manquantes (nom ou montant).");
+      return;
+    }
+
+    const data = {
+      utilisateur: String(userName),
+      profil: String(filters?.profil || 'default'),
+      projet: String(nomEnveloppe),
+      montant_alloue: parseFloat(montant),
+    };
+
+    try {
+      const res = await api.post(`/save-allocation`, data);
+      if (res.data?.status === "success") {
+        setNewProjet({ nom: '', cout: '' });
+        setShowAddProjet(false);
+        fetchAllocations();
+      }
+    } catch (error) {
+      console.error("Erreur Save Allocation:", error.response?.data || error);
+    }
+  };
+
+  const handleUpdateAllocation = async (projetNom, nouveauMontant) => {
+    if (!api) return;
+    try {
+      await api.put(
+        `/update-enveloppe-montant?projet=${encodeURIComponent(projetNom)}&profil=${encodeURIComponent(filters?.profil)}&nouveau_montant=${nouveauMontant}`
+      );
+      fetchAllocations();
+    } catch (error) {
+      console.error("Erreur Update Allocation:", error.response?.data || error);
+    }
+  };
+
+  const handleDeleteEnveloppe = async (projetNom) => {
+    if (!api) return;
+    try {
+      await api.delete(`/delete-enveloppe/${encodeURIComponent(projetNom)}?profil=${encodeURIComponent(filters?.profil)}`);
+      setDeleteModal({ show: false, projetNom: null });
+      fetchAllocations();
+    } catch (error) {
+      console.error("Erreur Delete Allocation:", error.response?.data || error);
+    }
+  };
+
+  // Actions Projets Futurs
+  const handleAddProject = async () => {
+    if (!form2.nom || !form2.cout || !api) return;
+
+    const userName = typeof user === 'string' ? user : (user?.username || user?.nom || 'Anonyme');
+
+    const data = {
+      utilisateur: String(userName),
+      profil: String(filters?.profil || 'default'),
+      nom: String(form2.nom),
+      cout: parseFloat(form2.cout) || 0,
+      apport: parseFloat(form2.apport) || 0,
+      capa: parseFloat(form2.capa) || 0,
+      utiliser_capa_stricte: Boolean(form2.utiliser_capa_stricte),
+      date: formatDateForApi(form2.date),
+      date_debut: formatDateForApi(form2.date_debut),
+    };
+
+    try {
+      const res = await api.post('/save-projet', data);
+      if (res.data?.status === "success") {
+        setForm2({ nom: '', cout: '', apport: '', capa: '', date: null, date_debut: new Date() });
+        setShowAddProject(false);
+        fetchProjets();
+      }
+    } catch (error) {
+      console.error("Erreur Save Projet:", error.response?.data || error);
+    }
+  };
+
+  const handleUpdateProject = async (updatedData, oldNom) => {
+    if (!api) return;
+
+    const userName = typeof user === 'string' ? user : (user?.username || user?.nom || 'Anonyme');
+
+    const payload = {
+      utilisateur: String(userName),
+      profil: String(filters?.profil || 'default'),
+      nom: String(updatedData.nom),
+      cout: parseFloat(updatedData.cout) || 0,
+      apport: parseFloat(updatedData.apport) || 0,
+      capa: parseFloat(updatedData.capa) || 0,
+      // 💡 FIX : Utiliser updatedData au lieu de form2
+      utiliser_capa_stricte: Boolean(updatedData.utiliser_capa_stricte),
+      date: formatDateForApi(updatedData.date),
+      date_debut: formatDateForApi(updatedData.date_debut),
+    };
+
+    try {
+      const res = await api.post(
+        `/update-projet?old_name=${encodeURIComponent(oldNom)}`,
+        payload
+      );
+      if (res.data?.status === "success") {
+        setEditingIndex(null);
+        setEditingId(null);
+        fetchProjets();
+      }
+    } catch (error) {
+      console.error("Erreur Update Projet:", error.response?.data || error);
+    }
+  };
+
+  const handleDeleteProject = async (nom) => {
+    if (!api || !filters?.profil) return;
+    try {
+      await api.delete(
+        `/delete-projet/${encodeURIComponent(nom)}/${encodeURIComponent(filters.profil)}`
+      );
+      setItemToDelete(null);
+      fetchProjets();
+    } catch (error) {
+      console.error("Erreur Delete Projet:", error.response?.data || error);
+    }
+  };
+
+
+  
+  return (
+    <div className="w-full h-full flex flex-col min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 shadow-xl backdrop-blur-[var(--glass-blur)]">
+
+{/* ================= HEADER & ONGLETS COMBINÉS ================= */}
+<div className="p-2.5 px-3.5 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent rounded-[var(--radius)] border border-white/10 shadow-sm backdrop-blur-[var(--glass-blur)] shrink-0 mb-4">
+  
+  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    
+    {/* GAUCHE : Solde Global + Séparateur + Onglets */}
+    <div className="flex items-center gap-3 shrink-0">
+      
+      {/* Solde Total Global */}
+      <div className="flex items-center gap-2 whitespace-nowrap">
+        <div className="p-1.5 bg-emerald-500/20 text-emerald-400 rounded-md border border-emerald-500/30 shrink-0">
+          <Wallet size={14} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] font-bold uppercase text-[var(--text-main)]/50 tracking-wider">
+            Épargne :
+          </span>
+          <span className="text-sm font-black text-[var(--text-main)] tabular-nums">
+            {soldeGlobalNet.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+          </span>
+        </div>
+      </div>
+
+      <div className="h-4 w-[1px] bg-white/10 hidden sm:block" />
+
+      {/* Barre d'Onglets intégrée */}
+      <div className="flex items-center gap-1 p-0.5 bg-black/30 rounded-lg border border-white/5">
+        <button
+          onClick={() => setActiveTab('envelopes')}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+            activeTab === 'envelopes'
+              ? 'bg-white/10 text-[var(--text-main)] shadow-sm border border-white/10'
+              : 'text-[var(--text-main)]/50 hover:text-[var(--text-main)] hover:bg-white/5'
+          }`}
+        >
+          <Mail size={13} className={activeTab === 'envelopes' ? 'text-emerald-400' : 'opacity-60'} />
+          <span className="hidden md:inline">Enveloppes</span>
+          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold leading-none ${
+            activeTab === 'envelopes' 
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+              : 'bg-white/5 text-[var(--text-main)]/40'
+          }`}>
+            {listeAffichage.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('projets')}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+            activeTab === 'projets'
+              ? 'bg-white/10 text-[var(--text-main)] shadow-sm border border-white/10'
+              : 'text-[var(--text-main)]/50 hover:text-[var(--text-main)] hover:bg-white/5'
+          }`}
+        >
+          <Rocket size={13} className={activeTab === 'projets' ? 'text-amber-400' : 'opacity-60'} />
+          <span className="hidden md:inline">Objectifs</span>
+          <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold leading-none ${
+            activeTab === 'projets' 
+              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
+              : 'bg-white/5 text-[var(--text-main)]/40'
+          }`}>
+            {(projets || []).length}
+          </span>
+        </button>
+      </div>
+
+    </div>
+
+    {/* DROITE : Répartition Détaillée (Réserves / Projets / Libre) */}
+    <div className="flex items-center gap-3 shrink-0 overflow-x-auto">
+      
+      {/* Réserves */}
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <Lock size={11} className="text-emerald-400 shrink-0" />
+          <span className="text-[10px] uppercase text-[var(--text-main)]/50 font-semibold hidden lg:inline">
+            Réservé :
+          </span>
+          <span className="text-xs font-black text-emerald-400 tabular-nums">
+            {sommeEnveloppesNette.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+          </span>
+        </div>
+
+      <div className="h-3 w-[1px] bg-white/10" />
+
+      {/* Projets */}
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
+        <Target size={11} className="text-amber-400 shrink-0" />
+        <span className="text-[10px] uppercase text-[var(--text-main)]/50 font-semibold hidden lg:inline">
+          Projets :
+        </span>
+        <span className="text-xs font-black text-amber-400 tabular-nums">
+          {sommeFinancementProjets.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+        </span>
+      </div>
+
+      <div className="h-3 w-[1px] bg-white/10" />
+
+      {/* Libre */}
+      <div className="flex items-center gap-1.5 whitespace-nowrap">
+        <Unlock size={11} className="text-sky-400 shrink-0" />
+        <span className="text-[10px] uppercase text-[var(--text-main)]/50 font-semibold hidden lg:inline">
+          Libre :
+        </span>
+        <span className="text-xs font-black text-sky-400 tabular-nums">
+          {epargneDisponible.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+        </span>
+      </div>
+
+    </div>
+  </div>
+
+  {/* Jauge de répartition micro en bas du composant */}
+  <div className="mt-2 pt-1 border-t border-white/5">
+    <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden flex gap-0.5">
+      {pctEnveloppes > 0 && (
+        <div 
+          style={{ width: `${pctEnveloppes}%` }} 
+          className="h-full bg-emerald-500 rounded-full transition-all duration-500" 
+          title={`Réserves: ${pctEnveloppes.toFixed(1)}%`}
+        />
+      )}
+      {pctProjets > 0 && (
+        <div 
+          style={{ width: `${pctProjets}%` }} 
+          className="h-full bg-amber-500 rounded-full transition-all duration-500" 
+          title={`Projets: ${pctProjets.toFixed(1)}%`}
+        />
+      )}
+      {pctDisponible > 0 && (
+        <div 
+          style={{ width: `${pctDisponible}%` }} 
+          className="h-full bg-sky-500 rounded-full transition-all duration-500" 
+          title={`Libre: ${pctDisponible.toFixed(1)}%`}
+        />
+      )}
+    </div>
+  </div>
+</div>
+
+      {/* ================= ONGLET 1 : ENVELOPPES ================= */}
+      {activeTab === 'envelopes' && (
+        <div className="flex flex-col flex-1 min-h-0">
+          {/* Jauge d'allocation */}
+          <div className="mb-3 p-3 bg-black/20 rounded-[var(--radius)] border border-white/5 shrink-0">
+            <div className="flex justify-between items-center mb-1.5">
+              <span className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-widest">
+                Part de l'épargne allouée
+              </span>
+              <span className="text-xs font-bold text-[var(--text-main)]/80">
+                {pourcentageSanctuarise}%
+              </span>
+            </div>
+
+            <div className="h-1.5 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-emerald-500 to-sky-500 transition-all duration-500"
+                style={{ width: `${pourcentageSanctuarise}%` }}
+              />
+            </div>
+
+            <div className="flex justify-between items-center mt-2 text-[8px] text-[var(--text-main)]/40 font-medium">
+              <span>Restant réservé : {sommeAllocations.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+              <span>Dispo réel : {soldeDisponiblePourEnveloppes.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €</span>
+            </div>
+          </div>
+
+          {/* Formulaire / Bouton d'ajout */}
+          {!showAddProjet ? (
+            <button 
+              onClick={() => setShowAddProjet(true)}
+              className="w-full py-2.5 mb-3 border-2 border-dashed border-white/10 rounded-[var(--radius)] flex items-center justify-center gap-2 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-[var(--glass-bg)] transition-all group shrink-0"
+            >
+              <div className="p-1 bg-[var(--glass-bg)] rounded-[var(--radius)] group-hover:scale-110 transition-transform">
+                <Plus size={14} />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest">Créer une réserve d'épargne</span>
+            </button>
+          ) : (
+            <div className="mb-3 p-4 bg-black/40 border border-white/10 rounded-xl shrink-0">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Nouvelle Enveloppe Financée</span>
+                <button onClick={() => setShowAddProjet(false)} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)]">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input 
+                  placeholder="Nom (ex: Urgence, Vacances)"
+                  className="bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-[var(--text-main)] outline-none focus:border-emerald-500"
+                  value={newProjet.nom}
+                  onChange={e => setNewProjet({...newProjet, nom: e.target.value})}
+                />
+                <input 
+                  type="number"
+                  placeholder="Montant alloué (€)"
+                  className="bg-black/20 border border-white/10 rounded-lg p-2 text-xs text-[var(--text-main)] outline-none focus:border-emerald-500"
+                  value={newProjet.cout}
+                  onChange={e => setNewProjet({...newProjet, cout: e.target.value})}
+                />
+              </div>
+              <button 
+                onClick={() => handleSaveAllocation(newProjet.nom, newProjet.cout)}
+                className="w-full mt-3 py-2 bg-emerald-500 text-white rounded-lg font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
+              >
+                Allouer l'épargne
+              </button>
+            </div>
+          )}
+
+         
+          {/* Liste des enveloppes */}
+          <div className="overflow-y-auto pr-1 flex-1 grid grid-cols-1 md:grid-cols-2 min-[2000px]:grid-cols-1 gap-2.5 content-start custom-scrollbar w-full">
+            {listeAffichage.length === 0 ? (
+              <div className="text-center py-6 col-span-full">
+                <p className="text-xs text-[var(--text-main)]/30 font-medium mb-1">
+                  Aucune enveloppe d'épargne créée.
+                </p>
+                <span className="text-[10px] text-[var(--text-main)]/20">
+                  Affectez votre solde actuel dans des enveloppes pour réserver vos fonds.
+                </span>
+              </div>
+            ) : (
+              listeAffichage.map((projet) => {
+                const nomClean = String(projet.nom || '').toLowerCase().trim();
+
+                // 1. Réserve initiale définie
+                const totalAlloue = allocationsParProjet[projet.nom] || 0;
+                
+                // 2. Récupération des données de transactions (montant + compteur)
+                const dataDepenses = depensesParEnveloppe[nomClean] || { montant: 0, count: 0 };
+                const totalDepense = dataDepenses.montant;
+                const nbTransactions = dataDepenses.count;
+                
+                // 3. Solde restant effectif
+                const soldeRestant = totalAlloue - totalDepense;
+
+                return (
+                  <div key={projet.id || projet.nom} className="group p-3 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] hover:border-white/20 transition-all">
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck size={16} className={soldeRestant >= 0 ? "text-emerald-400" : "text-rose-400"} />
+                        <div>
+                          <span className={`text-[8px] uppercase font-black tracking-widest block ${
+                            soldeRestant >= 0 ? 'text-emerald-400/80' : 'text-rose-400'
+                          }`}>
+                            {soldeRestant >= 0 
+                              ? `Dépensé : ${totalDepense.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` 
+                              : `Budget dépassé (${Math.abs(soldeRestant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €)`}
+                          </span>
+                          
+                          {/* NOM DE L'ENVELOPPE + BADGE DU NOMBRE DE TRANSACTIONS */}
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <h5 className="text-[var(--text-main)] font-bold text-xs">{projet.nom}</h5>
+                            <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-full bg-white/10 text-white/60">
+                              {nbTransactions} {nbTransactions > 1 ? 'transactions liées' : 'transactions liées'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => setDeleteModal({ show: true, projetNom: projet.nom })}
+                        className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/5">
+                      <div className="flex flex-col">
+                        <span className="text-[9px] text-[var(--text-main)]/40">Solde Restant</span>
+                        <span className={`text-sm font-black tabular-nums ${soldeRestant >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {soldeRestant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                        </span>
+                      </div>
+
+                      <div className="w-28">
+                        <label className="block text-[8px] uppercase text-[var(--text-main)]/30 font-black mb-0.5 text-right">Réserve Initiale</label>
+                        <input 
+                          type="number"
+                          key={totalAlloue}
+                          defaultValue={totalAlloue}
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && val !== totalAlloue) {
+                              handleUpdateAllocation(projet.nom, val);
+                            }
+                          }}
+                          className="w-full bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-right text-xs text-[var(--text-main)] font-bold outline-none focus:border-emerald-500 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+    </div>
+
+)}
+
+      {/* ================= ONGLET 2 : OBJECTIFS FUTURS ================= */}
+      {activeTab === 'projets' && (
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="mb-3 shrink-0">
+            {!showAddProject ? (
+              <button 
+                onClick={() => setShowAddProject(true)}
+                className="w-full py-2.5 border-2 border-dashed border-white/10 rounded-[var(--radius)] flex items-center justify-center gap-2 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-[var(--glass-bg)] transition-all group"
+              >
+                <div className="p-1 bg-[var(--glass-bg)] rounded-full group-hover:scale-110 transition-transform">
+                  <Plus size={14} />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest">Planifier un projet futur</span>
+              </button>
+            ) : (
+              <div className="grid grid-cols-2 gap-x-2 gap-y-2 bg-[var(--glass-bg)] p-3 rounded-xl border border-white/10">
+                <div className="col-span-2 flex justify-between items-center mb-1">
+                  <h3 className="text-[9px] font-black uppercase text-emerald-400 tracking-widest">Nouveau Projet Futur</h3>
+                  <button 
+                    onClick={() => setShowAddProject(false)}
+                    className="p-1 text-[var(--text-main)]/20 hover:text-[var(--text-main)]"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+
+                <input 
+                  className="col-span-2 bg-transparent border-b border-white/10 text-[var(--text-main)] text-xs p-1 focus:outline-none" 
+                  placeholder="Nom du projet (ex: Voiture, Voyage)" 
+                  value={form2.nom} 
+                  onChange={e => setForm2({...form2, nom: e.target.value})} 
+                />
+                
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-bold">Coût Cible (€)</label>
+                  <input 
+                    className="bg-transparent border-b border-white/10 text-[var(--text-main)] text-xs p-1 focus:outline-none" 
+                    type="number" 
+                    placeholder="0"
+                    value={form2.cout} 
+                    onChange={e => setForm2({...form2, cout: e.target.value})} 
+                  />
+                </div>
+
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-bold">Capacité / mois (€)</label>
+                  <input 
+                    className="bg-transparent border-b border-white/10 text-[var(--text-main)] text-xs p-1 focus:outline-none" 
+                    type="number" 
+                    placeholder="0"
+                    value={form2.capa} 
+                    onChange={e => setForm2({...form2, capa: e.target.value})} 
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 mt-2">
+                
+                  <label 
+                    htmlFor="utiliser_capa_stricte" 
+                    className="flex items-center justify-between p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 hover:border-slate-600 transition-all cursor-pointer group mt-2"
+                  >
+                    <div className="flex flex-col pr-3">
+                      <span className="text-xs font-medium text-slate-200 group-hover:text-white transition-colors">
+                        Mode capacité stricte
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        Limiter le prélèvement à {form2.capa || 0} €/mois
+                      </span>
+                    </div>
+
+                    {/* Toggle Switch */}
+                    <div className="relative inline-flex items-center flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        id="utiliser_capa_stricte"
+                        checked={form2.utiliser_capa_stricte || false}
+                        onChange={(e) => setForm2({ ...form2, utiliser_capa_stricte: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      {/* Fond du Switch */}
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-bold">Mois de début</label>
+                  <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-lg px-2 py-1.5">
+                    <Calendar size={12} className="text-[var(--text-main)]/40" />
+                    <DatePicker
+                      selected={form2.date_debut ? new Date(form2.date_debut) : new Date()}
+                      onChange={(date) => setForm2({ ...form2, date_debut: date })}
+                      dateFormat="MM/yyyy"
+                      showMonthYearPicker
+                      calendarClassName="custom-datepicker-dark"
+                      className="bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-bold w-full cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-0.5">
+                  <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-bold">Échéance visée</label>
+                  <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-lg px-2 py-1.5">
+                    <Calendar size={12} className="text-[var(--text-main)]/40" />
+                    <DatePicker
+                      selected={form2.date ? new Date(form2.date) : null}
+                      onChange={(date) => setForm2({ ...form2, date: date })}
+                      dateFormat="dd/MM/yyyy"
+                      className="bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-bold w-full cursor-pointer"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  onClick={handleAddProject} 
+                  className="col-span-2 mt-1 py-2 bg-white text-slate-900 rounded-lg font-black text-[9px] uppercase hover:bg-emerald-400 transition-all shadow-md"
+                >
+                  Ajouter le projet
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-y-auto pr-1 flex-1 space-y-2 custom-scrollbar">
+            {(projets || []).length === 0 ? (
+              <div className="text-center py-6">
+                <p className="text-xs text-[var(--text-main)]/30 font-medium mb-1">
+                  Aucun projet futur planifié.
+                </p>
+              </div>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd2}>
+                <SortableContext items={(projets || []).map(p => p.id || p.nom)} strategy={verticalListSortingStrategy}>
+                  {(projets || []).map((pRaw, idx) => {
+                    const keyProjet = String(pRaw.id || pRaw._id || pRaw.nom || idx);
+
+                    const p = {
+                      id: keyProjet,
+                      nom: pRaw.nom || pRaw.title || "Projet sans nom",
+                      cout: parseFloat(pRaw.cout || pRaw.cout_total || pRaw.montant || 0),
+                      capa: parseFloat(pRaw.capa || pRaw.capacite || pRaw.epargne_mensuelle || 0),
+                      date: pRaw.date || pRaw.date_echeance || new Date(),
+                      date_debut: pRaw.date_debut || new Date(),
+                      apport: parseFloat(pRaw.apport || pRaw.apport_initial || 0),
+                      utiliser_capa_stricte: Boolean(pRaw.utiliser_capa_stricte),
+                    };
+
+                    const isEditing = editingIndex === idx;
+                    
+                    const dateEcheance = new Date(p.date);
+                    const dateEcheanceValide = !isNaN(dateEcheance.getTime()) ? dateEcheance : new Date();
+
+                    const dateDebut = new Date(p.date_debut);
+                    const dateDebutValide = !isNaN(dateDebut.getTime()) ? dateDebut : new Date();
+
+                    const dateDebutStr = p.date_debut ? String(p.date_debut).slice(0, 7) : moisCourantStr;
+                    const projetACommence = moisCourantStr >= dateDebutStr;
+
+                    // On cherche d'abord par keyProjet, puis par le nom du projet si keyProjet est un ID technique
+                    const cumulVentilation = ventilationAutomatique?.cumulProjets?.[keyProjet] 
+                      ?? ventilationAutomatique?.cumulProjets?.[pRaw.nom];
+
+                    const apportTotalProjete = cumulVentilation !== undefined 
+                      ? cumulVentilation 
+                      : p.apport;
+
+                    const ajoutMois = ventilationAutomatique?.repartitionProjets?.[keyProjet] 
+                      ?? ventilationAutomatique?.repartitionProjets?.[pRaw.nom] 
+                      ?? 0;
+
+                    const pctAvancement = p.cout > 0 
+                      ? Math.min(100, (apportTotalProjete / p.cout) * 100) 
+                      : 0;
+
+
+                    /// 1. Déduction du besoin restant et de l'effort mensuel
+                    const besoinRestant = Math.max(0, p.cout - (apportTotalProjete || 0));
+                    const epargneMensuelleCible = p.utiliser_capa_stricte ? parseFloat(p.capa || 0) : (ajoutMois || 0);
+
+                    // 2. Calcul du nombre de mois nécessaires
+                    const moisNecessaires = epargneMensuelleCible > 0 
+                      ? Math.ceil(besoinRestant / epargneMensuelleCible) 
+                      : Infinity;
+
+                    // 3. Calcul de la date d'achèvement estimée
+                    const dateFinEstimee = new Date(dateDebutValide || new Date());
+                    if (isFinite(moisNecessaires)) {
+                      dateFinEstimee.setMonth(dateFinEstimee.getMonth() + moisNecessaires);
+                    }
+
+                    // 4. Comparaison avec l'échéance fixée (corrigé ici : besoinRestant sans 't')
+                    const estFaisable = besoinRestant === 0 || (isFinite(moisNecessaires) && dateFinEstimee <= dateEcheanceValide);
+                    const moisFinFormate = dateFinEstimee.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+                    return (
+                      <SortableItem key={p.id} id={p.id} disabled={isEditing}>
+                        <div className={`group relative border transition-all p-3 rounded-xl ${
+                          isEditing ? 'bg-slate-900/90 border-[var(--primary)]' : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08]'
+                        }`}>
+                          {isEditing ? (
+                            <div className="flex flex-col gap-2">
+                              <input 
+                                className="bg-black/40 border border-white/10 text-[var(--text-main)] text-xs p-1.5 rounded-lg focus:outline-none focus:border-[var(--primary)]"
+                                value={tempProjet.nom}
+                                onChange={e => setTempProjet({...tempProjet, nom: e.target.value})}
+                                placeholder="Nom du projet"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <input 
+                                  type="number"
+                                  className="bg-black/40 border border-white/10 text-[var(--text-main)] text-xs p-1.5 rounded-lg focus:outline-none focus:border-[var(--primary)]"
+                                  value={tempProjet.cout}
+                                  onChange={e => setTempProjet({...tempProjet, cout: e.target.value})}
+                                  placeholder="Coût (€)"
+                                />
+                                <input 
+                                  type="number"
+                                  className="bg-black/40 border border-white/10 text-[var(--text-main)] text-xs p-1.5 rounded-lg focus:outline-none focus:border-[var(--primary)]"
+                                  value={tempProjet.capa}
+                                  onChange={e => setTempProjet({...tempProjet, capa: e.target.value})}
+                                  placeholder="Capacité (€)"
+                                />
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="flex items-center gap-1.5 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
+                                  <Calendar size={12} className="text-[var(--text-main)]/40 shrink-0" />
+                                  <DatePicker
+                                    selected={tempProjet.date_debut ? new Date(tempProjet.date_debut) : new Date()}
+                                    onChange={(date) => setTempProjet({ ...tempProjet, date_debut: date })}
+                                    dateFormat="MM/yyyy"
+                                    showMonthYearPicker
+                                    calendarClassName="custom-datepicker-dark"
+                                    className="bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-bold w-full cursor-pointer"
+                                  />
+                                </div>
+                                <div className="flex items-center gap-1.5 bg-black/40 border border-white/10 rounded-lg px-2 py-1">
+                                  <Calendar size={12} className="text-[var(--text-main)]/40 shrink-0" />
+                                  <DatePicker
+                                    selected={tempProjet.date ? new Date(tempProjet.date) : null}
+                                    onChange={(d) => setTempProjet({ ...tempProjet, date: d })}
+                                    dateFormat="dd/MM/yyyy"
+                                    className="bg-transparent border-none outline-none text-[var(--text-main)] text-[9px] font-bold w-full cursor-pointer"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Toggle Capacité Stricte */}
+                                <label 
+                                  htmlFor={`capa-stricte-${p.id}`}
+                                  className="flex items-center justify-between p-2 rounded-lg bg-black/40 border border-white/10 hover:border-white/20 transition-all cursor-pointer group"
+                                >
+                                  <div className="flex flex-col pr-2">
+                                    <span className="text-[11px] font-medium text-[var(--text-main)]">
+                                      Capacité stricte
+                                    </span>
+                                    <span className="text-[9px] text-[var(--text-main)]/50">
+                                      Max {tempProjet.capa || 0} €/mois
+                                    </span>
+                                  </div>
+
+                                  <div className="relative inline-flex items-center shrink-0">
+                                    <input
+                                      type="checkbox"
+                                      id={`capa-stricte-${p.id}`}
+                                      checked={!!tempProjet.utiliser_capa_stricte}
+                                      onChange={(e) => setTempProjet({ ...tempProjet, utiliser_capa_stricte: e.target.checked })}
+                                      className="sr-only peer"
+                                    />
+                                    <div className="w-8 h-4.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-3.5 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-emerald-500 shadow-inner"></div>
+                                  </div>
+                                </label>
+
+                              <div className="flex justify-end gap-2 mt-1">
+                                <button 
+                                  onClick={() => setEditingIndex(null)}
+                                  className="px-2 py-1 bg-white/5 text-[var(--text-main)] text-[10px] rounded-lg hover:bg-white/10"
+                                >
+                                  Annuler
+                                </button>
+                                <button 
+                                  onClick={() => handleUpdateProject(tempProjet, editingId)}
+                                  className="px-2 py-1 bg-[var(--primary)] text-white text-[10px] font-bold rounded-lg hover:bg-[var(--primary)] flex items-center gap-1"
+                                >
+                                  <Check size={11} /> Enregistrer
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex justify-between items-start">
+                              <div className="w-full">
+                                <div className="flex items-center gap-2 mb-0.5">
+                                  <h4 className="text-[var(--text-main)] font-bold text-xs">{p.nom}</h4>
+                                  
+                                  {ajoutMois > 0 && (
+                                    <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase border border-emerald-500/30 shadow-[0_0_8px_rgba(52,211,153,0.2)]">
+                                      +{ajoutMois.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € / mois
+                                    </span>
+                                  )}
+                                  
+                                  {!projetACommence && (
+                                    <span className="text-[8px] bg-amber-500/10 text-amber-400 px-1.5 py-0.5 rounded font-bold border border-amber-500/20">
+                                      Inactif
+                                    </span>
+                                  )}
+                                </div>
+
+                                <p className="text-[9px] text-[var(--text-main)]/40 font-medium italic mb-1">
+                                  Début : {dateDebutValide.toLocaleDateString('fr-FR', { month: '2-digit', year: 'numeric' })} • Échéance : {dateEcheanceValide.toLocaleDateString('fr-FR')}
+                                </p>
+
+                                {/* 👇 BADGE DE CAPACITÉ ET FAISABILITÉ */}
+                              {p.utiliser_capa_stricte && (
+                                <div className="flex items-center gap-1.5 my-1">
+                                  {/* Badge Capacité Mensuelle */}
+                                  <span className="text-[8px] bg-[var(--primary)]/10 text-[var(--primary)] px-1.5 py-0.5 rounded font-bold border border-[var(--primary)]/20">
+                                    Capacité : {parseFloat(p.capa || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € / mois
+                                  </span>
+
+                                  {/* Badge Statut de Faisabilité */}
+                                  {pctAvancement >= 100 ? (
+                                    <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold uppercase border border-emerald-500/30 shadow-[0_0_8px_rgba(52,211,153,0.2)]">
+                                      Financé à 100%
+                                    </span>
+                                  ) : estFaisable ? (
+                                    <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30 shadow-[0_0_8px_rgba(52,211,153,0.2)]">
+                                      Faisable avant échéance
+                                    </span>
+                                  ) : (
+                                    <span className="text-[8px] bg-rose-500/20 text-rose-400 px-1.5 py-0.5 rounded font-bold border border-rose-500/30 shadow-[0_0_8px_rgba(244,63,94,0.2)]">
+                                      Financé en {moisFinFormate}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+
+                                <div className="mt-1 pr-2">
+                                  <div className="flex justify-between text-[9px] font-bold mb-1">
+                                    <span className="text-[var(--text-main)]">
+                                      {apportTotalProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € 
+                                      <span className="text-[var(--text-main)]/40 font-normal"> / {p.cout.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</span>
+                                    </span>
+                                    <span className={pctAvancement >= 100 ? "text-emerald-400" : "text-[var(--primary)]"}>
+                                      {pctAvancement.toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full transition-all duration-700 ease-out ${pctAvancement >= 100 ? 'bg-emerald-500' : 'bg-[var(--primary)]'}`}
+                                      style={{ width: `${Math.min(100, pctAvancement)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2">
+                                <button 
+                                  onClick={() => { 
+                                    setEditingIndex(idx); 
+                                    setEditingId(p.id); 
+                                    setTempProjet({ 
+                                      nom: p.nom, 
+                                      cout: p.cout, 
+                                      date: p.date, 
+                                      date_debut: p.date_debut, 
+                                      capa: p.capa,
+                                      utiliser_capa_stricte: Boolean(p.utiliser_capa_stricte)
+                                    });
+                                  }} 
+                                  className="p-1 text-[var(--text-main)]/20 hover:text-[var(--primary)] rounded-lg"
+                                >
+                                  <Edit3 size={13} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteProject(p.nom)}
+                                  className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 rounded-lg"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </SortableItem>
+                    );
+                  })}
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+
+
 function FinanceApp() {
 
 
@@ -5421,15 +6761,7 @@ const setFilters = (newFiltersOrFn) => {
   };
 
 const [editingIndex, setEditingIndex] = useState(null);
-const loadProjets = async () => {
-  try {
-    // On utilise filters.profil pour être raccord avec le reste de ton app
-    const res = await api.get(`/get-projets/${filters.profil}`);
-    setProjets(res.data);
-  } catch (err) {
-    console.error("Erreur lors du chargement des projets:", err);
-  }
-};
+
 
 
 const [toutesLesCategories, setToutesLesCategories] = useState([]);
@@ -5461,89 +6793,6 @@ useEffect(() => {
 }, [user]);
 
 
-const handleAdd = async (e) => {
-  if (e) e.preventDefault();
-  
-  // Vérification de sécurité
-  if (!form2.nom || !form2.cout) {
-    return alert("Le nom et le coût sont obligatoires !");
-  }
-
-  try {
-    // On prépare l'objet exactement comme ton SQL l'attend
-    const projetData = {
-      nom: form2.nom,
-      cout: parseFloat(form2.cout),
-      capa: parseFloat(form2.capa || 0),
-      date: form2.date,
-      utilisateur: user, // On envoie directement 'user' qui contient le nom (ex: "Alex")
-      profil: filters.profil
-    };
-
-
-
-    const res = await api.post(`/save-projet`, projetData);
-
-    if (res.status === 200 || res.status === 201) {
-      // Reset du formulaire
-      setForm2({ nom: '', cout: '', capa: '', date: '2026-06-01' });
-      
-      // On recharge la liste immédiatement
-      loadProjets();
-    }
-  } catch (err) {
-    console.error("Erreur lors de l'ajout:", err);
-    alert("Erreur lors de l'enregistrement du projet.");
-  }
-};
-
-
-
-const handleDelete = async (nomProjet) => {
-  // On retire le window.confirm d'ici car la confirmation 
-  // est maintenant gérée par l'overlay visuel dans le composant
-  try {
-    await api.delete(`/delete-projet/${nomProjet}/${filters.profil}`);
-    
-    // On ferme l'overlay de confirmation
-    setItemToDelete(null); 
-    
-    // On recharge la liste après suppression
-    loadProjets();
-  } catch (err) {
-    console.error("Erreur lors de la suppression:", err);
-    // Optionnel : on peut afficher une alerte ici si le serveur ne répond pas
-    setItemToDelete(null);
-  }
-};
-
-const [tempProjet, setTempProjet] = useState({});
-const handleUpdate = async (p, oldName) => {
-  try {
-    await api.post(`/update-projet?old_name=${encodeURIComponent(oldName)}`, {
-      nom: p.nom,
-      cout: parseFloat(p.cout),
-      capa: parseFloat(p.capa || 0),
-      date: p.date,
-      utilisateur: user,
-      profil: filters.profil
-    });
-    
-    setEditingIndex(null); // On ferme par l'index
-    setEditingId(null);
-    loadProjets();
-  } catch (err) {
-    console.error("Erreur:", err);
-  }
-};
-
-useEffect(() => {
-  // Charge les projets dès que l'utilisateur bascule sur l'onglet Projets
-  // OU change de profil ( filters.profil )
-  if (activeRightTab === 'projects') {
-    loadProjets();
-  }
-}, [activeRightTab, filters.profil]);
 
 const [userTheme, setUserTheme] = useState({
   color_revenus: "#10b981",
@@ -8437,36 +9686,7 @@ const [showAddProjet, setShowAddProjet] = useState(false);
 const [newProjet, setNewProjet] = useState({ nom: '', cout: '' });
 
 
-const listeAffichage = useMemo(() => {
-  // 1. On récupère les noms des projets existants
-  const nomsExistants = projets.map(p => String(p.nom).toLowerCase());
-  
-  // 2. On cherche dans les allocations s'il y a des nouveaux noms (enveloppes créées à la volée)
-  const nouvellesEnveloppes = [];
-  allocations.forEach(a => {
-    if (!nomsExistants.includes(String(a.projet).toLowerCase())) {
-      // Si ce nom n'est pas encore dans la liste, on simule un objet "projet"
-      const existeDeja = nouvellesEnveloppes.find(e => e.nom.toLowerCase() === a.projet.toLowerCase());
-      if (!existeDeja) {
-        nouvellesEnveloppes.push({
-          id: a.projet, // On utilise le nom comme ID temporaire
-          nom: a.projet,
-          cout: 0 // Par défaut, ou tu peux essayer de récupérer une valeur
-        });
-      }
-    }
-  });
 
-  return [...projets, ...nouvellesEnveloppes];
-}, [projets, allocations]);
-
-
-const optionsEnveloppes = useMemo(() => {
-  // On récupère les noms de listeAffichage ou de tes projets/allocations
-  const enveloppes = listeAffichage.map(p => ({ v: p.nom, l: p.nom }));
-  // On ajoute une option pour désallouer la transaction
-  return [{ v: "", l: "📦 Aucune enveloppe" }, ...enveloppes];
-}, [listeAffichage]);
 
 
 useEffect(() => {
@@ -8630,7 +9850,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "3.7"; 
+const CURRENT_VERSION = "3.8"; 
 
 useEffect(() => {
   if (!user) return;
@@ -8891,7 +10111,6 @@ const [visibleAnnuel, setVisibleAnnuel] = useState({
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
 const [hiddenComptes, setHiddenComptes] = useState({});
-
 useEffect(() => {
   if (user) {
     fetchTransactions();
@@ -9156,7 +10375,7 @@ if (!user) {
   <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
     <div className="flex flex-col items-start leading-none">
       <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-        Kleea <span className="text-[var(--primary)]">v.3.7</span>
+        Kleea <span className="text-[var(--primary)]">v.3.8</span>
       </span>
       <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
         Stable Build
@@ -10054,9 +11273,9 @@ if (!user) {
 
 
                 {/* COLONNE 3 : GRAPHES & BUDGETS */}
-                <div className="col-span-12 lg:col-span-4 flex flex-col h-[700px] lg:h-full min-h-0">
+                  <div className="col-span-12 lg:col-span-4 flex flex-col h-[700px] lg:h-full min-h-0">
 
-                  {/* SWITCHER DE SOUS-ONGLETS */}
+                    {/* SWITCHER DE SOUS-ONGLETS */}
                     <div className="flex bg-slate-900/50 p-1.5 rounded-[24px] mb-2 border border-white/5 backdrop-blur-[var(--glass-blur)] w-fit self-center shadow-inner">
                       <button 
                         onClick={() => setActiveRightTab('graphs')}
@@ -10069,27 +11288,15 @@ if (!user) {
                         Analytique
                       </button>
                       <button 
-                        onClick={() => setActiveRightTab('projects')}
+                        onClick={() => setActiveRightTab('epargneProjets')}
                         className={`px-6 py-2 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${
-                          activeRightTab === 'projects' 
+                          activeRightTab === 'epargneProjets' 
                           ? 'bg-white text-slate-900 shadow-xl scale-105' 
                           : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                         }`}
                       >
-                        Projets
+                        Gestion Épargne & Projets
                       </button>
-
-                    <button 
-                        onClick={() => setActiveRightTab('Répartition')}
-                        className={`px-6 py-2 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${
-                          activeRightTab === 'Répartition' 
-                          ? 'bg-white text-slate-900 shadow-xl scale-105' 
-                          : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
-                        }`}
-                      >
-                        Répartition
-                      </button>
-
                     </div>
 
                     {/* BLOC JAUGE ÉPARGNE ANNUELLE CUMULÉE */}
@@ -10455,482 +11662,27 @@ if (!user) {
                           </div>
                       );
 
-                      case 'projects':
+                      
+                      case 'epargneProjets':
                         return (
-                          /* CONTENU DE L'ONGLET PROJETS */
-                            <div className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-500">
-                                <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-6 flex flex-col h-full shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden">
-                                  
-                                  <div className="flex items-center justify-between mb-6 shrink-0">
-                                    <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-xs">Mes Envies & Projets 🚀</h3>
-                                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-1 rounded-lg border border-emerald-500/20 font-bold">
-                                      {projets.length} ACTIFS
-                                    </span>
-                                  </div>
-
-                               {/* SECTION AJOUT DE PROJET DISCRÈTE */}
-                                  <div className="mb-6 shrink-0">
-                                    {!showAddProject ? (
-                                      /* BOUTON DISCRET */
-                                      <button 
-                                        onClick={() => setShowAddProject(true)}
-                                        className="w-full py-3 border-2 border-dashed border-white/10 rounded-[24px] flex items-center justify-center gap-3 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-[var(--glass-bg)] transition-all group"
-                                      >
-                                        <div className="p-1 bg-[var(--glass-bg)] rounded-full group-hover:scale-110 transition-transform">
-                                          <Plus size={16} />
-                                        </div>
-                                        <span className="text-[11px] font-black uppercase tracking-widest">Ajouter un nouveau projet</span>
-                                      </button>
-                                    ) : (
-                                      /* LE FORMULAIRE (Affiché au clic) */
-                                      <div className="grid grid-cols-2 gap-x-3 gap-y-4 bg-[var(--glass-bg)] p-5 rounded-[2rem] border border-white/10 animate-in zoom-in-95 duration-200">
-                                        <div className="col-span-2 flex justify-between items-center mb-1">
-                                          <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-[0.2em]">Nouveau Projet</h3>
-                                          <button 
-                                            onClick={() => setShowAddProject(false)}
-                                            className="p-1 text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors"
-                                          >
-                                            <X size={14} />
-                                          </button>
-                                        </div>
-
-                                        <input 
-                                          className="col-span-2 bg-transparent border-b border-white/10 text-[var(--text-main)] text-sm p-1 focus:outline-none focus:border-white/40 transition-colors" 
-                                          placeholder="Nom du projet (ex: Voyage Japon)" 
-                                          value={form2.nom} 
-                                          onChange={e => setForm2({...form2, nom: e.target.value})} 
-                                        />
-                                        
-                                        <div className="flex flex-col gap-1">
-                                          <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-bold ml-1">Coût Total (€)</label>
-                                          <input 
-                                            className="bg-transparent border-b border-white/10 text-[var(--text-main)] text-sm p-1 focus:outline-none" 
-                                            type="number" 
-                                            placeholder="0"
-                                            value={form2.cout} 
-                                            onChange={e => setForm2({...form2, cout: e.target.value})} 
-                                          />
-                                        </div>
-
-                                        <div className="flex flex-col gap-1">
-                                          <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-bold ml-1">Épargne / mois (€)</label>
-                                          <input 
-                                            className="bg-transparent border-b border-white/10 text-[var(--text-main)] text-sm p-1 focus:outline-none focus:border-emerald-500/50" 
-                                            type="number" 
-                                            placeholder="0"
-                                            value={form2.capa} 
-                                            onChange={e => setForm2({...form2, capa: e.target.value})} 
-                                          />
-                                        </div>
-
-                                        <div className="col-span-2 flex flex-col gap-1">
-                                          <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-bold ml-1">Échéance souhaitée</label>
-                                          <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-xl px-3 py-2 focus-within:border-[var(--primary)]/50 transition-all">
-                                            <Calendar size={14} className="text-[var(--text-main)]/40" />
-                                            <DatePicker
-                                              selected={form2.date ? new Date(form2.date) : null}
-                                              onChange={(date) => setForm2({ ...form2, date: date })}
-                                              dateFormat="dd/MM/yyyy"
-                                              className="bg-transparent border-none outline-none text-[var(--text-main)] text-[11px] font-bold w-full cursor-pointer"
-                                              calendarClassName="custom-calendar-dark"
-                                              popperPlacement="bottom-start"
-                                              portalId="root-portal" 
-                                            />
-                                          </div>
-                                        </div>
-
-                                        <button 
-                                          onClick={() => {
-                                            handleAdd(); // Ta fonction d'ajout
-                                            setShowAddProject(false); // On referme après l'ajout
-                                          }} 
-                                          className="col-span-2 mt-2 py-3 bg-white text-slate-900 rounded-xl font-black text-[10px] uppercase hover:bg-[var(--primary)] hover:text-[var(--text-main)] transition-all shadow-lg active:scale-95"
-                                        >
-                                          Lancer le projet 🚀
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-
-                              {/* --- LISTE DES PROJETS --- */}
-                                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3">
-                                  <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd2}>
-                                    <SortableContext items={projets.map(p => p.nom)} strategy={verticalListSortingStrategy}>
-                                      {projets.map((p, idx) => {
-                                        const isEditing = editingIndex === idx;
-                                        const isConfirmingDelete = itemToDelete === p.nom;
-
-                                        return (
-                                          <SortableItem key={p.nom} id={p.nom} disabled={isEditing}>
-                                            <div className={`group relative border transition-all p-4 rounded-[24px] ${
-                                              isEditing ? 'bg-[var(--glass-bg)] border-blue-500/50' : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08]'
-                                            }`}>
-                                              
-                                              {/* OVERLAY DE CONFIRMATION DE SUPPRESSION */}
-                                              {isConfirmingDelete && (
-                                                <div className="absolute inset-0 z-20 bg-slate-900/90 backdrop-blur-[var(--glass-blur)] rounded-[24px] flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
-                                                  <p className="text-[10px] font-black uppercase text-[var(--text-main)] mb-3 tracking-widest text-center">
-                                                    Supprimer {p.nom} ?
-                                                  </p>
-                                                  <div className="flex gap-2 w-full">
-                                                    <button 
-                                                      onClick={() => setItemToDelete(null)}
-                                                      className="flex-1 py-2 bg-[var(--glass-bg)] text-[var(--text-main)] text-[9px] font-bold uppercase rounded-lg hover:bg-white/20"
-                                                    >
-                                                      Non
-                                                    </button>
-                                                    <button 
-                                                      onClick={() => { handleDelete(p.nom); setItemToDelete(null); }}
-                                                      className="flex-1 py-2 bg-rose-500 text-[var(--text-main)] text-[9px] font-black uppercase rounded-lg hover:bg-rose-600 shadow-lg shadow-rose-500/20"
-                                                    >
-                                                      Supprimer
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              )}
-
-                                              {isEditing ? (
-                                                /* MODE ÉDITION CORRIGÉ */
-                                                <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                                                  <div className="grid grid-cols-2 gap-2">
-                                                    <div className="space-y-1">
-                                                      <label className="text-[9px] uppercase font-black text-[var(--text-main)]/30 ml-1">Nom du projet</label>
-                                                      <input 
-                                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] outline-none focus:border-blue-500/50"
-                                                        value={tempProjet.nom || ''}
-                                                        onChange={(e) => setTempProjet({...tempProjet, nom: e.target.value})}
-                                                      />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                      <label className="text-[9px] uppercase font-black text-[var(--text-main)]/30 ml-1">Coût total (€)</label>
-                                                      <input 
-                                                        type="number"
-                                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] outline-none focus:border-blue-500/50"
-                                                        value={tempProjet.cout || ''}
-                                                        onChange={(e) => setTempProjet({...tempProjet, cout: e.target.value})}
-                                                      />
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="grid grid-cols-2 gap-2">
-                                                   <div className="space-y-1">
-                                                      <label className="text-[9px] uppercase font-black text-[var(--text-main)]/30 ml-1">Échéance</label>
-                                                      
-                                                      {/* Le conteneur qui simule l'apparence de tes autres inputs */}
-                                                      <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-xl px-3 py-2 focus-within:border-blue-500/50 transition-all">
-                                                        <Calendar size={14} className="text-[var(--text-main)]/40" />
-                                                        
-                                                        <DatePicker
-                                                          selected={tempProjet.date ? new Date(tempProjet.date) : null} // Protection format date
-                                                          onChange={(date) => setTempProjet({ ...tempProjet, date: date })}
-                                                          dateFormat="dd/MM/yyyy"
-                                                          // Style de l'input invisible car le parent gère le look
-                                                          className="bg-transparent border-none outline-none text-[var(--text-main)] text-xs font-bold w-full cursor-pointer"
-                                                          calendarClassName="custom-calendar-dark"
-                                                          popperPlacement="bottom-start"
-                                                          popperModifiers={[
-                                                            {
-                                                              name: "preventOverflow",
-                                                              options: {
-                                                                boundary: "viewport",
-                                                              },
-                                                            },
-                                                          ]}
-                                                        />
-                                                      </div>
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                      <label className="text-[9px] uppercase font-black text-[var(--text-main)]/30 ml-1">Épargne / Mois (€)</label>
-                                                      <input 
-                                                        type="number"
-                                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-3 py-2 text-xs text-[var(--text-main)] outline-none focus:border-blue-500/50"
-                                                        value={tempProjet.capa || ''}
-                                                        onChange={(e) => setTempProjet({...tempProjet, capa: e.target.value})}
-                                                      />
-                                                    </div>
-                                                  </div>
-
-                                                  <div className="flex gap-2 pt-2">
-                                                    <button 
-                                                      onClick={() => setEditingIndex(null)}
-                                                      className="flex-1 py-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 text-[10px] font-bold uppercase rounded-xl hover:bg-[var(--glass-bg)] transition-all"
-                                                    > Annuler </button>
-                                                    <button 
-                                                      onClick={() => handleUpdate(tempProjet, p.nom)}
-                                                      className="flex-1 py-2 bg-blue-600 text-[var(--text-main)] text-[10px] font-black uppercase rounded-xl hover:bg-blue-500 shadow-lg shadow-blue-600/20 transition-all flex items-center justify-center gap-2"
-                                                    >
-                                                      <Save size={12} /> Sauvegarder
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              ) : (
-                                                /* MODE AFFICHAGE */
-                                                (() => {
-                                                  const epargneConsommeeParPrecedents = projets.slice(0, idx).reduce((acc, current) => acc + Number(current.cout), 0);
-                                                  const epargneDisponiblePourCeProjet = Math.max(0, epargneCumuleeAnnuelle - epargneConsommeeParPrecedents);
-                                                  const epargneAttribuee = Math.min(p.cout, epargneDisponiblePourCeProjet);
-                                                  const resteAEpargner = Math.max(0, p.cout - epargneAttribuee);
-                                                  const moisNecessaires = p.capa > 0 ? Math.ceil(resteAEpargner / p.capa) : (resteAEpargner > 0 ? Infinity : 0);
-                                                  const dateFinReelle = new Date();
-                                                  dateFinReelle.setMonth(dateFinReelle.getMonth() + (moisNecessaires === Infinity ? 0 : moisNecessaires));
-                                                  const dateEcheance = new Date(p.date);
-                                                  const estFaisable = moisNecessaires === Infinity ? false : dateFinReelle <= dateEcheance;
-                                                  const pourcentageProjet = Math.round((epargneAttribuee / p.cout) * 100) || 0;
-
-                                                  return (
-                                                    <>
-                                                      <div className="flex justify-between items-start mb-3">
-                                                        <div>
-                                                          <div className="flex items-center gap-2 mb-1">
-                                                            <h4 className="text-[var(--text-main)] font-bold text-sm">{p.nom}</h4>
-                                                            <span className="text-[8px] bg-[var(--glass-bg)] px-1.5 py-0.5 rounded text-[var(--text-main)]/40 border border-white/10 font-bold uppercase">
-                                                              {Number(p.capa).toLocaleString()}€/mois
-                                                            </span>
-                                                          </div>
-                                                          <div className="flex items-center gap-2">
-                                                            <p className="text-[10px] text-[var(--text-main)]/40 font-medium italic">
-                                                              Échéance : {dateEcheance.toLocaleDateString('fr-FR')}
-                                                            </p>
-                                                            <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-black uppercase ${
-                                                              estFaisable ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-                                                            }`}>
-                                                              {estFaisable ? '✓ Faisable' : '✕ Hors délai'}
-                                                            </span>
-                                                          </div>
-                                                        </div>
-                                                        
-                                                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                          <button 
-                                                            onClick={() => { 
-                                                              setEditingIndex(idx); 
-                                                              setEditingId(p.nom);
-                                                              // CETTE LIGNE PRÉ-REMPLIT LE FORMULAIRE :
-                                                              setTempProjet({
-                                                                nom: p.nom,
-                                                                cout: p.cout,
-                                                                date: p.date,
-                                                                capa: p.capa
-                                                              });
-                                                            }} 
-                                                            className="p-1.5 text-[var(--text-main)]/20 hover:text-blue-400 hover:bg-blue-400/10 rounded-lg transition-all"
-                                                          >
-                                                            <Edit3 size={14} />
-                                                          </button>
-                                                          <button 
-                                                            onClick={() => setItemToDelete(p.nom)} // Déclenche la confirmation stylisée
-                                                            className="p-1.5 text-[var(--text-main)]/20 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                                                          >
-                                                            <Trash2 size={14} />
-                                                          </button>
-                                                        </div>
-                                                      </div>
-                                                      
-                                                      {/* JAUGE (Inchangée) */}
-                                                      <div className="relative w-full h-2 bg-black/40 rounded-full overflow-hidden border border-white/5 shadow-inner">
-                                                        <div 
-                                                          className="h-full transition-all duration-1000 ease-out" 
-                                                          style={{ 
-                                                            width: `${pourcentageProjet}%`,
-                                                            background: estFaisable 
-                                                              ? `linear-gradient(90deg, ${userTheme.color_jauge || '#10b981'}99, ${userTheme.color_jauge || '#10b981'})` 
-                                                              : `linear-gradient(90deg, #f43f5e99, #f43f5e)`,
-                                                            boxShadow: `0 0 10px ${estFaisable ? (userTheme.color_jauge || '#10b981') : '#f43f5e'}33`
-                                                          }} 
-                                                        />
-                                                      </div>
-
-                                                      {/* FOOTER INFOS MIS À JOUR */}
-                                                      <div className="mt-3 p-2.5 bg-black/20 rounded-xl border border-white/5 space-y-2">
-                                                        <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider">
-                                                          <span className="text-[var(--text-main)]/40">Objectif : {Number(p.cout).toLocaleString()} €</span>
-                                                          <span style={{ color: estFaisable ? (userTheme.color_jauge || '#10b981') : '#f43f5e' }}>{pourcentageProjet}%</span>
-                                                        </div>
-                                                        
-                                                        <div className="flex justify-between items-end border-t border-white/5 pt-2">
-                                                          <div className="space-y-0.5">
-                                                            <p className="text-[9px] text-[var(--text-main)]/30 uppercase font-bold tracking-tighter">Achat estimé :</p>
-                                                            <p className={`text-xs font-black ${estFaisable ? 'text-[var(--text-main)]' : 'text-rose-400'}`}>
-                                                              {moisNecessaires === Infinity ? "Capa. insuffisante" : dateFinReelle.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}
-                                                            </p>
-                                                          </div>
-                                                          <div className="text-right">
-                                                            <p className="text-[9px] text-[var(--text-main)]/30 uppercase font-bold tracking-tighter text-right">Progression :</p>
-                                                            <p className="text-xs font-black text-[var(--text-main)]">
-                                                              {epargneAttribuee.toLocaleString()} <span className="text-[var(--text-main)]/30 text-[9px] font-medium">/ {Number(p.cout).toLocaleString()} €</span>
-                                                            </p>
-                                                          </div>
-                                                        </div>
-                                                      </div>
-                                                    </>
-                                                  );
-                                                })()
-                                              )}
-                                            </div>
-                                          </SortableItem>
-                                        );
-                                      })}
-                                    </SortableContext>
-                                  </DndContext>
-                                </div>
-                              </div>
-                            </div>
-                            );
-                            
-
-                          case 'Répartition':
-            return (
-            <div className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-500">
-              <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-6 flex flex-col h-full shadow-2xl backdrop-blur-[var(--glass-blur)]">
-                
-                {/* HEADER : SOLDE DISPONIBLE */}
-                <div className="mb-6 p-4 bg-black/20 rounded-[var(--radius)] border border-white/5">
-                  <h4 className="text-[var(--text-main)]/40 text-[10px] font-black uppercase tracking-widest mb-1">Total à Répartir</h4>
-                  <div className="flex justify-between items-end">
-                    <p className="text-2xl font-black text-[var(--text-main)]">{soldeGlobal.toLocaleString('fr-FR')} €</p>
-                    <div className="text-right">
-                      <span className="text-[9px] text-[var(--text-main)]/30 uppercase font-bold block">Reste libre</span>
-                      <span className={`text-sm font-black ${resteAVentiler < 0 ? 'text-rose-500' : 'text-emerald-400'}`}>
-                        {resteAVentiler.toLocaleString('fr-FR')} €
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-4 h-2 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden">
-                    <div 
-                      className="h-full bg-gradient-to-r from-emerald-500 to-sky-500 transition-all duration-500"
-                      style={{ width: `${Math.min(100, (sommeAllocations / soldeGlobal) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* --- NOUVEAU BOUTON STYLE DASHED --- */}
-                {!showAddProjet ? (
-                  <button 
-                    onClick={() => setShowAddProjet(true)}
-                    className="w-full py-4 mb-6 border-2 border-dashed border-white/10 rounded-[var(--radius)] flex items-center justify-center gap-3 text-[var(--text-main)]/40 hover:text-[var(--text-main)] hover:border-white/20 hover:bg-[var(--glass-bg)] transition-all group"
-                  >
-                    <div className="p-1.5 bg-[var(--glass-bg)] rounded-[var(--radius)] group-hover:scale-110 transition-transform">
-                      <Plus size={16} />
-                    </div>
-                    <span className="text-[11px] font-black uppercase tracking-[0.2em]">Ajouter une nouvelle enveloppe</span>
-                  </button>
-                ) : (
-                  /* FORMULAIRE NOUVELLE ENVELOPPE */
-                  <div className="mb-6 p-5 bg-black/40 border border-white/10 rounded-[24px] animate-in zoom-in-95 duration-200">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Configuration</span>
-                      <button onClick={() => setShowAddProjet(false)} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)]">
-                        <X size={14} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <input 
-                        placeholder="Nom (ex: Vacances)"
-                        className="bg-black/20 border border-white/10 rounded-[var(--radius)] p-3 text-xs text-[var(--text-main)] outline-none focus:border-emerald-500"
-                        value={newProjet.nom}
-                        onChange={e => setNewProjet({...newProjet, nom: e.target.value})}
-                      />
-                      <input 
-                        type="number"
-                        placeholder="Montant (€)"
-                        className="bg-black/20 border border-white/10 rounded-[var(--radius)] p-3 text-xs text-[var(--text-main)] outline-none focus:border-emerald-500"
-                        value={newProjet.cout}
-                        onChange={e => setNewProjet({...newProjet, cout: e.target.value})}
-                      />
-                    </div>
-                    <button 
-                      onClick={() => handleSaveAllocation(newProjet.nom, newProjet.cout)}
-                      className="w-full mt-4 py-3 bg-emerald-500 text-[var(--text-main)] rounded-[var(--radius)] font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-all"
-                    >
-                      Confirmer la création
-                    </button>
-                  </div>
-                )}
-
-                {/* LISTE DES PROJETS */}
-<div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-  {listeAffichage.map((projet) => {
-    // 1. Montant théorique initialement affecté au projet / enveloppe
-    const totalAlloue = allocations
-      .filter(a => String(a.projet) === String(projet.nom))
-      .reduce((sum, curr) => sum + (parseFloat(curr.montant_alloue) || 0), 0);
-
-    // 2. 💡 CALCUL DES TRANSACTIONS DROPPÉES DEDANS
-    // Si une dépense vaut -800€, totalTransactions vaudra -800
-    const totalTransactions = toutesLesTransactions
-      .filter(t => t.enveloppe === projet.nom)
-      .reduce((sum, curr) => sum + (parseFloat(curr.montant) || 0), 0);
-
-    // 3. 💡 SOLDE DISPONIBLE REEL = Financement théorique + Transactions (Dépenses négatives / Revenus positifs)
-    const soldeDisponibleReel = totalAlloue + totalTransactions;
-
-    // Pourcentage de la barre de progression (Théorique vs Ce qu'il reste)
-    const pourcentageRestant = totalAlloue > 0 ? Math.max(0, Math.min(100, (soldeDisponibleReel / totalAlloue) * 100)) : 0;
-
-    return (
-      <div key={projet.id} className="group p-4 bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] mb-4 hover:border-white/20 transition-all">
-        <div className="flex justify-between items-center mb-3">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-[var(--text-main)]/40 uppercase font-black tracking-widest">Enveloppe</span>
-            <h5 className="text-[var(--text-main)] font-bold text-sm">{projet.nom}</h5>
-          </div>
-          
-          {/* BOUTON SUPPRIMER L'ENTIÈRETE */}
-          <button 
-            onClick={() => setDeleteModal3({ show: true, projetNom: projet.nom })}
-            className="p-2 text-[var(--text-main)]/10 hover:text-rose-500 transition-colors"
-          >
-            <Trash2 size={14} />
-          </button>
-        </div>
-
-        <div className="flex items-end gap-4">
-          <div className="flex-1">
-            <div className="flex justify-between text-[10px] mb-1">
-              <span className="text-[var(--text-main)]/40">Financement (Objectif)</span>
-              <span className="text-white/60 font-medium">{totalAlloue.toLocaleString('fr-FR')} €</span>
-            </div>
-
-            {/* BARRE DE PROGRESSION MISE À JOUR */}
-            <div className="h-1.5 w-full bg-[var(--glass-bg)] rounded-[var(--radius)] overflow-hidden mb-2">
-              <div 
-                className={`h-full transition-all duration-500 ${soldeDisponibleReel < 0 ? 'bg-rose-500' : 'bg-emerald-500'}`} 
-                style={{ width: `${pourcentageRestant}%` }} 
-              />
-            </div>
-
-            {/* DISPLAY DU RESTE DISPONIBLE APRES TRANSACTIONS */}
-            <div className="flex justify-between items-center mt-1">
-              <span className="text-[10px] text-[var(--text-main)]/40 uppercase font-black tracking-tight">Reste Disponible :</span>
-              <span className={`text-xs font-black tabular-nums ${soldeDisponibleReel < 0 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`}>
-                {soldeDisponibleReel.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-              </span>
-            </div>
-          </div>
-
-          {/* INPUT DE MODIFICATION DU FINANCEMENT THEORIQUE */}
-          <div className="w-32 self-center">
-            <label className="block text-[8px] uppercase text-[var(--text-main)]/20 font-black mb-1 text-right">Ajuster Budget</label>
-            <input 
-              type="number"
-              defaultValue={totalAlloue}
-              onBlur={async (e) => {
-                const val = parseFloat(e.target.value);
-                if (val !== totalAlloue) {
-                  await api.put(`/update-enveloppe-montant?projet=${projet.nom}&profil=${filters.profil}&nouveau_montant=${val}`);
-                  fetchAllocations();
-                }
-              }}
-              className="w-full bg-black/40 border border-white/10 rounded-[var(--radius)] px-3 py-2 text-right text-sm text-[var(--text-main)]/80 font-bold outline-none focus:border-emerald-500 transition-all"
-            />
-          </div>
-        </div>
-      </div>
-    );
-  })}
-</div>
-    </div>
-  </div>
-);
+                          <div className="flex-1 flex flex-col min-h-0 animate-in fade-in slide-in-from-right-4 duration-500">
+                      {/* ✅ CORRECTION : Passer la variable réellement définie dans le parent */}
+                            <GestionEpargneProjet
+                              soldeGlobal={soldeGlobal}
+                              allocations={allocations}
+                              setAllocations={setAllocations}
+                              projets={projets}
+                              setProjets={setProjets}
+                              transactions={toutesLesTransactions} // 👈 Remplacez par le nom exact de votre state
+                              epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
+                              recapAnnuelStats={recapAnnuelStats}
+                              filters={filters}
+                              user={user}
+                              api={api}
+                              fetchAllocations={fetchAllocations}
+                            />
+                          </div>
+                        );
 
                             
                          default:
@@ -12787,25 +13539,25 @@ if (!user) {
           </button>
 
           {/* Boucle sur tes vraies enveloppes (optionsEnveloppes ou listeAffichage) */}
-          {listeAffichage.map((env) => (
+         {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => (
             <button
-              key={env.id}
+              key={projetNom}
               onClick={async (e) => {
                 e.stopPropagation();
-                await updateCell(t.id, 'enveloppe', env.nom);
+                await updateCell(t.id, 'enveloppe', projetNom);
                 setActiveDropdownId(null);
               }}
               className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between ${
-                t.enveloppe === env.nom 
+                t.enveloppe === projetNom 
                   ? 'bg-emerald-500/10 text-emerald-400' 
                   : 'text-white/60 hover:bg-white/5 hover:text-white'
               }`}
             >
               <div className="flex items-center gap-2 truncate">
                 <span>💰</span>
-                <span className="truncate">{env.nom}</span>
+                <span className="truncate">{projetNom}</span>
               </div>
-              {t.enveloppe === env.nom && <span className="text-[10px]">✓</span>}
+              {t.enveloppe === projetNom && <span className="text-[10px]">✓</span>}
             </button>
           ))}
         </div>
@@ -14458,7 +15210,20 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* 💡 NOUVEAUTÉ : SYNCHRONISATION BANCAIRE POWENS */}
+        {/* 💡 NOUVEAUTÉ 1 : NOUVEAU CALCUL ÉPARGNE & PROJETS */}
+        <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
+          <span className="text-base mt-0.5">🎯</span>
+          <div>
+            <h4 className="text-[15px] font-black text-cyan-400 uppercase tracking-wide">
+              Gestion Intelligente des Projets & Enveloppes
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              Vos projets se financent désormais uniquement sur l' <strong className="text-cyan-400">argent réellement disponible</strong> sur votre compte. L'application protège d'abord vos enveloppes de charges et ajuste automatiquement le montant attribué à vos objectifs pour éviter tout risque de sur-financement.
+            </p>
+          </div>
+        </div>
+
+        {/* 💡 NOUVEAUTÉ 2 : SYNCHRONISATION BANCAIRE POWENS */}
         <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
           <span className="text-base mt-0.5">🏦</span>
           <div>
@@ -14478,7 +15243,7 @@ if (!user) {
         onClick={handleClosePatchModal}
         className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-cyan-600 hover:from-amber-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-amber-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
       >
-        Découvrir la nouveauté !
+        Découvrir les nouveautés !
       </button>
 
     </div>

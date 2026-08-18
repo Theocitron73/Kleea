@@ -85,6 +85,88 @@ select option {
   z-index: 9999 !important;
 }
 
+/* Vue Sélection des Mois & Années */
+.react-datepicker__month-container {
+  background-color: #111111 !important;
+}
+
+.react-datepicker__month-wrapper {
+  display: flex !important;
+  justify-content: space-around !important;
+  margin: 0.4rem 0 !important;
+}
+
+/* Textes des mois et des années */
+.react-datepicker__month-text,
+.react-datepicker__year-text,
+.react-datepicker__quarter-text {
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  padding: 0.5rem !important;
+  border-radius: 0.5rem !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Survol d'un mois */
+.react-datepicker__month-text:hover,
+.react-datepicker__year-text:hover,
+.react-datepicker__quarter-text:hover {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  color: #818cf8 !important;
+}
+
+/* Mois sélectionné */
+.react-datepicker__month-text--selected,
+.react-datepicker__month-text--keyboard-selected,
+.react-datepicker__year-text--selected {
+  background-color: #6366f1 !important;
+  color: #ffffff !important;
+  font-weight: 900 !important;
+}
+
+/* Mois désactivés (si minDate/maxDate appliqués) */
+.react-datepicker__month-text--disabled,
+.react-datepicker__year-text--disabled {
+  color: rgba(255, 255, 255, 0.15) !important;
+  cursor: not-allowed !important;
+}
+
+/* Navigation & En-tête de l'année */
+.react-datepicker__year-dropdown-container,
+.react-datepicker__year-option,
+.react-datepicker__year-select,
+.react-datepicker-year-header {
+  color: rgba(255, 255, 255, 0.9) !important;
+  background-color: #111111 !important;
+}
+
+/* Flèches de navigation (précédent / suivant) */
+.react-datepicker__navigation-icon::before {
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
+  border-color: #818cf8 !important;
+}
+
+/* Menu déroulant de l'année (si activé) */
+.react-datepicker__year-dropdown {
+  background-color: #111111 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.react-datepicker__year-option:hover {
+  background-color: rgba(99, 102, 241, 0.2) !important;
+  color: #818cf8 !important;
+}
+
+/* Année sélectionnée dans le menu déroulant */
+.react-datepicker__year-option--selected_year {
+  color: #6366f1 !important;
+  font-weight: bold !important;
+}
+
 /* Si tu n'as pas de div 'root-portal' dans ton index.html, 
    DatePicker le créera tout seul, mais tu peux styliser le conteneur ici */
 #root-portal {
