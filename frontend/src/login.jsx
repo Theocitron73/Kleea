@@ -6924,6 +6924,7 @@ const handleAddCompte = async (e) => {
     objectif: 0,                                  // Objectif par défaut à la création (géré ensuite dans sa carte)
     couleur: newCompteColor,                      // La couleur depuis le state
     utilisateur: user,
+    powens_name: null //
   };
 
   try {

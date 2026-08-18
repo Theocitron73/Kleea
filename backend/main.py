@@ -517,14 +517,14 @@ class CompteConfig(BaseModel):
 @app.get("/config-comptes/{username}")
 def get_config_comptes(username: str):
     u_clean = username.strip().lower()
-    # 💡 2. SELECT * récupérera automatiquement la nouvelle colonne powens_name
     query = text("SELECT * FROM configuration WHERE LOWER(utilisateur) = :u")
-    with engine.connect() as conn:
-        df = pd.read_sql(query, conn, params={"u": u_clean})
     
-    # Remplacer les valeurs NaN par None pour le JSON
-    df = df.where(pd.notnull(df), None)
-    return df.to_dict(orient="records")
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": u_clean})
+        # Transformation directe en liste de dicts (sans Pandas, pas de NaN !)
+        comptes = [dict(row._mapping) for row in result]
+        
+    return comptes
 
 
 @app.post("/config-comptes")
