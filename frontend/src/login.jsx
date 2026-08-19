@@ -8936,6 +8936,8 @@ const confirmBatchImport = async () => {
 // 1. État pour afficher/masquer la modale de sélection
 const [showPowensModal, setShowPowensModal] = useState(false);
 const [isSyncingPowens, setIsSyncingPowens] = useState(false);
+// En haut de votre composant FinanceApp / Login :
+const [isManualSyncing, setIsManualSyncing] = useState(false);
 // Remplace ou ajoute cet état en haut de ton composant
 const [isSyncingData, setIsSyncingData] = useState(false);
 const [isOpen, setIsOpen] = useState(false);
@@ -9112,72 +9114,64 @@ const handleSyncPowens = async () => {
   }
 };
 
-// 🟢 4. RÉSULTAT DE L'IMPORTATION POWENS (appelé par la modale)
+// 🟢 4. RÉSULTAT DE L'IMPORTATION POWENS (mis à jour pour TOUT afficher)
 const handlePowensImportSuccess = (transactions, accountName) => {
   if (!transactions || transactions.length === 0) {
-    setNotification({ message: `Aucune transaction trouvée pour le compte ${accountName}.`, type: "warning" });
+    setNotification({ 
+      message: `Aucune transaction trouvée pour le compte ${accountName}.`, 
+      type: "warning" 
+    });
     return;
   }
 
-  // 1. Définition de la fonction de création de clé (date, nom nettoyé, montant)
+  // 1. Fonction de génération de clé unique
   const getTxKey = (t) => {
     const dateStr = t.date ? String(t.date).trim() : "";
-    // On récupère t.nom ou t.libelle (selon ce qui existe)
     const nomStr = (t.nom || t.libelle || "").trim().toLowerCase().replace(/\s+/g, ' ');
-    // On s'assure d'avoir un nombre avec 2 décimales pour éviter les écarts de type "-12.50" vs "-12.5"
     const montantNum = Number(t.montant).toFixed(2);
     return `${dateStr}_${nomStr}_${montantNum}`;
   };
 
-  // 2. Charger les clés des transactions DÉJÀ EXISTANTES en BDD/State
-  // ⚠️ Remplacez `allTransactions` par le nom de votre state React qui contient vos transactions BDD existantes
+  // 2. Clés existantes en BDD / State global
   const existingKeys = new Set(
     (toutesLesTransactions || []).map(t => getTxKey(t))
   );
 
-  // 3. Filtrer les nouvelles transactions
-  const clesImportationEnCours = new Set();
+  // 3. Traiter TOUTES les transactions sans les filtrer, mais en les marquant
+  const clesVuesDansCeLot = new Set();
 
-  const nouvellesTransactionsUniques = transactions.filter(t => {
+  const transactionsMarquees = transactions.map(t => {
     const key = getTxKey(t);
 
-    // ❌ Déjà présent dans votre BDD/App
-    if (existingKeys.has(key)) {
-      return false;
-    }
+    const existeEnBDD = existingKeys.has(key);
+    const existeDansMemeLot = clesVuesDansCeLot.has(key);
 
-    // ❌ Doublon présent dans le même lot d'import Powens
-    if (clesImportationEnCours.has(key)) {
-      return false;
-    }
+    // Si la transaction existe déjà en BDD ou est un doublon dans ce même lot
+    const isAlreadyImported = existeEnBDD || existeDansMemeLot;
 
-    // ✅ Vraie nouvelle transaction
-    clesImportationEnCours.add(key);
-    return true;
+    clesVuesDansCeLot.add(key);
+
+    return {
+      ...t,
+      isAlreadyImported // 👈 Propriété utilisée pour griser et gérer la sélection
+    };
   });
 
-  // Si après filtrage il n'y a plus rien
-  if (nouvellesTransactionsUniques.length === 0) {
-    setNotification({ 
-      message: `Toutes les transactions de ${accountName} sont déjà enregistrées.`, 
-      type: "info" 
-    });
-    setTimeout(() => setNotification(null), 3000);
-    return;
-  }
+  const nbNouvelles = transactionsMarquees.filter(t => !t.isAlreadyImported).length;
+  const nbDéjaImportees = transactionsMarquees.length - nbNouvelles;
 
   setFileName(`Import Powens (${accountName})`);
-  setTempTransactions(nouvellesTransactionsUniques);
+  setTempTransactions(transactionsMarquees);
+
   setNotification({ 
-    message: `${nouvellesTransactionsUniques.length} nouvelles transactions récupérées pour ${accountName} !`, 
+    message: `${transactionsMarquees.length} transactions récupérées (${nbNouvelles} nouvelles, ${nbDéjaImportees} déjà importées).`, 
     type: "success" 
   });
 
   setTimeout(() => {
     setNotification(null); 
-  }, 2000);
+  }, 3000);
 
-  // 🔄 Mettre à jour la liste des banques/comptes
   fetchPowensConnections();
 };
 
@@ -14124,40 +14118,55 @@ if (!user) {
           </div>
 
           {/* ACTION 2 : SYNCHRONISER */}
+{/* ACTION 2 : SYNCHRONISER */}
 {(() => {
   const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
   // Vérifie si l'utilisateur a au moins un compte/connexion Powens
   const hasConnectedPowens = powensData?.connections && powensData.connections.length > 0;
 
+  const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
+
+  const handleClick = async (e) => {
+    if (isExecuting) return;
+    setIsManualSyncing(true);
+    try {
+      if (handleSyncPowens) {
+        await handleSyncPowens(e);
+      }
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
+
   return (
     <div 
-      onClick={!isSyncingData ? handleSyncPowens : undefined}
+      onClick={handleClick}
       className={`
         relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
         ${hasPendingSync 
           ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-          : isSyncingData 
-            ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
+          : isExecuting 
+            ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
             : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
       `}
     >
-      {/* Pastille clignotante en haut à droite */}
-      {hasPendingSync && (
+      {/* Pastille clignotante en haut à droite (masquée pendant le chargement) */}
+      {hasPendingSync && !isExecuting && (
         <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
         </span>
       )}
 
-      {/* Icône */}
+      {/* Icône avec animation de rotation (animate-spin) pendant le chargement */}
       <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
-        isSyncingData || isCheckingSync 
+        isExecuting 
           ? 'bg-[var(--primary)] text-black animate-spin' 
           : hasPendingSync 
             ? 'bg-[var(--primary)] text-black' 
             : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
       }`}>
-        {isSyncingData || isCheckingSync ? <RefreshCw size={18} /> : <Download size={18} />}
+        {isExecuting ? <RefreshCw size={18} /> : <Download size={18} />}
       </div>
 
       {/* Bloc principal : Titre + Sous-texte à gauche */}
@@ -14170,9 +14179,17 @@ if (!user) {
           </h3>
           
           <p className={`text-[8px] font-bold uppercase tracking-widest ${
-            hasPendingSync ? 'text-rose-400 font-black animate-pulse' : 'text-emerald-400/80 font-bold'
+            isExecuting 
+              ? 'text-[var(--primary)] font-black animate-pulse'
+              : hasPendingSync 
+                ? 'text-rose-400 font-black animate-pulse' 
+                : 'text-emerald-400/80 font-bold'
           }`}>
-            {hasPendingSync ? 'Nouvelles transactions' : 'Données Powens'}
+            {isExecuting 
+              ? 'Synchronisation...' 
+              : hasPendingSync 
+                ? 'Nouvelles transactions' 
+                : 'Données Powens'}
           </p>
         </div>
 
@@ -14243,98 +14260,158 @@ if (!user) {
 
         </div>
 
-        {/* 3. RÉCAPITULATIF & TABLEAU DE PRÉVISUALISATION */}
-        {transactionsCalculees && transactionsCalculees.length > 0 && (
-          <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
-            <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
+          {/* 3. RÉCAPITULATIF & TABLEAU DE PRÉVISUALISATION */}
+          {transactionsCalculees && transactionsCalculees.length > 0 && (
+            <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
+              <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
 
-            <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
-              <div className="flex items-center gap-2">
-                <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                  <Wallet size={10} className="text-[var(--primary)]" />
-                  <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
-                  <span className="text-[10px] font-black text-[var(--primary)] uppercase">
-                    {selectedCompte}
-                  </span>
-                </div>
-
-                <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
-
-                {[
-                  { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
-                  { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
-                  { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
-                ].map((stat, idx) => (
-                  <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                    <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
-                    <span className={`text-[10px] font-black ${stat.color}`}>
-                      {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+              <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
+                <div className="flex items-center gap-2">
+                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
+                    <Wallet size={10} className="text-[var(--primary)]" />
+                    <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
+                    <span className="text-[10px] font-black text-[var(--primary)] uppercase">
+                      {selectedCompte}
                     </span>
                   </div>
-                ))}
+
+                  <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
+
+                  {[
+                    { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
+                    { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
+                    { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
+                  ].map((stat, idx) => (
+                    <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
+                      <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
+                      <span className={`text-[10px] font-black ${stat.color}`}>
+                        {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => { setTempTransactions([]); setFileName(""); }} 
+                    className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
+                  >
+                    Annuler
+                  </button>
+                  
+                  {/* On ne compte et n'importe que les nouvelles transactions */}
+                  {(() => {
+                    const nouvellesLignes = transactionsCalculees.filter(t => !t.isAlreadyImported);
+                    return (
+                      <button 
+                        onClick={confirmBatchImport}
+                        disabled={nouvellesLignes.length === 0}
+                        className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                      >
+                        <Check size={12} strokeWidth={4} /> Importer {nouvellesLignes.length} nouvelles lignes
+                      </button>
+                    );
+                  })()}
+                </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => { setTempTransactions([]); setFileName(""); }} 
-                  className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
-                >
-                  Annuler
-                </button>
-                <button 
-                  onClick={confirmBatchImport}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20"
-                >
-                  <Check size={12} strokeWidth={4} /> Importer {transactionsCalculees.length} lignes
-                </button>
-              </div>
-            </div>
+              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+                <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
+                      <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
+                        <th className="p-4">Date</th>
+                        <th className="p-4">Désignation</th>
+                        <th className="p-4">Catégorie</th>
+                        <th className="p-4 text-right">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/[0.02]">
+                      {transactionsCalculees.map((t, i) => {
+                        const isTransfert = t.categorie.startsWith('🔄');
+                        const isImported = t.isAlreadyImported;
 
-            <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
-              <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
-                <table className="w-full text-left border-collapse">
-                  <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
-                    <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
-                      <th className="p-4">Date</th>
-                      <th className="p-4">Désignation</th>
-                      <th className="p-4">Catégorie</th>
-                      <th className="p-4 text-right">Montant</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/[0.02]">
-                    {transactionsCalculees.map((t, i) => {
-                      const isTransfert = t.categorie.startsWith('🔄');
-                      return (
-                        <tr key={i} className="hover:bg-[var(--glass-bg)] transition-colors group">
-                          <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">{t.date}</td>
-                          <td className="p-4">
-                            <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px]">
-                              {t.nom}
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
-                              isTransfert 
-                                ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
-                                : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
-                            }`}>
-                              {t.categorie}
-                            </span>
-                          </td>
-                          <td className={`p-4 text-right font-black text-[11px] ${
-                            isTransfert ? 'text-violet-400' : t.montant < 0 ? 'text-rose-400' : 'text-emerald-400'
-                          }`}>
-                            {t.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        // Détecter si la ligne précédente avait un statut 'isAlreadyImported' différent
+                        const prevTransaction = i > 0 ? transactionsCalculees[i - 1] : null;
+                        const isFirstDelimiter = i > 0 && prevTransaction.isAlreadyImported !== isImported;
+
+                        return (
+                          <React.Fragment key={i}>
+                            {/* 🟢 LIGNE DE SÉPARATION ET DÉLIMITATION */}
+                            {isFirstDelimiter && (
+                              <tr className="bg-white/[0.02]">
+                                <td colSpan={4} className="py-2 px-4 border-y border-[var(--primary)]/30 bg-[var(--primary)]/5">
+                                  <div className="flex items-center justify-center gap-3">
+                                    <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-transparent" />
+                                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--primary)] px-2 py-0.5 rounded-full bg-black/40 border border-[var(--primary)]/30">
+                                      {isImported ? '▲ Nouvelles transactions ci-dessus / Déjà importées ci-dessous ▼' : '▲ Déjà importées ci-dessus / Nouvelles transactions ci-dessous ▼'}
+                                    </span>
+                                    <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-transparent" />
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+
+                            {/* Ligne standard de transaction */}
+                            <tr 
+                              className={`transition-all group ${
+                                isImported 
+                                  ? 'opacity-30 bg-white/[0.01] grayscale select-none' 
+                                  : 'hover:bg-[var(--glass-bg)]'
+                              }`}
+                            >
+                              <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">
+                                {t.date}
+                              </td>
+                              
+                              <td className="p-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px]">
+                                    {t.nom}
+                                  </div>
+
+                                  {/* Badge indicateur de ligne déjà enregistrée */}
+                                  {isImported && (
+                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-white/10 text-[var(--text-main)]/60 border border-white/10 shrink-0">
+                                      Déjà importé
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="p-4">
+                                <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
+                                  isImported
+                                    ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
+                                    : isTransfert 
+                                      ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
+                                      : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
+                                }`}>
+                                  {t.categorie}
+                                </span>
+                              </td>
+
+                              <td className={`p-4 text-right font-black text-[11px] ${
+                                isImported
+                                  ? 'text-[var(--text-main)]/20'
+                                  : isTransfert 
+                                    ? 'text-violet-400' 
+                                    : t.montant < 0 
+                                      ? 'text-rose-400' 
+                                      : 'text-emerald-400'
+                              }`}>
+                                {t.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+                              </td>
+                            </tr>
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
       </div>
 
       {/* COLONNE DROITE : INTELLIGENCE (SEULE) */}
