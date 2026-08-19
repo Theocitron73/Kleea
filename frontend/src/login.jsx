@@ -2957,7 +2957,7 @@ const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProfil, fil
     const joursNoms = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
     const topJourSemaine = Object.entries(joursSemaineMap).sort((a, b) => b[1] - a[1])[0] || [1, 0];
 
-    const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
+    const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"];
     const triMois = Object.entries(moisMap).sort((a, b) => b[1] - a[1]);
     const topMoisMax = triMois[0] || [0, 0];
     const topMoisMin = triMois[triMois.length - 1] || [0, 0];
@@ -7364,7 +7364,7 @@ const financeData = useMemo(() => {
   }));
 
   // 2. Logique pour déterminer le mois précédent
-  const moisFr = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  const moisFr = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "décembre"];
   const moisIndex = moisFr.indexOf(filters.mois.toLowerCase().trim());
   
   let moisPrecedentLabel = filters.mois;
