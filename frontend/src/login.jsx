@@ -13288,48 +13288,48 @@ if (!user) {
                     
                     <div className="space-y-3">
 
-  {/* 1. SÉLECTION DU PROFIL (Nettoyé) */}
-  <CustomSelect 
-    label="Profil cible"
-    value={filters.profil}
-    icon={User}
-    options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
-    onChange={(val) => setFilters(f => ({ ...f, profil: val }))} // 🟢 Uniquement sa propre modification
-  />
+                      {/* 1. SÉLECTION DU PROFIL (Nettoyé) */}
+                      <CustomSelect 
+                        label="Profil cible"
+                        value={filters.profil}
+                        icon={User}
+                        options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
+                        onChange={(val) => setFilters(f => ({ ...f, profil: val }))} // 🟢 Uniquement sa propre modification
+                      />
 
-  {/* 2. SÉLECTION DU COMPTE BANCAIRE */}
-  <CustomSelect 
-    label="Compte bancaire"
-    value={selectedCompte}
-    icon={Search}
-    options={[
-      { v: 'tous', l: 'Tous les comptes' },
-      ...soldesTries.map(s => ({ v: s.compte, l: s.compte }))
-    ]}
-    onChange={(val) => setSelectedCompte(val)} // 🟢 Uniquement sa propre modification
-  />
+                      {/* 2. SÉLECTION DU COMPTE BANCAIRE */}
+                      <CustomSelect 
+                        label="Compte bancaire"
+                        value={selectedCompte}
+                        icon={Search}
+                        options={[
+                          { v: 'tous', l: 'Tous les comptes' },
+                          ...soldesTries.map(s => ({ v: s.compte, l: s.compte }))
+                        ]}
+                        onChange={(val) => setSelectedCompte(val)} // 🟢 Uniquement sa propre modification
+                      />
 
-  {/* Mois et Année restent identiques... */}
-  <CustomSelect 
-    label="Mois"
-    value={filters.mois}
-    icon={Calendar}
-    options={moisListe}
-    onChange={(val) => setFilters({...filters, mois: val})}
-  />
+                      {/* Mois et Année restent identiques... */}
+                      <CustomSelect 
+                        label="Mois"
+                        value={filters.mois}
+                        icon={Calendar}
+                        options={moisListe}
+                        onChange={(val) => setFilters({...filters, mois: val})}
+                      />
 
-  <CustomSelect 
-    label="Année"
-    value={filters.annee}
-    icon={Calendar1}
-    options={[...new Set(availablePeriods.map(p => p.annee))]
-      .sort((a, b) => b - a)
-      .map(year => ({ v: year, l: year.toString() }))
-    }
-    onChange={(val) => setFilters({...filters, annee: val})}
-  />
-  
-</div>
+                      <CustomSelect 
+                        label="Année"
+                        value={filters.annee}
+                        icon={Calendar1}
+                        options={[...new Set(availablePeriods.map(p => p.annee))]
+                          .sort((a, b) => b - a)
+                          .map(year => ({ v: year, l: year.toString() }))
+                        }
+                        onChange={(val) => setFilters({...filters, annee: val})}
+                      />
+                      
+                    </div>
                   </div>
 
                   {/* PREMIER RESSORT : Absorbe le vide sur les écrans > 1080p */}
@@ -14118,119 +14118,118 @@ if (!user) {
           </div>
 
           {/* ACTION 2 : SYNCHRONISER */}
-{/* ACTION 2 : SYNCHRONISER */}
-{(() => {
-  const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
-  // Vérifie si l'utilisateur a au moins un compte/connexion Powens
-  const hasConnectedPowens = powensData?.connections && powensData.connections.length > 0;
+          {(() => {
+            const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
+            // Vérifie si l'utilisateur a au moins un compte/connexion Powens
+            const hasConnectedPowens = powensData?.connections && powensData.connections.length > 0;
 
-  const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
+            const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
 
-  const handleClick = async (e) => {
-    if (isExecuting) return;
-    setIsManualSyncing(true);
-    try {
-      if (handleSyncPowens) {
-        await handleSyncPowens(e);
-      }
-    } finally {
-      setIsManualSyncing(false);
-    }
-  };
+            const handleClick = async (e) => {
+              if (isExecuting) return;
+              setIsManualSyncing(true);
+              try {
+                if (handleSyncPowens) {
+                  await handleSyncPowens(e);
+                }
+              } finally {
+                setIsManualSyncing(false);
+              }
+            };
 
-  return (
-    <div 
-      onClick={handleClick}
-      className={`
-        relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
-        ${hasPendingSync 
-          ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-          : isExecuting 
-            ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
-            : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
-      `}
-    >
-      {/* Pastille clignotante en haut à droite (masquée pendant le chargement) */}
-      {hasPendingSync && !isExecuting && (
-        <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
-        </span>
-      )}
-
-      {/* Icône avec animation de rotation (animate-spin) pendant le chargement */}
-      <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
-        isExecuting 
-          ? 'bg-[var(--primary)] text-black animate-spin' 
-          : hasPendingSync 
-            ? 'bg-[var(--primary)] text-black' 
-            : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
-      }`}>
-        {isExecuting ? <RefreshCw size={18} /> : <Download size={18} />}
-      </div>
-
-      {/* Bloc principal : Titre + Sous-texte à gauche */}
-      <div className="flex items-center gap-4 min-w-0 pr-6 w-full">
-        
-        {/* Titre + Sous-texte */}
-        <div className="flex flex-col shrink-0">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">
-            Synchroniser
-          </h3>
-          
-          <p className={`text-[8px] font-bold uppercase tracking-widest ${
-            isExecuting 
-              ? 'text-[var(--primary)] font-black animate-pulse'
-              : hasPendingSync 
-                ? 'text-rose-400 font-black animate-pulse' 
-                : 'text-emerald-400/80 font-bold'
-          }`}>
-            {isExecuting 
-              ? 'Synchronisation...' 
-              : hasPendingSync 
-                ? 'Nouvelles transactions' 
-                : 'Données Powens'}
-          </p>
-        </div>
-
-        {/* Séparateur vertical + Contenu à droite (UNIQUEMENT SI AU MOINS UN COMPTE EST CONNECTÉ) */}
-        {hasConnectedPowens && (
-          <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
-            {hasPendingSync && unsyncedAccounts.length > 0 ? (
-              unsyncedAccounts.map(([name, amount]) => {
-                const formattedAmount = typeof amount === "number"
-                  ? `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                  : "";
-
-                return (
-                  <span 
-                    key={name} 
-                    className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
-                    title={`${name} : ${formattedAmount}`}
-                  >
-                    <span className="truncate">{name}</span>
-                    {formattedAmount && (
-                      <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
-                        {formattedAmount}
-                      </span>
-                    )}
+            return (
+              <div 
+                onClick={handleClick}
+                className={`
+                  relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+                  ${hasPendingSync 
+                    ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                    : isExecuting 
+                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
+                      : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
+                `}
+              >
+                {/* Pastille clignotante en haut à droite (masquée pendant le chargement) */}
+                {hasPendingSync && !isExecuting && (
+                  <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
                   </span>
-                );
-              })
-            ) : (
-              /* Pastille verte uniquement lorsqu'un compte est connecté et à jour */
-              <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Tout est synchronisé pour le moment
-              </span>
-            )}
-          </div>
-        )}
+                )}
 
-      </div>
-    </div>
-  );
-})()}
+                {/* Icône avec animation de rotation (animate-spin) pendant le chargement */}
+                <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
+                  isExecuting 
+                    ? 'bg-[var(--primary)] text-black animate-spin' 
+                    : hasPendingSync 
+                      ? 'bg-[var(--primary)] text-black' 
+                      : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+                }`}>
+                  {isExecuting ? <RefreshCw size={18} /> : <Download size={18} />}
+                </div>
+
+                {/* Bloc principal : Titre + Sous-texte à gauche */}
+                <div className="flex items-center gap-4 min-w-0 pr-6 w-full">
+                  
+                  {/* Titre + Sous-texte */}
+                  <div className="flex flex-col shrink-0">
+                    <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">
+                      Synchroniser
+                    </h3>
+                    
+                    <p className={`text-[8px] font-bold uppercase tracking-widest ${
+                      isExecuting 
+                        ? 'text-[var(--primary)] font-black animate-pulse'
+                        : hasPendingSync 
+                          ? 'text-rose-400 font-black animate-pulse' 
+                          : 'text-emerald-400/80 font-bold'
+                    }`}>
+                      {isExecuting 
+                        ? 'Synchronisation...' 
+                        : hasPendingSync 
+                          ? 'Nouvelles transactions' 
+                          : 'Données Powens'}
+                    </p>
+                  </div>
+
+                  {/* Séparateur vertical + Contenu à droite (UNIQUEMENT SI AU MOINS UN COMPTE EST CONNECTÉ) */}
+                  {hasConnectedPowens && (
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
+                      {hasPendingSync && unsyncedAccounts.length > 0 ? (
+                        unsyncedAccounts.map(([name, amount]) => {
+                          const formattedAmount = typeof amount === "number"
+                            ? `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                            : "";
+
+                          return (
+                            <span 
+                              key={name} 
+                              className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
+                              title={`${name} : ${formattedAmount}`}
+                            >
+                              <span className="truncate">{name}</span>
+                              {formattedAmount && (
+                                <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
+                                  {formattedAmount}
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        /* Pastille verte uniquement lorsqu'un compte est connecté et à jour */
+                        <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                          Tout est synchronisé pour le moment
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                </div>
+              </div>
+            );
+          })()}
 
           {/* ACTION 3 : CSV */}
           <div 
@@ -14316,7 +14315,8 @@ if (!user) {
               </div>
 
               <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
-                <div className="max-h-[480px] overflow-y-auto custom-scrollbar">
+                {/* Ajustement ici avec min-[2000px]:max-h-[750px] (ou la hauteur souhaitée) */}
+                <div className="max-h-[450px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
                       <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
@@ -14326,7 +14326,7 @@ if (!user) {
                         <th className="p-4 text-right">Montant</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/[0.02]">
+                   <tbody className="divide-y divide-white/[0.02]">
                       {transactionsCalculees.map((t, i) => {
                         const isTransfert = t.categorie.startsWith('🔄');
                         const isImported = t.isAlreadyImported;
@@ -14356,8 +14356,8 @@ if (!user) {
                             <tr 
                               className={`transition-all group ${
                                 isImported 
-                                  ? 'opacity-30 bg-white/[0.01] grayscale select-none' 
-                                  : 'hover:bg-[var(--glass-bg)]'
+                                  ? 'bg-[var(--primary)]/[0.3] hover:bg-[var(--primary)]/[0.2] opacity-40 select-none' 
+                                  : 'bg-rose-500/[0.15] hover:bg-rose-500/[0.1]'
                               }`}
                             >
                               <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">
@@ -14370,10 +14370,15 @@ if (!user) {
                                     {t.nom}
                                   </div>
 
-                                  {/* Badge indicateur de ligne déjà enregistrée */}
-                                  {isImported && (
-                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-white/10 text-[var(--text-main)]/60 border border-white/10 shrink-0">
+                                  {/* Badge indicateur de statut (Déjà importé VS Nouveau) */}
+                                  {isImported ? (
+                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
                                       Déjà importé
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-300  border border-rose-500/20 shrink-0 flex items-center gap-1">
+                                      <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                                      Nouveau
                                     </span>
                                   )}
                                 </div>
