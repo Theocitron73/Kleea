@@ -5690,10 +5690,8 @@ const sommeAllocations = sommeEnveloppesNette;
     };
   }, [filters?.annee, filters?.mois, recapAnnuelStats]);
 
-// Ventilation Automatique (Plafonnée strictement par l'épargne libre)
+// Ventilation Automatique (Sécurisée multi-projets + Temporelle par projet)
 const ventilationAutomatique = useMemo(() => {
-  //console.group("🔍 DEBUT VENTILATION AUTOMATIQUE - Mois sélectionné:", moisCourantStr);
-
   const epargneBruteMois = Math.max(0, parseFloat(epargneDuMois) || 0);
 
   // 1. Épargne globale disponible (Solde net - Enveloppes)
@@ -5723,35 +5721,30 @@ const ventilationAutomatique = useMemo(() => {
     return -1;
   };
 
-  const [, moisSel] = (moisCourantStr || '').split('-').map(Number);
+  const [anneeSel, moisSel] = (moisCourantStr || '').split('-').map(Number);
   const indexMoisCourant = moisSel ? moisSel - 1 : 0;
 
-  // 2. Calcul de la cagnotte passée globale (pour le mode normal)
-  let minIndexMoisDebut = indexMoisCourant;
-  (projets || []).forEach((p) => {
-    const dateDebutStr = p.date_debut ? String(p.date_debut).slice(0, 7) : moisCourantStr;
-    if (dateDebutStr <= moisCourantStr) {
-      const [, mDebut] = dateDebutStr.split('-').map(Number);
-      const idx = mDebut ? mDebut - 1 : 0;
-      if (idx < minIndexMoisDebut) minIndexMoisDebut = idx;
-    }
-  });
-
-  let cagnottePasséeDisponible = 0;
+  // 2. Épargne disponible mois par mois (pour l'historique)
+  const epargneCumuleeParMois = [];
   if (Array.isArray(recapAnnuelStats)) {
     recapAnnuelStats.forEach((stat, i) => {
       let idxMoisStat = getIndexMois(stat.nom || stat.mois);
       if (idxMoisStat === -1) idxMoisStat = i;
-
-      const epargneMois = Math.max(0, parseFloat(stat.epargne) || 0);
-
-      if (idxMoisStat >= minIndexMoisDebut && idxMoisStat < indexMoisCourant) {
-        cagnottePasséeDisponible += epargneMois;
-      }
+      const epargneMoisStat = Math.max(0, parseFloat(stat.epargne) || 0);
+      epargneCumuleeParMois[idxMoisStat] = epargneMoisStat;
     });
   }
 
-  // 3. Traitement projet par projet
+  // Stock global passé restant à répartir (sera consommé au fur et à mesure)
+  let cagnottePasseGlobalRestante = 0;
+  for (let m = 0; m < indexMoisCourant; m++) {
+    cagnottePasseGlobalRestante += epargneCumuleeParMois[m] || 0;
+  }
+
+  // Garde-fou de trésorerie disponible pour le passé
+  let soldeDisponiblePourPasse = Math.max(0, disponibleGlobalBrut - epargneDuMoisRestante);
+
+  // 3. Traitement séquentiel projet par projet (selon priorité)
   (projets || []).forEach((p, idx) => {
     const key = String(p.id || p._id || p.nom || idx);
     const cout = parseFloat(p.cout || p.cout_total || p.montant || 0);
@@ -5760,7 +5753,7 @@ const ventilationAutomatique = useMemo(() => {
     const capaProjet = parseFloat(p.capa) || 0;
     const utiliseCapaStricte = Boolean(p.utiliser_capa_stricte);
 
-    // Si le mois sélectionné est strictement AVANT le mois de début -> Projet inactif
+    // 🛑 FILTRE TEMPOREL STRICT : Projet non démarré au mois sélectionné
     if (moisCourantStr < dateDebutStr) {
       repartitionProjets[key] = 0;
       cumulProjets[key] = Math.min(apportInitial, cout);
@@ -5769,6 +5762,9 @@ const ventilationAutomatique = useMemo(() => {
 
     const besoinTotal = Math.max(0, cout - apportInitial);
 
+    const [, mDebut] = dateDebutStr.split('-').map(Number);
+    const idxDebutProjet = mDebut ? mDebut - 1 : indexMoisCourant;
+
     // ==========================================
     // BRANCHE A : MODE CAPACITÉ STRICTE
     // ==========================================
@@ -5776,23 +5772,14 @@ const ventilationAutomatique = useMemo(() => {
       let cumulStrict = apportInitial;
       let alloueCeMoisStrict = 0;
 
-      const [, mDebut] = dateDebutStr.split('-').map(Number);
-      const idxDebutProjet = mDebut ? mDebut - 1 : indexMoisCourant;
-
       for (let mIdx = idxDebutProjet; mIdx <= indexMoisCourant; mIdx++) {
         const estMoisCourant = mIdx === indexMoisCourant;
 
         let epargneMoisItere = 0;
         if (estMoisCourant) {
           epargneMoisItere = epargneDuMoisRestante;
-        } else if (Array.isArray(recapAnnuelStats)) {
-          const statMois = recapAnnuelStats.find((s, i) => {
-            const idxStat = getIndexMois(s.nom || s.mois);
-            return idxStat !== -1 ? idxStat === mIdx : i === mIdx;
-          });
-          if (statMois) {
-            epargneMoisItere = Math.max(0, parseFloat(statMois.epargne) || 0);
-          }
+        } else {
+          epargneMoisItere = epargneCumuleeParMois[mIdx] || 0;
         }
 
         const besoinReste = Math.max(0, cout - cumulStrict);
@@ -5810,51 +5797,67 @@ const ventilationAutomatique = useMemo(() => {
 
       repartitionProjets[key] = alloueCeMoisStrict;
 
-      // 💡 CORRECTION CLEF : On plafonne le CUMUL TOTAL du projet par le disponible réel (ex: 300 €)
       const cumulPlafonne = Math.min(cout, cumulStrict, disponibleGlobalBrut);
       cumulProjets[key] = Math.max(apportInitial, cumulPlafonne);
 
-      epargneDuMoisRestante -= alloueCeMoisStrict;
+      // Déduction du prélevé mensuel
+      epargneDuMoisRestante = Math.max(0, epargneDuMoisRestante - alloueCeMoisStrict);
       totalDistribueProjets += alloueCeMoisStrict;
 
     } else {
       // ==========================================
-      // BRANCHE B : MODE NORMAL
+      // BRANCHE B : MODE NORMAL (MULTI-PROJETS & PROPRE AU DÉBUT DU PROJET)
       // ==========================================
-      const prisSurPasse = Math.min(cagnottePasséeDisponible, besoinTotal);
-      cagnottePasséeDisponible -= prisSurPasse;
+      
+      // 1. Calcul du passé éligible uniquement DEPUIS le début de CE projet jusqu'à M-1
+      let cagnottePasseEligibleProjet = 0;
+      for (let m = idxDebutProjet; m < indexMoisCourant; m++) {
+        cagnottePasseEligibleProjet += epargneCumuleeParMois[m] || 0;
+      }
 
+      // Le projet ne peut prélever que le minimum entre :
+      // - Son propre historique d'épargne passé éligible
+      // - La cagnotte passée globale RESTANTE
+      // - La trésorerie encore disponible
+      const maxPrelevablePasse = Math.min(
+        cagnottePasseEligibleProjet,
+        cagnottePasseGlobalRestante,
+        soldeDisponiblePourPasse
+      );
+
+      const prisSurPasse = Math.min(maxPrelevablePasse, besoinTotal);
+
+      // Déduction des stocks pour les projets suivants
+      cagnottePasseGlobalRestante = Math.max(0, cagnottePasseGlobalRestante - prisSurPasse);
+      soldeDisponiblePourPasse = Math.max(0, soldeDisponiblePourPasse - prisSurPasse);
+
+      // 2. Attribution sur l'épargne du mois courant
       let alloueMoisCourant = 0;
       const resteAFinancerGlobal = Math.max(0, besoinTotal - prisSurPasse);
 
       if (resteAFinancerGlobal > 0 && epargneDuMoisRestante > 0) {
-        alloueMoisCourant = Math.min(epargneDuMoisRestante, resteAFinancerGlobal);
-        epargneDuMoisRestante -= alloueMoisCourant;
+        const plafondMensuel = capaProjet > 0 ? Math.min(resteAFinancerGlobal, capaProjet) : resteAFinancerGlobal;
+        alloueMoisCourant = Math.min(epargneDuMoisRestante, plafondMensuel);
+
+        // Déduction de la capacité du mois pour les projets suivants
+        epargneDuMoisRestante = Math.max(0, epargneDuMoisRestante - alloueMoisCourant);
         totalDistribueProjets += alloueMoisCourant;
       }
 
       repartitionProjets[key] = alloueMoisCourant;
-      
+
       const cumulBrut = apportInitial + prisSurPasse + alloueMoisCourant;
       cumulProjets[key] = Math.min(cout, cumulBrut, disponibleGlobalBrut);
     }
   });
 
-  /*
-  console.log("🏁 FIN VENTILATION - Résultats finaux:", {
-    totalDistribueProjets,
-    repart: repartitionProjets,
-    cumul: cumulProjets,
-  });
-  console.groupEnd();
-*/
   return {
     partProjets: totalDistribueProjets,
     partEnveloppes: Math.max(0, epargneDuMoisRestante),
     repartitionProjets,
     cumulProjets,
   };
-}, [epargneDuMois, moisCourantStr, projets, recapAnnuelStats, soldeGlobalNet, sommeEnveloppesNette]);
+}, [epargneDuMois, moisCourantStr, projets, recapAnnuelStats, soldeGlobalNet, sommeEnveloppesNette]);;
 
   // ==========================================
   // 5. CALCULS DÉPENDANTS DE LA VENTILATION & RÉSULTATS
