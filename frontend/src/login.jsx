@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -4660,12 +4660,15 @@ export const DemenagementPage = ({ user, toutesLesCategories = [], comptes = [] 
 
 
 
-const ProfileTab = ({ user }) => {
+const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount,setActiveTab }) => {
   const [profileData, setProfileData] = useState(null);
   const [transactionCount, setTransactionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
+
+  // État d'ouverture pour la section Powens pliable
+  const [isPowensOpen, setIsPowensOpen] = useState(false);
 
   // États pour l'édition des détails personnels
   const [isEditing, setIsEditing] = useState(false);
@@ -4695,7 +4698,6 @@ const ProfileTab = ({ user }) => {
 
       if (profileRes.data) {
         setProfileData(profileRes.data);
-        // On initialise les champs du formulaire d'édition
         setEditName(profileRes.data.name || '');
         setEditEmail(profileRes.data.email || '');
       } else {
@@ -4721,7 +4723,6 @@ const ProfileTab = ({ user }) => {
     fetchProfileAndStats();
   }, [user]);
 
-  // Fonction pour enregistrer les modifications du profil
   const handleSaveDetails = async (e) => {
     e.preventDefault();
     try {
@@ -4730,8 +4731,6 @@ const ProfileTab = ({ user }) => {
         name: editName,
         email: editEmail
       });
-      
-      // On met à jour l'état local pour refléter les changements immédiatement
       setProfileData(prev => ({ ...prev, name: editName, email: editEmail }));
       setIsEditing(false);
     } catch (err) {
@@ -4742,7 +4741,6 @@ const ProfileTab = ({ user }) => {
     }
   };
 
-  // Fonction pour mettre à jour le mot de passe
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     if (!newPassword.trim()) return;
@@ -4762,7 +4760,6 @@ const ProfileTab = ({ user }) => {
     }
   };
 
-  // Fonction pour supprimer le compte
   const handleDeleteAccount = async () => {
     try {
       setDeleteLoading(true);
@@ -4792,283 +4789,417 @@ const ProfileTab = ({ user }) => {
   } : profileData;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+  <div className="max-w-2xl mx-auto space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    
+    {/* HEADER DU PROFIL */}
+    <div 
+      className="bg-white/5 backdrop-blur-xl p-5 rounded-3xl border border-white/10 relative overflow-hidden"
+      style={{ boxShadow: `0 0 30px -15px var(--primary)` }}
+    >
+      <div className="absolute top-[-20%] right-[-10%] w-[120px] h-[120px] bg-[var(--primary)]/10 blur-[40px] rounded-full" />
       
-      {/* HEADER DU PROFIL */}
-      <div 
-        className="bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 relative overflow-hidden"
-        style={{ boxShadow: `0 0 40px -15px var(--primary)` }}
-      >
-        <div className="absolute top-[-20%] right-[-10%] w-[150px] h-[150px] bg-[var(--primary)]/10 blur-[50px] rounded-full" />
+      <div className="flex flex-col sm:flex-row items-center gap-4 relative z-10">
+        <div className="w-14 h-14 rounded-2xl bg-[var(--primary)] flex items-center justify-center text-2xl font-black text-white shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)] border border-white/20 shrink-0">
+          {((data.name || data.username || "U").substring(0, 1).toUpperCase())}
+        </div>
         
-        <div className="flex flex-col sm:flex-row items-center gap-6 relative z-10">
-          <div className="w-20 h-20 rounded-2xl bg-[var(--primary)] flex items-center justify-center text-3xl font-black text-white shadow-[0_0_30px_rgba(var(--primary-rgb),0.4)] border border-white/20">
-            {((data.name || data.username || "U").substring(0, 1).toUpperCase())}
-          </div>
-          
-          <div className="text-center sm:text-left leading-tight">
-            <h3 className="text-2xl font-black text-white tracking-tight uppercase">
-              {data.name}
-            </h3>
-            <p className="text-[10px] font-bold text-[var(--primary)] uppercase tracking-widest mt-1">
-              {isAdmin ? 'Fondateur Kleea' : 'Membre Kleea Premium'}
-            </p>
-            <p className="text-[9px] font-semibold text-white/30 uppercase tracking-[0.2em] mt-2">
-              @ {data.username}
-            </p>
-          </div>
+        <div className="text-center sm:text-left leading-tight">
+          <h3 className="text-xl font-black text-white tracking-tight uppercase">
+            {data.name}
+          </h3>
+          <p className="text-[9px] font-bold text-[var(--primary)] uppercase tracking-widest mt-0.5">
+            {isAdmin ? 'Fondateur Kleea' : 'Membre Kleea Premium'}
+          </p>
+          <p className="text-[8px] font-semibold text-white/30 uppercase tracking-[0.2em] mt-1">
+            @ {data.username}
+          </p>
         </div>
       </div>
+    </div>
 
-      {/* DÉTAILS DU COMPTE */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
-        {/* Informations personnelles (Modifiables) */}
-        <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/5 space-y-4 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.22em]">
-                Détails Personnels
-              </h4>
-              {!isEditing && (
-                <button 
-                  onClick={() => setIsEditing(true)}
-                  className="text-[9px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
-                >
-                  Modifier
-                </button>
-              )}
-            </div>
-            
-            {!isEditing ? (
-              <div className="space-y-3">
-                <div>
-                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Nom Complet</span>
-                  <span className="text-sm font-bold text-white">{data.name}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Identifiant (Username)</span>
-                  <span className="text-sm font-bold text-white/50">@{data.username}</span>
-                </div>
-                <div>
-                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Adresse E-mail</span>
-                  <span className="text-sm font-bold text-white/80 break-all">{data.email}</span>
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleSaveDetails} className="space-y-3">
-                <div>
-                  <label className="text-[9px] font-bold text-white/30 uppercase block tracking-wider mb-1">Nom Complet</label>
-                  <input 
-                    type="text" 
-                    value={editName} 
-                    onChange={e => setEditName(e.target.value)} 
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
-                    required 
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-white/30 uppercase block tracking-wider mb-1">Identifiant (Non modifiable)</label>
-                  <input 
-                    type="text" 
-                    value={`@${data.username}`} 
-                    disabled 
-                    className="w-full bg-white/5 border border-white/5 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/30 cursor-not-allowed"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] font-bold text-white/30 uppercase block tracking-wider mb-1">Adresse E-mail</label>
-                  <input 
-                    type="email" 
-                    value={editEmail} 
-                    onChange={e => setEditEmail(e.target.value)} 
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
-                    required 
-                  />
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <button 
-                    type="submit" 
-                    disabled={editLoading}
-                    className="bg-[var(--primary)] text-white font-black text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition"
-                  >
-                    {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
-                  </button>
-                  <button 
-                    type="button" 
-                    onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
-                    className="bg-white/5 text-white/70 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition border border-white/5"
-                  >
-                    Annuler
-                  </button>
-                </div>
-              </form>
+    {/* DÉTAILS DU COMPTE */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      
+      {/* Informations personnelles (Modifiables) */}
+      <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">
+              Détails Personnels
+            </h4>
+            {!isEditing && (
+              <button 
+                onClick={() => setIsEditing(true)}
+                className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+              >
+                Modifier
+              </button>
             )}
           </div>
-        </div>
-
-        {/* Sécurité et statut */}
-        <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/5 space-y-4 flex flex-col justify-between">
-          <div>
-            <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.22em] mb-4">
-              Sécurité du Coffre
-            </h4>
-            
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
-                  {isAdmin ? (
-                    <span className="text-xs font-black text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-md inline-block mt-1 uppercase">
-                      Administrateur
-                    </span>
-                  ) : (
-                    <span className="text-xs font-black text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md inline-block mt-1 uppercase">
-                      Utilisateur
-                    </span>
-                  )}
-                </div>
-
-                <div className="text-right">
-                  <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Transactions enregistrée</span>
-                  <span className="text-sm font-black text-white bg-white/5 px-2.5 py-0.5 rounded-md inline-block mt-1 border border-white/5 shadow-inner">
-                    {transactionCount}
-                  </span>
-                </div>
+          
+          {!isEditing ? (
+            <div className="space-y-2">
+              <div>
+                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Nom Complet</span>
+                <span className="text-xs font-bold text-white">{data.name}</span>
               </div>
-              
-              <div className="pt-1">
-                <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Statut du mot de passe</span>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-sm font-bold text-emerald-400">Sécurisé (Chiffré)</span>
-                  <button 
-                    onClick={() => setShowPasswordForm(!showPasswordForm)}
-                    className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-1 rounded-lg transition uppercase tracking-wider"
-                  >
-                    {showPasswordForm ? 'Annuler' : 'Modifier Mot de passe'}
-                  </button>
-                </div>
+              <div>
+                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Identifiant (Username)</span>
+                <span className="text-xs font-bold text-white/50">@{data.username}</span>
+              </div>
+              <div>
+                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Adresse E-mail</span>
+                <span className="text-xs font-bold text-white/80 break-all">{data.email}</span>
               </div>
             </div>
-          </div>
-
-          <div className="pt-4 border-t border-white/5">
-            <span className="text-[9px] font-bold text-white/20 uppercase block tracking-wider">Version d'application</span>
-            <span className="text-xs font-black text-white/60">Kleea v.3.6 (Stable Build)</span>
-          </div>
+          ) : (
+            <form onSubmit={handleSaveDetails} className="space-y-2">
+              <div>
+                <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Nom Complet</label>
+                <input 
+                  type="text" 
+                  value={editName} 
+                  onChange={e => setEditName(e.target.value)} 
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
+                  required 
+                />
+              </div>
+              <div>
+                <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Identifiant (Non modifiable)</label>
+                <input 
+                  type="text" 
+                  value={`@${data.username}`} 
+                  disabled 
+                  className="w-full bg-white/5 border border-white/5 rounded-lg px-2.5 py-1 text-xs font-semibold text-white/30 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Adresse E-mail</label>
+                <input 
+                  type="email" 
+                  value={editEmail} 
+                  onChange={e => setEditEmail(e.target.value)} 
+                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
+                  required 
+                />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button 
+                  type="submit" 
+                  disabled={editLoading}
+                  className="bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition"
+                >
+                  {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
+                  className="bg-white/5 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
 
-      {/* FORMULAIRE DE MODIFICATION DU MOT DE PASSE */}
-      {showPasswordForm && (
-        <div className="bg-white/5 backdrop-blur-md p-6 rounded-3xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in-95 duration-300">
-          <h4 className="text-[10px] font-black text-white/40 uppercase tracking-[0.22em] mb-4">
-            Mettre à jour le mot de passe
+      {/* Sécurité et statut */}
+      <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
+        <div>
+          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">
+            Sécurité du Coffre
           </h4>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
-            <div>
-              <label className="text-[9px] font-bold text-white/40 uppercase block tracking-wider mb-1">
-                Nouveau mot de passe
-              </label>
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="••••••••••••"
-                required
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-sm font-semibold text-white placeholder-white/20 focus:outline-none focus:border-[var(--primary)] transition shadow-inner"
-              />
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                passwordStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
-              }`}>
-                {passwordStatus.msg}
-              </span>
-              <button
-                type="submit"
-                disabled={passwordLoading}
-                className="bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 text-white font-black text-xs uppercase tracking-widest px-5 py-2.5 rounded-xl transition shadow-[0_0_25px_rgba(var(--primary-rgb),0.3)]"
-              >
-                {passwordLoading ? 'Chiffrement...' : 'Confirmer'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
+                {isAdmin ? (
+                  <span className="text-[10px] font-black text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
+                    Administrateur
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-black text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
+                    Utilisateur
+                  </span>
+                )}
+              </div>
 
-      {/* ZONE DE DANGER : SUPPRESSION DE COMPTE */}
-      <div className="bg-rose-500/5 backdrop-blur-md p-6 rounded-3xl border border-rose-500/20 space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h4 className="text-[10px] font-black text-rose-400 uppercase tracking-[0.22em]">
-              Supprimer mon compte
-            </h4>
-            <p className="text-xs text-white/40 mt-1">
-              Supprimer définitivement le compte Kleea et toutes les données du coffre.
-            </p>
-          </div>
-          {!showDeleteConfirm && (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-3 py-2 rounded-xl transition uppercase tracking-wider"
-            >
-              Supprimer
-            </button>
-          )}
-        </div>
-
-        {showDeleteConfirm && (
-          <div className="pt-2 border-t border-rose-500/10 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-            <p className="text-xs font-semibold text-rose-300/80">
-              ⚠️ Attention : Cette action est irréversible. Toutes vos données seront purgées de nos serveurs.
-            </p>
+              <div className="text-right">
+                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Transactions</span>
+                <span className="text-xs font-black text-white bg-white/5 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-white/5 shadow-inner">
+                  {transactionCount}
+                </span>
+              </div>
+            </div>
             
-            {/* CHAMP DE CONFIRMATION */}
-            <div className="flex flex-col gap-2 max-w-sm">
-              <label className="text-[9px] font-black text-white/40 uppercase tracking-wider">
-                Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded">delete</span> pour confirmer :
-              </label>
-              <input
-                type="text"
-                value={deleteInput}
-                onChange={(e) => setDeleteInput(e.target.value)}
-                placeholder="Écrivez 'delete' ici"
-                disabled={deleteLoading}
-                className="bg-slate-950/40 border border-white/10 focus:border-rose-500/40 focus:ring-1 focus:ring-rose-500/40 text-xs text-white rounded-xl px-3 py-2 outline-none transition-all placeholder:text-white/20 font-mono"
-              />
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                // Le bouton est désactivé si ça charge OU si le texte saisi n'est pas strictement égal à "delete"
-                disabled={deleteLoading || deleteInput !== 'delete'}
-                onClick={handleDeleteAccount}
-                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 disabled:hover:bg-rose-600 disabled:cursor-not-allowed text-white font-black text-[10px] uppercase tracking-widest px-4 py-2 rounded-xl transition shadow-[0_0_20px_rgba(225,29,72,0.2)]"
-              >
-                {deleteLoading ? 'Purge en cours...' : 'Oui, détruire mon compte'}
-              </button>
-              <button
-                disabled={deleteLoading}
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  setDeleteInput(''); // On vide le champ à l'annulation
-                }}
-                className="bg-white/5 hover:bg-white/10 text-white/80 font-bold text-[10px] uppercase tracking-wider px-4 py-2 rounded-xl transition border border-white/5"
-              >
-                Annuler
-              </button>
+            <div className="pt-1">
+              <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Statut du mot de passe</span>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className="text-xs font-bold text-emerald-400">Sécurisé</span>
+                <button 
+                  onClick={() => setShowPasswordForm(!showPasswordForm)}
+                  className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+                >
+                  {showPasswordForm ? 'Annuler' : 'Changer'}
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+          <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
+          <span className="text-[10px] font-black text-white/60">Kleea v.3.8</span>
+        </div>
+      </div>
+    </div>
+
+    {/* FORMULAIRE DE MODIFICATION DU MOT DE PASSE */}
+    {showPasswordForm && (
+      <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in-95 duration-300">
+        <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">
+          Mettre à jour le mot de passe
+        </h4>
+        <form onSubmit={handlePasswordChange} className="space-y-3">
+          <div>
+            <label className="text-[8px] font-bold text-white/40 uppercase block tracking-wider mb-1">
+              Nouveau mot de passe
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="••••••••••••"
+              required
+              className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white placeholder-white/20 focus:outline-none focus:border-[var(--primary)] transition shadow-inner"
+            />
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${
+              passwordStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+            }`}>
+              {passwordStatus.msg}
+            </span>
+            <button
+              type="submit"
+              disabled={passwordLoading}
+              className="bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 text-white font-black text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-lg transition shadow-[0_0_25px_rgba(var(--primary-rgb),0.3)]"
+            >
+              {passwordLoading ? 'Chiffrement...' : 'Confirmer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    )}
+
+{/* SECTION BANCAIRE / POWENS */}
+<div className="relative z-20 overflow-visible bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 p-4 space-y-3">
+  
+  {/* En-tête fixe */}
+  <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-[9px] uppercase font-bold text-[var(--text-main)] select-none">
+    <span className="flex items-center gap-2 truncate pr-2">
+      <Building2 size={14} className="text-[var(--primary)] shrink-0" />
+      <span className="truncate text-[10px] font-black tracking-wider">
+        Association des comptes réels & site ({powensData?.accounts_count || 0})
+      </span>
+    </span>
+  </div>
+
+  {/* ÉTAT 1 : AUCUN COMPTE POWENS CONNECTÉ */}
+  {(!powensData?.connections || powensData.connections.length === 0) ? (
+    <div className="flex flex-col items-center justify-center py-6 px-4 text-center bg-black/20 rounded-xl border border-dashed border-white/10 space-y-3">
+      <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 text-white/40">
+        <Building2 size={18} />
+      </div>
+      
+      <div className="space-y-1">
+        <p className="text-xs font-bold text-white/80 uppercase tracking-wider">
+          Aucun compte bancaire synchronisé
+        </p>
+        <p className="text-[10px] text-white/40 max-w-xs mx-auto">
+          Connectez votre banque via Powens pour synchroniser vos soldes et opérations automatiquement.
+        </p>
+      </div>
+
+      {/* BOUTON CHANGER DE TAB VERS IMPORTER */}
+      <button
+        type="button"
+        onClick={() => setActiveTab('importer')} // <-- Remplace setActiveTab par le nom de ton state parent si différent
+        className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[var(--primary)] hover:opacity-90 text-white text-[10px] font-bold uppercase tracking-wider transition-all shadow-lg shadow-[var(--primary)]/20 active:scale-95 cursor-pointer"
+      >
+        <span>Synchroniser une banque</span>
+        <ArrowRight size={12} />
+      </button>
+    </div>
+  ) : (
+    /* ÉTAT 2 : LISTE DES CONNEXIONS ET COMPTES CONNECTÉS */
+    <div className="space-y-3 overflow-visible">
+      {powensData.connections.map((conn) => {
+        const connAccounts = powensData.accounts?.filter(
+          (acc) => acc.connection_id === conn.id || acc.bank_name === conn.connector_name
+        ) || [];
+
+        if (connAccounts.length === 0) return null;
+
+        return (
+          <div key={conn.id} className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5 overflow-visible">
+            <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1.5">
+              <span>{conn.connector_name}</span>
+              <span className="text-[8px] text-[var(--text-main)]/30 font-mono">ID: {conn.id}</span>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-0.5 overflow-visible">
+              {connAccounts.map((acc, index) => {
+                const associatedLocalAccount = comptes?.find(
+                  (c) => (c.powens_name || "").trim().toUpperCase() === (acc.name || "").trim().toUpperCase()
+                );
+
+                const isAssociated = Boolean(associatedLocalAccount);
+                const siteAccountName = associatedLocalAccount ? associatedLocalAccount.compte : acc.name;
+                const isDesynced = Boolean(
+                  syncCountByAccount[siteAccountName] || syncCountByAccount[acc.name]
+                );
+
+                const selectOptions = [
+                  { v: "", l: "-- Aucun --" },
+                  ...(comptes?.map((c) => ({ v: c.compte, l: c.compte })) || [])
+                ];
+
+                return (
+                  <div 
+                    key={acc.id} 
+                    style={{ zIndex: 50 - index }}
+                    className="relative overflow-visible flex flex-col justify-between gap-1.5 py-2 px-2.5 rounded-lg bg-white/[0.02] border border-white/5 focus-within:z-50"
+                  >
+                    {/* En-tête du compte */}
+                    <div className="flex items-center justify-between text-[9px]">
+                      <div className="flex items-center gap-1.5 truncate pr-1">
+                        <span className="text-[var(--text-main)] font-semibold truncate">{acc.name}</span>
+                        
+                        {!isAssociated ? (
+                          <span className="px-1 py-0.2 rounded bg-amber-500/10 text-amber-400/80 border border-amber-500/20 text-[6px] font-black uppercase tracking-wider shrink-0">
+                            Non lié
+                          </span>
+                        ) : isDesynced ? (
+                          <span className="px-1 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[6px] font-black uppercase tracking-wider animate-pulse shrink-0 flex items-center gap-1">
+                            <span className="w-0.5 h-0.5 rounded-full bg-rose-400 animate-ping" />
+                            Sync requis
+                          </span>
+                        ) : (
+                          <span className="px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[6px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1">
+                            <span className="w-0.5 h-0.5 rounded-full bg-emerald-400" />
+                            Synchro
+                          </span>
+                        )}
+                      </div>
+
+                      <span className="font-bold text-[var(--text-main)] shrink-0 text-[9px]">
+                        {acc.balance !== null && acc.balance !== undefined 
+                          ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` 
+                          : "—"}
+                      </span>
+                    </div>
+
+                    {/* CustomSelect */}
+                    <div className="flex items-center gap-1.5 pt-1 border-t border-white/5">
+                      <span className="text-[7px] uppercase tracking-wider text-[var(--text-main)]/40 font-bold shrink-0">
+                        Lié à :
+                      </span>
+                      
+                      <div className="w-full">
+                        <CustomSelect
+                          value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
+                          options={selectOptions}
+                          onChange={(selectedVal) => handleAssociateAccount?.(acc.name, selectedVal)}
+                          className="px-2 py-1 rounded-lg text-[8px]"
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
+
+
+    {/* ZONE DE DANGER : SUPPRESSION DE COMPTE */}
+    <div className="bg-rose-500/5 backdrop-blur-md p-4 rounded-2xl border border-rose-500/20 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="text-[9px] font-black text-rose-400 uppercase tracking-[0.22em]">
+            Supprimer mon compte
+          </h4>
+          <p className="text-[10px] text-white/40 mt-0.5">
+            Supprimer définitivement le compte Kleea et toutes les données du coffre.
+          </p>
+        </div>
+        {!showDeleteConfirm && (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-[9px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-2.5 py-1 rounded-lg transition uppercase tracking-wider shrink-0 ml-2"
+          >
+            Supprimer
+          </button>
         )}
       </div>
 
+      {showDeleteConfirm && (
+        <div className="pt-2 border-t border-rose-500/10 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+          <p className="text-[10px] font-semibold text-rose-300/80">
+            ⚠️ Attention : Action irréversible. Toutes vos données seront purgées.
+          </p>
+          
+          <div className="flex flex-col gap-1 max-w-sm">
+            <label className="text-[8px] font-black text-white/40 uppercase tracking-wider">
+              Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded">delete</span> :
+            </label>
+            <input
+              type="text"
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              placeholder="Écrivez 'delete' ici"
+              disabled={deleteLoading}
+              className="bg-slate-950/40 border border-white/10 focus:border-rose-500/40 text-xs text-white rounded-lg px-2.5 py-1.5 outline-none transition-all placeholder:text-white/20 font-mono"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              disabled={deleteLoading || deleteInput !== 'delete'}
+              onClick={handleDeleteAccount}
+              className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 disabled:hover:bg-rose-600 disabled:cursor-not-allowed text-white font-black text-[9px] uppercase tracking-widest px-3 py-1.5 rounded-lg transition shadow-[0_0_20px_rgba(225,29,72,0.2)]"
+            >
+              {deleteLoading ? 'Purge...' : 'Oui, détruire mon compte'}
+            </button>
+            <button
+              disabled={deleteLoading}
+              onClick={() => {
+                setShowDeleteConfirm(false);
+                setDeleteInput('');
+              }}
+              className="bg-white/5 hover:bg-white/10 text-white/80 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg transition border border-white/5"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  );
+
+  </div>
+);
 };
 
 
-export function ImportPowensModal({ userToken, utilisateur, onClose, onSuccess }) {
+export function ImportPowensModal({ userToken, utilisateur, comptes = [], onClose, onSuccess }) {
   const [accounts, setAccounts] = useState([]);
   const [selectedAccount, setSelectedAccount] = useState('');
   const [loading, setLoading] = useState(true);
@@ -5103,7 +5234,6 @@ export function ImportPowensModal({ userToken, utilisateur, onClose, onSuccess }
         
         setAccounts(fetchedAccounts);
 
-        // 🟢 Conserve le compte sélectionné s'il existe toujours, sinon prends le premier
         if (fetchedAccounts.length > 0) {
           setSelectedAccount((prev) => {
             const exists = fetchedAccounts.some(a => String(a.id) === String(prev));
@@ -5133,11 +5263,20 @@ export function ImportPowensModal({ userToken, utilisateur, onClose, onSuccess }
       const accountObj = accounts.find(a => String(a.id) === String(selectedAccount));
       const accountName = accountObj ? accountObj.name : "Powens";
 
+      // 🟢 1. RECHERCHE DU COMPTE LOCAL LIÉ EN BDD
+      const associatedLocalAccount = comptes.find(
+        (c) => (c.powens_name || "").trim().toUpperCase() === (accountName || "").trim().toUpperCase()
+      );
+
+      // Si un compte est lié, on prend son nom local BDD, sinon on retombe sur le nom Powens
+      const targetLocalAccountName = associatedLocalAccount ? associatedLocalAccount.compte : accountName;
+
       const res = await api.get(
         `/import-powens?utilisateur=${encodeURIComponent(utilisateur)}&user_token=${encodeURIComponent(userToken)}&account_id=${selectedAccount}&compte_nom=${encodeURIComponent(accountName)}&date_debut=${dateDebut}&date_fin=${dateFin}`
       );
 
-      onSuccess(res.data, accountName);
+      // 🟢 2. Transmettre le compte BDD cible au callback parent
+      onSuccess(res.data, targetLocalAccountName);
       onClose();
     } catch (err) {
       console.error("Erreur import Powens:", err);
@@ -6012,7 +6151,7 @@ const ventilationAutomatique = useMemo(() => {
           }`}
         >
           <Rocket size={13} className={activeTab === 'projets' ? 'text-amber-400' : 'opacity-60'} />
-          <span className="hidden md:inline">Objectifs</span>
+          <span className="hidden md:inline">Projets</span>
           <span className={`text-[9px] px-1.5 py-0.2 rounded font-bold leading-none ${
             activeTab === 'projets' 
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' 
@@ -8989,19 +9128,57 @@ const handlePowensImportSuccess = (transactions, accountName) => {
     return;
   }
 
-  // Déduplication
-  const clesVisitees = new Set();
-  const transactionsUniques = transactions.filter(t => {
-    const key = `${t.date}-${t.nom.trim().toLowerCase()}-${t.montant}`;
-    if (clesVisitees.has(key)) return false;
-    clesVisitees.add(key);
+  // 1. Définition de la fonction de création de clé (date, nom nettoyé, montant)
+  const getTxKey = (t) => {
+    const dateStr = t.date ? String(t.date).trim() : "";
+    // On récupère t.nom ou t.libelle (selon ce qui existe)
+    const nomStr = (t.nom || t.libelle || "").trim().toLowerCase().replace(/\s+/g, ' ');
+    // On s'assure d'avoir un nombre avec 2 décimales pour éviter les écarts de type "-12.50" vs "-12.5"
+    const montantNum = Number(t.montant).toFixed(2);
+    return `${dateStr}_${nomStr}_${montantNum}`;
+  };
+
+  // 2. Charger les clés des transactions DÉJÀ EXISTANTES en BDD/State
+  // ⚠️ Remplacez `allTransactions` par le nom de votre state React qui contient vos transactions BDD existantes
+  const existingKeys = new Set(
+    (toutesLesTransactions || []).map(t => getTxKey(t))
+  );
+
+  // 3. Filtrer les nouvelles transactions
+  const clesImportationEnCours = new Set();
+
+  const nouvellesTransactionsUniques = transactions.filter(t => {
+    const key = getTxKey(t);
+
+    // ❌ Déjà présent dans votre BDD/App
+    if (existingKeys.has(key)) {
+      return false;
+    }
+
+    // ❌ Doublon présent dans le même lot d'import Powens
+    if (clesImportationEnCours.has(key)) {
+      return false;
+    }
+
+    // ✅ Vraie nouvelle transaction
+    clesImportationEnCours.add(key);
     return true;
   });
 
+  // Si après filtrage il n'y a plus rien
+  if (nouvellesTransactionsUniques.length === 0) {
+    setNotification({ 
+      message: `Toutes les transactions de ${accountName} sont déjà enregistrées.`, 
+      type: "info" 
+    });
+    setTimeout(() => setNotification(null), 3000);
+    return;
+  }
+
   setFileName(`Import Powens (${accountName})`);
-  setTempTransactions(transactionsUniques);
+  setTempTransactions(nouvellesTransactionsUniques);
   setNotification({ 
-    message: `${transactionsUniques.length} transactions récupérées pour ${accountName} !`, 
+    message: `${nouvellesTransactionsUniques.length} nouvelles transactions récupérées pour ${accountName} !`, 
     type: "success" 
   });
 
@@ -13836,7 +14013,7 @@ if (!user) {
                 {/* POPUP ABSOLU (Ne pousse pas les éléments en dessous) */}
                 {isOpen && (
                   <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
-                    <div className="space-y-4 max-h-64 overflow-y-auto custom-scrollbar">
+                    <div className="space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
                       {powensData.connections.map((conn) => {
                         const connAccounts = powensData.accounts?.filter(
                           (acc) => acc.connection_id === conn.id || acc.bank_name === conn.connector_name
@@ -13866,6 +14043,11 @@ if (!user) {
                                 const isDesynced = Boolean(
                                   syncCountByAccount[siteAccountName] || syncCountByAccount[acc.name]
                                 );
+
+                                const selectOptions = [
+                                  { v: "", l: "-- Aucun --" },
+                                  ...(comptes?.map((c) => ({ v: c.compte, l: c.compte })) || [])
+                                ];
 
                                 return (
                                   <div key={acc.id} className="flex flex-col gap-1.5 py-2 px-2.5 rounded-xl bg-white/[0.02] border border-white/5">
@@ -13904,20 +14086,14 @@ if (!user) {
                                       <span className="text-[8px] uppercase tracking-wider text-[var(--text-main)]/40 font-bold shrink-0">
                                         Lié à :
                                       </span>
-                                      <select
-                                        value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
-                                        onChange={(e) => handleAssociateAccount(acc.name, e.target.value)}
-                                        className="w-full bg-black/30 text-[8px] font-bold text-[var(--text-main)]/80 rounded-lg border border-white/10 px-1.5 py-0.5 focus:outline-none focus:border-[var(--primary)] transition-colors cursor-pointer"
-                                      >
-                                        <option value="" className="bg-neutral-900 text-white/50">
-                                          -- Aucun compte associé --
-                                        </option>
-                                        {comptes?.map((c) => (
-                                          <option key={c.compte} value={c.compte} className="bg-neutral-900 text-white">
-                                            {c.compte}
-                                          </option>
-                                        ))}
-                                      </select>
+                                      <div className="w-full">
+                                        <CustomSelect
+                                          value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
+                                          options={selectOptions}
+                                          onChange={(selectedVal) => handleAssociateAccount?.(acc.name, selectedVal)}
+                                          className="px-2 py-1 rounded-lg text-[5px]"
+                                        />
+                                      </div>
                                     </div>
                                   </div>
                                 );
@@ -13957,95 +14133,96 @@ if (!user) {
           </div>
 
           {/* ACTION 2 : SYNCHRONISER */}
-            {/* Calcul de la liste des comptes du site à synchroniser avec leurs montants */}
-            {(() => {
-              // Optionnel : remplacez 'hasPendingSync' par vos variables réelles
-              const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
-              // unsyncedAccounts = [ ["CCP Theo", 1158.25], ["Compte Commun", 448.99] ]
+{(() => {
+  const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
+  // Vérifie si l'utilisateur a au moins un compte/connexion Powens
+  const hasConnectedPowens = powensData?.connections && powensData.connections.length > 0;
 
-              return (
-                <div 
-                  onClick={!isSyncingData ? handleSyncPowens : undefined}
-                  className={`
-                    relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
-                    ${hasPendingSync 
-                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-                      : isSyncingData 
-                        ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
-                        : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
-                  `}
-                >
-                  {/* Pastille clignotante en haut à droite */}
-                  {hasPendingSync && (
-                    <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
-                    </span>
-                  )}
+  return (
+    <div 
+      onClick={!isSyncingData ? handleSyncPowens : undefined}
+      className={`
+        relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+        ${hasPendingSync 
+          ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+          : isSyncingData 
+            ? 'bg-[var(--primary)]/10 border-[var(--primary)]' 
+            : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
+      `}
+    >
+      {/* Pastille clignotante en haut à droite */}
+      {hasPendingSync && (
+        <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
+        </span>
+      )}
 
-                  {/* Icône */}
-                  <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
-                    isSyncingData || isCheckingSync 
-                      ? 'bg-[var(--primary)] text-black animate-spin' 
-                      : hasPendingSync 
-                        ? 'bg-[var(--primary)] text-black' 
-                        : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
-                  }`}>
-                    {isSyncingData || isCheckingSync ? <RefreshCw size={18} /> : <Download size={18} />}
-                  </div>
+      {/* Icône */}
+      <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
+        isSyncingData || isCheckingSync 
+          ? 'bg-[var(--primary)] text-black animate-spin' 
+          : hasPendingSync 
+            ? 'bg-[var(--primary)] text-black' 
+            : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+      }`}>
+        {isSyncingData || isCheckingSync ? <RefreshCw size={18} /> : <Download size={18} />}
+      </div>
 
-                  {/* Bloc principal : Titre + Sous-texte à gauche, Badges avec Montants à droite */}
-                  <div className="flex items-center gap-4 min-w-0 pr-6 w-full">
-                    
-                    {/* Titre + Sous-texte */}
-                    <div className="flex flex-col shrink-0">
-                      <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">
-                        Synchroniser
-                      </h3>
-                      
-                      <p className={`text-[8px] font-bold uppercase tracking-widest ${
-                        hasPendingSync ? 'text-rose-400 font-black animate-pulse' : 'text-emerald-400/80 font-bold'
-                      }`}>
-                        {hasPendingSync ? 'Nouvelles transactions' : 'Données Powens'}
-                      </p>
-                    </div>
+      {/* Bloc principal : Titre + Sous-texte à gauche */}
+      <div className="flex items-center gap-4 min-w-0 pr-6 w-full">
+        
+        {/* Titre + Sous-texte */}
+        <div className="flex flex-col shrink-0">
+          <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">
+            Synchroniser
+          </h3>
+          
+          <p className={`text-[8px] font-bold uppercase tracking-widest ${
+            hasPendingSync ? 'text-rose-400 font-black animate-pulse' : 'text-emerald-400/80 font-bold'
+          }`}>
+            {hasPendingSync ? 'Nouvelles transactions' : 'Données Powens'}
+          </p>
+        </div>
 
-                    {/* Séparateur vertical + Badges (Nom + Montant) */}
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
-                      {hasPendingSync && unsyncedAccounts.length > 0 ? (
-                        unsyncedAccounts.map(([name, amount]) => {
-                          const formattedAmount = typeof amount === "number"
-                            ? `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                            : "";
+        {/* Séparateur vertical + Contenu à droite (UNIQUEMENT SI AU MOINS UN COMPTE EST CONNECTÉ) */}
+        {hasConnectedPowens && (
+          <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
+            {hasPendingSync && unsyncedAccounts.length > 0 ? (
+              unsyncedAccounts.map(([name, amount]) => {
+                const formattedAmount = typeof amount === "number"
+                  ? `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+                  : "";
 
-                          return (
-                            <span 
-                              key={name} 
-                              className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
-                              title={`${name} : ${formattedAmount}`}
-                            >
-                              <span className="truncate">{name}</span>
-                              {formattedAmount && (
-                                <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
-                                  {formattedAmount}
-                                </span>
-                              )}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        /* Pastille verte lorsque tout est à jour */
-                        <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          Tout est synchronisé pour le moment
-                        </span>
-                      )}
-                    </div>
+                return (
+                  <span 
+                    key={name} 
+                    className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
+                    title={`${name} : ${formattedAmount}`}
+                  >
+                    <span className="truncate">{name}</span>
+                    {formattedAmount && (
+                      <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
+                        {formattedAmount}
+                      </span>
+                    )}
+                  </span>
+                );
+              })
+            ) : (
+              /* Pastille verte uniquement lorsqu'un compte est connecté et à jour */
+              <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                Tout est synchronisé pour le moment
+              </span>
+            )}
+          </div>
+        )}
 
-                  </div>
-                </div>
-              );
-            })()}
+      </div>
+    </div>
+  );
+})()}
 
           {/* ACTION 3 : CSV */}
           <div 
@@ -15036,7 +15213,16 @@ if (!user) {
 
 
 
-{activeTab === 'profile' && <ProfileTab user={user} />}
+{activeTab === 'profile' && (
+  <ProfileTab 
+    user={user}
+    powensData={powensData}
+    comptes={comptes}
+    syncCountByAccount={syncCountByAccount}
+    handleAssociateAccount={handleAssociateAccount}
+    setActiveTab={setActiveTab}
+  />
+)}
 
 
 
@@ -15557,8 +15743,17 @@ if (!user) {
   <ImportPowensModal
     userToken={localStorage.getItem('powens_user_token')}
     utilisateur={typeof user === 'object' ? user.nom : user}
+    comptes={comptes} // 👈 1. Ajout de la liste de vos comptes BDD
     onClose={() => setShowPowensModal(false)}
-    onSuccess={handlePowensImportSuccess}
+    onSuccess={(importedData, targetAccountName) => {
+      // 👈 2. Mise à jour automatique du Select de destination
+      if (targetAccountName) {
+        setSelectedCompte(targetAccountName);
+      }
+      
+      // 👈 3. Appel de votre fonction d'import habituelle
+      handlePowensImportSuccess(importedData, targetAccountName);
+    }}
   />
 )}
 
