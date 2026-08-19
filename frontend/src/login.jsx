@@ -5002,7 +5002,7 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
     <span className="flex items-center gap-2 truncate pr-2">
       <Building2 size={14} className="text-[var(--primary)] shrink-0" />
       <span className="truncate text-[10px] font-black tracking-wider">
-        Association des comptes réels & site ({powensData?.accounts_count || 0})
+        Association de vos comptes en banque réels & ceux sur Kleea ({powensData?.accounts_count || 0})
       </span>
     </span>
   </div>
@@ -13989,7 +13989,7 @@ if (!user) {
                     <span className="flex items-center gap-2 truncate pr-2">
                       <Building2 size={12} className="text-[var(--primary)] shrink-0" />
                       <span className="truncate">
-                        Association des comptes réels & site ({powensData?.accounts_count || 0})
+                        Association de vos comptes en banque réels & ceux sur Kleea ({powensData?.accounts_count || 0})
                       </span>
                     </span>
                     <span className={`text-[8px] opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
