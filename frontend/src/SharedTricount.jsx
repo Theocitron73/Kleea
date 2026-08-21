@@ -217,14 +217,14 @@ export default function SharedTricount() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#152C48] flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8">
+    <div className="min-h-screen bg-[#152C48] text-white p-4 md:p-8">
       
       {/* TOAST SYSTEM */}
       {notification.show && (
