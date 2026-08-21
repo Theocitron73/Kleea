@@ -272,6 +272,10 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
 
 
 const TricountManager = ({ userId }) => {
+
+
+
+
   const [groupes, setGroupes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
@@ -282,6 +286,46 @@ const TricountManager = ({ userId }) => {
   const [newGroupName, setNewGroupName] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
+
+    // 1. Ajoutez cet état en haut de votre composant TricountManager
+const [shareToken, setShareToken] = useState(null);
+
+// 2. Récupérer ou créer le lien de partage
+const handleShareGroup = async () => {
+  const groupName = groupes[activeTab].nom;
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/share-group/${userId}/${groupName}`, {
+      method: 'POST'
+    });
+    const data = await response.json();
+    setShareToken(data.token);
+    
+    // Génération de l'URL publique
+    const shareUrl = `${window.location.origin}/shared-tricount/${data.token}`;
+    await navigator.clipboard.writeText(shareUrl);
+    showToast("Lien de partage copié dans le presse-papiers !", "success");
+  } catch (err) {
+    console.error(err);
+    showToast("Erreur lors de la génération du lien", "error");
+  }
+};
+
+// 3. Déclencher la recherche du token au changement d'onglet
+useEffect(() => {
+  const checkExistingToken = async () => {
+    if (groupes.length > 0 && groupes[activeTab]) {
+      const groupName = groupes[activeTab].nom;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/get-share-token/${userId}/${groupName}`);
+        const data = await response.json();
+        setShareToken(data.token);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+  checkExistingToken();
+}, [activeTab, groupes]);
 
   const fetchGroupes = async () => {
     try {
@@ -1042,12 +1086,21 @@ const getEmojiForMember = (nom) => {
               {groupes.length} Groupes
             </p>
           </div>
-          <button 
-            onClick={() => setIsModalOpen(true)} 
-            className="bg-[var(--primary)] hover:bg-[var(--primary)] text-[var(--text-main)] p-3 rounded-[var(--radius)] flex items-center gap-2 transition-all font-black uppercase text-[9px] tracking-widest"
-          >
-            <Plus size={14} strokeWidth={4} /> Nouveau
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleShareGroup}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white p-3 rounded-[var(--radius)] flex items-center gap-2 transition-all font-black uppercase text-[9px] tracking-widest"
+              title="Partager ce Tricount"
+            >
+              🔗 Partager
+            </button>
+            <button 
+              onClick={() => setIsModalOpen(true)} 
+              className="bg-[var(--primary)] hover:bg-[var(--primary)]/80 text-[var(--text-main)] p-3 rounded-[var(--radius)] flex items-center gap-2 transition-all font-black uppercase text-[9px] tracking-widest"
+            >
+              <Plus size={14} strokeWidth={4} /> Nouveau
+            </button>
+          </div>
         </div>
 
       {/* --- TABS MINIMALISTES --- */}
@@ -5020,7 +5073,7 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
 
         <div className="pt-2 border-t border-white/5 flex items-center justify-between">
           <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-          <span className="text-[10px] font-black text-white/60">Kleea v.3.8</span>
+          <span className="text-[10px] font-black text-white/60">Kleea v.3.9</span>
         </div>
       </div>
     </div>
@@ -10277,7 +10330,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "3.8"; 
+const CURRENT_VERSION = "3.9"; 
 
 useEffect(() => {
   if (!user) return;
@@ -10802,7 +10855,7 @@ if (!user) {
               <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-                    Kleea <span className="text-[var(--primary)]">v.3.8</span>
+                    Kleea <span className="text-[var(--primary)]">v.3.9</span>
                   </span>
                   <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
                     Stable Build
@@ -16191,7 +16244,20 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* 💡 NOUVEAUTÉ 1 : NOUVEAU CALCUL ÉPARGNE & PROJETS */}
+        {/* 💡 NOUVEAUTÉ 1 : ERGONOMIE MOBILE COMPLÈTE */}
+        <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)] animate-in slide-in-from-top-2 duration-300">
+          <span className="text-base mt-0.5">📱</span>
+          <div>
+            <h4 className="text-[15px] font-black text-indigo-400 uppercase tracking-wide">
+              Expérience Mobile & Interface Tactile
+            </h4>
+            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
+              L'intégralité du site et de ses fonctionnalités (Dashboard, Historique, Comptes, Importations, Prévisions) est désormais <strong className="text-indigo-400">adaptée pour les smartphones</strong>. Les tableaux denses se transforment en fiches tactiles aérées, et les modifications se font via des volets d'édition bas (Bottom Sheets) conçus pour un usage fluide à une main.
+            </p>
+          </div>
+        </div>
+
+        {/* NOUVEAUTÉ 2 : NOUVEAU CALCUL ÉPARGNE & PROJETS */}
         <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
           <span className="text-base mt-0.5">🎯</span>
           <div>
@@ -16204,7 +16270,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 2 : SYNCHRONISATION BANCAIRE POWENS */}
+        {/* NOUVEAUTÉ 3 : SYNCHRONISATION BANCAIRE POWENS */}
         <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
           <span className="text-base mt-0.5">🏦</span>
           <div>
@@ -16222,7 +16288,7 @@ if (!user) {
       {/* Bouton de fermeture */}
       <button
         onClick={handleClosePatchModal}
-        className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-cyan-600 hover:from-amber-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-amber-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
+        className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
       >
         Découvrir les nouveautés !
       </button>

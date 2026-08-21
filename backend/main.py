@@ -29,6 +29,8 @@ from sqlalchemy import text
 import httpx
 import requests
 from urllib.parse import quote
+from fastapi import APIRouter
+
 
 def get_ascii_hostname():
     return "localhost"
@@ -1656,22 +1658,28 @@ def get_tricount(username: str, group_name: str):
 
 @app.post("/save-tricount")
 def save_tricount(t: TricountTransaction):
-    # Ajout de 'groupe' dans les colonnes et les VALUES
+    # 💡 AJOUT : Associe le token s'il existe déjà pour ce groupe
+    query_token = text("""
+        SELECT token_partage FROM tricount 
+        WHERE utilisateur = :u AND groupe = :g AND token_partage IS NOT NULL 
+        LIMIT 1
+    """)
+    token_existant = None
+    with engine.connect() as conn:
+        row = conn.execute(query_token, {"u": t.utilisateur, "g": t.groupe}).fetchone()
+        if row:
+            token_existant = row[0]
+
+    token_final = t.token_partage or token_existant
+
     query = text("""
-        INSERT INTO tricount (date, libellé, payé_par, pour_qui, montant, utilisateur, groupe,emoji)
-        VALUES (:d, :l, :p, :pq, :m, :u, :g,:e)
+        INSERT INTO tricount (date, libellé, payé_par, pour_qui, montant, utilisateur, groupe, emoji, token_partage)
+        VALUES (:d, :l, :p, :pq, :m, :u, :g, :e, :token)
     """)
     with engine.begin() as conn:
         conn.execute(query, {
-            "d": t.date, 
-            "l": t.libelle, 
-            "p": t.paye_par, 
-            "pq": t.pour_qui, 
-            "m": t.montant, 
-            "u": t.utilisateur,
-            "g": t.groupe,  # <-- On envoie la valeur ici
-            "token": t.token_partage,  # <-- On enregistre le token ici
-            "e": t.emoji  # <--- ON ENVOIE L'EMOJI ICI
+            "d": t.date, "l": t.libelle, "p": t.paye_par, "pq": t.pour_qui, 
+            "m": t.montant, "u": t.utilisateur, "g": t.groupe, "token": token_final, "e": t.emoji
         })
     return {"status": "success"}
 
@@ -1873,6 +1881,249 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
         media_type="application/pdf", 
         headers=headers
     )
+
+
+
+
+
+
+
+
+# 1. Générer ou récupérer un lien de partage unique pour un groupe
+@app.post("/share-group/{username}/{group_name}")
+def share_group(username: str, group_name: str):
+    # On vérifie si un token existe déjà pour éviter d'en recréer un inutilement
+    query_check = text("""
+        SELECT token_partage FROM tricount 
+        WHERE utilisateur = :u AND groupe = :g AND token_partage IS NOT NULL 
+        LIMIT 1
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query_check, {"u": username, "g": group_name}).fetchone()
+        if row:
+            return {"token": row[0]}
+            
+    # Sinon, on génère un token cryptographique sécurisé de 16 caractères
+    token = secrets.token_urlsafe(16)
+    query_update = text("""
+        UPDATE tricount 
+        SET token_partage = :token 
+        WHERE utilisateur = :u AND groupe = :g
+    """)
+    with engine.begin() as conn:
+        conn.execute(query_update, {"token": token, "u": username, "g": group_name})
+        
+    return {"token": token}
+
+# 2. Récupérer le token s'il existe déjà
+@app.get("/get-share-token/{username}/{group_name}")
+def get_share_token(username: str, group_name: str):
+    query = text("""
+        SELECT token_partage FROM tricount 
+        WHERE utilisateur = :u AND groupe = :g AND token_partage IS NOT NULL 
+        LIMIT 1
+    """)
+    with engine.connect() as conn:
+        row = conn.execute(query, {"u": username, "g": group_name}).fetchone()
+        if row:
+            return {"token": row[0]}
+    return {"token": None}
+
+# 3. Récupérer toutes les données d'un Tricount de manière anonyme via le Token
+@app.get("/get-shared-tricount/{token}")
+def get_shared_tricount(token: str):
+    query = text("""
+        SELECT * FROM tricount 
+        WHERE token_partage = :token 
+        ORDER BY date DESC
+    """)
+    with engine.connect() as conn:
+        res = conn.execute(query, {"token": token}).mappings().all()
+        transactions = [dict(r) for r in res]
+        
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Lien de partage introuvable ou groupe vide.")
+            
+        transferts = calculer_balances(transactions)
+        groupe_nom = transactions[0]["groupe"]
+        utilisateur_origine = transactions[0]["utilisateur"]
+        
+        # Compiler les émojis des membres existants
+        emojis_par_membre = {}
+        for t in transactions:
+            p = t.get('paye_par') or t.get('payé_par')
+            e = t.get('emoji')
+            if p and e:
+                emojis_par_membre[p] = e
+        chaine_emojis = ",".join([f"{k}:{v}" for k, v in emojis_par_membre.items()])
+
+        return {
+            "groupe": groupe_nom,
+            "utilisateur": utilisateur_origine,
+            "transactions": transactions,
+            "transferts": transferts,
+            "emojis": chaine_emojis
+        }
+
+# 4. Sauvegarder une transaction anonyme depuis le lien de partage
+class SharedTransactionRequest(BaseModel):
+    date: date
+    libelle: str
+    montant: float
+    paye_par: str
+    pour_qui: str
+    emoji: Optional[str] = None
+
+@app.post("/save-shared-transaction/{token}")
+def save_shared_transaction(token: str, t: SharedTransactionRequest):
+    # Retrouver l'utilisateur et le groupe d'origine associés au token
+    query_context = text("""
+        SELECT utilisateur, groupe FROM tricount 
+        WHERE token_partage = :token 
+        LIMIT 1
+    """)
+    with engine.connect() as conn:
+        context = conn.execute(query_context, {"token": token}).mappings().first()
+        if not context:
+            raise HTTPException(status_code=404, detail="Lien de partage invalide.")
+            
+        username = context["utilisateur"]
+        group_name = context["groupe"]
+
+    query_insert = text("""
+        INSERT INTO tricount (date, libellé, payé_par, pour_qui, montant, utilisateur, groupe, token_partage, emoji)
+        VALUES (:d, :l, :p, :pq, :m, :u, :g, :token, :e)
+    """)
+    with engine.begin() as conn:
+        conn.execute(query_insert, {
+            "d": t.date, "l": t.libelle, "p": t.paye_par, "pq": t.pour_qui, 
+            "m": t.montant, "u": username, "g": group_name, "token": token, "e": t.emoji
+        })
+    return {"status": "success"}
+
+# 5. Modifier une transaction de manière sécurisée via le token de partage
+class SharedTransactionUpdate(BaseModel):
+    id: int
+    date: date
+    libelle: str
+    paye_par: str
+    pour_qui: str
+    montant: float
+
+@app.put("/update-shared-transaction/{token}")
+def update_shared_transaction(token: str, t: SharedTransactionUpdate):
+    # Sécurité : Vérifier que la transaction appartient bien à ce token de partage
+    query_check = text("SELECT 1 FROM tricount WHERE id = :id AND token_partage = :token")
+    with engine.connect() as conn:
+        exists = conn.execute(query_check, {"id": t.id, "token": token}).fetchone()
+        if not exists:
+            raise HTTPException(status_code=403, detail="Action non autorisée.")
+
+    query_update = text("""
+        UPDATE tricount 
+        SET date = :d, libellé = :l, payé_par = :p, pour_qui = :pq, montant = :m
+        WHERE id = :id
+    """)
+    with engine.begin() as conn:
+        conn.execute(query_update, {
+            "d": t.date, "l": t.libelle, "p": t.paye_par, "pq": t.pour_qui, "m": t.montant, "id": t.id
+        })
+    return {"status": "success"}
+
+# 6. Supprimer une transaction de manière sécurisée via le token de partage
+@app.delete("/delete-shared-transaction/{token}/{id}")
+def delete_shared_transaction(token: str, id: int):
+    # Sécurité : Vérifier que la transaction appartient bien à ce token de partage
+    query_check = text("SELECT 1 FROM tricount WHERE id = :id AND token_partage = :token")
+    with engine.connect() as conn:
+        exists = conn.execute(query_check, {"id": id, "token": token}).fetchone()
+        if not exists:
+            raise HTTPException(status_code=403, detail="Action non autorisée.")
+
+    query_delete = text("DELETE FROM tricount WHERE id = :id")
+    with engine.begin() as conn:
+        conn.execute(query_delete, {"id": id})
+    return {"status": "success"}
+
+# 7. Téléchargement de PDF anonyme depuis le lien de partage
+@app.get("/download-shared-pdf/{token}")
+def download_shared_pdf(token: str, sujet: str = None):
+    query = text("SELECT * FROM tricount WHERE token_partage = :token ORDER BY date DESC")
+    with engine.connect() as conn:
+        res = conn.execute(query, {"token": token}).mappings().all()
+        transactions = [dict(r) for r in res]
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Bilan vide.")
+        df_groupe = pd.DataFrame(transactions)
+        
+    transferts_finaux = calculer_balances(transactions)
+    total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
+    group_name = transactions[0]["groupe"]
+
+    if sujet:
+        transferts_a_afficher = [t for t in transferts_finaux if t['de'] == sujet or t['a'] == sujet]
+        titre_doc = f"NOTE : {sujet}"
+        sous_titre = f"Bilan personnel dans le groupe {group_name}"
+    else:
+        transferts_a_afficher = transferts_finaux
+        titre_doc = group_name
+        sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
+
+    pdf = StyledPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.header_style(titre_doc, sous_titre)
+    
+    pdf.set_left_margin(20)
+    pdf.set_font("Helvetica", "B", 12)
+    pdf.set_text_color(30, 41, 59)
+    pdf.cell(0, 10, "RÉCAPITULATIF DES TRANSFERTS", ln=True)
+    pdf.set_fill_color(99, 102, 241)
+    pdf.rect(20, pdf.get_y(), 10, 1, 'F')
+    pdf.ln(5)
+
+    largeur_utile = 170
+    if transferts_a_afficher:
+        for t in transferts_a_afficher:
+            curr_y = pdf.get_y()
+            if sujet:
+                if t['de'] == sujet:
+                    color = (225, 29, 72)
+                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {t['a']}"
+                else:
+                    color = (5, 150, 105)
+                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {t['de']}"
+            else:
+                color = (79, 70, 229)
+                texte = f"> {t['de']} doit donner {t['montant']:.2f} EUR a {t['a']}"
+            
+            pdf.set_fill_color(248, 250, 252)
+            pdf.rect(20, curr_y, largeur_utile, 10, 'F')
+            pdf.set_fill_color(*color)
+            pdf.rect(20, curr_y, 1.5, 10, 'F')
+            
+            pdf.set_x(25)
+            pdf.set_text_color(*color)
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.multi_cell(w=largeur_utile - 5, h=10, txt=texte, align='L')
+            pdf.ln(2)
+    else:
+        pdf.set_font("Helvetica", "I", 10)
+        pdf.set_text_color(150, 150, 150)
+        pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
+
+    pdf_bytes = bytes(pdf.output()) 
+    headers = {
+        'Content-Disposition': f'attachment; filename="Bilan_{group_name}.pdf"',
+        'Access-Control-Expose-Headers': 'Content-Disposition'
+    }
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
+
+
+
+
+
 
 
 # Modèle pour la modification
