@@ -71,26 +71,39 @@ const generateGradientStep = (hex, stepIndex, totalSteps) => {
 };
 
 
-const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
+const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientStep }) => {
   const [hiddenCategories, setHiddenCategories] = useState(new Set());
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Couleur de base (Identique)
+  // Détection du mode mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsMobile(window.innerWidth < 768);
+      const handleResize = () => setIsMobile(window.innerWidth < 768);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  // Couleur de base
   const baseColor = userTheme.color_depenses || "#6366f1"; 
 
-  // Filtrage (Identique)
+  // Filtrage
   const { visibleData, totalVisible } = useMemo(() => {
     const visible = data.filter(d => !hiddenCategories.has(d.name));
     const total = visible.reduce((acc, curr) => acc + curr.value, 0);
     return { visibleData: visible, totalVisible: total };
   }, [data, hiddenCategories]);
 
-  // --- NOUVELLE GÉNÉRATION DU DÉGRADÉ (Lumineux et fidèle) ---
+  // Génération du dégradé
   const gradientColors = useMemo(() => {
     return visibleData.map((_, i) => {
-      // Utilise la nouvelle fonction qui joue sur la saturation/luminosité HSL
-      return generateGradientStep(baseColor, i, visibleData.length); 
+      if (typeof generateGradientStep === 'function') {
+        return generateGradientStep(baseColor, i, visibleData.length);
+      }
+      return baseColor;
     });
-  }, [visibleData, baseColor]);
+  }, [visibleData, baseColor, generateGradientStep]);
 
   if (!data || data.length === 0) return (
     <div className="h-full min-h-[300px] flex items-center justify-center text-[10px] font-black uppercase text-white/10 tracking-widest italic">
@@ -98,14 +111,12 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
     </div>
   );
 
-  // Logique emoji (Identique)
   const extractEmoji = (name) => {
     const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
     const match = name.match(emojiRegex);
     return match ? match[0] : '•';
   };
 
-  // Logique toggle (Identique)
   const toggleCategory = (name) => {
     setHiddenCategories(prev => {
       const next = new Set(prev);
@@ -115,47 +126,63 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
     });
   };
 
-  // Label personnalisé (Identique)
+  // Label personnalisé avec positionnement resserré sur mobile
   const renderCustomizedLabel = (props) => {
     const { cx, cy, midAngle, outerRadius, value, name } = props;
     const realPercent = totalVisible > 0 ? (value / totalVisible) * 100 : 0;
-    if (realPercent < 2) return null;
+    
+    if (realPercent < (isMobile ? 3 : 2)) return null;
 
     const RADIAN = Math.PI / 180;
-    const radius = outerRadius * 1.12; 
+    // 💡 Coefficient ajusté à 1.04 sur mobile pour coller les labels au grand cercle
+    const radius = outerRadius * (isMobile ? 1.04 : 1.12); 
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
     return (
       <g className="animate-in fade-in duration-500">
-        <text x={x} y={y - 6} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" style={{ fontSize: '15px' }}>
+        <text 
+          x={x} 
+          y={y - (isMobile ? 3 : 6)} 
+          textAnchor={x > cx ? 'start' : 'end'} 
+          dominantBaseline="central" 
+          style={{ fontSize: isMobile ? '11px' : '12px' }}
+        >
           {extractEmoji(name)}
         </text>
-        <text x={x} y={y + 12} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-[10px] font-black tracking-tighter">
+        <text 
+          x={x} 
+          y={y + (isMobile ? 7 : 12)} 
+          fill="white" 
+          textAnchor={x > cx ? 'start' : 'end'} 
+          dominantBaseline="central" 
+          className="text-[8px] md:text-[10px] font-black tracking-tighter"
+        >
           {`${realPercent.toFixed(0)}%`}
         </text>
       </g>
     );
   };
 
-  // Rendu JSX (Identique à 100%, sauf fill des Cells)
   return (
-    <div className="h-full w-full p-4 flex flex-col min-h-0 select-none">
+    /* 💡 padding réduit de p-4 à p-1.5 sur mobile pour maximiser la surface d'affichage */
+    <div className={`h-full w-full flex flex-col min-h-0 select-none ${isMobile ? 'p-1.5' : 'p-4'}`}>
       <p className="text-[10px] font-black uppercase text-white/20 mb-2 tracking-[0.3em] text-center shrink-0">
         Répartition des dépenses {currentYear}
       </p>
       
       <div className="flex-1 flex flex-row items-center min-h-0 relative">
         
-        {/* GRAPHIQUE (ZONE PRINCIPALE) */}
+        {/* GRAPHIQUE (ZONE PRINCIPALE ENGRANDIE) */}
         <div className="flex-1 h-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={visibleData}
                 cx="50%" cy="50%"
-                innerRadius="55%"
-                outerRadius="75%"
+                /* 💡 Rayons agrandis sur mobile pour occuper un maximum d'espace */
+                innerRadius={isMobile ? "60%" : "55%"} 
+                outerRadius={isMobile ? "80%" : "75%"}
                 paddingAngle={visibleData.length > 1 ? 3 : 0}
                 dataKey="value"
                 stroke="none"
@@ -167,7 +194,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
                 {visibleData.map((entry, index) => (
                   <Cell 
                     key={entry.name} 
-                    fill={gradientColors[index]} // <--- Dégradé HSL
+                    fill={gradientColors[index]} 
                     className="outline-none" 
                   />
                 ))}
@@ -180,9 +207,9 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
                   if (active && payload && payload.length) {
                     const p = payload[0].payload;
                     return (
-                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-[var(--glass-blur)] z-50">
+                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-md z-50">
                         <p className="text-[10px] font-black uppercase text-white/40 mb-1 tracking-widest">{p.name}</p>
-                        <p className="text-xl font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
+                        <p className="text-sm font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
                       </div>
                     );
                   }
@@ -194,44 +221,46 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear }) => {
 
           {/* CENTRE DU DONUT */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-[8px] font-black text-white/10 uppercase tracking-[0.2em] mb-1">Total</span>
-            <span className="text-xl font-black text-white tracking-tighter leading-none">
+            <span className="text-[7px] md:text-[8px] font-black text-white/10 uppercase tracking-[0.2em] mb-1">Total</span>
+            <span className="text-base md:text-xl font-black text-white tracking-tighter leading-none">
               {totalVisible.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
             </span>
           </div>
         </div>
 
-        {/* LÉGENDE ÉMOJI À DROITE (Identique à 100%) */}
-          <div className="w-14 h-full flex flex-col gap-3 py-2 border-l border-white/5 items-center overflow-y-auto no-scrollbar shrink-0 bg-white/[0.01]">
-            <div className="mb-2 flex flex-col items-center gap-1 opacity-20">
-              {hiddenCategories.size > 0 ? <EyeOff size={12} strokeWidth={3} /> : <Eye size={12} strokeWidth={3} />}
-              <span className="text-[7px] font-black uppercase tracking-tighter italic">Filtre</span>
-            </div>
-            {data.map((entry) => {
-              const isHidden = hiddenCategories.has(entry.name);
-              return (
-                <button
-                  key={entry.name}
-                  onClick={() => toggleCategory(entry.name)}
-                  title={entry.name}
-                  className={`group relative w-10 h-10 flex items-center justify-center rounded-xl border transition-all duration-500 shrink-0 ${
-                    isHidden 
-                    ? 'bg-transparent border-transparent grayscale opacity-10 scale-90' 
-                    : 'bg-[var(--glass-bg)] border-white/10 shadow-lg scale-100 hover:border-white/30'
-                  }`}
-                >
-                  <span className={`text-lg leading-none transition-transform duration-500 ${isHidden ? 'scale-75' : 'scale-100'}`}>
-                    {extractEmoji(entry.name)}
-                  </span>
-                  <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0a0a0b] border border-white/10 flex items-center justify-center transition-all duration-300 ${
-                    isHidden ? 'opacity-100 scale-100' : 'opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100'
-                  }`}>
-                    {isHidden ? <EyeOff size={8} color="white" strokeWidth={3} /> : <Eye size={8} color="white" strokeWidth={3} />}
-                  </div>
-                </button>
-              );
-            })}
+        {/* LÉGENDE ÉMOJI À DROITE COMPACTÉE POUR MOBILE */}
+        <div className={`${isMobile ? 'w-10 gap-2' : 'w-14 gap-3'} h-full flex flex-col py-2 border-l border-white/5 items-center overflow-y-auto no-scrollbar shrink-0 bg-white/[0.01]`}>
+          <div className="mb-2 flex flex-col items-center gap-1 opacity-20">
+            {hiddenCategories.size > 0 ? <EyeOff size={10} strokeWidth={3} /> : <Eye size={10} strokeWidth={3} />}
+            <span className="text-[6px] font-black uppercase tracking-tighter italic">Filtre</span>
           </div>
+          {data.map((entry) => {
+            const isHidden = hiddenCategories.has(entry.name);
+            return (
+              <button
+                key={entry.name}
+                onClick={() => toggleCategory(entry.name)}
+                title={entry.name}
+                className={`group relative flex items-center justify-center rounded-xl border transition-all duration-500 shrink-0 ${
+                  isMobile ? 'w-8 h-8' : 'w-10 h-10'
+                } ${
+                  isHidden 
+                  ? 'bg-transparent border-transparent grayscale opacity-10 scale-90' 
+                  : 'bg-[var(--glass-bg)] border-white/10 shadow-lg scale-100 hover:border-white/30'
+                }`}
+              >
+                <span className={`leading-none transition-transform duration-500 ${isMobile ? 'text-sm' : 'text-lg'} ${isHidden ? 'scale-75' : 'scale-100'}`}>
+                  {extractEmoji(entry.name)}
+                </span>
+                <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#0a0a0b] border border-white/10 flex items-center justify-center transition-all duration-300 ${
+                  isHidden ? 'opacity-100 scale-100' : 'opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100'
+                }`}>
+                  {isHidden ? <EyeOff size={7} color="white" strokeWidth={3} /> : <Eye size={7} color="white" strokeWidth={3} />}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -2339,6 +2368,18 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
 const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
   const depensesColor = userTheme?.color_depenses || "#fb7185";
 
+  // Détection de l'affichage mobile pour adapter Recharts dynamiquement
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsMobile(window.innerWidth < 768);
+      const handleResize = () => setIsMobile(window.innerWidth < 768);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
   // Total du mois pour le calcul des pourcentages
   const totalMonth = chartData.reduce((acc, curr) => acc + (curr.value || 0), 0);
 
@@ -2349,13 +2390,13 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
       const evolution = data.evolution || 0;
 
       return (
-        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl">
-          <div className="flex justify-between items-start gap-6 mb-2">
+        <div className="bg-slate-900/95 backdrop-blur-sm border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
+          <div className="flex justify-between items-start gap-4 mb-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
               {data.name}
             </p>
             {evolution !== null && evolution !== 0 && (
-              <div className={`flex items-center gap-2 text-[10px] font-black px-2 py-1 rounded-lg ${
+              <div className={`flex items-center gap-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-lg ${
                 evolution > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
               }`}>
                 <span>{evolution > 0 ? '▲' : '▼'} {Math.abs(evolution)}%</span>
@@ -2365,7 +2406,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: depensesColor }} />
-            <p className="text-sm font-black text-white">
+            <p className="text-xs font-black text-white">
               {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
             </p>
           </div>
@@ -2376,13 +2417,22 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
   };
 
   return (
-    <div className="h-full w-full flex flex-row gap-4">
+    <div className="h-full w-full flex flex-col md:flex-row gap-4">
       {statsCategories.length > 0 ? (
         <>
-          {/* PARTIE GRAPHIQUE (Gauche) */}
-          <div className="flex-[2] min-h-0">
+          {/* PARTIE GRAPHIQUE (Haut sur mobile, Gauche sur PC) */}
+          <div className="flex-[1.5] md:flex-[2] min-h-[170px] md:min-h-0 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 65, left: 0, bottom: 0 }}>
+              <BarChart 
+                data={chartData} 
+                layout="vertical" 
+                margin={{ 
+                  top: 0, 
+                  right: isMobile ? 45 : 65, 
+                  left: 0, 
+                  bottom: 0 
+                }}
+              >
                 <defs>
                   <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
@@ -2395,35 +2445,38 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                   type="category" 
                   axisLine={false}
                   tickLine={false}
-                  width={110}
-                  tickFormatter={(value) => value.length > 12 ? `${value.substring(0, 10)}...` : value}
-                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 9, fontWeight: 'bold' }}
+                  width={isMobile ? 75 : 110} // Moins large sur mobile pour libérer de l'espace graphique
+                  tickFormatter={(value) => {
+                    const limit = isMobile ? 9 : 12;
+                    return value.length > limit ? `${value.substring(0, limit - 2)}...` : value;
+                  }}
+                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 8 : 9, fontWeight: 'bold' }}
                 />
                 <Tooltip 
                   cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
                   content={<CustomTooltip />} 
                 />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={16}>
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={isMobile ? 12 : 16}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
                   ))}
                   <LabelList 
                     dataKey="value" 
                     position="right" 
-                    offset={10} 
+                    offset={isMobile ? 5 : 10} 
                     content={(props) => {
                       const { x, y, width, height, value } = props;
                       const percentage = totalMonth > 0 ? ((value / totalMonth) * 100).toFixed(1) : 0;
                       return (
                         <text 
-                          x={x + width + 10} 
+                          x={x + width + (isMobile ? 5 : 10)} 
                           y={y + height / 2} 
                           dy={4} 
-                          fontSize={10} 
+                          fontSize={isMobile ? 8 : 10} 
                           fontWeight="900"
                         >
                           <tspan fill="rgba(245, 238, 238, 0.8)">{Math.round(value)}€ </tspan>
-                          <tspan fill="rgba(68, 79, 233, 0.8)">({percentage}%)</tspan>
+                          <tspan fill="rgba(99, 102, 241, 0.8)">({percentage}%)</tspan>
                         </text>
                       );
                     }}
@@ -2433,12 +2486,14 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
             </ResponsiveContainer>
           </div>
 
-          {/* PARTIE LÉGENDE (Droite) */}
-          <div className="flex-1 min-w-[150px] overflow-y-auto custom-scrollbar border-l border-white/5 pl-4">
-            <p className="text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-4">
+          {/* PARTIE LÉGENDE (Bas sur mobile, Droite sur PC) */}
+          <div className="flex-1 md:min-w-[150px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
+            <p className="text-[8px] md:text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-2 md:mb-4">
               Légende
             </p>
-            <div className="flex flex-col gap-2">
+            
+            {/* Grille responsive : 2 colonnes sur mobile, 1 seule colonne verticale sur PC */}
+            <div className="grid grid-cols-2 md:flex md:flex-col gap-1.5 md:gap-2">
               {statsCategories.map((item, i) => {
                 const isHidden = hiddenCategories.includes(item.name);
 
@@ -2446,13 +2501,13 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                   <button 
                     key={i} 
                     onClick={() => toggleCategory(item.name)} 
-                    className={`flex items-center justify-between p-2.5 rounded-xl transition-all group border ${
+                    className={`flex items-center justify-between p-1.5 md:p-2.5 rounded-xl transition-all group border ${
                       isHidden 
                         ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
                         : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
                     }`}
                   >
-                    <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="flex items-center gap-2 overflow-hidden">
                       <div 
                         className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
                         style={{ 
@@ -2462,14 +2517,14 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                       />
 
                       <div className="flex flex-col items-start overflow-hidden">
-                        <span className={`text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
+                        <span className={`text-[8.5px] md:text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
                           isHidden ? 'text-white/20' : 'text-white/80 group-hover:text-white'
                         }`}>
                           {item.name}
                         </span>
                         
                         {!isHidden && item.isNew && (
-                          <span className="text-[7px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
+                          <span className="text-[6.5px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
                             Nouveau ce mois
                           </span>
                         )}
@@ -2478,10 +2533,10 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
 
                     <div className="shrink-0 ml-2">
                       {isHidden ? (
-                        <EyeOff size={11} className="text-white/10 transition-colors" />
+                        <EyeOff size={10} className="text-white/10 transition-colors" />
                       ) : (
                         <Eye 
-                          size={11} 
+                          size={10} 
                           style={{ color: depensesColor }} 
                           className="opacity-40 group-hover:opacity-100 transition-all" 
                         />
@@ -3235,96 +3290,103 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
 
   if (Variations.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center py-4 px-4 text-center">
-        <div className="w-6 h-6 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-1">
-          <CheckCircle size={10} className="text-emerald-400" />
+      <div className="h-full flex flex-col items-center justify-center py-8 px-4 text-center animate-in fade-in duration-200">
+        <div className="w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mb-2">
+          <CheckCircle size={14} className="text-emerald-400" />
         </div>
-        <h4 className="text-[var(--text-main)] font-black text-[8px] uppercase tracking-[0.2em] opacity-40">
+        <h4 className="text-[var(--text-main)] font-black text-[9px] uppercase tracking-[0.2em] opacity-40">
           Stable
         </h4>
+        <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase mt-1">
+          Aucune variation détectée
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full gap-1">
-      <p className="text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] px-1 mb-1">
-          Variations Catégories par rapport à {shortPrevMonth} </p>
-      {/* Grille de micro-briques */}
-      <div className="grid grid-cols-4 min-[420px]:grid-cols-2 gap-1.5 overflow-y-auto min-h-0 pr-0.5 custom-scrollbar">
-        
+    <div className="flex flex-col h-full gap-2 animate-in fade-in duration-200">
+      <p className="text-[8.5px] md:text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] px-1">
+        Variations par rapport à {shortPrevMonth}
+      </p>
+
+      {/* Grille responsive : 2 colonnes sur mobile, s'élargit sur tablette/PC */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 overflow-y-auto min-h-0 pr-0.5 custom-scrollbar pb-4">
         {Variations.map((item, i) => {
           const isNewCategory = item.evolution === null || item.isNew;
-          const isStable = !isNewCategory && item.evolution === 0; // ✅ Détection du montant égal
+          const isStable = !isNewCategory && item.evolution === 0;
           const isAugmentation = item.evolution > 0;
           const isCritique = !isNewCategory && isAugmentation && (item.evolution >= 20 || item.diffEuro >= 50);
 
           return (
             <div 
               key={i} 
-              className={`relative flex flex-col justify-between p-1.5 rounded-lg border h-11 transition-all ${
+              className={`relative flex flex-col justify-between p-2.5 rounded-xl border h-12 transition-all ${
                 isNewCategory
                   ? 'bg-indigo-500/[0.03] border-indigo-500/20 shadow-[0_0_8px_rgba(99,102,241,0.01)]'
                   : isStable
-                    ? 'bg-white/[0.01] border-white/5 opacity-80' // ✅ Style plus discret si stable
+                    ? 'bg-white/[0.01] border-white/5 opacity-80'
                     : isCritique 
                       ? 'bg-rose-500/5 border-rose-500/20 shadow-[0_0_8px_rgba(244,63,94,0.02)]' 
                       : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
               }`}
             >
               
-              {/* Ligne du haut : Nom de la catégorie (En haut à gauche) + Contexte temporel TOUJOURS en haut à droite */}
-              <div className="flex items-center justify-between w-full leading-none gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-tight text-white/40 truncate flex-1">
+              {/* Ligne du haut : Nom de la catégorie + Contexte temporel */}
+              <div className="flex items-center justify-between w-full leading-none gap-2">
+                <span className="text-[9.5px] font-black uppercase tracking-tight text-white/50 truncate flex-1">
                   {item.name}
                 </span>
                 
-                <span className="text-[10px] font-black tracking-widest uppercase shrink-0 italic text-white/30">
+                <span className="text-[7.5px] font-bold tracking-wider uppercase shrink-0 italic text-white/20">
                   vs {shortPrevMonth}
                 </span>
               </div>
 
-              {/* Ligne du bas : Flèche/Badge (En bas à gauche) + Montant € (En bas à droite) */}
-              <div className="flex items-end justify-between w-full mt-auto leading-none gap-1">
+              {/* Ligne du bas : Flèche/Badge + Montant € */}
+              <div className="flex items-end justify-between w-full mt-auto leading-none gap-1.5">
                 
-                {/* Gauche : Pourcentage OU Badge Stable "Identique" OU Badge Nouveau */}
+                {/* Gauche : Pourcentage OU Badge Stable OU Badge Nouveau */}
                 <div className="flex items-center gap-0.5 min-w-0">
                   {isNewCategory ? (
                     <div className="flex items-center gap-0.5 text-indigo-400">
-                      <Sparkles size={10} />
-                      <span className="text-[10px] font-black tracking-widest uppercase italic">Nouveau</span>
+                      <Sparkles size={9} />
+                      <span className="text-[8.5px] font-black tracking-wider uppercase italic">Nouveau</span>
                     </div>
                   ) : isStable ? (
                     <div className="flex items-center gap-0.5 text-white/40">
-                      <Minus size={10} strokeWidth={3} />
-                      <span className="text-[10px] font-black tracking-widest uppercase italic">Identique</span>
+                      <Minus size={9} strokeWidth={3} />
+                      <span className="text-[8.5px] font-black tracking-wider uppercase italic">Identique</span>
                     </div>
                   ) : (
-                    <>
+                    <div className="flex items-center gap-0.5">
                       <span className={`shrink-0 ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {isAugmentation ? <ArrowUpRight size={10} strokeWidth={3} /> : <ArrowDownRight size={10} strokeWidth={3} />}
+                        {isAugmentation 
+                          ? <ArrowUpRight size={9} strokeWidth={3} /> 
+                          : <ArrowDownRight size={9} strokeWidth={3} />
+                        }
                       </span>
-                      <span className={`text-[12px] font-black tracking-tighter ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
+                      <span className={`text-[11px] font-black tracking-tighter ${isAugmentation ? 'text-rose-400' : 'text-emerald-400'}`}>
                         {Math.abs(item.evolution)}%
                       </span>
-                    </>
+                    </div>
                   )}
                 </div>
 
                 {/* Droite : Valeur brute (ou différentiel) */}
-                <span className={`text-[12px] font-black tracking-tight shrink-0 ${
+                <span className={`text-[12px] font-mono font-black tracking-tight shrink-0 ${
                   isNewCategory ? 'text-white' : isStable ? 'text-white/40' : isAugmentation ? 'text-rose-400' : 'text-emerald-400'
                 }`}>
                   {isNewCategory ? '' : isStable ? '=' : isAugmentation ? '+' : '-'}{Math.abs(Math.round(isNewCategory ? item.value : item.diffEuro))}€
                 </span>
               </div>
 
-              {/* Points de focus / Alerte */}
+              {/* Points d'alerte discrets */}
               {isCritique && (
-                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-rose-500" />
+                <span className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-rose-500 animate-ping" />
               )}
               {isNewCategory && (
-                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-indigo-500" />
+                <span className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-indigo-500" />
               )}
             </div>
           );
@@ -11468,7 +11530,8 @@ if (!user) {
                           <AnnualCategoriesChart 
                             data={statsAnnuellesCategories} 
                             userTheme={userTheme} 
-                            currentYear={filters.annee} 
+                            currentYear={filters.annee}
+                            generateGradientStep={generateGradientStep} 
                           />
                         </div>
                       )}
@@ -12112,6 +12175,7 @@ if (!user) {
         // 💡 PASSAGE DES COMPOSANTS ET ÉLÉMENTS GRAPHIQUES :
         SortableAccountCard={SortableAccountCard}
         AnnualCategoriesChart={AnnualCategoriesChart}
+        generateGradientStep={generateGradientStep}
       />
     </div>
   </>

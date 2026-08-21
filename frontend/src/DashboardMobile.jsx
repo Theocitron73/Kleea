@@ -3,7 +3,7 @@ import {
   DndContext, closestCenter 
 } from '@dnd-kit/core';
 import { 
-  SortableContext, horizontalListSortingStrategy 
+  SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy 
 } from '@dnd-kit/sortable';
 import { 
   ChevronLeft, ChevronRight, Search, X, List, PieChart as PieChartIcon, 
@@ -26,12 +26,13 @@ export default function DashboardMobile(props) {
     visibleAnnuel, setVisibleAnnuel, hiddenComptes, setHiddenComptes, GestionEpargneProjet,
     allocations, setAllocations, projets, setProjets, user, api, fetchAllocations,
     categoriesVisibles, updateCell,
-    AnnualCategoriesChart
+    AnnualCategoriesChart,generateGradientStep
   } = props;
 
   // États locaux de navigation mobile
   const [mobileHub, setMobileHub] = useState('flux'); // 'flux' | 'annual' | 'graphs'
   const [editingTransaction, setEditingTransaction] = useState(null); // Modale d'édition tactile
+  const [isSortingAccounts, setIsSortingAccounts] = useState(false); // Mode réorganisation débrayable
 
   // Gérer la sauvegarde rapide d'une transaction éditée sur mobile
   const handleSaveMobileTx = async () => {
@@ -159,7 +160,7 @@ export default function DashboardMobile(props) {
             }}
           >
             <div>
-              <p className="text-white/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Patrimoine Estimé</p>
+              <p className="text-white/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Patrimoine</p>
               <h2 className="text-xl font-black tracking-tighter leading-none">
                 {soldeGlobal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
               </h2>
@@ -169,22 +170,53 @@ export default function DashboardMobile(props) {
             </span>
           </div>
 
-          {/* DRAG AND DROP DES COMPTES BANCAIRES */}
-          <div className="min-w-0">
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={soldesTries.map(c => c.compte)} strategy={horizontalListSortingStrategy}>
-                <div className="flex gap-3 pb-2 overflow-x-auto no-scrollbar cursor-grab active:cursor-grabbing select-none">
-                  {soldesTries.map(c => (
-                    <div key={c.compte} className="min-w-[155px] shrink-0">
-                      <SortableAccountCard c={c} />
-                    </div>
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
+          {/* DRAG AND DROP DES COMPTES BANCAIRES AVEC MODE TRIPTIQUE DÉBRAYABLE */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">
+                Mes Comptes ({soldesTries.length})
+              </span>
+              <button 
+                onClick={() => setIsSortingAccounts(!isSortingAccounts)}
+                className={`px-3 py-1 rounded-xl border text-[9px] font-black uppercase transition-all flex items-center gap-1.5 ${
+                  isSortingAccounts 
+                    ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' 
+                    : 'bg-white/5 border-white/10 text-white/50'
+                }`}
+              >
+                {isSortingAccounts ? 'Valider ✓' : 'Réorganiser ⇅'}
+              </button>
+            </div>
+
+            {isSortingAccounts ? (
+              /* Mode réorganisation : Tri vertical sans interférences de défilement */
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={soldesTries.map(c => c.compte)} strategy={verticalListSortingStrategy}>
+                  <div className="flex flex-col gap-2 p-2 bg-black/20 rounded-2xl border border-white/5 animate-in slide-in-from-top-2 duration-200">
+                    <p className="text-[8px] font-black text-amber-400/80 uppercase text-center py-1 bg-amber-500/5 rounded-lg border border-amber-500/10">
+                      ⇅ Glissez verticalement les cartes de comptes pour trier
+                    </p>
+                    {soldesTries.map(c => (
+                      <div key={c.compte} className="w-full">
+                        <SortableAccountCard c={c} />
+                      </div>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            ) : (
+              /* Mode lecture fluide : Swipe latéral 100% stable */
+              <div className="flex gap-3 pb-2 overflow-x-auto no-scrollbar select-none">
+                {soldesTries.map(c => (
+                  <div key={c.compte} className="min-w-[155px] shrink-0">
+                    <SortableAccountCard c={c} />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* JOURNAL & RECHERCHE DES FLUX */}
+{/* JOURNAL & RECHERCHE DES FLUX */}
           <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <span className="text-[10px] font-black uppercase tracking-wider">Flux mensuel</span>
@@ -232,7 +264,7 @@ export default function DashboardMobile(props) {
             </div>
 
             {/* RENDU CONTENU DU JOURNAL MOBILE */}
-            <div className="space-y-1.5 max-h-96 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-110 overflow-y-auto pr-1">
               {(() => {
                 const rawTransactions = [...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])];
                 
@@ -246,13 +278,17 @@ export default function DashboardMobile(props) {
 
                 if (tabActive === 'Catégories') {
                   return (
-                    <CategoriesView 
-                      statsCategories={statsCategories}
-                      chartData={chartData}
-                      hiddenCategories={hiddenCategories}
-                      toggleCategory={toggleCategory}
-                      userTheme={userTheme}
-                    />
+                    /* 💡 CORRECTION : Ajout d'une hauteur explicite (h-80) et d'un comportement d'affichage 
+                       pour que le graphique en barre horizontal s'initialise et s'affiche correctement */
+                    <div className="h-130 w-full pb-4 animate-in fade-in duration-200">
+                      <CategoriesView 
+                        statsCategories={statsCategories}
+                        chartData={chartData}
+                        hiddenCategories={hiddenCategories}
+                        toggleCategory={toggleCategory}
+                        userTheme={userTheme}
+                      />
+                    </div>
                   );
                 }
 
@@ -453,12 +489,13 @@ export default function DashboardMobile(props) {
               )}
 
               {annualTab === 'chart' && (
-                <div className="h-64 w-full">
+                <div className="h-100 w-full">
                   {AnnualCategoriesChart ? (
                     <AnnualCategoriesChart 
                       data={statsAnnuellesCategories} 
                       userTheme={userTheme} 
-                      currentYear={filters.annee} 
+                      currentYear={filters.annee}
+                      generateGradientStep={generateGradientStep} 
                     />
                   ) : (
                     <p className="text-center text-xs text-white/40 py-8">Graphique indisponible</p>
@@ -613,12 +650,12 @@ export default function DashboardMobile(props) {
                 )}
               </div>
 
-              {/* GRAPHIQUES RECHARTS : TENDANCE GLOBALE (REVENUS & DEPENSES AVEC LEGENDE ACTIVE) */}
+              {/* GRAPHIQUES RECHARTS : TENDANCE GLOBALE */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <h3 className="text-xs font-bold text-white mb-2">Tendance Globale</h3>
                 <div className="h-44 w-full pb-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                    <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="mobileColorRev" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.25}/>
@@ -631,9 +668,21 @@ export default function DashboardMobile(props) {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                       <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 9}} />
-                      <YAxis hide={true} />
                       
-                      {/* 💡 LÉGENDE INTERACTIVE RAJOUTÉE : PERMET DE MASQUER D'UN SIMPLE TAP TACTILE */}
+                      {/* 💡 CORRECTION : Valeurs en ordonnées affichées proprement avec formatage en euros */}
+                      <YAxis 
+                        hide={false}
+                        tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 9 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={45}
+                        tickFormatter={(value) => {
+                          if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
+                          if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
+                          return `${value}€`;
+                        }}
+                      />
+                      
                       <Legend 
                         verticalAlign="top" 
                         align="right" 
@@ -687,29 +736,29 @@ export default function DashboardMobile(props) {
                 </div>
               </div>
 
-              {/* 📈 GRAPHIQUE ÉVOLUTION DÉTAILLÉE DES COMPTES DU PROFIL AVEC LÉGENDE ACTIVE */}
+              {/* 📈 GRAPHIQUE ÉVOLUTION DÉTAILLÉE DES COMPTES DU PROFIL */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <h3 className="text-xs font-bold text-white mb-2">Évolution des Comptes</h3>
                 <div className="h-48 w-full pb-2">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -30, bottom: 0 }}>
+                    <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                       <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 9}} />
-                      <YAxis hide={true} />
-                      <defs>
-                        {comptesDuProfil?.map((compte, index) => (
-                          <linearGradient 
-                            key={`grad-mobile-${index}`} 
-                            id={`colorGrad-mobile-${index}`}
-                            x1="0" y1="0" x2="0" y2="1"
-                          >
-                            <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.4}/>
-                            <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
-                          </linearGradient>
-                        ))}
-                      </defs>
                       
-                      {/* 💡 LÉGENDE DES COMPTES INTERACTIVE RAJOUTÉE : PERMET DE FILTRER UN COMPTE D'UN SIMPLE TAP */}
+                      {/* 💡 CORRECTION : Valeurs en ordonnées affichées proprement avec formatage en euros */}
+                      <YAxis 
+                        hide={false}
+                        tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 9 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={45}
+                        tickFormatter={(value) => {
+                          if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
+                          if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
+                          return `${value}€`;
+                        }}
+                      />
+                      
                       <Legend 
                         verticalAlign="top" 
                         align="right" 

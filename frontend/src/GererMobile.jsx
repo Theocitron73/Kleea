@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
-  Database, List, CreditCard, Tag, MoreHorizontal, ArrowUpDown,Pencil
+  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
@@ -25,7 +25,6 @@ export default function GererMobile(props) {
     searchTerm, setSearchTerm,
     transactionsFiltrees, selectedIds, toggleAll, toggleSelect, updateCell,
     allocations,
-    // Note: si vous utilisez un composant de date personnalisé à l'extérieur
     CustomBadgeDate
   } = props;
 
@@ -52,6 +51,25 @@ export default function GererMobile(props) {
     await updateCell(editingTransaction.id, 'enveloppe', editingTransaction.enveloppe);
     
     setEditingTransaction(null);
+  };
+
+  // Formater proprement la date sur mobile de manière sécurisée
+  const getFormattedDate = (t) => {
+    if (t.date) {
+      try {
+        const d = new Date(t.date);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+      } catch (e) {
+        // ignore
+      }
+      return t.date;
+    }
+    if (t.jour) {
+      return `${t.jour} ${t.mois || ''}`.trim().toUpperCase();
+    }
+    return (t.mois || 'À DÉFINIR').toUpperCase();
   };
 
   return (
@@ -147,7 +165,7 @@ export default function GererMobile(props) {
                 className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
               >
                 <option value="tous">Tous les comptes</option>
-                {props.soldesTries.map(s => (
+                {props.soldesTries?.map(s => (
                   <option key={s.compte} value={s.compte}>{s.compte}</option>
                 ))}
               </select>
@@ -218,8 +236,9 @@ export default function GererMobile(props) {
           Budgets ({budgets.length})
         </button>
       </div>
-{/* =========================================================================
-          ONGLET 1 : LES TRANSACTIONS (VUE PAR CARTES + ACTION TOUCHER POUR MODIFIER)
+
+      {/* =========================================================================
+          ONGLET 1 : LES TRANSACTIONS
           ========================================================================= */}
       {activeSection === 'transactions' && (
         <div className="space-y-3 flex-1">
@@ -259,7 +278,7 @@ export default function GererMobile(props) {
                   <div 
                     key={t.id} 
                     onClick={() => openEditTx(t)}
-                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/10 rounded-2xl flex items-center justify-between transition-all"
+                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Badge indicateur de type */}
@@ -285,7 +304,7 @@ export default function GererMobile(props) {
                       </div>
                     </div>
 
-                    {/* Bloc montant + indicateur visuel crayon d'édition */}
+                    {/* Bloc montant + Date + Indicateur d'édition */}
                     <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
                       <div>
                         <span className={`text-xs font-mono font-black ${
@@ -294,8 +313,10 @@ export default function GererMobile(props) {
                           {estRevenu && !estVirement ? '+' : ''}
                           {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </span>
-                        <p className="text-[8px] text-white/30 font-bold uppercase mt-1">
-                          {t.jour ? `${t.jour} ${t.mois}` : t.mois}
+                        
+                        {/* 💡 CORRECTION : Affichage de la date formatée sous le montant */}
+                        <p className="text-[8.5px] text-white/40 font-black tracking-tight mt-1">
+                          {getFormattedDate(t)}
                         </p>
                       </div>
                       
@@ -318,7 +339,7 @@ export default function GererMobile(props) {
       )}
 
       {/* =========================================================================
-          ONGLET 2 : OUTILS - SAISIE EXPRESS & CONFIGURATION CATEGORIES
+          ONGLET 2 : OUTILS
           ========================================================================= */}
       {props.activeTab === 'gerer' && activeSection === 'tools' && (
         <div className="space-y-4">
@@ -350,10 +371,10 @@ export default function GererMobile(props) {
                 
                 <select 
                   value={newTx.compte}
-                  onChange={(e) => setNewTx({...newTx, compte: e.value || e.target.value})}
+                  onChange={(e) => setNewTx({...newTx, compte: e.target.value})}
                   className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
                 >
-                  {props.soldesTries.map(s => (
+                  {props.soldesTries?.map(s => (
                     <option key={s.compte} value={s.compte}>{s.compte}</option>
                   ))}
                 </select>
@@ -362,7 +383,7 @@ export default function GererMobile(props) {
               <div className="grid grid-cols-2 gap-2">
                 <select 
                   value={newTx.categorie}
-                  onChange={(e) => setNewTx({...newTx, categorie: e.value || e.target.value})}
+                  onChange={(e) => setNewTx({...newTx, categorie: e.target.value})}
                   className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
                 >
                   {categoriesVisibles.map(cat => (
@@ -385,7 +406,6 @@ export default function GererMobile(props) {
                   const label = document.getElementById('quick-nom-mobile').value;
                   const amt = document.getElementById('quick-montant-mobile').value;
                   if (label && amt) {
-                    // Injecter temporairement les valeurs lues
                     document.getElementById('quick-nom').value = label;
                     document.getElementById('quick-montant').value = amt;
                     submitQuickTransaction();
@@ -400,7 +420,7 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* AJOUTER UNE CATÉGORIE PERSO */}
+          {/* CREER UNE CATEGORIE */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-white/60 tracking-widest mb-3">
               Créer une Catégorie
@@ -427,7 +447,7 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* GESTION / VISIBILITÉ DES CATÉGORIES */}
+          {/* VISIBILITE DES CATEGORIES */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-black uppercase text-white/60 tracking-widest">
@@ -479,7 +499,7 @@ export default function GererMobile(props) {
       {activeSection === 'budgets' && (
         <div className="space-y-4">
           
-          {/* DEFINIR RAPIDEMENT UN OBJECTIF */}
+          {/* DEFINIR UN BUDGET */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Target size={12} /> Définir un Budget
@@ -493,7 +513,7 @@ export default function GererMobile(props) {
                   className="w-full bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
                 >
                   <option value="tous">Tous les comptes</option>
-                  {props.soldesTries.map(s => (
+                  {props.soldesTries?.map(s => (
                     <option key={s.compte} value={s.compte}>{s.compte}</option>
                   ))}
                 </select>
@@ -591,19 +611,19 @@ export default function GererMobile(props) {
       )}
 
       {/* =========================================================================
-          MODALE MOBILE DE MODIFICATION COMPLÈTE DE TRANSACTION (TACTILE ADAPTÉ)
+          MODALE DE MODIFICATION RAPIDE DE TRANSACTION
           ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div 
-            className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[90vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
+            className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header d'édition */}
-            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer le flux</h4>
-                <p className="text-[9px] text-white/30 uppercase font-black">Modification tactile</p>
+                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la transaction</h4>
+                <p className="text-[9px] text-white/30 uppercase font-black">Modification express sur mobile</p>
               </div>
               <button 
                 onClick={() => setEditingTransaction(null)} 
@@ -614,12 +634,12 @@ export default function GererMobile(props) {
             </div>
 
             {/* Inputs de modification */}
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
                 <input 
                   type="text"
-                  value={editingTransaction.nom}
+                  value={editingTransaction.nom || editingTransaction.libelle || ''}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, nom: e.target.value })}
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
                 />
@@ -636,62 +656,36 @@ export default function GererMobile(props) {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte bancaire</label>
+                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte associé</label>
                   <select 
                     value={editingTransaction.compte}
                     onChange={(e) => setEditingTransaction({ ...editingTransaction, compte: e.target.value })}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
                   >
-                    {props.soldesTries.map(s => (
-                      <option key={s.compte} value={s.compte}>{s.compte}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Catégorie</label>
-                  <select 
-                    value={editingTransaction.categorie || "❓ Autre"}
-                    onChange={(e) => setEditingTransaction({ ...editingTransaction, categorie: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-                  >
-                    {categoriesVisibles.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Mois affecté</label>
-                  <select 
-                    value={editingTransaction.mois || "À définir"}
-                    onChange={(e) => setEditingTransaction({ ...editingTransaction, mois: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-                  >
-                    {moisListe.map(m => (
-                      <option key={m.v} value={m.v}>{m.l}</option>
+                    {comptes.map(c => (
+                      <option key={c.compte} value={c.compte}>{c.compte}</option>
                     ))}
                   </select>
                 </div>
               </div>
 
               <div>
-                <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Enveloppe d'épargne</label>
+                <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Catégorie</label>
                 <select 
-                  value={editingTransaction.enveloppe || ""}
-                  onChange={(e) => setEditingTransaction({ ...editingTransaction, enveloppe: e.target.value })}
+                  value={editingTransaction.categorie || "❓ Autre"}
+                  onChange={(e) => setEditingTransaction({ ...editingTransaction, categorie: e.target.value })}
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
                 >
-                  <option value="">📦 Aucune enveloppe</option>
-                  {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => (
-                    <option key={projetNom} value={projetNom}>💰 {projetNom}</option>
-                  ))}
+                  {categoriesVisibles?.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  )) || (
+                    <option value={editingTransaction.categorie}>{editingTransaction.categorie}</option>
+                  )}
                 </select>
               </div>
             </div>
 
-            {/* Validation */}
+            {/* Actions */}
             <div className="flex gap-2 pt-3">
               <button 
                 onClick={() => setEditingTransaction(null)}
@@ -701,9 +695,9 @@ export default function GererMobile(props) {
               </button>
               <button 
                 onClick={handleSaveMobileTx}
-                className="flex-1 py-3 bg-[var(--primary)] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-[var(--primary)]/10"
+                className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/10"
               >
-                Enregistrer
+                Sauvegarder
               </button>
             </div>
           </div>
