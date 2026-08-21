@@ -883,6 +883,7 @@ class CategorieCreate(BaseModel):
     utilisateur: str
 
 # Constante globale : une seule source de vérité côté serveur
+# Constante globale : Base des catégories d'origine sans les virements câblés en dur
 CATEGORIES_DEFAUT = [
     "💰 Salaire", "🏥 Remboursements", "🤝 Virements Reçus", "👫 Compte Commun",
     "📱 Abonnements", "🛒 Alimentation", "🛍️ Shopping", "👕 Habillement", 
@@ -890,30 +891,80 @@ CATEGORIES_DEFAUT = [
     "🩺 Mutuelle", "💊 Pharmacie", "👨‍⚕️ Médecin/Santé", "🔑 Loyer", 
     "🔨 Bricolage", "🚌 Transports", "⛽ Carburant", "🚗 Auto", 
     "💸 Virements envoyé", "🏧 Retraits", "🌐 Internet", 
-    "🔄 Virement : Livret A vers CCP", "🔄 Virement : CCP vers Livret A", "❓ Autre"
+    "❓ Autre" # 💡 Les virements dynamiques seront insérés juste avant "Autre"
 ]
 
 @app.get("/api/categories/{user}")
 def get_categories(user: str):
     try:
-        with engine.connect() as conn:
-            query = text("SELECT nom FROM categories WHERE utilisateur = :u")
-            result = conn.execute(query, {"u": user}).fetchall()
-            categories_perso = [row[0] for row in result]
+        user_clean = user.strip().lower()
         
-        # On renvoie un dictionnaire structuré
+        with engine.connect() as conn:
+            # 1. Récupération des catégories personnalisées
+            query_perso = text("SELECT nom FROM categories WHERE LOWER(utilisateur) = :u")
+            result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+            categories_perso = [row[0] for row in result_perso]
+            
+            # 2. Récupération de la liste des comptes pour les virements
+            query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
+            result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
+            comptes_noms = [row[0] for row in result_comptes]
+        
+        # 3. Détecter les types de comptes uniques présents (ex: "CCP", "LIVRET A", etc.)
+        types_detectes = set()
+        types_possibles = ["CCP", "LIVRET A", "LEP", "LDDS", "PEL", "AUTRE"]
+        
+        for nom in comptes_noms:
+            # Extraction du préfixe si le séparateur " - " est présent
+            if " - " in nom:
+                prefix = nom.split(" - ")[0].strip().upper()
+                if prefix in types_possibles:
+                    types_detectes.add(prefix)
+                    continue
+            
+            # Recherche du mot-clé de secours si aucun séparateur n'est présent
+            nom_upper = nom.upper()
+            for t in types_possibles:
+                if t in nom_upper:
+                    types_detectes.add(t)
+                    break
+
+        # 4. Générer les permutations de transferts bidirectionnels entre les types détectés
+        virements_dynamiques = []
+        liste_types = sorted(list(types_detectes))
+        
+        for i in range(len(liste_types)):
+            for j in range(i + 1, len(liste_types)):
+                t1 = liste_types[i]
+                t2 = liste_types[j]
+                virements_dynamiques.append(f"🔄 Virement : {t1} vers {t2}")
+                virements_dynamiques.append(f"🔄 Virement : {t2} vers {t1}")
+
+        # 5. On retire les virements statiques si jamais il en reste dans CATEGORIES_DEFAUT
+        base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("🔄 Virement")]
+        
+        # Insérer les virements dynamiques juste avant "❓ Autre"
+        if "❓ Autre" in base_categories:
+            idx = base_categories.index("❓ Autre")
+            defaults_finales = base_categories[:idx] + virements_dynamiques + base_categories[idx:]
+        else:
+            defaults_finales = base_categories + virements_dynamiques
+        
+        # On renvoie le dictionnaire structuré mis à jour
         return {
-            "defaults": sorted(CATEGORIES_DEFAUT),
+            "defaults": sorted(defaults_finales),
             "perso": sorted(categories_perso),
-            "all": sorted(list(set(CATEGORIES_DEFAUT + categories_perso)))
+            "all": sorted(list(set(defaults_finales + categories_perso)))
         }
         
     except Exception as e:
         print(f"Erreur SQL: {e}")
+        # En cas d'erreur, on se replie proprement sur CATEGORIES_DEFAUT sans virement dynamique
+        base_categories_fallback = [c for c in CATEGORIES_DEFAUT if not c.startswith("🔄 Virement")]
         return {
-            "defaults": sorted(CATEGORIES_DEFAUT),
+            "defaults": sorted(base_categories_fallback),
             "perso": [],
-            "all": sorted(CATEGORIES_DEFAUT)
+            "all": sorted(base_categories_fallback)
         }
     
 
@@ -1079,7 +1130,6 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
         mots_cles_rules = []
         try:
             with engine.connect() as conn:
-                # On récupère les mots clés admin + utilisateur
                 query_cat = text("""
                     SELECT categorie, mots_cles, utilisateur 
                     FROM config_categories 
@@ -1087,12 +1137,10 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 """)
                 result = conn.execute(query_cat, {"u": utilisateur}).fetchall()
                 
-                # On gère la priorité utilisateur sur l'admin
                 temp_rules = {}
                 for row in result:
                     cat_name, raw_keywords, owner = row
                     if raw_keywords:
-                        # Nettoyage du format {a,b,c} de Postgres
                         keywords_str = str(raw_keywords).replace('{', '').replace('}', '').replace('"', '')
                         keywords_list = [m.strip().lower() for m in keywords_str.split(',') if m.strip()]
                         
@@ -1104,8 +1152,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
         except Exception as e:
             print(f"Erreur chargement mots_cles: {e}")
 
-        # --- 5. CHARGEMENT DE LA MÉMOIRE (Liste d'objets triée) ---
-        # get_memoire(u) renvoie : [{"nom": "UBER EATS", "categorie": "Repas"}, ...]
+        # --- 5. CHARGEMENT DE LA MÉMOIRE ---
         memoire_rules = get_memoire(utilisateur)
 
         transactions_pretes = []
@@ -1115,13 +1162,11 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
         for _, row in df.iterrows():
             if pd.isna(row[col_date]): continue
             
-            # Filtre Revolut (état terminé)
             if col_etat and pd.notna(row[col_etat]):
                 if str(row[col_etat]).upper() not in ['TERMINÉ', 'COMPLETED', 'FINI']:
                     continue
 
             try:
-                # Nettoyage du montant
                 def clean_val(val):
                     if pd.isna(val) or val == "": return "0"
                     res = str(val).replace('+', '').replace('\xa0', '').replace(' ', '').strip()
@@ -1132,18 +1177,13 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                     d_val = clean_val(row.get(col_debit)) if col_debit else "0"
                     c_val = clean_val(row.get(col_credit)) if col_credit else "0"
                     
-                    # SI DÉBIT : On force le montant en NÉGATIF
                     if d_val and d_val not in ["0", "0.00", "0.0"]: 
                         montant_float = -abs(float(d_val)) 
-                    
-                    # SI CRÉDIT : On force le montant en POSITIF
                     elif c_val and c_val not in ["0", "0.00", "0.0"]: 
                         montant_float = abs(float(c_val))
-                
                 elif col_montant:
                     montant_float = float(clean_val(row[col_montant]))
 
-                # Préparation des textes pour comparaison
                 nom_t = str(row[col_nom]).strip()
                 info_t = str(row[col_info]) if col_info and pd.notna(row[col_info]) else ""
                 nom_t_lower = nom_t.lower()
@@ -1152,25 +1192,27 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 # --- ALGORITHME DE CATÉGORISATION ---
                 cat = "❓ Autre"
                 
-                # A. Priorité 1 : Virements Internes (Logique fixe)
-                mes_comptes = ["LIVRET A", "LDDS", "COMPTE CHEQUES", "COMMUN", "CCP", "REVOLUT"]
-                if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO "]):
-                    if "LIVRET A" in texte_integral_upper: cat = "🔄 Virement : CCP vers Livret A"
-                    elif any(c in texte_integral_upper for c in ["COMPTE CHEQUES", "CCP"]): cat = "🔄 Virement : Livret A vers CCP"
-                    elif any(c in texte_integral_upper for c in mes_comptes): cat = "🔄 Transfert Interne"
+                # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
+                if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
+                    # Détection automatique du livret cible dans le libellé brut de la banque
+                    types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
+                    type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
+                    
+                    if type_cible:
+                        if montant_float < 0: # Débit : Argent envoyé du compte courant vers l'épargne
+                            cat = f"🔄 Virement : CCP vers {type_cible}"
+                        else: # Crédit : Argent retiré de l'épargne vers le compte courant
+                            cat = f"🔄 Virement : {type_cible} vers {type_cible if type_cible != 'CCP' else 'LIVRET A'}" # Fallback
+                            cat = f"🔄 Virement : {type_cible} vers CCP"
+                    else:
+                        # Si aucun livret connu n'est identifié
+                        cat = "🔄 Transfert Interne"
 
-                
-                # B. Priorité 2 : Mémoire Apprise (Recherche partielle flexible)
+                # B. Priorité 2 : Mémoire Apprise
                 if cat == "❓ Autre":
-                    # 1. On normalise le nom de la transaction du CSV (minuscules + suppression espaces doubles)
-                    # "ACHAT CB UBER    EATS" devient "achat cb uber eats"
                     nom_t_normalise = " ".join(nom_t_lower.split())
-
                     for m in memoire_rules:
-                        # 2. On normalise aussi le nom stocké en mémoire par sécurité
                         nom_memoire_clean = " ".join(m["nom"].lower().split())
-                        
-                        # 3. On compare les deux versions propres
                         if nom_memoire_clean in nom_t_normalise:
                             cat = m["categorie"]
                             break
@@ -1180,19 +1222,14 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                     for rule in mots_cles_rules:
                         matched = False
                         for raw_k in rule["keywords"]:
-                            # On décode le mot-clé et le filtre de signe
                             parts = raw_k.split(':')
                             keyword_clean = parts[0].strip().lower()
-                            
-                            # Si aucun filtre n'est spécifié, on considère "both" par défaut
                             filtre_signe = parts[1].strip().lower() if len(parts) > 1 else "both"
                             
                             if not keyword_clean:
                                 continue
 
-                            # On vérifie si le mot-clé est présent dans le libellé
                             if keyword_clean in nom_t_lower:
-                                # Validation de la condition sur le signe du montant
                                 match_positif = (filtre_signe == "positive" and montant_float > 0)
                                 match_negatif = (filtre_signe == "negative" and montant_float < 0)
                                 match_deux = (filtre_signe in ["both", "all"])
@@ -3187,12 +3224,8 @@ async def import_powens(
         memoire_rules = get_memoire(utilisateur)
 
         transactions_pretes = []
-        mes_comptes = ["LIVRET A", "LDDS", "COMPTE CHEQUES", "COMMUN", "CCP", "REVOLUT"]
         
-        print("ID recherché :", account_id)
-        if powens_raw:
-            print("Exemple de transaction brute Powens :", powens_raw[0])
-        # 4. Traitement des règles de catégorisation
+        # --- TRAITEMENT DES RÈGLES DE CATÉGORISATION ---
         for t in transactions_brutes:
             nom_t = t["nom"]
             montant_float = t["montant"]
@@ -3200,16 +3233,21 @@ async def import_powens(
             texte_integral_upper = nom_t.upper()
             cat = "❓ Autre"
 
-            # A. Virements Internes
-            if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO "]):
-                if "LIVRET A" in texte_integral_upper:
-                    cat = "🔄 Virement : CCP vers Livret A"
-                elif any(c in texte_integral_upper for c in ["COMPTE CHEQUES", "CCP"]):
-                    cat = "🔄 Virement : Livret A vers CCP"
-                elif any(c in texte_integral_upper for c in mes_comptes):
+            # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
+            if any(k in texte_integral_upper for k in ["VERS ", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
+                # Détection automatique du livret cible dans le libellé brut de Powens
+                types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
+                type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
+                
+                if type_cible:
+                    if montant_float < 0: # Débit : Argent envoyé du compte courant vers l'épargne
+                        cat = f"🔄 Virement : CCP vers {type_cible}"
+                    else: # Crédit : Argent retiré de l'épargne vers le compte courant
+                        cat = f"🔄 Virement : {type_cible} vers CCP"
+                else:
                     cat = "🔄 Transfert Interne"
 
-            # B. Mémoire Apprise
+            # B. Priorité 2 : Mémoire Apprise
             if cat == "❓ Autre":
                 nom_t_normalise = " ".join(nom_t_lower.split())
                 for m in memoire_rules:
@@ -3218,7 +3256,7 @@ async def import_powens(
                         cat = m["categorie"]
                         break
 
-            # C. Mots-Clés
+            # C. Priorité 3 : Mots-Clés (Intelligence)
             if cat == "❓ Autre":
                 for rule in mots_cles_rules:
                     matched = False

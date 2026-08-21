@@ -7170,29 +7170,31 @@ const [userTheme, setUserTheme] = useState({
 
   const openDeleteModal = (name) => {
   setDeleteModal({ show: true, accountName: name });
-  };
+};
 
-  const confirmDelete = async () => {
-    if (!deleteModal.accountName) return;
+const confirmDelete = async () => {
+  if (!deleteModal.accountName) return;
 
-    try {
-      // ON AJOUTE L'UTILISATEUR À L'URL POUR CORRESPONDRE AU BACKEND
-      // URL attendue : /config-comptes/{nom}/{utilisateur}
-      const url = `/config-comptes/${encodeURIComponent(deleteModal.accountName)}/${encodeURIComponent(user)}`;
-      
-      await api.delete(url);
-      
-      // Rafraîchir la liste après suppression
-      fetchComptes();
-      
-      // Fermer la modal
-      setDeleteModal({ show: false, accountName: null });
-      
-    } catch (err) {
-      console.error("Erreur détaillée:", err.response?.data);
-      alert("Erreur lors de la suppression. Vérifie les logs console.");
-    }
-  };
+  try {
+    // ON AJOUTE L'UTILISATEUR À L'URL POUR CORRESPONDRE AU BACKEND
+    const url = `/config-comptes/${encodeURIComponent(deleteModal.accountName)}/${encodeURIComponent(user)}`;
+    
+    await api.delete(url);
+    
+    // Rafraîchir la liste après suppression
+    fetchComptes();
+    
+    // 💡 AJOUT : Supprime instantanément de l'affichage les virements associés au compte effacé
+    fetchCategories();
+    
+    // Fermer la modal
+    setDeleteModal({ show: false, accountName: null });
+    
+  } catch (err) {
+    console.error("Erreur détaillée:", err.response?.data);
+    alert("Erreur lors de la suppression. Vérifie les logs console.");
+  }
+};
   
   
 
@@ -7314,6 +7316,9 @@ const handleAddCompte = async (e) => {
     setNewCompteColor("#6366f1"); // Couleur par défaut
     setShowAddPicker(false);
     fetchComptes();   
+    
+    // 💡 AJOUT : Recalcul et rafraîchissement des virements dynamiques avec le nouveau compte
+    fetchCategories(); 
   } catch (err) {
     alert("Erreur lors de l'ajout");
   }
@@ -8563,23 +8568,45 @@ const [isApprendreActive, setIsApprendreActive] = useState(false);
 const sorted = (arr) => [...arr].sort((a, b) => a.localeCompare(b));
 
 
+// 💡 ÉTAPE 1 : Déclaration globale de la fonction pour pouvoir la réutiliser
+const fetchCategories = async () => {
+  try {
+    const [resCats, resMasquees] = await Promise.all([
+      api.get(`/api/categories/${user}`),
+      api.get(`/api/categories_masquees/${user}`)
+    ]);
+
+    setToutesLesCategories(resCats.data.all || []);
+    setCategoriesPerso(resCats.data.perso || []);
+    setMasquees(resMasquees.data || []);
+    
+  } catch (err) {
+    console.error("Erreur lors du chargement des catégories:", err);
+    // Fallback sécurité : chargement par défaut si crash API
+    setToutesLesCategories(CATEGORIES_DEFAUT_FRONT); 
+  }
+};
+
+// Effet de chargement au montage
+useEffect(() => {
+  if (user) {
+    fetchCategories();
+  }
+}, [user]);
+
+
 const addCategory = async (fullName) => {
   if (!fullName) return;
 
   try {
-    // 1. Appel au backend
     await api.post(`/api/categories`, {
       nom: fullName,
       utilisateur: user
     });
 
-    // 2. MISE À JOUR INSTANTANÉE DE L'INTERFACE
-    // On ajoute la nouvelle catégorie aux deux listes pour que 
-    // ça apparaisse dans le tableau ET dans la colonne de droite
+    // On trie par ordre alphabétique instantanément
     setCategoriesPerso(prev => sorted([...prev, fullName]));
     setToutesLesCategories(prev => sorted([...prev, fullName]));
-    
-    // On réinitialise l'icône par défaut pour la prochaine fois
     setNewIcon("🏷️");
 
   } catch (err) {
@@ -8591,32 +8618,21 @@ const addCategory = async (fullName) => {
 const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 const [catToDelete, setCatToDelete] = useState(null);
 
-// Cette fonction est appelée par le clic sur la croix (X) dans ta liste
 const removeCategory = (catName) => {
-  // On stocke le nom de la catégorie à supprimer
   setCatToDelete(catName);
-  // On affiche la modale design à la place du window.confirm
   setShowDeleteConfirm(true);
 };
 
-// Cette fonction est appelée par le bouton "Supprimer" de ta Modale
 const confirmDeletecat = async () => {
   if (!catToDelete) return;
 
   try {
-    // Encodage pour les emojis et espaces
     const encodedName = encodeURIComponent(catToDelete);
-    
-    const response = await api.delete(
-      `/api/categories/${user}/${encodedName}`
-    );
+    const response = await api.delete(`/api/categories/${user}/${encodedName}`);
 
     if (response.data.status === "success" || response.data.status === "deleted") {
-      // MISE À JOUR LOCALE INSTANTANÉE
       setCategoriesPerso(prev => prev.filter(c => c !== catToDelete));
       setToutesLesCategories(prev => prev.filter(c => c !== catToDelete));
-      
-      // On ferme la modale et on reset l'état
       setShowDeleteConfirm(false);
       setCatToDelete(null);
     }
@@ -8633,23 +8649,16 @@ const confirmDeletecat = async () => {
 const categoriesVisibles = toutesLesCategories.filter(cat => !masquees.includes(cat));
 
 const toggleVisibility = async (catName) => {
-  // 1. Calcul de la nouvelle liste
   const nouvelleListe = masquees.includes(catName)
     ? masquees.filter(c => c !== catName)
     : [...masquees, catName];
   
-  // 2. Mise à jour instantanée de l'UI (Optimistic Update)
   setMasquees(nouvelleListe); 
 
   try {
-    // 3. Sauvegarde en BDD via ton instance Axios 'api'
-    // Note : On utilise 'api.post' et non 'fetch'
     await api.post(`/api/categories_masquees/${user}`, nouvelleListe);
-    //console.log("✅ Préférences de visibilité sauvegardées");
   } catch (err) {
-    //console.error("❌ Erreur lors de la sauvegarde SQL:", err);
-    // Optionnel : revenir à l'état précédent en cas d'erreur
-    // setMasquees(masquees); 
+    console.error("Erreur lors de la sauvegarde SQL:", err);
   }
 };
 
