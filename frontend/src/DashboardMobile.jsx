@@ -48,6 +48,16 @@ export default function DashboardMobile(props) {
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
+
+      {/* 1. EN-TÊTE MOBILE */}
+      <div className="flex items-center justify-between mb-3 mt-2">
+        <div>
+          <h1 className="text-xl font-black tracking-tight">Dashboard</h1>
+          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Recaps et graphiques</p>
+        </div>
+        
+        
+      </div>
       
       {/* 1. FILTRES D'AFFICHAGE COMPACTS */}
       <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2">
