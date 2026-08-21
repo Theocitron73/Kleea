@@ -15833,12 +15833,12 @@ if (!user) {
 
 
 {activeTab === 'tricount' && (
-  <div className="hidden lg:flex w-full"> 
-    {/* px-8 permet de garder une petite marge de sécurité sur les côtés pour que ça ne colle pas aux bords de l'écran */}
+  <div className="w-full"> 
+    {/* 💡 Nous laissons le composant se charger sur tous les écrans. 
+        C'est lui qui choisira en interne d'afficher la version PC ou Mobile. */}
     <TricountManager userId={user} />
   </div>
-
-)}  
+)}
     
 
       {/* --- C'EST ICI QU'ON LE POSE --- */}

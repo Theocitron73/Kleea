@@ -8,7 +8,7 @@ import {
 
 export default function TricountMobile(props) {
   const {
-    userId, groupes, activeGroupTab, setActiveGroupTab, groupData,
+    userId, groupes, activeTab, setactiveTab, groupData,
     isModalOpen, setIsModalOpen, newGroupName, setNewGroupName, handleCreateGroup,
     isDeleteModalOpen, setIsDeleteModalOpen, groupToDelete, setGroupToDelete, handleDeleteGroup,
     isEditModalOpen, setIsEditModalOpen, groupToEdit, setGroupToEdit, handleRenameGroup,
@@ -90,9 +90,9 @@ export default function TricountMobile(props) {
         {groupes.map((grp, index) => (
           <button
             key={index}
-            onClick={() => setActiveGroupTab(index)}
+            onClick={() => setactiveTab(index)}
             className={`py-2 px-5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${
-              activeGroupTab === index 
+              activeTab === index 
               ? "bg-[var(--glass-bg)] text-[var(--text-main)] border border-white/10 shadow-lg" 
               : "text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60"
             }`}
@@ -207,7 +207,7 @@ export default function TricountMobile(props) {
                   <div className="flex gap-1.5 shrink-0">
                     <button 
                       onClick={() => {
-                        setGroupToEdit({ oldName: groupes[activeGroupTab].nom, newName: groupes[activeGroupTab].nom });
+                        setGroupToEdit({ oldName: groupes[activeTab].nom, newName: groupes[activeTab].nom });
                         setIsEditModalOpen(true);
                       }}
                       className="p-2 bg-white/5 rounded-lg text-white/40 border border-white/5"
@@ -216,7 +216,7 @@ export default function TricountMobile(props) {
                     </button>
                     <button 
                       onClick={() => {
-                        setGroupToDelete(groupes[activeGroupTab].nom);
+                        setGroupToDelete(groupes[activeTab].nom);
                         setIsDeleteModalOpen(true);
                       }}
                       className="p-2 bg-rose-500/10 rounded-lg text-rose-400 border border-rose-500/10"
