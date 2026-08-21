@@ -14718,7 +14718,7 @@ if (!user) {
 
               <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
                 {/* Ajustement ici avec min-[2000px]:max-h-[750px] (ou la hauteur souhaitée) */}
-                <div className="max-h-[450px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
+                <div className="max-h-[420px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
                     <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
                       <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
