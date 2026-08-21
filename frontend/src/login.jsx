@@ -1985,6 +1985,18 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
+  
+  // 💡 NOUVEAU : État pour détecter si l'utilisateur est sur mobile
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsMobile(window.innerWidth < 768);
+      const handleResize = () => setIsMobile(window.innerWidth < 768);
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
+  }, []);
 
   // Fermer si on clique en dehors et reset la recherche
   useEffect(() => {
@@ -2018,7 +2030,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
       <div
         className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
           isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
-        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none cursor-text`}
+        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none cursor-pointer`}
         onClick={() => setIsOpen(true)}
       >
         <div className="flex items-center gap-3 w-full">
@@ -2026,9 +2038,11 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
           
           <input
             type="text"
-            // On s'assure que le texte s'adapte bien en taille
-            className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20"
-            value={isOpen ? searchTerm : currentLabel}
+            // 💡 CORRECTION TACTILE : Rend le champ non-modifiable sur mobile pour bloquer le clavier
+            readOnly={isMobile}
+            className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20 cursor-pointer"
+            // 💡 On affiche la saisie de recherche uniquement sur PC pour garder le label lisible sur mobile
+            value={isOpen && !isMobile ? searchTerm : currentLabel}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => setIsOpen(true)}
             placeholder="Rechercher..."
@@ -2064,7 +2078,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
               ))
             ) : (
               <div className="px-4 py-3 text-xs text-[var(--text-main)]/20 italic text-center">
-                Aucune catégorie trouvée
+                Aucune option trouvée
               </div>
             )}
           </div>
