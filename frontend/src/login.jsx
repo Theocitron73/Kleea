@@ -25,6 +25,7 @@ import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut d
 import { createPortal } from 'react-dom';
 import api from './api';
 import ReactMarkdown from 'react-markdown';
+import GererMobile from './GererMobile';
 
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
@@ -12705,7 +12706,8 @@ if (!user) {
 
 
   {activeTab === 'gerer' && (
-  <div className="animate-in fade-in duration-500 h-[calc(100vh-120px)] flex flex-col px-4">
+    <>
+  <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
 
      {/* ZONE DE NOTIFICATION GLOBALE (Portée par le body) */}
       {lastLearned && (
@@ -13929,6 +13931,73 @@ if (!user) {
                   
     </div>
   </div>
+  
+{/* ==========================================================
+        2. VERSION MOBILE / SMARTPHONE (Visible uniquement sur petits écrans)
+        ========================================================== */}
+    <div className="block lg:hidden">
+      <GererMobile 
+        lastLearned={lastLearned}
+        setLastLearned={setLastLearned}
+        toutesLesCategories={toutesLesCategories}
+        masquees={masquees}
+        setMasquees={setMasquees}
+        categoriesPerso={categoriesPerso}
+        categoriesVisibles={categoriesVisibles}
+        addCategory={addCategory}
+        removeCategory={removeCategory}
+        toggleVisibility={toggleVisibility}
+        budgets={budgets}
+        formBudget={formBudget}
+        setFormBudget={setFormBudget}
+        handleAddBudget={handleAddBudget}
+        showBudgetDetails={showBudgetDetails}
+        setShowBudgetDetails={setShowBudgetDetails}
+        selectedBudgetYear={selectedBudgetYear}
+        setSelectedBudgetYear={setSelectedBudgetYear}
+        optionsAnnees={optionsAnnees}
+        listeMoisDisponibles={listeMoisDisponibles}
+        selectedBudgetMonth={selectedBudgetMonth}
+        setSelectedBudgetMonth={setSelectedBudgetMonth}
+        editingBudget={editingBudget}
+        setEditingBudget={setEditingBudget}
+        handleUpdateBudget={handleUpdateBudget}
+        confirmDelete2={confirmDelete2}
+        filters={filters}
+        comptes={comptes}
+        setFilters={setFilters}
+        selectedCompte={selectedCompte}
+        setSelectedCompte={setSelectedCompte}
+        availablePeriods={availablePeriods}
+        moisListe={moisListe}
+        statsFiltrées={statsFiltrées}
+        isApprendreActive={isApprendreActive}
+        setIsApprendreActive={setIsApprendreActive}
+        showLearningList={showLearningList}
+        setShowLearningList={setShowLearningList}
+        fetchMemoire={fetchMemoire}
+        elementsAppris={elementsAppris}
+        handleDeleteMemory={handleDeleteMemory}
+        newTx={newTx}
+        setNewTx={setNewTx}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        submitQuickTransaction={submitQuickTransaction}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        transactionsFiltrees={transactionsFiltrees}
+        transactionsAAfficher={transactionsAAfficher}
+        selectedIds={selectedIds}
+        toggleAll={toggleAll}
+        toggleSelect={toggleSelect}
+        updateCell={updateCell}
+        allocations={allocations}
+        activeTab={activeTab}
+        soldesTries={soldesTries}
+        toutesLesTransactions={toutesLesTransactions}
+      />
+    </div>
+  </>
 )}
 
 
@@ -13941,7 +14010,7 @@ if (!user) {
 
 
 {activeTab === 'importer' && (
-  <div className="max-w-full mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 pb-20 px-6">
+   <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
     <div className="flex flex-col lg:flex-row gap-8 items-stretch">
       
       {/* COLONNE GAUCHE : IMPORTATION & RÉCAPITULATIF */}
