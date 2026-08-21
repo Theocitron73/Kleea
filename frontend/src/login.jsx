@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -31,6 +31,7 @@ import PrevisionsMobile from './previsionsMobile';
 import DashboardMobile from './DashboardMobile';
 import ComptesMobile from './ComptesMobile';
 import TricountMobile from './TricountMobile';
+import GuideView from './GuideView';
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -10655,6 +10656,8 @@ const [visibleAnnuel, setVisibleAnnuel] = useState({
   epargne: true
 });
 
+const [showPublicGuide, setShowPublicGuide] = useState(false);
+
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
 const [hiddenComptes, setHiddenComptes] = useState({});
@@ -10669,8 +10672,41 @@ useEffect(() => {
 
 
 
-// 4. LE RENDU (UI)
 if (!user) {
+  // 💡 NOUVEAU : Si l'utilisateur clique sur "Consulter le Guide", on affiche la doc en mode public
+  if (showPublicGuide) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8 flex flex-col justify-between relative overflow-hidden">
+        {/* EFFETS DE FOND STYLISÉS */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[120px] rounded-full pointer-events-none" />
+        
+        {/* EN-TÊTE DU MODE PUBLIC */}
+        <div className="max-w-7xl w-full mx-auto flex items-center justify-between mb-6 p-4 bg-[var(--glass-bg)] border border-white/10 rounded-2xl relative z-10 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">📖</span>
+            <div>
+              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--primary)]">Accès Public</span>
+              <h3 className="text-sm font-black uppercase mt-1">Guide d'utilisation</h3>
+            </div>
+          </div>
+          <button 
+            onClick={() => setShowPublicGuide(false)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-[var(--primary)] hover:text-white transition-all shadow-lg active:scale-95 cursor-pointer"
+          >
+            Retour à la connexion
+          </button>
+        </div>
+
+        {/* RENDU DE LA DOCUMENTATION */}
+        <div className="flex-1 max-w-7xl w-full mx-auto relative z-10 overflow-hidden">
+          <GuideView userTheme={userTheme} setActiveTab={() => setShowPublicGuide(false)} />
+        </div>
+      </div>
+    );
+  }
+
+  // Rendu de l'écran de connexion classique si showPublicGuide est faux
   return (
     <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 relative overflow-hidden">
       
@@ -10725,7 +10761,7 @@ if (!user) {
             ) : (
               /* VUE CONNEXION / INSCRIPTION */
               <>
-                {/* BLOC PRÉNOM & NOM (Uniquement Inscription) */}
+                {/* BLOC PRÉNOM & NOM */}
                 {isRegistering && (
                   <div className="flex gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
                     <div className="flex-1 space-y-2">
@@ -10766,7 +10802,7 @@ if (!user) {
                   </div>
                 </div>
 
-                {/* CHAMP EMAIL (Uniquement pour inscription) */}
+                {/* CHAMP EMAIL */}
                 {isRegistering && (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">E-mail</label>
@@ -10818,7 +10854,7 @@ if (!user) {
                   </div>
                 </div>
 
-                {/* CONFIRMATION (Uniquement pour inscription) */}
+                {/* CONFIRMATION */}
                 {isRegistering && (
                   <div className="space-y-2 animate-in slide-in-from-top-2">
                     <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Confirmer</label>
@@ -10856,38 +10892,42 @@ if (!user) {
         >
           {isForgotPassword ? "Retour à la connexion" : (isRegistering ? "Déjà un compte ? Se connecter" : "Nouveau ici ? Créer un compte")}
         </button>
+
+        {/* 💡 NOUVEAU BOUTON : ACCÈS AU GUIDE PUBLIC SANS ÊTRE AUTHENTIFIÉ */}
+        <button 
+          onClick={() => setShowPublicGuide(true)}
+          className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] hover:brightness-125 transition-all cursor-pointer"
+        >
+          <BookOpen size={12} />
+          <span>Consulter le Guide d'utilisation</span>
+        </button>
       </div>
 
-    {/* COMPOSANT TOAST PERSONNALISÉ */}
-    {toast.show && (
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
-        <div className={`
-          px-6 py-3 rounded-2xl border backdrop-blur-[var(--glass-blur)] shadow-2xl flex items-center gap-3
-          ${toast.type === 'success' 
-            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-            : 'bg-red-500/10 border-red-500/20 text-red-400'}
-        `}>
-          {/* Petit indicateur visuel */}
-          <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          
-          <p className="text-[11px] font-black uppercase tracking-[0.15em]">
-            {toast.message}
-          </p>
-
-          <button 
-            onClick={() => setToast({ ...toast, show: false })}
-            className="ml-2 hover:opacity-50 transition-opacity"
-          >
-            <span className="text-lg">×</span>
-          </button>
+      {/* COMPOSANT TOAST PERSONNALISÉ */}
+      {toast.show && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
+          <div className={`
+            px-6 py-3 rounded-2xl border backdrop-blur-[var(--glass-blur)] shadow-2xl flex items-center gap-3
+            ${toast.type === 'success' 
+              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
+              : 'bg-red-500/10 border-red-500/20 text-red-400'}
+          `}>
+            <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
+            <p className="text-[11px] font-black uppercase tracking-[0.15em]">
+              {toast.message}
+            </p>
+            <button 
+              onClick={() => setToast({ ...toast, show: false })}
+              className="ml-2 hover:opacity-50 transition-opacity"
+            >
+              <span className="text-lg">×</span>
+            </button>
+          </div>
         </div>
-      </div>
-    )}
-
-
+      )}
 
     </div>
-  )
+  );
 }
 
 
@@ -15564,334 +15604,9 @@ if (!user) {
 
 
 {activeTab === 'Guide' && (
-  <div className="w-full p-4 md:p-8 space-y-16 animate-in fade-in duration-700 pb-32">
-    
-    {/* INTRO HERO */}
-    <div className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/[0.05] to-transparent border border-white/10 overflow-hidden text-center flex flex-col items-center">
-      <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[150%] bg-[var(--primary)]/10 blur-[120px] rounded-full pointer-events-none" />
-      <h2 className="text-4xl md:text-6xl font-black uppercase tracking-tighter text-white mb-6 relative z-10">
-        Maîtrisez <span className="text-[var(--primary)] italic">Kleea</span>
-      </h2>
-      <p className="text-white/50 text-sm md:text-base max-w-2xl font-medium leading-relaxed relative z-10">
-        Découvrez comment exploiter chaque module de votre écosystème financier. De l'importation automatisée par l'IA jusqu'aux projections annuelles et enveloppes virtuelles.
-      </p>
-    </div>
-
-    {/* GRILLE DES FONCTIONNALITÉS */}
-    <div className="space-y-24">
-
-      {/* --- 1. INFRASTRUCTURE & IMPORTATION --- */}
-      <section className="space-y-8">
-        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-          <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-400 border border-blue-500/20">
-            <Database size={24} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tight text-white">1. Les Fondations</h3>
-            <p className="text-blue-400/60 text-[10px] font-bold uppercase tracking-widest">Comptes & Imports CSV</p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] hover:bg-white/[0.04] transition-all">
-            <Wallet className="text-blue-400 mb-4" size={24} />
-            <h4 className="text-white font-bold text-sm uppercase mb-3">La Page Comptes</h4>
-            <ul className="space-y-3 text-sm text-white/50 leading-relaxed">
-              <li><strong className="text-white">Création :</strong> Définissez vos comptes (Courant, Livret, etc.), leur solde actuel et assignez-les à un <em>Groupe/Profil</em> (ex: Perso, Pro, Commun).</li>
-              <li><strong className="text-white">Objectifs d'épargne :</strong> Saisissez une cible financière. Le Dashboard calculera automatiquement votre progression sous forme de jauge.</li>
-              <li><strong className="text-white">Personnalisation :</strong> Modifiez la couleur de chaque compte d'un simple clic sur sa pastille colorée. C'est cette couleur qui représentera le compte sur tous les graphiques.</li>
-            </ul>
-          </div>
-
-          <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] hover:bg-white/[0.04] transition-all">
-            <UploadCloud className="text-blue-400 mb-4" size={24} />
-            <h4 className="text-white font-bold text-sm uppercase mb-3">Le Moteur d'Importation</h4>
-            <ul className="space-y-3 text-sm text-white/50 leading-relaxed">
-              <li><strong className="text-white">Glisser-Déposer :</strong> Récupérez le fichier CSV fourni par votre banque et glissez-le dans la zone dédiée.</li>
-              <li><strong className="text-white">Guide des banques :</strong> Un bouton "?" en haut à droite vous explique comment extraire un CSV depuis Boursorama, Crédit Agricole, Revolut, etc.</li>
-              <li><strong className="text-white">Validation :</strong> Vérifiez le récapitulatif (Revenus/Dépenses détectés) avant de valider l'importation de masse.</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      {/* --- 2. LE CENTRE DE CONTRÔLE (GÉRER) --- */}
-      <section className="space-y-8">
-        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-          <div className="w-12 h-12 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 border border-purple-500/20">
-            <Settings2 size={24} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tight text-white">2. Le Centre de Contrôle</h3>
-            <p className="text-purple-400/60 text-[10px] font-bold uppercase tracking-widest">Page Gérer & Intelligence</p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] relative overflow-hidden">
-  <List className="text-purple-400 mb-4 relative z-10" size={24} />
-  <h4 className="text-white font-bold text-sm uppercase mb-3 relative z-10">Le Tableau d'Édition</h4>
-  <p className="text-white/50 text-sm leading-relaxed mb-4 relative z-10">
-    C'est ici que vous gérez vos flux financiers au quotidien. Le tableau est entièrement interactif :
-  </p>
-  <ul className="space-y-3 text-xs text-white/40 relative z-10">
-    <li>
-      <div className="flex items-center gap-2 mb-1">
-        <Plus size={14} className="text-purple-400" />
-        <strong className="text-white/80 uppercase tracking-tighter">Ajout Manuel :</strong>
-      </div>
-      <p className="ml-5">Utilisez le bouton "Ajouter une transaction" pour saisir instantanément un achat en espèces ou une opération non présente sur votre CSV. Renseignez le nom, le montant, la catégorie et le compte associé.</p>
-    </li>
-    <li>
-      <div className="flex items-center gap-2 mb-1">
-        <Edit3 size={14} className="text-purple-400" />
-        <strong className="text-white/80 uppercase tracking-tighter">Édition rapide :</strong>
-      </div>
-      <p className="ml-5">Cliquez directement sur n'importe quelle cellule du tableau (nom, montant, date) pour la modifier à la volée. Pas de bouton de sauvegarde, tout s'enregistre automatiquement à chaque modifications</p>
-    </li>
-    <li>
-      <div className="flex items-center gap-2 mb-1">
-        <Calendar size={14} className="text-purple-400" />
-        <strong className="text-white/80 uppercase tracking-tighter">Changement de mois :</strong>
-      </div>
-      <p className="ml-5">Vous pouvez réaffecter une dépense à un autre mois. Très utile pour une dépense effectuée le 30 du mois que vous souhaitez imputer au budget du mois suivant.</p>
-    </li>
-    <li>
-      <div className="flex items-center gap-2 mb-1">
-        <Trash2 size={14} className="text-purple-400" />
-        <strong className="text-white/80 uppercase tracking-tighter">Sélection multiple :</strong>
-      </div>
-      <p className="ml-5">Utilisez les cases à cocher à gauche des lignes pour supprimer plusieurs transactions d'un coup via le menu contextuel qui apparaît en bas de l'écran.</p>
-    </li>
-  </ul>
-</div>
-
-          <div className="bg-gradient-to-b from-purple-500/10 to-transparent border border-purple-500/20 p-6 rounded-[2rem] shadow-[0_0_30px_rgba(168,85,247,0.1)]">
-            <Brain className="text-purple-400 mb-4" size={24} />
-            <h4 className="text-white font-bold text-sm uppercase mb-3">Le Système Kleea Brain</h4>
-            <p className="text-white/50 text-xs leading-relaxed mb-4">
-              L'application apprend de vous. Dans la barre de droite, activez <strong>l'Apprentissage</strong>. 
-            </p>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Dès lors, si vous recatégorisez "Uber" en "Alimentation", le système mémorisera le mot-clé. Au prochain import CSV, tous les futurs "Uber" seront automatiquement classés !
-            </p>
-          </div>
-        </div>
-
-        {/* Sous-section : Lexique & Budgets */}
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Lexique & Catégories */}
-            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-between">
-              <div>
-                <Tag className="text-white/40 mb-3" size={20} />
-                <h4 className="text-white font-bold text-sm uppercase mb-2">Lexique & Émojis</h4>
-                <p className="text-white/50 text-xs leading-relaxed mb-4">
-                  Créez vos propres catégories avec le sélecteur d'émojis intégré. Si certaines catégories par défaut ne vous servent pas, cliquez sur "Gérer mes catégories" pour masquer celles qui encombrent vos menus.
-                </p>
-              </div>
-              
-              {/* Info importante sur les virements internes */}
-              <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <ArrowUpDown className="text-blue-400" size={14} />
-                  <span className="text-blue-400 font-black text-[10px] uppercase tracking-widest">Règle de Transfert</span>
-                </div>
-                <p className="text-white/40 text-[11px] leading-relaxed">
-                  Pour que les virements entre vos comptes ne soient pas comptés comme des dépenses, respectez strictement ce format avec cet emoji :<br/>
-                  <code className="text-blue-300 font-mono mt-2 block bg-black/30 p-2 rounded border border-white/5">
-                    🔄 Virement : Compte A VERS Compte B
-                  </code>
-                </p>
-              </div>
-            </div>
-
-            {/* Limites Budgétaires */}
-            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-              <Target className="text-rose-400 mb-3" size={20} />
-              <h4 className="text-white font-bold text-sm uppercase mb-2">Limites Budgétaires</h4>
-              <p className="text-white/50 text-xs leading-relaxed">
-                Fixez un plafond maximum pour une catégorie donnée sur un mois précis (ex: 200€ de Courses en Février). Des jauges de progression apparaîtront sur votre Dashboard, virant au rouge si vous dépassez.
-              </p>
-              <div className="mt-4 p-3 bg-rose-500/5 border border-rose-500/10 rounded-xl">
-                <p className="text-[10px] text-white/30 italic">
-                  Note : Les limites sont indépendantes par mois pour s'adapter à vos imprévus.
-                </p>
-              </div>
-            </div>
-          </div>
-      </section>
-
-      {/* --- 3. ANALYSE (DASHBOARD) --- */}
-<section className="space-y-8">
-  <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-    <div className="w-12 h-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-400 border border-orange-500/20">
-      <LayoutDashboard size={24} />
-    </div>
-    <div>
-      <h3 className="text-2xl font-black uppercase tracking-tight text-white">3. L'Analyse Globale</h3>
-      <p className="text-orange-400/60 text-[10px] font-bold uppercase tracking-widest">Page Dashboard</p>
-    </div>
-  </div>
-
-  <p className="text-white/60 text-sm leading-relaxed max-w-3xl">
-    Le Dashboard est le cœur visuel de l'application. La barre de filtres supérieure (Profil, Compte, Mois, Année) pilote instantanément toutes les données affichées à l'écran. Vos comptes bancaires peuvent être réorganisés par <strong>Drag & Drop</strong> (glisser-déposer).
-  </p>
-
-  <div className="grid md:grid-cols-3 gap-6">
-    {/* A. Flux Mensuel */}
-    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-      <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">A. Flux Mensuel</h4>
-      <p className="text-white/50 text-xs leading-relaxed">
-        Résume ce qui est entré et sorti sur le mois sélectionné. L'onglet "Catégories" génère un graphique comparant vos dépenses actuelles avec celles du mois précédent (flèches d'évolution vertes ou rouges).
-      </p>
-    </div>
-
-    {/* B. Bilan Annuel */}
-    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-      <h4 className="text-orange-400 font-black text-xs uppercase mb-3 tracking-widest">B. Bilan Annuel</h4>
-      <p className="text-white/50 text-xs leading-relaxed">
-        Un tableau mois par mois générant le calcul automatique de votre <strong>Net Épargné</strong> et de votre <strong>Taux d'effort</strong> (pourcentage de revenus mis de côté sur l'année). Cliquez sur l'icône "Camembert" pour voir la répartition par émojis.
-      </p>
-    </div>
-
-    {/* C. Panneau Latéral : Graphiques & Projets */}
-    <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem]">
-      <h4 className="text-emerald-400 font-black text-xs uppercase mb-3 tracking-widest">C. Tendances & Enveloppes</h4>
-      <div className="space-y-4">
-        <p className="text-white/50 text-xs leading-relaxed">
-          Le panneau de droite offre une vue d'ensemble puissante grâce à plusieurs onglets :
-        </p>
-        <ul className="space-y-2 text-[11px] text-white/40">
-          <li className="flex gap-2 items-start text-pretty">
-            <span className="text-emerald-400 font-bold">•</span> 
-            <span><strong>Graphiques de Tendances :</strong> Visualisez sur l'année complète l'évolution de vos <strong className="text-white/60">Revenus, Dépenses et Épargne</strong>. Un second graphique suit la courbe de vos <strong className="text-white/60">Soldes par compte</strong> ainsi que votre <strong className="text-white/60">Solde Total</strong> cumulé.</span>
-          </li>
-          <li className="flex gap-2 items-start text-pretty">
-            <span className="text-emerald-400 font-bold">•</span> 
-            <span><strong>Répartition & Enveloppes :</strong> Allouez virtuellement des sommes pour "bloquer" de l'argent de votre solde global (ex: Provision Impôts, Vacances).</span>
-          </li>
-          <li className="flex gap-2 items-start text-pretty">
-            <span className="text-emerald-400 font-bold">•</span> 
-            <span><strong>Projets :</strong> Calcule automatiquement si un achat futur est réalisable en fonction de votre rythme d'épargne moyen.</span>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </div>
-</section>
-
-      {/* --- 4. LE PRÉVISIONNEL --- */}
-      <section className="space-y-8">
-        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-          <div className="w-12 h-12 rounded-2xl bg-pink-500/10 flex items-center justify-center text-pink-400 border border-pink-500/20">
-            <ChartCandlestick size={24} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tight text-white">4. La Machine à Voyager dans le Temps</h3>
-            <p className="text-pink-400/60 text-[10px] font-bold uppercase tracking-widest">Page Prévisionnel</p>
-          </div>
-        </div>
-
-        <div className="bg-white/[0.02] border border-white/5 p-8 rounded-[2rem] flex flex-col md:flex-row gap-8 items-center">
-          <div className="flex-1 space-y-4">
-            <h4 className="text-white font-bold text-lg uppercase">Anticipez vos soldes futurs</h4>
-            <p className="text-white/50 text-sm leading-relaxed">
-              Saisissez vos dépenses et revenus à venir (loyer, salaires, abonnements). L'application génère des "Cartes de comptes holographiques" vous montrant <strong>le solde estimé à la fin du mois</strong>.
-            </p>
-            <p className="text-white/50 text-sm leading-relaxed">
-              <strong>Simulation dynamique :</strong> Dans le panneau de droite, le tableau annuel mixe vos données réelles (les mois passés) et vos projections (les mois futurs). Vous pouvez cliquer sur les boutons de mois pour <em>désactiver</em> temporairement certaines projections et voir l'impact immédiat sur votre solde de fin d'année.
-            </p>
-          </div>
-          <div className="w-full md:w-1/3 bg-black/40 border border-white/10 rounded-2xl p-4 rotate-2 shadow-2xl">
-            <div className="h-4 w-1/2 bg-[var(--glass-bg)] rounded mb-4" />
-            <div className="h-10 w-full bg-pink-500/20 border border-pink-500/40 rounded-lg mb-2" />
-            <div className="h-10 w-full bg-emerald-500/20 border border-emerald-500/40 rounded-lg" />
-          </div>
-        </div>
-      </section>
-
-      {/* --- 5. OUTILS AVANCÉS & TRICOUNT --- */}
-      <section className="space-y-8">
-        <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-          <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-500 border border-amber-500/20">
-            <Users2 size={24} />
-          </div>
-          <div>
-            <h3 className="text-2xl font-black uppercase tracking-tight text-white">5. Outils Avancés & Tricount</h3>
-            <p className="text-amber-500/60 text-[10px] font-bold uppercase tracking-widest">Le couteau suisse</p>
-          </div>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6">
-          {/* Tricount */}
-          <div className="bg-amber-500/5 border border-amber-500/10 p-6 rounded-[2rem] relative overflow-hidden">
-            <Users2 className="text-amber-500 mb-4" size={24} />
-            <h4 className="text-white font-bold text-sm uppercase mb-2">Module Tricount</h4>
-            <p className="text-white/50 text-sm leading-relaxed mb-4">
-              Idéal pour les colocations ou les vacances. <strong>Ce module est totalement séparé de vos statistiques personnelles.</strong>
-            </p>
-            <ul className="space-y-2 text-xs text-white/40">
-              <li>• Ajoutez des membres et assignez-leur un Emoji personnalisé.</li>
-              <li>• Saisissez une dépense et choisissez si elle est répartie équitablement ou en <em>parts inégales</em> (ex: Jean paye 15€, Marie 5€).</li>
-              <li>• Le Bilan vous dit instantanément "Qui doit combien à Qui" avec la possibilité de générer un PDF.</li>
-            </ul>
-          </div>
-
-          {/* Widgets Flottants */}
-            <div className="bg-white/[0.02] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-center">
-              <h4 className="text-white font-bold text-sm uppercase mb-4">Les Widgets Flottants</h4>
-              <div className="space-y-4">
-                
-                {/* 1. Prorata */}
-                <div className="flex items-start gap-3">
-                  <Calculator className="text-[var(--primary)] mt-1" size={16} />
-                  <div>
-                    <strong className="text-white text-xs block uppercase">Prorata Calculateur</strong>
-                    <span className="text-white/40 text-[11px] leading-relaxed">
-                      Un outil toujours accessible pour calculer la répartition équitable d'une dépense commune basée sur les revenus respectifs du couple.
-                    </span>
-                  </div>
-                </div>
-
-                {/* 2. Bloc-notes */}
-                <div className="flex items-start gap-3">
-                  <StickyNote className="text-[var(--primary)] mt-1" size={16} />
-                  <div>
-                    <strong className="text-white text-xs block uppercase">Bloc-notes Auto-save</strong>
-                    <span className="text-white/40 text-[11px] leading-relaxed">
-                      Un pense-bête persistant lié à votre compte pour noter vos idées d'investissements ou vos rappels financiers sans quitter l'interface.
-                    </span>
-                  </div>
-                </div>
-
-                {/* 3. Personnalisation (Le nouveau widget) */}
-                <div className="flex items-start gap-3">
-                  <Palette className="text-[var(--primary)] mt-1" size={26} />
-                  <div>
-                    <strong className="text-white text-xs block uppercase">Studio de Design</strong>
-                    <span className="text-white/40 text-[11px] leading-relaxed">
-                      Personnalisez l'identité visuelle de votre interface. Changez en temps réel les couleurs des <strong className="text-white/60">revenus</strong>, <strong className="text-white/60">dépenses</strong>, <strong className="text-white/60">épargnes</strong> et <strong className="text-white/60">objectifs</strong>. Ces réglages impactent l'ensemble des graphiques et des indicateurs chiffrés pour une lecture qui vous ressemble.
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-        </div>
-      </section>
-
-    </div>
-
-    {/* FOOTER DOCS */}
-    <div className="mt-24 pt-10 border-t border-white/5 text-center">
-      <button 
-        onClick={() => setActiveTab('dashboard')}
-        className="px-8 py-4 bg-white text-black font-black uppercase text-xs tracking-widest rounded-2xl hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.2)]"
-      >
-        Retourner au Dashboard
-      </button>
-    </div>
-
+  <div className="w-full">
+    {/* 💡 On passe l'état de changement d'onglet pour lier le bouton du bas */}
+    <GuideView userTheme={userTheme} setActiveTab={setActiveTab} />
   </div>
 )}
 
