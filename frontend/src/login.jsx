@@ -28,7 +28,7 @@ import ReactMarkdown from 'react-markdown';
 import GererMobile from './GererMobile';
 import ImportMobile from './ImportMobile';
 import PrevisionsMobile from './previsionsMobile';
-
+import DashboardMobile from './DashboardMobile';
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -10829,8 +10829,8 @@ if (!user) {
 
 
         {activeTab === 'dashboard' && (
-        <div className="h-auto overflow-visible lg:h-[calc(99vh-100px)] lg:overflow-hidden flex flex-col animate-in fade-in duration-500 px-4 md:px-8">
-          
+          <>
+        <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(99vh-100px)] lg:overflow-hidden">
           {/* 1. LA BARRE DE FILTRES (On la ferme bien à la fin) */}
           <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
            {/* SECTION PROFIL */}
@@ -12036,6 +12036,85 @@ if (!user) {
 
     </div>
 
+ {/* ==========================================================
+        2. VERSION MOBILE (Smartphones)
+        ========================================================== */}
+    <div className="block lg:hidden">
+      <DashboardMobile 
+        filters={filters}
+        setFilters={setFilters}
+        comptes={comptes}
+        moisListe={moisListe}
+        availablePeriods={availablePeriods}
+        userTheme={userTheme}
+        soldeGlobal={soldeGlobal}
+        soldesTries={soldesTries}
+        sensors={sensors}
+        handleDragEnd={handleDragEnd}
+        tabActive={tabActive}
+        setTabActive={setTabActive}
+        TAB_CONFIG={TAB_CONFIG}
+        financeData={financeData}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        statsCategories={statsCategories}
+        chartData={chartData}
+        hiddenCategories={hiddenCategories}
+        toggleCategory={toggleCategory}
+        CategoriesView={CategoriesView}
+        VariationsView={VariationsView}
+        FlashInsightsView={FlashInsightsView}
+        TransactionCard={TransactionCard}
+        budgetGauges={budgetGauges}
+        activeIndex={activeIndex}
+        totalDots={totalDots}
+        navigateCarousel={navigateCarousel}
+        carouselRef={carouselRef}
+        handleScroll={handleScroll}
+        scrollToPage={scrollToPage}
+        soldePremierJanvier={soldePremierJanvier}
+        annualTab={annualTab}
+        setAnnualTab={setAnnualTab}
+        recapAnnuelStats={recapAnnuelStats}
+        statsAnnuellesCategories={statsAnnuellesCategories}
+        CalendarSection={CalendarSection}
+        WrappedSection={WrappedSection}
+        toutesLesTransactions={toutesLesTransactions}
+        comptesDuProfil={comptesDuProfil}
+        totalTab={totalTab}
+        setTotalTab={setTotalTab}
+        estPeriode={estPeriode}
+        moisDebut={moisDebut}
+        setMoisDebut={setMoisDebut}
+        moisFin={moisFin}
+        setMoisFin={setMoisFin}
+        donneesAffichees={donneesAffichees}
+        activeRightTab={activeRightTab}
+        setActiveRightTab={setActiveRightTab}
+        objectifAnnuelGlobal={objectifAnnuelGlobal}
+        epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
+        pourcentageAnnuel={pourcentageAnnuel}
+        visibleAnnuel={visibleAnnuel}
+        setVisibleAnnuel={setVisibleAnnuel}
+        hiddenComptes={hiddenComptes}
+        setHiddenComptes={setHiddenComptes}
+        GestionEpargneProjet={GestionEpargneProjet}
+        allocations={allocations}
+        setAllocations={setAllocations}
+        projets={projets}
+        setProjets={setProjets}
+        user={user}
+        api={api}
+        fetchAllocations={fetchAllocations}
+        categoriesVisibles={categoriesVisibles}
+        updateCell={updateCell}
+        
+        // 💡 PASSAGE DES COMPOSANTS ET ÉLÉMENTS GRAPHIQUES :
+        SortableAccountCard={SortableAccountCard}
+        AnnualCategoriesChart={AnnualCategoriesChart}
+      />
+    </div>
+  </>
 )}
 
 
