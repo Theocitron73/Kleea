@@ -9502,15 +9502,15 @@ const checkNewTransactions = useCallback(async () => {
       */
     });
 
-    console.group("🔍 [DEBUG SYNC POWENS] Comparaison Instantanée Globale");
-    console.table(debugTable);
-    console.groupEnd();
+    //console.group("🔍 [DEBUG SYNC POWENS] Comparaison Instantanée Globale");
+    //console.table(debugTable);
+    //console.groupEnd();
 
     setHasPendingSync(hasNewTransactions);
     setSyncCountByAccount(accountsNeedingSync);
 
   } catch (err) {
-    console.error("❌ Erreur checkNewTransactions:", err);
+    //console.error("❌ Erreur checkNewTransactions:", err);
   } finally {
     setIsCheckingSync(false);
   }

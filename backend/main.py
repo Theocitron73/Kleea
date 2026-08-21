@@ -1575,6 +1575,38 @@ class TricountTransaction(BaseModel):
     token_partage: Optional[str] = None # <-- Nouveau champ
     emoji: Optional[str] = None  # <--- AJOUTE CETTE LIGNE
 
+def clean_for_pdf(text_val: str) -> str:
+    if not text_val:
+        return ""
+    # 1. On ne conserve que les caractères compatibles avec la table de base (ord < 256)
+    # Cela élimine instantanément les émojis 4-bytes sans faire planter FPDF
+    text_val = "".join(c for c in text_val if ord(c) < 256)
+    
+    # 2. Remplacement des accents français courants pour éviter les défauts d'affichage FPDF
+    replacements = {
+        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+        'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E',
+        'à': 'a', 'â': 'a', 'ä': 'a',
+        'À': 'A', 'Â': 'A', 'Ä': 'A',
+        'ù': 'u', 'û': 'u', 'ü': 'u',
+        'Ù': 'U', 'Û': 'U', 'Ü': 'U',
+        'î': 'i', 'ï': 'i',
+        'Î': 'I', 'Ï': 'I',
+        'ô': 'o', 'ö': 'o',
+        'Ô': 'O', 'Ö': 'O',
+        'ç': 'c', 'Ç': 'C',
+        'œ': 'oe', 'Œ': 'OE'
+    }
+    for orig, rep in replacements.items():
+        text_val = text_val.replace(orig, rep)
+        
+    # Encodage de sécurité final en latin-1
+    try:
+        return text_val.encode('latin-1', 'ignore').decode('latin-1')
+    except Exception:
+        # Repli de secours en ASCII pur si le latin-1 échoue
+        return "".join(c for c in text_val if ord(c) < 128)
+
 def calculer_balances(transactions):
     # 1. On initialise une matrice de dettes croisées
     # dettes[A][B] = ce que A doit à B
@@ -1788,6 +1820,9 @@ class StyledPDF(FPDF):
         self.cell(0, 10, subtitle.upper(), ln=True, align='C')
         self.ln(20)
 
+# ==========================================================
+# ROUTE 1 : TELECHARGEMENT DE PDF (CONNECTÉ)
+# ==========================================================
 @app.get("/download-pdf/{username}/{group_name}")
 def download_pdf(username: str, group_name: str, sujet: str = None):
     # --- 1. RÉCUPÉRATION DES DONNÉES ---
@@ -1795,36 +1830,41 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
     with engine.connect() as conn:
         res = conn.execute(query, {"u": username, "g": group_name}).mappings().all()
         transactions = [dict(r) for r in res]
-        df_groupe = pd.DataFrame(transactions)
+        
+    if not transactions:
+        raise HTTPException(status_code=404, detail="Bilan vide ou groupe introuvable.")
+        
+    df_groupe = pd.DataFrame(transactions)
     
     # --- 2. CALCULS ---
     transferts_finaux = calculer_balances(transactions)
     total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
     
+    # 💡 Sécurisation des noms de groupes et sujets
+    group_name_clean = clean_for_pdf(group_name)
+    
     if sujet:
-        transferts_a_afficher = [t for t in transferts_finaux if t['de'] == sujet or t['a'] == sujet]
-        titre_doc = f"NOTE : {sujet}"
-        sous_titre = f"Bilan personnel dans le groupe {group_name}"
+        sujet_clean = clean_for_pdf(sujet)
+        transferts_a_afficher = [t for t in transferts_finaux if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean]
+        titre_doc = f"NOTE : {sujet_clean}"
+        sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
     else:
         transferts_a_afficher = transferts_finaux
-        titre_doc = group_name
+        titre_doc = group_name_clean
         sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
 
-    # --- 3. GÉNÉRATION DU PDF STYLISÉ ---
+    # --- 3. GÉNÉRATION DU PDF ---
     pdf = StyledPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
     
-    # Application du header Dark
     pdf.header_style(titre_doc, sous_titre)
     
-    # --- SECTION BILAN ---
     pdf.set_left_margin(20)
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, "RÉCAPITULATIF DES TRANSFERTS", ln=True)
+    pdf.cell(0, 10, "RECAPITULATIF DES TRANSFERTS", ln=True)
     
-    # Petite barre indigo décorative
     pdf.set_fill_color(99, 102, 241)
     pdf.rect(20, pdf.get_y(), 10, 1, 'F')
     pdf.ln(5)
@@ -1834,28 +1874,25 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
     if transferts_a_afficher:
         for t in transferts_a_afficher:
             curr_y = pdf.get_y()
+            de_clean = clean_for_pdf(t['de'])
+            a_clean = clean_for_pdf(t['a'])
             
-            # Logique de texte et couleur
             if sujet:
-                if t['de'] == sujet:
-                    color = (225, 29, 72) # Rose-600 (Dette)
-                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {t['a']}"
+                if de_clean == sujet_clean:
+                    color = (225, 29, 72)
+                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {a_clean}"
                 else:
-                    color = (5, 150, 105) # Emerald-600 (Reçu)
-                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {t['de']}"
+                    color = (5, 150, 105)
+                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {de_clean}"
             else:
-                color = (79, 70, 229) # Indigo-600
-                texte = f"> {t['de']} doit donner {t['montant']:.2f} EUR a {t['a']}"
+                color = (79, 70, 229)
+                texte = f"> {de_clean} doit donner {t['montant']:.2f} EUR a {a_clean}"
             
-            # Fond léger pour la ligne
             pdf.set_fill_color(248, 250, 252)
             pdf.rect(20, curr_y, largeur_utile, 10, 'F')
-            
-            # Petit indicateur coloré à gauche
             pdf.set_fill_color(*color)
             pdf.rect(20, curr_y, 1.5, 10, 'F')
             
-            # Écriture du texte avec multi_cell pour éviter les coupures
             pdf.set_x(25)
             pdf.set_text_color(*color)
             pdf.set_font("Helvetica", "B", 10)
@@ -1866,21 +1903,13 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
         pdf.set_text_color(150, 150, 150)
         pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
 
-    
-
-    # --- FINALISATION ET ENVOI ---
     pdf_bytes = bytes(pdf.output()) 
-    
     headers = {
-        'Content-Disposition': f'attachment; filename="Bilan_{group_name}.pdf"',
+        'Content-Disposition': f'attachment; filename="Bilan_{group_name_clean}.pdf"',
         'Access-Control-Expose-Headers': 'Content-Disposition'
     }
-    
-    return Response(
-        content=pdf_bytes, 
-        media_type="application/pdf", 
-        headers=headers
-    )
+    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
 
 
 
@@ -2045,28 +2074,35 @@ def delete_shared_transaction(token: str, id: int):
         conn.execute(query_delete, {"id": id})
     return {"status": "success"}
 
-# 7. Téléchargement de PDF anonyme depuis le lien de partage
+# ==========================================================
+# ROUTE 2 : TELECHARGEMENT DE PDF ANONYME (PARTAGÉ)
+# ==========================================================
 @app.get("/download-shared-pdf/{token}")
 def download_shared_pdf(token: str, sujet: str = None):
     query = text("SELECT * FROM tricount WHERE token_partage = :token ORDER BY date DESC")
     with engine.connect() as conn:
         res = conn.execute(query, {"token": token}).mappings().all()
         transactions = [dict(r) for r in res]
-        if not transactions:
-            raise HTTPException(status_code=404, detail="Bilan vide.")
-        df_groupe = pd.DataFrame(transactions)
         
+    if not transactions:
+        raise HTTPException(status_code=404, detail="Bilan vide.")
+        
+    df_groupe = pd.DataFrame(transactions)
     transferts_finaux = calculer_balances(transactions)
     total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
+    
+    # 💡 Sécurisation des noms de groupes et sujets
     group_name = transactions[0]["groupe"]
+    group_name_clean = clean_for_pdf(group_name)
 
     if sujet:
-        transferts_a_afficher = [t for t in transferts_finaux if t['de'] == sujet or t['a'] == sujet]
-        titre_doc = f"NOTE : {sujet}"
-        sous_titre = f"Bilan personnel dans le groupe {group_name}"
+        sujet_clean = clean_for_pdf(sujet)
+        transferts_a_afficher = [t for t in transferts_finaux if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean]
+        titre_doc = f"NOTE : {sujet_clean}"
+        sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
     else:
         transferts_a_afficher = transferts_finaux
-        titre_doc = group_name
+        titre_doc = group_name_clean
         sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
 
     pdf = StyledPDF()
@@ -2077,25 +2113,29 @@ def download_shared_pdf(token: str, sujet: str = None):
     pdf.set_left_margin(20)
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, "RÉCAPITULATIF DES TRANSFERTS", ln=True)
+    pdf.cell(0, 10, "RECAPITULATIF DES TRANSFERTS", ln=True)
     pdf.set_fill_color(99, 102, 241)
     pdf.rect(20, pdf.get_y(), 10, 1, 'F')
     pdf.ln(5)
 
     largeur_utile = 170
+
     if transferts_a_afficher:
         for t in transferts_a_afficher:
             curr_y = pdf.get_y()
+            de_clean = clean_for_pdf(t['de'])
+            a_clean = clean_for_pdf(t['a'])
+            
             if sujet:
-                if t['de'] == sujet:
+                if de_clean == sujet_clean:
                     color = (225, 29, 72)
-                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {t['a']}"
+                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {a_clean}"
                 else:
                     color = (5, 150, 105)
-                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {t['de']}"
+                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {de_clean}"
             else:
                 color = (79, 70, 229)
-                texte = f"> {t['de']} doit donner {t['montant']:.2f} EUR a {t['a']}"
+                texte = f"> {de_clean} doit donner {t['montant']:.2f} EUR a {a_clean}"
             
             pdf.set_fill_color(248, 250, 252)
             pdf.rect(20, curr_y, largeur_utile, 10, 'F')
@@ -2114,7 +2154,7 @@ def download_shared_pdf(token: str, sujet: str = None):
 
     pdf_bytes = bytes(pdf.output()) 
     headers = {
-        'Content-Disposition': f'attachment; filename="Bilan_{group_name}.pdf"',
+        'Content-Disposition': f'attachment; filename="Bilan_{group_name_clean}.pdf"',
         'Access-Control-Expose-Headers': 'Content-Disposition'
     }
     return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
