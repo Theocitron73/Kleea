@@ -1578,11 +1578,10 @@ class TricountTransaction(BaseModel):
 def clean_for_pdf(text_val: str) -> str:
     if not text_val:
         return ""
-    # 1. On ne conserve que les caractères compatibles avec la table de base (ord < 256)
-    # Cela élimine instantanément les émojis 4-bytes sans faire planter FPDF
+    # 1. Nettoyage strict des caractères de haute valeur (ord >= 256) comme les émojis
     text_val = "".join(c for c in text_val if ord(c) < 256)
     
-    # 2. Remplacement des accents français courants pour éviter les défauts d'affichage FPDF
+    # 2. Remplacement des accents français courants pour éviter les plantages ou caractères corrompus
     replacements = {
         'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
         'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E',
@@ -1600,11 +1599,9 @@ def clean_for_pdf(text_val: str) -> str:
     for orig, rep in replacements.items():
         text_val = text_val.replace(orig, rep)
         
-    # Encodage de sécurité final en latin-1
     try:
         return text_val.encode('latin-1', 'ignore').decode('latin-1')
     except Exception:
-        # Repli de secours en ASCII pur si le latin-1 échoue
         return "".join(c for c in text_val if ord(c) < 128)
 
 def calculer_balances(transactions):
@@ -1825,7 +1822,6 @@ class StyledPDF(FPDF):
 # ==========================================================
 @app.get("/download-pdf/{username}/{group_name}")
 def download_pdf(username: str, group_name: str, sujet: str = None):
-    # --- 1. RÉCUPÉRATION DES DONNÉES ---
     query = text("SELECT * FROM tricount WHERE utilisateur = :u AND groupe = :g ORDER BY date DESC")
     with engine.connect() as conn:
         res = conn.execute(query, {"u": username, "g": group_name}).mappings().all()
@@ -1835,25 +1831,28 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
         raise HTTPException(status_code=404, detail="Bilan vide ou groupe introuvable.")
         
     df_groupe = pd.DataFrame(transactions)
-    
-    # --- 2. CALCULS ---
     transferts_finaux = calculer_balances(transactions)
     total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
     
-    # 💡 Sécurisation des noms de groupes et sujets
+    # Nettoyage des titres
     group_name_clean = clean_for_pdf(group_name)
     
     if sujet:
         sujet_clean = clean_for_pdf(sujet)
-        transferts_a_afficher = [t for t in transferts_finaux if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean]
+        # 💡 CORRECTION : Nettoyage des prénoms dans le filtrage
+        transferts_a_afficher = [
+            t for t in transferts_finaux 
+            if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean
+        ]
         titre_doc = f"NOTE : {sujet_clean}"
         sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
     else:
+        sujet_clean = None
         transferts_a_afficher = transferts_finaux
         titre_doc = group_name_clean
         sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
 
-    # --- 3. GÉNÉRATION DU PDF ---
+    # --- GÉNÉRATION DU PDF ---
     pdf = StyledPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.add_page()
@@ -1874,6 +1873,7 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
     if transferts_a_afficher:
         for t in transferts_a_afficher:
             curr_y = pdf.get_y()
+            # 💡 CORRECTION : Nettoyage systématique des émetteurs et récepteurs pour le PDF
             de_clean = clean_for_pdf(t['de'])
             a_clean = clean_for_pdf(t['a'])
             
@@ -1909,7 +1909,6 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
         'Access-Control-Expose-Headers': 'Content-Disposition'
     }
     return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
-
 
 
 
@@ -2091,16 +2090,20 @@ def download_shared_pdf(token: str, sujet: str = None):
     transferts_finaux = calculer_balances(transactions)
     total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
     
-    # 💡 Sécurisation des noms de groupes et sujets
     group_name = transactions[0]["groupe"]
     group_name_clean = clean_for_pdf(group_name)
 
     if sujet:
         sujet_clean = clean_for_pdf(sujet)
-        transferts_a_afficher = [t for t in transferts_finaux if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean]
+        # 💡 CORRECTION : Nettoyage des prénoms dans le filtrage
+        transferts_a_afficher = [
+            t for t in transferts_finaux 
+            if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean
+        ]
         titre_doc = f"NOTE : {sujet_clean}"
         sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
     else:
+        sujet_clean = None
         transferts_a_afficher = transferts_finaux
         titre_doc = group_name_clean
         sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
@@ -2123,6 +2126,7 @@ def download_shared_pdf(token: str, sujet: str = None):
     if transferts_a_afficher:
         for t in transferts_a_afficher:
             curr_y = pdf.get_y()
+            # 💡 CORRECTION : Nettoyage systématique des émetteurs et récepteurs pour le PDF
             de_clean = clean_for_pdf(t['de'])
             a_clean = clean_for_pdf(t['a'])
             
@@ -2158,7 +2162,6 @@ def download_shared_pdf(token: str, sujet: str = None):
         'Access-Control-Expose-Headers': 'Content-Disposition'
     }
     return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
-
 
 
 
