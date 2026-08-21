@@ -12063,11 +12063,12 @@ if (!user) {
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                                 
                                 <XAxis 
-                                  dataKey="nom" 
-                                  axisLine={false} 
-                                  tickLine={false} 
-                                  tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}}
-                                  dy={10}
+                                dataKey="nom" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }}
+                                dy={10}
+                                tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''}
                                 />
 
                                 <YAxis 
@@ -12204,7 +12205,7 @@ if (!user) {
                             <ResponsiveContainer width="100%" height="120%">
                               <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                                <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} />
+                                <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''} />
                                 <YAxis 
                                   hide={false}
                                   tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
