@@ -32,6 +32,8 @@ import DashboardMobile from './DashboardMobile';
 import ComptesMobile from './ComptesMobile';
 import TricountMobile from './TricountMobile';
 import GuideView from './GuideView';
+import { Link as RouterLink } from 'react-router-dom';
+
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -2393,15 +2395,38 @@ const TransactionCard = ({ t, color, bg }) => {
 
 
 
-const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeKey, setActiveKey] = useState(null); // Pour savoir quelle couleur on modifie
 
+
+
+export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeWidget, setActiveWidget] = useState(null); // null | 'notepad' | 'prorata' | 'theme'
+
+  // --- ÉTATS & LOGIQUE BLOC-NOTES ---
+  const [note, setNote] = useState("");
+  useEffect(() => {
+    if (user && activeWidget === 'notepad') {
+      api.get(`/note/${user}`).then(res => setNote(res.data.texte));
+    }
+  }, [user, activeWidget]);
+
+  const handleSaveNote = () => {
+    api.post(`/note`, { utilisateur: user, texte: note });
+  };
+
+  // --- ÉTATS & LOGIQUE PRORATA ---
+  const [salaires, setSalaires] = useState({ perso: 1800, partenaire: 1400 });
+  const [depenses, setDepenses] = useState(1600);
+
+  const totalSalaires = Number(salaires.perso) + Number(salaires.partenaire);
+  const partPerso = totalSalaires > 0 ? (salaires.perso / totalSalaires) * 100 : 0;
+  const aPayerPerso = (depenses * (partPerso / 100)).toFixed(2);
+  const aPayerPartenaire = (depenses - aPayerPerso).toFixed(2);
+
+  // --- ÉTATS & LOGIQUE NUANCIER THEME ---
+  const [activeThemeKey, setActiveThemeKey] = useState(null);
   const handleColorChange = async (key, hex) => {
-    // 1. Mise à jour instantanée de l'UI
     setUserTheme(prev => ({ ...prev, [key]: hex }));
-
-    // 2. Sauvegarde en BDD
     try {
       await api.post('/save-user-theme', {
         user: user,
@@ -2413,7 +2438,7 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
     }
   };
 
-  const labels = {
+  const themeLabels = {
     color_revenus: "Revenus",
     color_depenses: "Dépenses",
     color_epargne: "Épargne",
@@ -2421,33 +2446,118 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
     color_patrimoine: "Carte Solde"
   };
 
+  // Gérer la fermeture globale
+  const handleToggleMenu = () => {
+    const nextState = !isMenuOpen;
+    setIsMenuOpen(nextState);
+    if (!nextState) {
+      setActiveWidget(null);
+      setActiveThemeKey(null);
+    }
+  };
+
   return (
-    <div className="fixed bottom-22 right-6 z-[1004] flex flex-col items-end">
-      {/* Fenêtre de personnalisation */}
-      {isOpen && (
-        <div className="mb-4 w-72 bg-slate-900/95 backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] shadow-2xl border border-white/10 p-5 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="flex justify-between items-center mb-5">
-            <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-[var(--text-main)]/40">Couleurs Graphiques</h4>
-            <Palette size={14} className="text-[var(--text-main)]/20" />
+        <div className="fixed bottom-24 lg:bottom-6 right-6 z-[1001] flex flex-col items-end gap-3 select-none">
+      
+      {/* =========================================================================
+          LES FENÊTRES ACTIVES DES WIDGETS (S'OUVRENT À GAUCHE DU BARREAU DE BOUTONS)
+          ========================================================================= */}
+      
+      {/* 📝 FENÊTRE 1 : BLOC-NOTES */}
+      {activeWidget === 'notepad' && (
+        <div className="absolute right-20 bottom-16 w-72 md:w-80 bg-white/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/20 p-4 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Bloc-notes</h4>
+            <span className="text-[10px] text-emerald-500 font-bold">Auto-save activé</span>
+          </div>
+          <textarea
+            className="w-full h-48 bg-transparent border-none focus:ring-0 text-slate-700 text-sm resize-none font-medium leading-relaxed outline-none"
+            placeholder="Note vos trucs importants ici..."
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onBlur={handleSaveNote}
+          />
+        </div>
+      )}
+
+      {/* 🧮 FENÊTRE 2 : PRORATA SIMULATEUR */}
+      {activeWidget === 'prorata' && (
+        <div className="absolute right-20 bottom-16 w-80 bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] text-[var(--text-main)] rounded-3xl border border-white/10 shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+          <h4 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4">Simulateur Prorata</h4>
+          
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[8px] font-black text-slate-500 uppercase mb-1">Mon Salaire</label>
+                <input 
+                  type="number" 
+                  value={salaires.perso} 
+                  onChange={(e) => setSalaires({...salaires, perso: e.target.value})}
+                  className="w-full bg-[var(--glass-bg)] border border-white/5 rounded-xl text-xs font-bold text-white p-2.5 outline-none focus:border-[var(--primary)]" 
+                />
+              </div>
+              <div>
+                <label className="block text-[8px] font-black text-slate-500 uppercase mb-1">Son Salaire</label>
+                <input 
+                  type="number" 
+                  value={salaires.partenaire} 
+                  onChange={(e) => setSalaires({...salaires, partenaire: e.target.value})}
+                  className="w-full bg-[var(--glass-bg)] border border-white/5 rounded-xl text-xs font-bold text-white p-2.5 outline-none focus:border-[var(--primary)]" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[8px] font-black text-slate-500 uppercase mb-1">Dépenses Communes</label>
+              <input 
+                type="number" 
+                value={depenses} 
+                onChange={(e) => setDepenses(e.target.value)}
+                className="w-full bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-xl text-xs font-black text-indigo-300 p-2.5 outline-none" 
+              />
+            </div>
+
+            <hr className="border-white/5 my-2" />
+
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-400">Ma part ({partPerso.toFixed(0)}%)</span>
+                <span className="font-mono font-black text-white">{aPayerPerso} €</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-400">Sa part ({(100 - partPerso).toFixed(0)}%)</span>
+                <span className="font-mono font-black text-white">{aPayerPartenaire} €</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🎨 FENÊTRE 3 : PERSONNALISATEUR DE DESIGN */}
+      {activeWidget === 'theme' && (
+        <div className="absolute right-20 bottom-16 w-72 bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/10 p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h4 className="font-black text-[9px] uppercase tracking-[0.2em] text-white/40">Couleurs Graphiques</h4>
+            <Palette size={12} className="text-white/20" />
           </div>
 
-          <div className="space-y-3">
-            {Object.keys(userTheme).filter(key => labels[key]).map((key) => (
+          <div className="space-y-2">
+            {Object.keys(userTheme).filter(key => themeLabels[key]).map((key) => (
               <div key={key} className="relative">
                 <button
-                  onClick={() => setActiveKey(activeKey === key ? null : key)}
-                  className="w-full flex items-center justify-between bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] p-3 rounded-2xl border border-white/5 transition-all"
+                  onClick={() => setActiveThemeKey(activeThemeKey === key ? null : key)}
+                  className="w-full flex items-center justify-between bg-[var(--glass-bg)] hover:bg-white/[0.04] p-2.5 rounded-xl border border-white/5 transition-all"
                 >
-                  <span className="text-xs font-bold text-[var(--text-main)]/70">{labels[key]}</span>
+                  <span className="text-[10px] font-bold text-white/70">{themeLabels[key]}</span>
                   <div 
-                    className="w-6 h-6 rounded-lg border border-white/20 shadow-lg" 
+                    className="w-5.5 h-5.5 rounded-lg border border-white/20 shadow-md" 
                     style={{ backgroundColor: userTheme[key] }} 
                   />
                 </button>
 
-                {activeKey === key && (
-                  <div className="absolute right-full mr-4 bottom-0 z-[1001]">
-                    <div className="fixed inset-0" onClick={() => setActiveKey(null)} />
+                {activeThemeKey === key && (
+                  <div className="absolute right-full mr-3 bottom-0 z-[1002] animate-in zoom-in-95 duration-200">
+                    <div className="fixed inset-0" onClick={() => setActiveThemeKey(null)} />
                     <SketchPicker
                       color={userTheme[key]}
                       onChangeComplete={(color) => handleColorChange(key, color.hex)}
@@ -2461,19 +2571,73 @@ const ThemeCustomizer = ({ user, userTheme, setUserTheme }) => {
         </div>
       )}
 
-      {/* Bouton Flottant (à gauche de la note) */}
+
+      {/* =========================================================================
+          LE COLLIMATEUR DE BOUTONS FLOTTANTS (MENU VERTICAL COMMUTABLE)
+          ========================================================================= */}
+      
+      {/* SOUS-BOUTONS DE SELECTION */}
+      {isMenuOpen && (
+        <div className="flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+          
+          {/* BOUTON 1 : NOTE BLOC (Notepad) */}
+          <button
+            onClick={() => setActiveWidget(activeWidget === 'notepad' ? null : 'notepad')}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
+              activeWidget === 'notepad' 
+                ? 'bg-white text-slate-900 shadow-[0_0_12px_rgba(255,255,255,0.4)] scale-105' 
+                : 'bg-[var(--primary)] text-white hover:scale-105 border border-white/5'
+            }`}
+            title="Bloc-notes"
+          >
+            <StickyNote size={18} />
+          </button>
+
+          {/* BOUTON 2 : CALCULATEUR DE PRORATA (Prorata) */}
+          <button
+            onClick={() => setActiveWidget(activeWidget === 'prorata' ? null : 'prorata')}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
+              activeWidget === 'prorata' 
+                ? 'bg-white text-slate-900 shadow-[0_0_12px_rgba(255,255,255,0.4)] scale-105' 
+                : 'bg-indigo-600 text-white hover:scale-105 border border-white/5'
+            }`}
+            title="Calculateur Prorata"
+          >
+            <Calculator size={18} />
+          </button>
+
+          {/* BOUTON 3 : COLOR DESIGNER (Theme) */}
+          <button
+            onClick={() => setActiveWidget(activeWidget === 'theme' ? null : 'theme')}
+            className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
+              activeWidget === 'theme' 
+                ? 'bg-white text-slate-900 shadow-[0_0_12px_rgba(255,255,255,0.4)] scale-105' 
+                : 'bg-slate-800 text-white hover:scale-105 border border-white/10'
+            }`}
+            title="Teintes Graphiques"
+          >
+            <Settings2 size={18} />
+          </button>
+
+        </div>
+      )}
+
+      {/* BOUTON MAÎTRE : DÉCLENCHEUR DU CARROUSEL */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${
-          isOpen ? 'bg-white text-slate-900 rotate-180' : 'bg-slate-800 text-[var(--text-main)] hover:scale-110 border border-white/10'
+        onClick={handleToggleMenu}
+        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl border transition-all duration-300 pointer-events-auto ${
+          isMenuOpen 
+            ? 'bg-slate-900 text-white border-white/10 rotate-90 scale-95' 
+            : 'bg-[var(--primary)] text-white border-transparent hover:scale-110'
         }`}
+        title="Menu Widgets"
       >
-        {isOpen ? <X size={24} /> : <Settings2 size={24} />}
+        {isMenuOpen ? <X size={22} /> : <Settings2 size={22} />}
       </button>
+
     </div>
   );
-};
-
+}
 
 
 const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
@@ -2669,119 +2833,6 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
 };
 
 
-
-
-const NotePad = ({ user }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [note, setNote] = useState("");
-
-  // Charger la note au montage
-  useEffect(() => {
-    if (user) {
-      api.get(`/note/${user}`).then(res => setNote(res.data.texte));
-    }
-  }, [user]);
-
-  const handleSave = () => {
-    api.post(`/note`, { utilisateur: user, texte: note });
-  };
-
-  return (
-    <div className="fixed bottom-54 right-6 z-[1001] flex flex-col items-end">
-      {/* Fenêtre de la note */}
-      {isOpen && (
-        <div className="mb-4 w-72 md:w-80 bg-white/90 backdrop-blur-[var(--glass-blur)] rounded-[24px] shadow-2xl border border-white/20 p-4 animate-in slide-in-from-bottom-5 duration-300">
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Bloc-notes</h4>
-            <span className="text-[10px] text-emerald-500 font-bold">Auto-save activé</span>
-          </div>
-          <textarea
-            className="w-full h-48 bg-transparent border-none focus:ring-0 text-slate-700 text-sm resize-none font-medium leading-relaxed"
-            placeholder="Note tes trucs importants ici..."
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            onBlur={handleSave}
-          />
-        </div>
-      )}
-
-      {/* Bouton Flottant */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${
-          isOpen ? 'bg-slate-800 rotate-90' : 'bg-[var(--primary)] hover:scale-110'
-        }`}
-      >
-        {isOpen ? <X className="text-[var(--text-main)]" /> : <StickyNote className="text-[var(--text-main)]" />}
-      </button>
-    </div>
-  );
-};
-
-const ProrataCalc = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [salaires, setSalaires] = useState({ perso: 2000, partenaire: 2000 });
-  const [depenses, setDepenses] = useState(1500);
-
-  const totalSalaires = Number(salaires.perso) + Number(salaires.partenaire);
-  const partPerso = totalSalaires > 0 ? (salaires.perso / totalSalaires) * 100 : 0;
-  const aPayerPerso = (depenses * (partPerso / 100)).toFixed(2);
-  const aPayerPartenaire = (depenses - aPayerPerso).toFixed(2);
-
-  return (
-    <div className="fixed bottom-38 right-6 z-[1003] flex flex-col items-end">
-      {isOpen && (
-        <div className="mb-4 w-80 bg-slate-900 text-[var(--text-main)] rounded-[var(--radius)] shadow-2xl p-6 animate-in slide-in-from-bottom-5 duration-300">
-          <h4 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-6">Simulateur Prorata</h4>
-          
-          <div className="space-y-4">
-            {/* Inputs Salaires */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Mon Salaire</label>
-                <input type="number" value={salaires.perso} onChange={(e) => setSalaires({...salaires, perso: e.target.value})}
-                  className="w-full bg-[var(--glass-bg)] border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-[var(--primary)]" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Son Salaire</label>
-                <input type="number" value={salaires.partenaire} onChange={(e) => setSalaires({...salaires, partenaire: e.target.value})}
-                  className="w-full bg-[var(--glass-bg)] border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-[var(--primary)]" />
-              </div>
-            </div>
-
-            {/* Input Dépenses Totale */}
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Total Dépenses Communes</label>
-              <input type="number" value={depenses} onChange={(e) => setDepenses(e.target.value)}
-                className="w-full bg-[var(--primary)]/20 border-none rounded-xl text-sm font-black text-indigo-300 focus:ring-2 focus:ring-[var(--primary)]" />
-            </div>
-
-            <hr className="border-white/10 my-4" />
-
-            {/* Résultats */}
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-400">Ma part ({partPerso.toFixed(0)}%)</span>
-                <span className="text-lg font-black text-[var(--text-main)]">{aPayerPerso} €</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-slate-400">Sa part ({(100 - partPerso).toFixed(0)}%)</span>
-                <span className="text-lg font-black text-[var(--text-main)]">{aPayerPartenaire} €</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <button onClick={() => setIsOpen(!isOpen)}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all duration-300 ${
-          isOpen ? 'bg-white text-slate-900 rotate-45' : 'bg-indigo-600 text-[var(--text-main)] hover:scale-110'
-        }`}>
-        <Calculator size={24} />
-      </button>
-    </div>
-  );
-};
 
 
 
@@ -10893,14 +10944,14 @@ if (!user) {
           {isForgotPassword ? "Retour à la connexion" : (isRegistering ? "Déjà un compte ? Se connecter" : "Nouveau ici ? Créer un compte")}
         </button>
 
-        {/* 💡 NOUVEAU BOUTON : ACCÈS AU GUIDE PUBLIC SANS ÊTRE AUTHENTIFIÉ */}
-        <button 
-          onClick={() => setShowPublicGuide(true)}
-          className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] hover:brightness-125 transition-all cursor-pointer"
+        {/* 💡 Utilisation de l'alias sécurisé RouterLink */}
+        <RouterLink 
+          to="/guide"
+          className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] hover:brightness-125 transition-all cursor-pointer no-underline"
         >
           <BookOpen size={12} />
           <span>Consulter le Guide d'utilisation</span>
-        </button>
+        </RouterLink>
       </div>
 
       {/* COMPOSANT TOAST PERSONNALISÉ */}
@@ -15655,12 +15706,10 @@ if (!user) {
 )}
     
 
-      {/* --- C'EST ICI QU'ON LE POSE --- */}
       
 
-      <NotePad user={user} />
-      <ProrataCalc />
-      <ThemeCustomizer 
+      {/* 💡 Appel unique du menu de widgets centralisé */}
+      <UnifiedWidgets 
         user={user} 
         userTheme={userTheme} 
         setUserTheme={setUserTheme} 

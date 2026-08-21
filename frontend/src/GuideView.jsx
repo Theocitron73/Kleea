@@ -437,18 +437,6 @@ export default function GuideView({ userTheme, setActiveTab }) {
           </div>
         )}
 
-        {/* BOUTON RETOUR DASHBOARD (Bas du guide) */}
-        {activeChapter === "all" && !searchTerm && (
-          <div className="pt-10 border-t border-white/5 text-center">
-            <button 
-              onClick={() => setActiveTab('dashboard')}
-              className="px-8 py-3 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-2xl hover:scale-105 active:scale-95 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.15)]"
-            >
-              Retourner au Dashboard
-            </button>
-          </div>
-        )}
-
       </div>
 
     </div>
