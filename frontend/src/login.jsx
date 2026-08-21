@@ -29,6 +29,8 @@ import GererMobile from './GererMobile';
 import ImportMobile from './ImportMobile';
 import PrevisionsMobile from './previsionsMobile';
 import DashboardMobile from './DashboardMobile';
+import ComptesMobile from './ComptesMobile';
+
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -7109,25 +7111,49 @@ const showNotify = (msg, type) => {
   };
 
 
+const [selectedType, setSelectedType] = useState("");
+const [compteName, setCompteName] = useState("");
+
+const typeOptions = [
+  { v: "CCP", l: "CCP" },
+  { v: "LIVRET A", l: "LIVRET A" },
+  { v: "LEP", l: "LEP" },
+  { v: "LDDS", l: "LDDS" },
+  { v: "PEL", l: "PEL" },
+  { v: "AUTRE", l: "AUTRE" }
+];
 
 const handleAddCompte = async (e) => {
   e.preventDefault();
   
+  // Validation : s'assurer qu'un libellé a bien été tapé après le préfixe
+  let finalCompteName = compteName.trim().toUpperCase();
+  if (selectedType) {
+    const prefix = `${selectedType} - `;
+    if (finalCompteName === prefix.trim()) {
+      alert("Veuillez saisir une désignation après le type de compte !");
+      return;
+    }
+  }
+
+  // Lecture robuste des éléments du formulaire via leur attribut "name"
   const nouveauCompte = {
-    compte: e.target[0].value,                    // NOM DU COMPTE
-    groupe: e.target[1].value,                    // GROUPE
-    solde: parseFloat(e.target[2].value) || 0,     // SOLDE
-    taux: parseFloat(e.target[3].value) || 0,      // 💡 NOUVEAU : Récupère le TAUX %
-    objectif: 0,                                  // Objectif par défaut à la création (géré ensuite dans sa carte)
-    couleur: newCompteColor,                      // La couleur depuis le state
+    compte: finalCompteName,
+    groupe: e.target.elements["compteGroupe"].value.trim().toUpperCase(),
+    solde: parseFloat(e.target.elements["compteSolde"].value) || 0,
+    taux: parseFloat(e.target.elements["compteTaux"].value) || 0,
+    objectif: 0, // Géré ensuite sur la carte du compte
+    couleur: newCompteColor,
     utilisateur: user,
-    powens_name: null //
+    powens_name: null
   };
 
   try {
     await api.post(`/config-comptes`, nouveauCompte);
     e.target.reset(); 
-    setNewCompteColor("#6366f1"); // On remet la couleur par défaut après l'ajout
+    setCompteName(""); // Réinitialisation locale
+    setSelectedType(""); // Réinitialisation du sélecteur
+    setNewCompteColor("#6366f1"); // Couleur par défaut
     setShowAddPicker(false);
     fetchComptes();   
   } catch (err) {
@@ -14874,7 +14900,8 @@ if (!user) {
 
 
 {activeTab === 'comptes' && (
-  <div className="h-[calc(100vh-140px)] flex flex-col gap-4 animate-in fade-in duration-500 overflow-hidden">
+  <>
+  <div className="hidden lg:flex h-[calc(100vh-140px)] flex-col gap-4 animate-in fade-in duration-500 overflow-hidden">
     
     {/* TITRE & COMPTEUR */}
     <div className="flex items-center gap-3 px-2">
@@ -14884,22 +14911,81 @@ if (!user) {
       </span>
     </div>
 
-    {/* FORMULAIRE : AJOUT DE L'INPUT TAUX */}
+   {/* FORMULAIRE : CONFIGURATION DES COMPTES */}
     <div className="z-[900] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
       <form onSubmit={handleAddCompte} className="flex items-center gap-4">
-        <div className="flex flex-col border-r border-white/10 pr-4">
+        <div className="flex flex-col border-r border-white/10 pr-4 shrink-0">
           <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-tighter">Nouveau</span>
           <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
         </div>
 
-        <input type="text" placeholder="NOM DU COMPTE" className="flex-[1.5] bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
-        <input type="text" placeholder="GROUPE (PERSO, COMMUN...)" className="flex-1 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" required />
-        <input type="number" step="0.01" placeholder="SOLDE" className="w-20 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" />
-        
-        {/* 💡 NOUVEL INPUT : LE TAUX D'INTÉRÊT DU LIVRET À LA CRÉATION */}
-        <input type="number" step="0.01" min="0" max="100" placeholder="TAUX %" className="w-16 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-black placeholder:text-[var(--text-main)]/30" />
+        {/* 💡 INTÉGRATION DE VOTRE CUSTOM SELECT */}
+        <div className="w-52 shrink-0">
+          <CustomSelect 
+            value={selectedType}
+            options={typeOptions}
+            onChange={(type) => {
+              setSelectedType(type);
+              if (type) {
+                setCompteName(`${type} `); // Ajoute le type comme préfixe automatiquement
+              } else {
+                setCompteName("");
+              }
+            }}
+            icon={CreditCard} // Icône de carte bancaire pour illustrer le type
+            className="p-2.5 rounded-[var(--radius)] text-[10px] font-bold uppercase tracking-widest cursor-pointer"
+          />
+        </div>
 
-        <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10">
+        {/* LE NOM DU COMPTE AVEC LE PRÉFIXE IMPOSSIBLE À MODIFIER */}
+        <input 
+          type="text" 
+          name="compteName"
+          placeholder="NOM DU COMPTE" 
+          value={compteName}
+          onChange={(e) => {
+            let val = e.target.value;
+            if (selectedType) {
+              const prefix = `${selectedType} `;
+              // On empêche la suppression ou la modification du préfixe sélectionné
+              if (!val.startsWith(prefix)) {
+                val = prefix;
+              }
+            }
+            setCompteName(val);
+          }}
+          className="flex-[1.5] bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" 
+          required 
+        />
+
+        {/* AUTRES INPUTS */}
+        <input 
+          type="text" 
+          name="compteGroupe"
+          placeholder="GROUPE (PERSO, COMMUN...)" 
+          className="flex-1 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" 
+          required 
+        />
+
+        <input 
+          type="number" 
+          step="0.01" 
+          name="compteSolde"
+          placeholder="SOLDE" 
+          className="w-20 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" 
+        />
+        
+        <input 
+          type="number" 
+          step="0.01" 
+          min="0" 
+          max="100" 
+          name="compteTaux"
+          placeholder="TAUX %" 
+          className="w-16 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-black placeholder:text-[var(--text-main)]/30" 
+        />
+
+        <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10 shrink-0">
           <button
             type="button"
             onClick={() => setShowAddPicker(!showAddPicker)}
@@ -14910,7 +14996,7 @@ if (!user) {
           <span className="text-[7px] font-black text-[var(--text-main)]/30 uppercase">Teinte</span>
         </div>
         
-        <button type="submit" className="px-6 py-2.5 bg-white text-black rounded-[var(--radius)] font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-[var(--text-main)] transition-all shadow-lg active:scale-95">
+        <button type="submit" className="px-6 py-2.5 bg-white text-black rounded-[var(--radius)] font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-[var(--text-main)] transition-all shadow-lg active:scale-95 shrink-0">
           Créer
         </button>
 
@@ -15097,6 +15183,33 @@ if (!user) {
       .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 10px; }
     `}</style>
   </div>
+{/* ==========================================================
+        2. VERSION MOBILE (Smartphones)
+        ========================================================== */}
+    <div className="block lg:hidden">
+      <ComptesMobile 
+        comptes={comptes}
+        setComptes={setComptes}
+        handleAddCompte={handleAddCompte}
+        selectedType={selectedType}
+        setSelectedType={setSelectedType}
+        typeOptions={typeOptions}
+        compteName={compteName}
+        setCompteName={setCompteName}
+        newCompteColor={newCompteColor}
+        setNewCompteColor={setNewCompteColor}
+        showAddPicker={showAddPicker}
+        setShowAddPicker={setShowAddPicker}
+        showPicker={showPicker}
+        setShowPicker={setShowPicker}
+        handleBlurUpdate={handleBlurUpdate}
+        openDeleteModal={openDeleteModal}
+        openCalculateurAssistant={openCalculateurAssistant}
+        handleColorChange={handleColorChange}
+        CustomSelect={CustomSelect}
+      />
+    </div>
+  </>
 )}
 
 
