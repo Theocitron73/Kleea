@@ -1906,17 +1906,18 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
             pdf.set_text_color(150, 150, 150)
             pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
 
-        # 💡 EXTRACTEUR UNIVERSEL DE BYTES PDF (Compatible fpdf ET fpdf2)
+        # 💡 EXTRACTION COMPATIBLE TOUTES VERSIONS FPDF (Ancienne & Nouvelle)
+        pdf_bytes = b''
         try:
-            # Essai fpdf2
-            raw_out = pdf.output()
-            if isinstance(raw_out, str):
+            # On essaye l'ancienne syntaxe PyFPDF (dest='S')
+            raw_out = pdf.output(dest='S')
+            if isinstance(raw_out, str) and raw_out != "":
                 pdf_bytes = raw_out.encode('latin-1')
             else:
                 pdf_bytes = bytes(raw_out)
-        except Exception:
-            # Repli fpdf d'origine
-            raw_out = pdf.output(dest='S')
+        except (TypeError, ValueError):
+            # Si fpdf2 est installé, 'dest' provoquera une TypeError, on se replie sur sa syntaxe
+            raw_out = pdf.output()
             if isinstance(raw_out, str):
                 pdf_bytes = raw_out.encode('latin-1')
             else:
@@ -1929,7 +1930,6 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
         return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
     except Exception as e:
-        # 💡 Impresssion de la pile d'erreur complète dans les logs du serveur (Render)
         print("====== ERREUR CRASH GENERATION PDF ======")
         traceback.print_exc()
         print("=========================================")
@@ -2180,15 +2180,18 @@ def download_shared_pdf(token: str, sujet: str = None):
             pdf.set_text_color(150, 150, 150)
             pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
 
-        # 💡 EXTRACTEUR UNIVERSEL DE BYTES PDF (Compatible fpdf ET fpdf2)
+        # 💡 EXTRACTION COMPATIBLE TOUTES VERSIONS FPDF (Ancienne & Nouvelle)
+        pdf_bytes = b''
         try:
-            raw_out = pdf.output()
-            if isinstance(raw_out, str):
+            # On essaye l'ancienne syntaxe PyFPDF (dest='S')
+            raw_out = pdf.output(dest='S')
+            if isinstance(raw_out, str) and raw_out != "":
                 pdf_bytes = raw_out.encode('latin-1')
             else:
                 pdf_bytes = bytes(raw_out)
-        except Exception:
-            raw_out = pdf.output(dest='S')
+        except (TypeError, ValueError):
+            # Si fpdf2 est installé, 'dest' provoquera une TypeError, on se replie sur sa syntaxe
+            raw_out = pdf.output()
             if isinstance(raw_out, str):
                 pdf_bytes = raw_out.encode('latin-1')
             else:
@@ -2205,7 +2208,6 @@ def download_shared_pdf(token: str, sujet: str = None):
         traceback.print_exc()
         print("================================================")
         raise HTTPException(status_code=500, detail=f"Erreur interne de PDF: {str(e)}")
-
 
 
 
