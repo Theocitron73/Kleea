@@ -191,7 +191,10 @@ export default function ComptesMobile(props) {
             {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
               <div 
                 key={c.compte} 
-                className="relative p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col gap-3.5 backdrop-blur-md"
+                /* 💡 AJOUT CLÉ : z-50 lorsque le picker est actif pour surélever la carte au-dessus des autres */
+                className={`relative p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col gap-3.5 backdrop-blur-md transition-all duration-300 ${
+                  showPicker === i ? 'z-50' : 'z-10'
+                }`}
                 style={{ 
                   backgroundColor: `${c.couleur}60`,
                 }}
