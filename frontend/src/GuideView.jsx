@@ -79,8 +79,10 @@ export default function GuideView({ userTheme, setActiveTab }) {
           type: "rule-box",
           title: "Règle de Transfert Interne",
           icon: ArrowUpDown,
-          desc: "Pour que les virements entre vos propres comptes ne soient pas comptés comme des dépenses réelles, respectez strictement ce format avec cet émoji :",
-          code: "🔄 Virement : Compte A VERS Compte B"
+          desc: "Pour que les virements entre vos propres comptes ne soient pas comptés comme des dépenses réelles, veillez à ce que vos transactions soit bien sur une catégorie qui ressemble à ceci :",
+          code: "🔄 Virement : Compte A VERS Compte B",
+          // 💡 Remplacement de "desc" par "extra" pour éviter la collision de clé JavaScript
+          extra: "Les catégories de virement interne sont créées automatiquement en fonction des types de comptes que vous avez créés"
         },
         {
           type: "card",
@@ -371,11 +373,19 @@ export default function GuideView({ userTheme, setActiveTab }) {
                             <h4 className="text-white font-bold text-sm uppercase mb-2">{block.title}</h4>
                             <p className="text-white/50 text-xs leading-relaxed mb-4">{block.desc}</p>
                           </div>
+                          
                           <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl">
                             <code className="text-blue-300 font-mono text-[11px] block bg-black/30 p-2.5 rounded border border-white/5">
                               {block.code}
                             </code>
                           </div>
+
+                          {/* 💡 AJOUT : Rendu du texte de précision sous la boîte de code si présent */}
+                          {block.extra && (
+                            <p className="text-white/40 text-[11px] leading-relaxed mt-4 italic">
+                              {block.extra}
+                            </p>
+                          )}
                         </div>
                       );
                     }
