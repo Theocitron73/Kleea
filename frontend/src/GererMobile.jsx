@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
-  Database, List, CreditCard, Tag, MoreHorizontal, ArrowUpDown 
+  Database, List, CreditCard, Tag, MoreHorizontal, ArrowUpDown,Pencil
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
@@ -218,8 +218,7 @@ export default function GererMobile(props) {
           Budgets ({budgets.length})
         </button>
       </div>
-
-      {/* =========================================================================
+{/* =========================================================================
           ONGLET 1 : LES TRANSACTIONS (VUE PAR CARTES + ACTION TOUCHER POUR MODIFIER)
           ========================================================================= */}
       {activeSection === 'transactions' && (
@@ -241,6 +240,14 @@ export default function GererMobile(props) {
             )}
           </div>
 
+          {/* INDICATEUR D'ACTION TACTILE DISCRET */}
+          <div className="flex items-center gap-2 px-1 py-1 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl animate-pulse">
+            <span className="text-[11px] pl-1">💡</span>
+            <span className="text-[9px] font-black text-indigo-300/80 uppercase tracking-wider">
+              Touchez une transaction pour la modifier rapidement
+            </span>
+          </div>
+
           {/* Liste des transactions */}
           <div className="space-y-2 mt-2">
             {transactionsFiltrees.length > 0 ? (
@@ -252,7 +259,7 @@ export default function GererMobile(props) {
                   <div 
                     key={t.id} 
                     onClick={() => openEditTx(t)}
-                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all"
+                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/10 rounded-2xl flex items-center justify-between transition-all"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       {/* Badge indicateur de type */}
@@ -278,16 +285,24 @@ export default function GererMobile(props) {
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0 ml-2">
-                      <span className={`text-xs font-mono font-black ${
-                        estVirement ? 'text-[var(--primary)]' : estRevenu ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {estRevenu && !estVirement ? '+' : ''}
-                        {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                      </span>
-                      <p className="text-[8px] text-white/30 font-bold uppercase mt-1">
-                        {t.jour ? `${t.jour} ${t.mois}` : t.mois}
-                      </p>
+                    {/* Bloc montant + indicateur visuel crayon d'édition */}
+                    <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
+                      <div>
+                        <span className={`text-xs font-mono font-black ${
+                          estVirement ? 'text-[var(--primary)]' : estRevenu ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {estRevenu && !estVirement ? '+' : ''}
+                          {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                        </span>
+                        <p className="text-[8px] text-white/30 font-bold uppercase mt-1">
+                          {t.jour ? `${t.jour} ${t.mois}` : t.mois}
+                        </p>
+                      </div>
+                      
+                      {/* Petit badge d'édition tactile discret */}
+                      <div className="p-1.5 bg-white/[0.02] border border-white/5 rounded-lg text-white/20">
+                        <Pencil size={10} />
+                      </div>
                     </div>
                   </div>
                 );

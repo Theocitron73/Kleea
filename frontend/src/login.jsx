@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom';
 import api from './api';
 import ReactMarkdown from 'react-markdown';
 import GererMobile from './GererMobile';
-
+import ImportMobile from './ImportMobile';
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -14010,7 +14010,8 @@ if (!user) {
 
 
 {activeTab === 'importer' && (
-   <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
+  <>
+    <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
     <div className="flex flex-col lg:flex-row gap-8 items-stretch">
       
       {/* COLONNE GAUCHE : IMPORTATION & RÉCAPITULATIF */}
@@ -14629,6 +14630,44 @@ if (!user) {
 
     </div>
   </div>
+{/* ==========================================================
+        2. VERSION MOBILE (Smartphones)
+        ========================================================== */}
+    <div className="block lg:hidden">
+      <ImportMobile 
+        selectedCompte={selectedCompte}
+        setSelectedCompte={setSelectedCompte}
+        comptes={comptes}
+        powensData={powensData}
+        syncCountByAccount={syncCountByAccount}
+        handleAssociateAccount={handleAssociateAccount}
+        isSyncingPowens={isSyncingPowens}
+        handleConnectNewBank={handleConnectNewBank}
+        isManualSyncing={isManualSyncing}
+        isSyncingData={isSyncingData}
+        isCheckingSync={isCheckingSync}
+        handleSyncPowens={handleSyncPowens}
+        hasPendingSync={hasPendingSync}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        setFileName={setFileName}
+        handleFileUpload={handleFileUpload}
+        transactionsCalculees={transactionsCalculees}
+        setTempTransactions={setTempTransactions}
+        confirmBatchImport={confirmBatchImport}
+        categoriesPourIntelligence={categoriesPourIntelligence}
+        intelSelectedCat={intelSelectedCat}
+        setIntelSelectedCat={setIntelSelectedCat}
+        activeCategoryData={activeCategoryData}
+        handleRemoveKeyword={handleRemoveKeyword}
+        handleAddKeyword={handleAddKeyword}
+        signType={signType}
+        setSignType={setSignType}
+        soldesTries={soldesTries}
+      />
+    </div>
+  </>
 )}
 
 
