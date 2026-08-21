@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
-  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown 
+  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown,Wallet 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
@@ -22,10 +22,10 @@ export default function GererMobile(props) {
     showLearningList, setShowLearningList,
     fetchMemoire, elementsAppris, handleDeleteMemory,
     newTx, setNewTx, selectedDate, setSelectedDate, submitQuickTransaction,
-    searchTerm, setSearchTerm,
     transactionsFiltrees, selectedIds, toggleAll, toggleSelect, updateCell,
-    allocations,
-    CustomBadgeDate
+    allocations,searchTerm,
+    // 💡 Récupération de votre composant CustomSelect
+    CustomSelect
   } = props;
 
   // États locaux spécifiques au mobile
@@ -135,69 +135,61 @@ export default function GererMobile(props) {
         </div>
       </div>
 
-      {/* 4. TIROIR DES FILTRES MOBILE */}
+      {/* 4. TIROIR DES FILTRES MOBILE AVEC SÉLECTEURS PERSONNALISÉS */}
       {showFilters && (
-        <div className="mb-4 bg-[#121214] border border-[var(--primary)]/30 rounded-2xl p-4 space-y-3 animate-in slide-in-from-top-4 duration-200">
+        <div className="mb-4 bg-[#121214] border border-[var(--primary)]/30 rounded-2xl p-4 space-y-3.5 animate-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
             <span className="text-[10px] font-black uppercase tracking-wider text-[var(--primary)]">Ajuster la vue</span>
             <button onClick={() => setShowFilters(false)} className="text-white/40"><X size={14} /></button>
           </div>
           
-          <div className="space-y-3">
-            <div>
-              <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Profil cible</label>
-              <select 
-                value={filters.profil} 
-                onChange={(e) => setFilters(f => ({ ...f, profil: e.target.value }))}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
-              >
-                {['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            </div>
+          <div className="space-y-4">
+            {/* Profil cible */}
+            <CustomSelect 
+              label="Profil cible"
+              value={filters.profil}
+              icon={User}
+              options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
+              onChange={(val) => setFilters(f => ({ ...f, profil: val }))}
+              className="p-2.5 rounded-xl text-[10px]"
+            />
 
-            <div>
-              <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte bancaire</label>
-              <select 
-                value={selectedCompte} 
-                onChange={(e) => setSelectedCompte(e.target.value)}
-                className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
-              >
-                <option value="tous">Tous les comptes</option>
-                {props.soldesTries?.map(s => (
-                  <option key={s.compte} value={s.compte}>{s.compte}</option>
-                ))}
-              </select>
-            </div>
+            {/* Compte bancaire */}
+            <CustomSelect 
+              label="Compte bancaire"
+              value={selectedCompte}
+              icon={Search}
+              options={[
+                { v: 'tous', l: 'Tous les comptes' },
+                ...props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))
+              ]}
+              onChange={(val) => setSelectedCompte(val)}
+              className="p-2.5 rounded-xl text-[10px]"
+            />
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Mois</label>
-                <select 
-                  value={filters.mois} 
-                  onChange={(e) => setFilters({ ...filters, mois: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
-                >
-                  {moisListe.map(m => (
-                    <option key={m.v} value={m.v}>{m.l}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Année</label>
-                <select 
-                  value={filters.annee} 
-                  onChange={(e) => setFilters({ ...filters, annee: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-medium text-white outline-none"
-                >
-                  {[...new Set(availablePeriods.map(p => p.annee))]
-                    .sort((a, b) => b - a)
-                    .map(year => (
-                      <option key={year} value={year}>{year}</option>
-                    ))}
-                </select>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              {/* Mois */}
+              <CustomSelect 
+                label="Mois"
+                value={filters.mois}
+                icon={Calendar}
+                options={moisListe}
+                onChange={(val) => setFilters(f => ({ ...f, mois: val }))}
+                className="p-2.5 rounded-xl text-[10px]"
+              />
+
+              {/* Année */}
+              <CustomSelect 
+                label="Année"
+                value={filters.annee}
+                icon={Calendar}
+                options={[...new Set(availablePeriods.map(p => p.annee))]
+                  .sort((a, b) => b - a)
+                  .map(year => ({ v: year.toString(), l: year.toString() }))
+                }
+                onChange={(val) => setFilters(f => ({ ...f, annee: val }))}
+                className="p-2.5 rounded-xl text-[10px]"
+              />
             </div>
           </div>
         </div>
@@ -241,7 +233,7 @@ export default function GererMobile(props) {
           ONGLET 1 : LES TRANSACTIONS
           ========================================================================= */}
       {activeSection === 'transactions' && (
-        <div className="space-y-3 flex-1">
+        <div className="space-y-3 flex-1 animate-in fade-in duration-200">
           {/* Barre de Recherche Dynamique */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
@@ -295,11 +287,6 @@ export default function GererMobile(props) {
                           <span className="text-[8px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded font-black max-w-[90px] truncate">
                             {t.categorie || "❓ Autre"}
                           </span>
-                          {t.enveloppe && (
-                            <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded font-black truncate max-w-[80px]">
-                              📦 {t.enveloppe}
-                            </span>
-                          )}
                         </div>
                       </div>
                     </div>
@@ -314,7 +301,6 @@ export default function GererMobile(props) {
                           {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </span>
                         
-                        {/* 💡 CORRECTION : Affichage de la date formatée sous le montant */}
                         <p className="text-[8.5px] text-white/40 font-black tracking-tight mt-1">
                           {getFormattedDate(t)}
                         </p>
@@ -342,15 +328,15 @@ export default function GererMobile(props) {
           ONGLET 2 : OUTILS
           ========================================================================= */}
       {props.activeTab === 'gerer' && activeSection === 'tools' && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* SAISIE EXPRESS */}
+          {/* SAISIE EXPRESS AVEC SELECTEURS PERSONNALISÉS */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Plus size={12} /> Nouvelle Transaction Express
             </h3>
             
-            <div className="space-y-2">
+            <div className="space-y-3">
               <input 
                 type="text" 
                 id="quick-nom-mobile"
@@ -358,45 +344,45 @@ export default function GererMobile(props) {
                 className="w-full bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
               />
               
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-3 items-end">
                 <div className="relative">
+                  <label className="text-[8px] uppercase font-black text-white/30 block mb-1">Montant (€)</label>
                   <input 
                     type="number" 
                     id="quick-montant-mobile"
-                    placeholder="Montant (0.00)" 
-                    className="w-full bg-black/30 border border-white/10 rounded-xl pl-3 pr-6 py-2 text-xs font-mono font-bold text-white outline-none"
+                    placeholder="0.00" 
+                    className="w-full bg-black/30 border border-white/10 rounded-xl pl-3 pr-6 py-2.5 text-xs font-mono font-bold text-white outline-none"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/30">€</span>
+                  <span className="absolute right-3 top-[65%] -translate-y-1/2 text-[10px] text-white/30 font-bold">€</span>
                 </div>
                 
-                <select 
+                {/* CustomSelect Compte */}
+                <CustomSelect 
                   value={newTx.compte}
-                  onChange={(e) => setNewTx({...newTx, compte: e.target.value})}
-                  className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                >
-                  {props.soldesTries?.map(s => (
-                    <option key={s.compte} value={s.compte}>{s.compte}</option>
-                  ))}
-                </select>
+                  options={props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))}
+                  onChange={(val) => setNewTx({...newTx, compte: val})}
+                  icon={CreditCard}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <select 
+              <div className="grid grid-cols-2 gap-3 items-end">
+                {/* CustomSelect Catégorie */}
+                <CustomSelect 
                   value={newTx.categorie}
-                  onChange={(e) => setNewTx({...newTx, categorie: e.target.value})}
-                  className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                >
-                  {categoriesVisibles.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                  onChange={(val) => setNewTx({...newTx, categorie: val})}
+                  icon={Tag}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
 
-                <div className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white flex items-center justify-center">
+                <div className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 h-[38px] flex items-center justify-center relative">
+                  <Calendar size={12} className="text-[var(--primary)] absolute left-3" />
                   <DatePicker
                     selected={selectedDate}
                     onChange={(date) => setSelectedDate(date)}
                     dateFormat="dd/MM/yyyy"
-                    className="bg-transparent border-none outline-none text-center w-full cursor-pointer text-xs"
+                    className="bg-transparent border-none outline-none text-center w-full cursor-pointer text-xs font-bold text-white pl-5"
                   />
                 </div>
               </div>
@@ -413,7 +399,7 @@ export default function GererMobile(props) {
                     document.getElementById('quick-montant-mobile').value = '';
                   }
                 }}
-                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-2"
+                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-2 shadow-lg"
               >
                 Valider et Enregistrer
               </button>
@@ -497,68 +483,66 @@ export default function GererMobile(props) {
           ONGLET 3 : BUDGETS
           ========================================================================= */}
       {activeSection === 'budgets' && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* DEFINIR UN BUDGET */}
+          {/* DEFINIR UN BUDGET AVEC SELECTEURS PERSONNALISÉS */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Target size={12} /> Définir un Budget
             </h3>
             
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <select 
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <CustomSelect 
                   value={formBudget.compte || 'tous'}
-                  onChange={(e) => setFormBudget({...formBudget, compte: e.target.value})}
-                  className="w-full bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                >
-                  <option value="tous">Tous les comptes</option>
-                  {props.soldesTries?.map(s => (
-                    <option key={s.compte} value={s.compte}>{s.compte}</option>
-                  ))}
-                </select>
+                  options={[
+                    { v: 'tous', l: 'Tous les comptes' },
+                    ...props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))
+                  ]}
+                  onChange={(val) => setFormBudget({...formBudget, compte: val})}
+                  icon={Search}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
                 
-                <select 
+                <CustomSelect 
                   value={formBudget.mois || filters.mois}
-                  onChange={(e) => setFormBudget({...formBudget, mois: e.target.value})}
-                  className="w-full bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                >
-                  {moisListe.map(m => (
-                    <option key={m.v} value={m.v}>{m.l}</option>
-                  ))}
-                </select>
+                  options={moisListe}
+                  onChange={(val) => setFormBudget({...formBudget, mois: val})}
+                  icon={Calendar}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
               </div>
 
-              <div className="grid grid-cols-12 gap-2">
+              <div className="grid grid-cols-12 gap-3 items-end">
                 <div className="col-span-8">
-                  <select 
+                  <CustomSelect 
                     value={formBudget.nom}
-                    onChange={(e) => setFormBudget({...formBudget, nom: e.target.value})}
-                    className="w-full bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                  >
-                    {toutesLesCategories
+                    options={toutesLesCategories
                       .filter(c => !masquees.includes(c))
-                      .map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                  </select>
+                      .map(cat => ({ v: cat, l: cat }))
+                    }
+                    onChange={(val) => setFormBudget({...formBudget, nom: val})}
+                    icon={Tag}
+                    className="p-2.5 rounded-xl text-[10px]"
+                  />
                 </div>
                 
                 <div className="col-span-4 relative">
+                  <label className="text-[8px] uppercase font-black text-white/30 block mb-1">Limite (€)</label>
                   <input 
                     type="number"
-                    placeholder="Limit"
+                    placeholder="0"
                     value={formBudget.somme}
                     onChange={(e) => setFormBudget({...formBudget, somme: e.target.value})}
-                    className="w-full bg-black/30 border border-white/10 rounded-xl px-2 py-2 text-xs font-mono font-bold text-white outline-none text-right pr-6"
+                    className="w-full bg-black/30 border border-white/10 rounded-xl px-2 py-2.5 text-xs font-mono font-bold text-white outline-none text-right pr-6"
                   />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-white/30">€</span>
+                  <span className="absolute right-2 top-[65%] -translate-y-1/2 text-[9px] text-white/30 font-bold">€</span>
                 </div>
               </div>
 
               <button 
                 onClick={handleAddBudget}
-                className="w-full bg-[var(--primary)] text-white text-[9px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1"
+                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1"
               >
                 Fixer Objectif
               </button>
@@ -611,7 +595,7 @@ export default function GererMobile(props) {
       )}
 
       {/* =========================================================================
-          MODALE DE MODIFICATION RAPIDE DE TRANSACTION
+          MODALE DE MODIFICATION RAPIDE DE TRANSACTION AVEC SELECTEURS PERSONNALISÉS
           ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -633,56 +617,74 @@ export default function GererMobile(props) {
               </button>
             </div>
 
-            {/* Inputs de modification */}
-            <div className="space-y-3.5">
+            {/* Inputs de modification avec CustomSelect */}
+            <div className="space-y-4">
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
                 <input 
                   type="text"
                   value={editingTransaction.nom || editingTransaction.libelle || ''}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, nom: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none animate-none"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 items-end">
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
                   <input 
                     type="number"
                     value={editingTransaction.montant}
                     onChange={(e) => setEditingTransaction({ ...editingTransaction, montant: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white outline-none"
                   />
                 </div>
-                <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte associé</label>
-                  <select 
-                    value={editingTransaction.compte}
-                    onChange={(e) => setEditingTransaction({ ...editingTransaction, compte: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-                  >
-                    {comptes.map(c => (
-                      <option key={c.compte} value={c.compte}>{c.compte}</option>
-                    ))}
-                  </select>
-                </div>
+                
+                {/* CustomSelect Compte */}
+                <CustomSelect 
+                  label="Compte associé"
+                  value={editingTransaction.compte}
+                  options={props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))}
+                  onChange={(val) => setEditingTransaction({ ...editingTransaction, compte: val })}
+                  icon={CreditCard}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
               </div>
 
-              <div>
-                <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Catégorie</label>
-                <select 
+              <div className="grid grid-cols-2 gap-3 items-end">
+                {/* CustomSelect Catégorie */}
+                <CustomSelect 
+                  label="Catégorie"
                   value={editingTransaction.categorie || "❓ Autre"}
-                  onChange={(e) => setEditingTransaction({ ...editingTransaction, categorie: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-                >
-                  {categoriesVisibles?.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  )) || (
-                    <option value={editingTransaction.categorie}>{editingTransaction.categorie}</option>
-                  )}
-                </select>
+                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                  onChange={(val) => setEditingTransaction({ ...editingTransaction, categorie: val })}
+                  icon={Tag}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
+                
+                {/* CustomSelect Mois affecté */}
+                <CustomSelect 
+                  label="Mois affecté"
+                  value={editingTransaction.mois || "À définir"}
+                  options={moisListe}
+                  onChange={(val) => setEditingTransaction({ ...editingTransaction, mois: val })}
+                  icon={Calendar}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
               </div>
+
+              {/* CustomSelect Enveloppe d'épargne */}
+              <CustomSelect 
+                label="Enveloppe d'épargne"
+                value={editingTransaction.enveloppe || ""}
+                options={[
+                  { v: "", l: "📦 Aucune enveloppe" },
+                  ...Array.from(new Set(allocations.map(a => a.projet))).map(p => ({ v: p, l: `💰 ${p}` }))
+                ]}
+                onChange={(val) => setEditingTransaction({ ...editingTransaction, enveloppe: val })}
+                icon={Wallet}
+                className="p-2.5 rounded-xl text-[10px]"
+              />
             </div>
 
             {/* Actions */}

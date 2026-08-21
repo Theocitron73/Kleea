@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Calendar, Tag, Wallet, Plus, Eye, EyeOff, TrendingUp, PieChart as PieChartIcon, X, Check, Copy 
+  Calendar, Tag, Wallet, Plus, Eye, EyeOff, TrendingUp, PieChart as PieChartIcon, X, Check, Copy, User, Search
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
@@ -13,8 +13,9 @@ export default function PrevisionsMobile(props) {
     categoriesVisibles, optionsComptes, chartDataPrevisions, PrevisionsChartView,
     moisDisponibles, excludedMonths, setExcludedMonths, recapPrevisionsStats,
     objectifAnnuelGlobal, statsEpargnePrevisionnelle, pourcentageAnnuel,
-    // On récupère le composant d'origine du parent pour conserver les couleurs & calculs exacts
-    SortableAccountCard
+    SortableAccountCard,
+    // Récupération de votre composant CustomSelect pour la saisie et modification
+    CustomSelect
   } = props;
 
   // États de navigation mobile
@@ -42,25 +43,25 @@ export default function PrevisionsMobile(props) {
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
       
-      {/* 1. EN-TÊTE MOBILE */}
-      <div className="flex items-center justify-between mb-3 mt-2">
+      {/* 1. EN-TÊTE MOBILE COMPACT */}
+      <div className="flex items-center justify-between mb-3 mt-2 shrink-0">
         <div>
           <h1 className="text-xl font-black tracking-tight">Prévisions</h1>
           <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Anticipation budgétaire</p>
         </div>
-        
+
         {/* Solde final estimé global */}
         <div 
-          className="px-3 py-1.5 rounded-xl text-right text-white shadow-md"
+          className="px-3 py-1.5 rounded-xl text-right text-white shadow-md shrink-0"
           style={{ backgroundColor: userTheme.color_patrimoine || '#37b58f' }}
         >
-          <p className="text-[7px] opacity-70 uppercase font-black">Solde Estimé</p>
+          <p className="text-[7px] opacity-70 uppercase font-black leading-none mb-0.5">Solde Estimé</p>
           <p className="text-xs font-mono font-black">{soldeGlobalProjete.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} €</p>
         </div>
       </div>
 
-      {/* 2. BARRES DE FILTRES MOBILES COMPACTES */}
-      <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2">
+      {/* 2. 💡 RESTAURATION DES FILTRES DE PÉRIODE MOBILES COMPACTS ET HORIZONTAUX D'ORIGINE */}
+      <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2 shrink-0">
         
         {/* Filtre Profil & Année */}
         <div className="flex justify-between items-center gap-2">
@@ -113,12 +114,12 @@ export default function PrevisionsMobile(props) {
         </div>
       </div>
 
-      {/* 3. LISTE HORIZONTALE DES COMPTES COMPACTS (RÉUTILISATION DE COMPOSANT POUR COULEURS & LOGIQUE DE CALCUL) */}
-      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4">
+      {/* 3. LISTE HORIZONTALE DES COMPTES COMPACTS */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 shrink-0 select-none">
         {soldesPrevisionnels && soldesPrevisionnels.map(c => (
           <div key={c.compte} className="min-w-[160px] shrink-0">
             {SortableAccountCard ? (
-              <SortableAccountCard c={c} />
+              <SortableAccountCard c={c} isSorting={false} />
             ) : (
               <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl">
                 <span className="text-[8px] font-black uppercase text-white/40 block">{c.compte}</span>
@@ -130,7 +131,7 @@ export default function PrevisionsMobile(props) {
       </div>
 
       {/* 4. SÉLECTION DES SOUS-ONGLETS */}
-      <div className="flex border-b border-white/5 mb-4 select-none">
+      <div className="flex border-b border-white/5 mb-4 select-none shrink-0">
         <button 
           onClick={() => setMobileSubTab('flux')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
@@ -174,7 +175,7 @@ export default function PrevisionsMobile(props) {
             </button>
           )}
 
-          {/* ACCORDION FORMULAIRE D'AJOUT RAPIDE */}
+          {/* ACCORDION FORMULAIRE D'AJOUT RAPIDE AVEC CUSTOM SELECTS */}
           <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-hidden">
             <button
               onClick={() => setShowAddForm(!showAddForm)}
@@ -188,7 +189,7 @@ export default function PrevisionsMobile(props) {
             </button>
 
             {showAddForm && (
-              <div className="p-4 border-t border-white/5 space-y-3 bg-black/20">
+              <div className="p-4 border-t border-white/5 space-y-3.5 bg-black/20">
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Libellé</label>
                   <input 
@@ -200,13 +201,13 @@ export default function PrevisionsMobile(props) {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 gap-3 items-end">
                   <div>
                     <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant</label>
                     <input 
                       type="number"
                       placeholder="0.00"
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none"
+                      className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white outline-none"
                       value={newPrevi.montant}
                       onChange={e => setNewPrevi({...newPrevi, montant: e.target.value})}
                     />
@@ -214,43 +215,38 @@ export default function PrevisionsMobile(props) {
 
                   <div>
                     <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Date</label>
-                    <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[34px] flex items-center justify-center">
+                    <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[38px] flex items-center justify-center relative">
+                      <Calendar size={12} className="text-[var(--primary)] absolute left-3" />
                       <DatePicker
                         selected={newPrevi.date ? new Date(newPrevi.date) : null} 
                         onChange={(date) => setNewPrevi({ ...newPrevi, date: date })}
                         dateFormat="dd/MM/yyyy"
-                        className="bg-transparent border-none outline-none text-center text-xs font-bold text-white w-full cursor-pointer"
+                        className="bg-transparent border-none outline-none text-center text-xs font-bold text-white w-full cursor-pointer pl-4"
                       />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Catégorie</label>
-                    <select 
-                      value={newPrevi.categorie}
-                      onChange={(e) => setNewPrevi({...newPrevi, categorie: e.target.value})}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                    >
-                      {categoriesVisibles.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className="grid grid-cols-2 gap-3 items-end">
+                  {/* CustomSelect Catégorie */}
+                  <CustomSelect 
+                    label="Catégorie"
+                    value={newPrevi.categorie}
+                    options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                    onChange={(val) => setNewPrevi({...newPrevi, categorie: val})}
+                    icon={Tag}
+                    className="p-2.5 rounded-xl text-[10px]"
+                  />
 
-                  <div>
-                    <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte associé</label>
-                    <select 
-                      value={newPrevi.compte}
-                      onChange={(e) => setNewPrevi({...newPrevi, compte: e.target.value})}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-2 py-2 text-xs font-bold text-white outline-none"
-                    >
-                      {optionsComptes.map(opt => (
-                        <option key={opt.v} value={opt.v}>{opt.l}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* CustomSelect Compte */}
+                  <CustomSelect 
+                    label="Compte associé"
+                    value={newPrevi.compte}
+                    options={optionsComptes}
+                    onChange={(val) => setNewPrevi({...newPrevi, compte: val})}
+                    icon={Wallet}
+                    className="p-2.5 rounded-xl text-[10px]"
+                  />
                 </div>
 
                 <button 
@@ -284,7 +280,7 @@ export default function PrevisionsMobile(props) {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       
-                      {/* Checkbox tactiles - Évite l'ouverture du modal d'édition grâce à stopPropagation */}
+                      {/* Checkbox tactiles */}
                       <input 
                         type="checkbox"
                         checked={isSelected}
@@ -324,7 +320,7 @@ export default function PrevisionsMobile(props) {
                         </p>
                       </div>
 
-                      {/* Bouton Œil - Évite également l'ouverture du modal grâce à stopPropagation */}
+                      {/* Bouton Œil */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -420,12 +416,11 @@ export default function PrevisionsMobile(props) {
               
               return (
                 <div 
-                  key={i}
+                  key={i} 
                   className={`p-3 bg-[var(--glass-bg)] border rounded-2xl flex flex-col gap-2 transition-all ${
                     estInteractif ? 'border-white/5 opacity-100' : 'border-transparent opacity-40'
                   } ${m.isMasque ? 'grayscale opacity-20' : ''}`}
                 >
-                  {/* Ligne 1 : Nom Mois + Solde Cumulé */}
                   <div className="flex items-center justify-between pb-1 border-b border-white/[0.03]">
                     <div className="flex flex-col">
                       <span className="text-[10px] font-black uppercase tracking-tighter text-white">{m.nom}</span>
@@ -439,7 +434,6 @@ export default function PrevisionsMobile(props) {
                     </div>
                   </div>
 
-                  {/* Ligne 2 : Détails des sous-mouvements */}
                   <div className="grid grid-cols-3 gap-1.5 text-center">
                     <div>
                       <p className="text-[7px] font-bold text-white/30 uppercase">Revenus</p>
@@ -471,7 +465,7 @@ export default function PrevisionsMobile(props) {
             })}
           </div>
 
-          {/* OBJECTIF FIN D'ANNÉE & BARRE DE SIMULATION */}
+          {/* OBJECTIF FIN D'ANNÉE */}
           <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl space-y-3">
             <div className="flex justify-between items-center">
               <div>
@@ -521,7 +515,7 @@ export default function PrevisionsMobile(props) {
                 )}
               </div>
 
-              {/* Jauge de simulation linéaire fine */}
+              {/* Jauge */}
               {objectifAnnuelGlobal > 0 && (
                 <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 mt-1">
                   <div 
@@ -540,7 +534,7 @@ export default function PrevisionsMobile(props) {
       )}
 
       {/* =========================================================================
-          MODALE DE MODIFICATION COMPLÈTE DE TRANSACTION (TACTILE ADAPTÉ)
+          MODALE DE MODIFICATION COMPLÈTE DE TRANSACTION AVEC CUSTOM SELECTS
           ========================================================================= */}
       {editingTx && (
         <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -548,7 +542,7 @@ export default function PrevisionsMobile(props) {
             className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header d'édition */}
+            {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
                 <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la prévision</h4>
@@ -562,8 +556,8 @@ export default function PrevisionsMobile(props) {
               </button>
             </div>
 
-            {/* Inputs de modification */}
-            <div className="space-y-3.5">
+            {/* Inputs de modification avec CustomSelect */}
+            <div className="space-y-4">
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
                 <input 
@@ -574,7 +568,7 @@ export default function PrevisionsMobile(props) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 items-end">
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
                   <input 
@@ -586,42 +580,38 @@ export default function PrevisionsMobile(props) {
                 </div>
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Date estimée</label>
-                  <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[34px] flex items-center justify-center">
+                  <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[34px] flex items-center justify-center relative">
+                    <Calendar size={12} className="text-[var(--primary)] absolute left-3" />
                     <DatePicker
                       selected={editingTx.date ? new Date(editingTx.date) : null}
-                      onChange={(date) => setEditingTx({ ...editingTx, date: date })}
+                      onChange={(date) => setEditingTx({ ...editingTx, date: date.toISOString().split('T')[0] })}
                       dateFormat="dd/MM/yyyy"
-                      className="bg-transparent border-none outline-none text-center text-xs font-bold text-white w-full cursor-pointer"
+                      className="bg-transparent border-none outline-none text-center text-xs font-bold text-white w-full cursor-pointer pl-4"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Catégorie</label>
-                  <select 
-                    value={editingTx.categorie}
-                    onChange={(e) => setEditingTx({ ...editingTx, categorie: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-                  >
-                    {categoriesVisibles.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte</label>
-                  <select 
-                    value={editingTx.compte}
-                    onChange={(e) => setEditingTx({ ...editingTx, compte: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-                  >
-                    {optionsComptes.map(opt => (
-                      <option key={opt.v} value={opt.v}>{opt.l}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="grid grid-cols-2 gap-3 items-end">
+                {/* CustomSelect Catégorie */}
+                <CustomSelect 
+                  label="Catégorie"
+                  value={editingTx.categorie}
+                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                  onChange={(val) => setEditingTx({ ...editingTx, categorie: val })}
+                  icon={Tag}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
+
+                {/* CustomSelect Compte */}
+                <CustomSelect 
+                  label="Compte"
+                  value={editingTx.compte}
+                  options={optionsComptes}
+                  onChange={(val) => setEditingTx({ ...editingTx, compte: val })}
+                  icon={Wallet}
+                  className="p-2.5 rounded-xl text-[10px]"
+                />
               </div>
             </div>
 

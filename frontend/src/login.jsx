@@ -13081,7 +13081,7 @@ if (!user) {
         objectifAnnuelGlobal={objectifAnnuelGlobal}
         statsEpargnePrevisionnelle={statsEpargnePrevisionnelle}
         pourcentageAnnuel={pourcentageAnnuel}
-        
+        CustomSelect={CustomSelect}
         // 💡 CETTE LIGNE PERMET DE LIER LE COMPOSANT DE CARTES GRAPHIQUES POUR MOBILE :
         SortableAccountCard={SortableAccountCard}
       />
@@ -14381,6 +14381,7 @@ if (!user) {
         activeTab={activeTab}
         soldesTries={soldesTries}
         toutesLesTransactions={toutesLesTransactions}
+        CustomSelect={CustomSelect}
       />
     </div>
   </>
