@@ -15052,6 +15052,8 @@ if (!user) {
         signType={signType}
         setSignType={setSignType}
         soldesTries={soldesTries}
+        CustomSelect={CustomSelect} 
+        categoriesVisibles={categoriesVisibles} // 💡 Indispensable pour la saisie express mobile
       />
     </div>
   </>

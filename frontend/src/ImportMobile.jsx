@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
   Upload, Wallet, Building2, RefreshCw, Plus, Download, Check, 
-  Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Search 
+  Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Search, Tag, CreditCard
 } from 'lucide-react';
+import DatePicker from 'react-datepicker';
 
 export default function ImportMobile(props) {
   const {
@@ -13,7 +14,9 @@ export default function ImportMobile(props) {
     onDragOver, onDragLeave, onDrop, setFileName, handleFileUpload,
     transactionsCalculees, setTempTransactions, confirmBatchImport,
     categoriesPourIntelligence, intelSelectedCat, setIntelSelectedCat, activeCategoryData,
-    handleRemoveKeyword, handleAddKeyword, signType, setSignType
+    handleRemoveKeyword, handleAddKeyword, signType, setSignType,
+    // 💡 Récupération de votre composant CustomSelect et de la liste des catégories
+    CustomSelect, categoriesVisibles
   } = props;
 
   // États locaux de navigation mobile
@@ -81,24 +84,21 @@ export default function ImportMobile(props) {
       {mobileSubTab === 'sources' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* SÉLECTEUR DE COMPTE CIBLE */}
-          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
-            <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Compte de destination</label>
-            <select 
-              value={selectedCompte} 
-              onChange={(e) => setSelectedCompte(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-            >
-              {comptes.map(c => (
-                <option key={c.compte} value={c.compte}>{c.compte}</option>
-              ))}
-            </select>
-          </div>
+          {/* SÉLECTEUR DE COMPTE CIBLE AVEC CUSTOM SELECT */}
+          <CustomSelect 
+            label="Compte de destination"
+            value={selectedCompte}
+            options={comptes.map(c => ({ v: c.compte, l: c.compte }))}
+            onChange={(val) => setSelectedCompte(val)}
+            icon={Wallet}
+            className="p-2.5 rounded-xl text-[10px]"
+          />
 
           {/* ACCORDION DE SYNCHRONISATION DES COMPTES REELS */}
           {powensData?.connections && powensData.connections.length > 0 && (
             <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-hidden">
               <button
+                type="button"
                 onClick={() => setPowensPanelOpen(!powensPanelOpen)}
                 className="w-full flex items-center justify-between p-4 text-[10px] uppercase font-black text-white/70"
               >
@@ -122,7 +122,7 @@ export default function ImportMobile(props) {
                       <div key={conn.id} className="space-y-2">
                         <p className="text-[8px] font-black uppercase text-[var(--primary)]">{conn.connector_name}</p>
                         
-                        <div className="space-y-2">
+                        <div className="space-y-2.5">
                           {connAccounts.map((acc) => {
                             const associatedLocalAccount = comptes?.find(
                               (c) => (c.powens_name || "").trim().toUpperCase() === (acc.name || "").trim().toUpperCase()
@@ -141,27 +141,30 @@ export default function ImportMobile(props) {
                                   </span>
                                 </div>
 
-                                <div className="flex items-center justify-between">
-                                  {/* Badge de liaison */}
-                                  {!isAssociated ? (
-                                    <span className="text-[7px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-black uppercase">Non lié</span>
-                                  ) : isDesynced ? (
-                                    <span className="text-[7px] bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-black uppercase animate-pulse">Flux en attente</span>
-                                  ) : (
-                                    <span className="text-[7px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-black uppercase">Lié</span>
-                                  )}
+                                <div className="flex flex-col gap-2 pt-1 border-t border-white/5">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[8px] uppercase tracking-wider text-white/40 font-bold shrink-0">Status :</span>
+                                    {/* Badge de liaison */}
+                                    {!isAssociated ? (
+                                      <span className="text-[7px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-black uppercase">Non lié</span>
+                                    ) : isDesynced ? (
+                                      <span className="text-[7px] bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-black uppercase animate-pulse">Flux en attente</span>
+                                    ) : (
+                                      <span className="text-[7px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-black uppercase">Lié</span>
+                                    )}
+                                  </div>
 
-                                  {/* Sélecteur d'association */}
-                                  <select 
+                                  {/* CustomSelect d'association */}
+                                  <CustomSelect 
                                     value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
-                                    onChange={(e) => handleAssociateAccount?.(acc.name, e.target.value)}
-                                    className="bg-black/40 border border-white/10 rounded-lg text-[10px] px-2 py-1 font-bold text-white outline-none w-32"
-                                  >
-                                    <option value="">-- Non lié --</option>
-                                    {comptes.map(c => (
-                                      <option key={c.compte} value={c.compte}>{c.compte}</option>
-                                    ))}
-                                  </select>
+                                    options={[
+                                      { v: "", l: "-- Non lié --" },
+                                      ...comptes.map(c => ({ v: c.compte, l: c.compte }))
+                                    ]}
+                                    onChange={(val) => handleAssociateAccount?.(acc.name, val)}
+                                    icon={Wallet}
+                                    className="p-2 py-1 rounded-lg text-[9px]"
+                                  />
                                 </div>
                               </div>
                             );
@@ -181,7 +184,7 @@ export default function ImportMobile(props) {
             {/* ACTION 1 : NOUVEAU COMPTE */}
             <div 
               onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
-              className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all"
+              className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
             >
               <div className="p-3 bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)] rounded-xl shrink-0">
                 <Plus size={16} />
@@ -195,7 +198,7 @@ export default function ImportMobile(props) {
             {/* ACTION 2 : SYNCHRONISATION */}
             <div 
               onClick={isExecutingSync ? undefined : handleSyncPowens}
-              className={`p-4 border rounded-2xl flex items-center gap-3 transition-all ${
+              className={`p-4 border rounded-2xl flex items-center gap-3 transition-all cursor-pointer ${
                 hasPendingSync 
                   ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg shadow-[var(--primary)]/5' 
                   : 'bg-[var(--glass-bg)] border-white/10 active:bg-white/5'
@@ -215,7 +218,7 @@ export default function ImportMobile(props) {
             {/* ACTION 3 : GLISSER/LIRE CSV */}
             <div 
               onClick={() => document.getElementById('csvInputMobile').click()}
-              className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all"
+              className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
             >
               <input 
                 type="file" 
@@ -235,7 +238,7 @@ export default function ImportMobile(props) {
               </div>
               <div>
                 <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Importer un fichier CSV</h4>
-                <p className="text-[8px] text-white/30 uppercase font-black">Traitement et catégorisation</p>
+                <p className="text-[8px] text-white/30 uppercase font-black">Importation et répartition</p>
               </div>
             </div>
 
@@ -244,7 +247,7 @@ export default function ImportMobile(props) {
       )}
 
       {/* =========================================================================
-          SECTION 2 : PREVISUALISATION (FICHE PAR FICHE / TACTILE UNIQUE)
+          SECTION 2 : PREVISUALISATION
           ========================================================================= */}
       {mobileSubTab === 'previsu' && (
         <div className="space-y-4 animate-in fade-in duration-200">
@@ -272,7 +275,7 @@ export default function ImportMobile(props) {
                 </div>
               </div>
 
-              {/* Bouton pour valider l'importation global */}
+              {/* Bouton de validation */}
               <div className="flex gap-2 pt-2">
                 <button 
                   onClick={() => { setTempTransactions([]); setFileName(""); }}
@@ -340,7 +343,7 @@ export default function ImportMobile(props) {
                 <span className="text-2xl opacity-20">📂</span>
                 <p className="text-[10px] text-white/40 uppercase font-black mt-2">Aucune transaction en prévisualisation</p>
                 <p className="text-[9px] text-white/20 uppercase font-black max-w-[200px] mx-auto mt-1 leading-relaxed">
-                  Utilisez l'onglet "Sources & Synchro" pour charger des données de transactions.
+                  Chargez un fichier de transactions depuis l'onglet "Sources & Synchro".
                 </p>
               </div>
             )}
@@ -355,19 +358,15 @@ export default function ImportMobile(props) {
       {mobileSubTab === 'intel' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* CIBLE D'APPRENTISSAGE */}
-          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
-            <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Cible d'apprentissage</label>
-            <select 
-              value={intelSelectedCat} 
-              onChange={(e) => setIntelSelectedCat(e.target.value)}
-              className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-            >
-              {categoriesPourIntelligence.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-          </div>
+          {/* CIBLE D'APPRENTISSAGE AVEC CUSTOM SELECT */}
+          <CustomSelect 
+            label="Cible d'apprentissage"
+            value={intelSelectedCat}
+            options={categoriesPourIntelligence.map(cat => ({ v: cat, l: cat }))}
+            onChange={(val) => setIntelSelectedCat(val)}
+            icon={Search}
+            className="p-2.5 rounded-xl text-[10px]"
+          />
 
           {/* CADRE INTELLIGENCE / MOTS CLES */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-3xl space-y-4">
@@ -382,7 +381,7 @@ export default function ImportMobile(props) {
             </div>
 
             {/* MOTS-CLÉS DE LA CATÉGORIE CIBLE */}
-            <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1">
+            <div className="flex flex-wrap gap-1.5 max-h-150 overflow-y-auto pr-1">
               {activeCategoryData?.mots_cles && activeCategoryData.mots_cles.length > 0 ? (
                 activeCategoryData.mots_cles.map((keyword, kIdx) => {
                   const [keywordText, rawSign] = keyword.split(':');
@@ -400,6 +399,7 @@ export default function ImportMobile(props) {
                         {sign === "both" && <span className="text-white/20">⇅</span>}
                       </span>
                       <button 
+                        type="button"
                         onClick={() => handleRemoveKeyword(intelSelectedCat, keyword)} 
                         className="text-white/30 hover:text-rose-400"
                       >
@@ -418,6 +418,7 @@ export default function ImportMobile(props) {
               <span className="text-[8px] font-black text-white/30 uppercase block">Signe des flux cibles :</span>
               <div className="grid grid-cols-3 gap-1.5">
                 <button 
+                  type="button"
                   onClick={() => setSignType("both")}
                   className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all ${
                     signType === "both" 
@@ -428,6 +429,7 @@ export default function ImportMobile(props) {
                   Tous
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setSignType("positive")}
                   className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all ${
                     signType === "positive" 
@@ -438,6 +440,7 @@ export default function ImportMobile(props) {
                   Crédits
                 </button>
                 <button 
+                  type="button"
                   onClick={() => setSignType("negative")}
                   className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all ${
                     signType === "negative" 
