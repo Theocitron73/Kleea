@@ -198,7 +198,8 @@ export default function DashboardMobile(props) {
                     </p>
                     {soldesTries.map(c => (
                       <div key={c.compte} className="w-full">
-                        <SortableAccountCard c={c} />
+                        {/* 💡 On force l'interception tactile 'none' */}
+                        <SortableAccountCard c={c} isSorting={true} />
                       </div>
                     ))}
                   </div>
@@ -209,7 +210,8 @@ export default function DashboardMobile(props) {
               <div className="flex gap-3 pb-2 overflow-x-auto no-scrollbar select-none">
                 {soldesTries.map(c => (
                   <div key={c.compte} className="min-w-[155px] shrink-0">
-                    <SortableAccountCard c={c} />
+                    {/* 💡 On libère l'interception tactile 'auto' pour un défilement libre */}
+                    <SortableAccountCard c={c} isSorting={false} />
                   </div>
                 ))}
               </div>

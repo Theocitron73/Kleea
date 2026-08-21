@@ -2069,7 +2069,7 @@ const PrevisionsChartView = ({ data, themeColor }) => {
 
 
 
-const SortableAccountCard = ({ c }) => {
+const SortableAccountCard = ({ c, isSorting }) => {
   const montantFinal = c.soldeFinalEstime !== undefined ? c.soldeFinalEstime : c.soldePeriode;
   const isEstimated = c.soldeFinalEstime !== undefined;
 
@@ -2086,9 +2086,9 @@ const SortableAccountCard = ({ c }) => {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 1,
-    // 💡 AJOUT INDISPENSABLE : Dit au navigateur de ne pas interférer avec le scroll natif
-    // pour permettre au glisser-déposer de s'activer instantanément sur écran tactile
-    touchAction: 'none', 
+    
+    // 💡 CONDITIONNEMENT CLÉ : 'none' uniquement en cours de tri, 'auto' pour un défilement libre
+    touchAction: isSorting ? 'none' : 'auto', 
   };
 
   return (
