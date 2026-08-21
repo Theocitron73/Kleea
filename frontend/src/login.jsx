@@ -30,7 +30,7 @@ import ImportMobile from './ImportMobile';
 import PrevisionsMobile from './previsionsMobile';
 import DashboardMobile from './DashboardMobile';
 import ComptesMobile from './ComptesMobile';
-
+import TricountMobile from './TricountMobile';
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -272,9 +272,6 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
 
 
 const TricountManager = ({ userId }) => {
-
-
-
 
   const [groupes, setGroupes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -817,10 +814,13 @@ const getEmojiForMember = (nom) => {
   if (loading) return <div className="flex justify-center p-10"></div>;
 
   return (
-    <div className="p-2 w-full mx-auto min-h-screen bg-transparent text-[var(--text-main)] relative">
-
-
-      {/* --- SYSTÈME DE NOTIFICATION DESIGN --- */}
+    <>
+    {/* ==========================================================
+          1. VERSION DESKTOP (PC & Écrans larges)
+          ========================================================== */}
+      <div className="hidden lg:block p-2 w-full mx-auto min-h-screen bg-transparent text-[var(--text-main)] relative animate-in fade-in duration-300">
+        
+        {/* --- SYSTÈME DE NOTIFICATION DESIGN --- */}
         <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 transform ${notification.show ? 'translate-y-0 opacity-100' : '-translate-y-10 opacity-0 pointer-events-none'}`}>
           <div className={`relative overflow-hidden backdrop-blur-[var(--glass-blur)] border p-5 rounded-[var(--radius)] shadow-2xl min-w-[320px] ${
             notification.type === 'error' 
@@ -1756,7 +1756,60 @@ const getEmojiForMember = (nom) => {
       </div>
     )}
   </div>
-);
+{/* ==========================================================
+          2. VERSION MOBILE (Smartphones)
+          ========================================================== */}
+      <div className="block lg:hidden">
+        <TricountMobile 
+          userId={userId} // Reçoit directement la propriété du composant
+          groupes={groupes}
+          activeTab={activeTab} // Utilise l'état résolu sans collision
+          setActiveTab={setActiveTab}
+          groupData={groupData}
+          isModalOpen={isModalOpen}
+          setIsModalOpen={setIsModalOpen}
+          newGroupName={newGroupName}
+          setNewGroupName={setNewGroupName}
+          handleCreateGroup={handleCreateGroup}
+          isDeleteModalOpen={isDeleteModalOpen}
+          setIsDeleteModalOpen={setIsDeleteModalOpen}
+          groupToDelete={groupToDelete}
+          setGroupToDelete={setGroupToDelete}
+          handleDeleteGroup={handleDeleteGroup}
+          isEditModalOpen={isEditModalOpen}
+          setIsEditModalOpen={setIsEditModalOpen}
+          groupToEdit={groupToEdit}
+          setGroupToEdit={setGroupToEdit}
+          handleRenameGroup={handleRenameGroup}
+          handleDownloadPDF={handleDownloadPDF}
+          editingTransaction={editingTransaction}
+          setEditingTransaction={setEditingTransaction}
+          handleUpdateTransaction={handleUpdateTransaction}
+          deletingId={deletingId}
+          setDeletingId={setDeletingId}
+          executeDelete={executeDelete}
+          participantsDuGroupe={participantsDuGroupe}
+          updateMontantIndividuel={updateMontantIndividuel}
+          newTransaction={newTransaction}
+          setNewTransaction={setNewTransaction}
+          notification={notification}
+          showToast={showToast}
+          handleCreateTransaction={handleCreateTransaction}
+          totalReparti={totalReparti}
+          resteARepartir={resteARepartir}
+          estEquilibre={estEquilibre}
+          handleAjouterMembreLocal={handleAjouterMembreLocal}
+          handleSupprimerMembreLocal={handleSupprimerMembreLocal}
+          activeEmojiPicker={activeEmojiPicker}
+          setActiveEmojiPicker={setActiveEmojiPicker}
+          handleSetEmoji={handleSetEmoji}
+          getEmojiForMember={getEmojiForMember}
+          shareToken={shareToken}
+          handleShareGroup={handleShareGroup}
+        />
+      </div>
+    </>
+  );
 };
 
 
@@ -15780,12 +15833,12 @@ if (!user) {
 
 
 {activeTab === 'tricount' && (
-  <div className="w-full"> 
+  <div className="hidden lg:flex w-full"> 
     {/* px-8 permet de garder une petite marge de sécurité sur les côtés pour que ça ne colle pas aux bords de l'écran */}
     <TricountManager userId={user} />
   </div>
-)}
-      
+
+)}  
     
 
       {/* --- C'EST ICI QU'ON LE POSE --- */}
