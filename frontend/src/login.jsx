@@ -12704,10 +12704,7 @@ if (!user) {
       </div>
       </div>
         </div>
- {/* ==========================================================
-        2. VERSION MOBILE (Smartphones)
-        ========================================================== */}
-    <div className="block lg:hidden">
+ <div className="block lg:hidden">
       <PrevisionsMobile 
         filters={filters}
         setFilters={setFilters}
@@ -12737,6 +12734,9 @@ if (!user) {
         objectifAnnuelGlobal={objectifAnnuelGlobal}
         statsEpargnePrevisionnelle={statsEpargnePrevisionnelle}
         pourcentageAnnuel={pourcentageAnnuel}
+        
+        // 💡 CETTE LIGNE PERMET DE LIER LE COMPOSANT DE CARTES GRAPHIQUES POUR MOBILE :
+        SortableAccountCard={SortableAccountCard}
       />
     </div>
   </>

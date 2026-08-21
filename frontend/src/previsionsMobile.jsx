@@ -12,7 +12,9 @@ export default function PrevisionsMobile(props) {
     previsionsFiltrees, updatePrevision, toggleSelect2, toggleAll2,
     categoriesVisibles, optionsComptes, chartDataPrevisions, PrevisionsChartView,
     moisDisponibles, excludedMonths, setExcludedMonths, recapPrevisionsStats,
-    objectifAnnuelGlobal, statsEpargnePrevisionnelle, pourcentageAnnuel
+    objectifAnnuelGlobal, statsEpargnePrevisionnelle, pourcentageAnnuel,
+    // On récupère le composant d'origine du parent pour conserver les couleurs & calculs exacts
+    SortableAccountCard
   } = props;
 
   // États de navigation mobile
@@ -23,7 +25,6 @@ export default function PrevisionsMobile(props) {
   const handleOpenEdit = (prev) => {
     setEditingTx({ 
       ...prev,
-      // Nettoyage temporaire de l'affichage du libellé
       nomPropre: prev.nom.replace('[PRÉVI] ', '') 
     });
   };
@@ -112,32 +113,20 @@ export default function PrevisionsMobile(props) {
         </div>
       </div>
 
-      {/* 3. LISTE HORIZONTALE DES COMPTES COMPACTS */}
+      {/* 3. LISTE HORIZONTALE DES COMPTES COMPACTS (RÉUTILISATION DE COMPOSANT POUR COULEURS & LOGIQUE DE CALCUL) */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4">
-        {soldesPrevisionnels && soldesPrevisionnels.map(c => {
-          // Chaîne de secours pour récupérer le solde de manière sécurisée
-          const soldeAAfficher = c.soldeProjete !== undefined ? c.soldeProjete 
-                               : c.solde !== undefined ? c.solde 
-                               : c.solde_projete !== undefined ? c.solde_projete 
-                               : 0;
-
-          return (
-            <div 
-              key={c.compte} 
-              className="min-w-[125px] bg-white/[0.02] border border-white/5 p-2.5 rounded-xl flex flex-col justify-between animate-in fade-in duration-200"
-            >
-              <span className="text-[8px] font-black uppercase text-white/40 truncate block">
-                {c.compte}
-              </span>
-              <span className="text-xs font-mono font-black mt-1 text-white truncate">
-                {typeof soldeAAfficher === 'number' 
-                  ? soldeAAfficher.toLocaleString('fr-FR', { minimumFractionDigits: 0 }) 
-                  : "0"
-                }€
-              </span>
-            </div>
-          );
-        })}
+        {soldesPrevisionnels && soldesPrevisionnels.map(c => (
+          <div key={c.compte} className="min-w-[160px] shrink-0">
+            {SortableAccountCard ? (
+              <SortableAccountCard c={c} />
+            ) : (
+              <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl">
+                <span className="text-[8px] font-black uppercase text-white/40 block">{c.compte}</span>
+                <span className="text-xs font-mono font-black text-white block mt-1">{c.soldeProjete} €</span>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* 4. SÉLECTION DES SOUS-ONGLETS */}
@@ -168,7 +157,7 @@ export default function PrevisionsMobile(props) {
           ONGLET 1 : LES FLUX PRÉVUS (SAISIE EXPRESS + FICHE DE MODIFICATION)
           ========================================================================= */}
       {mobileSubTab === 'flux' && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-in fade-in duration-200">
           
           {/* BOUTON RECONDUIRE RAPIDEMENT */}
           {previsionsFiltrees.length > 0 && (
@@ -295,15 +284,13 @@ export default function PrevisionsMobile(props) {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       
-                      {/* Checkbox tactiles pour sélections multiples */}
+                      {/* Checkbox tactiles - Évite l'ouverture du modal d'édition grâce à stopPropagation */}
                       <input 
                         type="checkbox"
                         checked={isSelected}
-                        onChange={(e) => {
-                          e.stopPropagation(); // Évite l'ouverture du modal
-                          toggleSelect2(prev.id);
-                        }}
-                        className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded shrink-0"
+                        onChange={() => toggleSelect2(prev.id)}
+                        onClick={(e) => e.stopPropagation()} 
+                        className="w-4.5 h-4.5 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded shrink-0 relative z-10"
                       />
 
                       <div className="min-w-0">
@@ -337,7 +324,7 @@ export default function PrevisionsMobile(props) {
                         </p>
                       </div>
 
-                      {/* Bouton pour Activer/Désactiver */}
+                      {/* Bouton Œil - Évite également l'ouverture du modal grâce à stopPropagation */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -426,7 +413,7 @@ export default function PrevisionsMobile(props) {
             </div>
           )}
 
-          {/* LISTE ANNUELLE PROJETÉE (BELLE CARTE EN GRILLE MOBILE) */}
+          {/* LISTE ANNUELLE PROJETÉE */}
           <div className="space-y-2">
             {recapPrevisionsStats.map((m, i) => {
               const estInteractif = m.type === 'projeté' || m.type === 'mixte';
