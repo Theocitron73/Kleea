@@ -27,6 +27,8 @@ import api from './api';
 import ReactMarkdown from 'react-markdown';
 import GererMobile from './GererMobile';
 import ImportMobile from './ImportMobile';
+import PrevisionsMobile from './previsionsMobile';
+
 
 // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
@@ -12038,7 +12040,8 @@ if (!user) {
 
 
    {activeTab === 'previsionnel' && (
-  <div className="h-auto overflow-visible lg:h-[calc(98vh-100px)] lg:overflow-hidden flex flex-col animate-in fade-in duration-500 px-4 md:px-8">
+    <>
+   <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(98vh-100px)] lg:overflow-hidden">
     
     {/* 1. LA BARRE DE FILTRES */}
     <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
@@ -12701,7 +12704,43 @@ if (!user) {
       </div>
       </div>
         </div>
-      )}
+ {/* ==========================================================
+        2. VERSION MOBILE (Smartphones)
+        ========================================================== */}
+    <div className="block lg:hidden">
+      <PrevisionsMobile 
+        filters={filters}
+        setFilters={setFilters}
+        comptes={comptes}
+        moisListe={moisListe}
+        availablePeriods={availablePeriods}
+        soldeGlobalProjete={soldeGlobalProjete}
+        soldesPrevisionnels={soldesPrevisionnels}
+        userTheme={userTheme}
+        newPrevi={newPrevi}
+        setNewPrevi={setNewPrevi}
+        handleAddPrevision={handleAddPrevision}
+        handleTryDuplicate={handleTryDuplicate}
+        selectedIds2={selectedIds2}
+        previsionsFiltrees={previsionsFiltrees}
+        updatePrevision={updatePrevision}
+        toggleSelect2={toggleSelect2}
+        toggleAll2={toggleAll2}
+        categoriesVisibles={categoriesVisibles}
+        optionsComptes={optionsComptes}
+        chartDataPrevisions={chartDataPrevisions}
+        PrevisionsChartView={PrevisionsChartView}
+        moisDisponibles={moisDisponibles}
+        excludedMonths={excludedMonths}
+        setExcludedMonths={setExcludedMonths}
+        recapPrevisionsStats={recapPrevisionsStats}
+        objectifAnnuelGlobal={objectifAnnuelGlobal}
+        statsEpargnePrevisionnelle={statsEpargnePrevisionnelle}
+        pourcentageAnnuel={pourcentageAnnuel}
+      />
+    </div>
+  </>
+)}
 
 
 
