@@ -30,6 +30,7 @@ import httpx
 import requests
 from urllib.parse import quote
 from fastapi import APIRouter
+import traceback
 
 
 def get_ascii_hostname():
@@ -1822,94 +1823,117 @@ class StyledPDF(FPDF):
 # ==========================================================
 @app.get("/download-pdf/{username}/{group_name}")
 def download_pdf(username: str, group_name: str, sujet: str = None):
-    query = text("SELECT * FROM tricount WHERE utilisateur = :u AND groupe = :g ORDER BY date DESC")
-    with engine.connect() as conn:
-        res = conn.execute(query, {"u": username, "g": group_name}).mappings().all()
-        transactions = [dict(r) for r in res]
-        
-    if not transactions:
-        raise HTTPException(status_code=404, detail="Bilan vide ou groupe introuvable.")
-        
-    df_groupe = pd.DataFrame(transactions)
-    transferts_finaux = calculer_balances(transactions)
-    total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
-    
-    # Nettoyage des titres
-    group_name_clean = clean_for_pdf(group_name)
-    
-    if sujet:
-        sujet_clean = clean_for_pdf(sujet)
-        # 💡 CORRECTION : Nettoyage des prénoms dans le filtrage
-        transferts_a_afficher = [
-            t for t in transferts_finaux 
-            if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean
-        ]
-        titre_doc = f"NOTE : {sujet_clean}"
-        sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
-    else:
-        sujet_clean = None
-        transferts_a_afficher = transferts_finaux
-        titre_doc = group_name_clean
-        sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
-
-    # --- GÉNÉRATION DU PDF ---
-    pdf = StyledPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    
-    pdf.header_style(titre_doc, sous_titre)
-    
-    pdf.set_left_margin(20)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, "RECAPITULATIF DES TRANSFERTS", ln=True)
-    
-    pdf.set_fill_color(99, 102, 241)
-    pdf.rect(20, pdf.get_y(), 10, 1, 'F')
-    pdf.ln(5)
-
-    largeur_utile = 170
-
-    if transferts_a_afficher:
-        for t in transferts_a_afficher:
-            curr_y = pdf.get_y()
-            # 💡 CORRECTION : Nettoyage systématique des émetteurs et récepteurs pour le PDF
-            de_clean = clean_for_pdf(t['de'])
-            a_clean = clean_for_pdf(t['a'])
+    try:
+        # --- 1. RÉCUPÉRATION DES DONNÉES ---
+        query = text("SELECT * FROM tricount WHERE utilisateur = :u AND groupe = :g ORDER BY date DESC")
+        with engine.connect() as conn:
+            res = conn.execute(query, {"u": username, "g": group_name}).mappings().all()
+            transactions = [dict(r) for r in res]
             
-            if sujet:
-                if de_clean == sujet_clean:
-                    color = (225, 29, 72)
-                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {a_clean}"
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Bilan vide ou groupe introuvable.")
+            
+        df_groupe = pd.DataFrame(transactions)
+        
+        # --- 2. CALCULS ---
+        transferts_finaux = calculer_balances(transactions)
+        total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
+        
+        # Nettoyage des titres
+        group_name_clean = clean_for_pdf(group_name)
+        
+        if sujet:
+            sujet_clean = clean_for_pdf(sujet)
+            transferts_a_afficher = [
+                t for t in transferts_finaux 
+                if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean
+            ]
+            titre_doc = f"NOTE : {sujet_clean}"
+            sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
+        else:
+            sujet_clean = None
+            transferts_a_afficher = transferts_finaux
+            titre_doc = group_name_clean
+            sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
+
+        # --- 3. GÉNÉRATION DU PDF ---
+        pdf = StyledPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        
+        pdf.header_style(titre_doc, sous_titre)
+        
+        pdf.set_left_margin(20)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(0, 10, "RECAPITULATIF DES TRANSFERTS", ln=True)
+        
+        pdf.set_fill_color(99, 102, 241)
+        pdf.rect(20, pdf.get_y(), 10, 1, 'F')
+        pdf.ln(5)
+
+        largeur_utile = 170
+
+        if transferts_a_afficher:
+            for t in transferts_a_afficher:
+                curr_y = pdf.get_y()
+                de_clean = clean_for_pdf(t['de'])
+                a_clean = clean_for_pdf(t['a'])
+                
+                if sujet:
+                    if de_clean == sujet_clean:
+                        color = (225, 29, 72)
+                        texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {a_clean}"
+                    else:
+                        color = (5, 150, 105)
+                        texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {de_clean}"
                 else:
-                    color = (5, 150, 105)
-                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {de_clean}"
+                    color = (79, 70, 229)
+                    texte = f"> {de_clean} doit donner {t['montant']:.2f} EUR a {a_clean}"
+                
+                pdf.set_fill_color(248, 250, 252)
+                pdf.rect(20, curr_y, largeur_utile, 10, 'F')
+                pdf.set_fill_color(*color)
+                pdf.rect(20, curr_y, 1.5, 10, 'F')
+                
+                pdf.set_x(25)
+                pdf.set_text_color(*color)
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.multi_cell(w=largeur_utile - 5, h=10, txt=texte, align='L')
+                pdf.ln(2)
+        else:
+            pdf.set_font("Helvetica", "I", 10)
+            pdf.set_text_color(150, 150, 150)
+            pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
+
+        # 💡 EXTRACTEUR UNIVERSEL DE BYTES PDF (Compatible fpdf ET fpdf2)
+        try:
+            # Essai fpdf2
+            raw_out = pdf.output()
+            if isinstance(raw_out, str):
+                pdf_bytes = raw_out.encode('latin-1')
             else:
-                color = (79, 70, 229)
-                texte = f"> {de_clean} doit donner {t['montant']:.2f} EUR a {a_clean}"
-            
-            pdf.set_fill_color(248, 250, 252)
-            pdf.rect(20, curr_y, largeur_utile, 10, 'F')
-            pdf.set_fill_color(*color)
-            pdf.rect(20, curr_y, 1.5, 10, 'F')
-            
-            pdf.set_x(25)
-            pdf.set_text_color(*color)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.multi_cell(w=largeur_utile - 5, h=10, txt=texte, align='L')
-            pdf.ln(2)
-    else:
-        pdf.set_font("Helvetica", "I", 10)
-        pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
+                pdf_bytes = bytes(raw_out)
+        except Exception:
+            # Repli fpdf d'origine
+            raw_out = pdf.output(dest='S')
+            if isinstance(raw_out, str):
+                pdf_bytes = raw_out.encode('latin-1')
+            else:
+                pdf_bytes = bytes(raw_out)
 
-    pdf_bytes = bytes(pdf.output()) 
-    headers = {
-        'Content-Disposition': f'attachment; filename="Bilan_{group_name_clean}.pdf"',
-        'Access-Control-Expose-Headers': 'Content-Disposition'
-    }
-    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+        headers = {
+            'Content-Disposition': f'attachment; filename="Bilan_{group_name_clean}.pdf"',
+            'Access-Control-Expose-Headers': 'Content-Disposition'
+        }
+        return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
+    except Exception as e:
+        # 💡 Impresssion de la pile d'erreur complète dans les logs du serveur (Render)
+        print("====== ERREUR CRASH GENERATION PDF ======")
+        traceback.print_exc()
+        print("=========================================")
+        raise HTTPException(status_code=500, detail=f"Erreur interne de PDF: {str(e)}")
 
 
 
@@ -2078,90 +2102,109 @@ def delete_shared_transaction(token: str, id: int):
 # ==========================================================
 @app.get("/download-shared-pdf/{token}")
 def download_shared_pdf(token: str, sujet: str = None):
-    query = text("SELECT * FROM tricount WHERE token_partage = :token ORDER BY date DESC")
-    with engine.connect() as conn:
-        res = conn.execute(query, {"token": token}).mappings().all()
-        transactions = [dict(r) for r in res]
-        
-    if not transactions:
-        raise HTTPException(status_code=404, detail="Bilan vide.")
-        
-    df_groupe = pd.DataFrame(transactions)
-    transferts_finaux = calculer_balances(transactions)
-    total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
-    
-    group_name = transactions[0]["groupe"]
-    group_name_clean = clean_for_pdf(group_name)
-
-    if sujet:
-        sujet_clean = clean_for_pdf(sujet)
-        # 💡 CORRECTION : Nettoyage des prénoms dans le filtrage
-        transferts_a_afficher = [
-            t for t in transferts_finaux 
-            if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean
-        ]
-        titre_doc = f"NOTE : {sujet_clean}"
-        sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
-    else:
-        sujet_clean = None
-        transferts_a_afficher = transferts_finaux
-        titre_doc = group_name_clean
-        sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
-
-    pdf = StyledPDF()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.add_page()
-    pdf.header_style(titre_doc, sous_titre)
-    
-    pdf.set_left_margin(20)
-    pdf.set_font("Helvetica", "B", 12)
-    pdf.set_text_color(30, 41, 59)
-    pdf.cell(0, 10, "RECAPITULATIF DES TRANSFERTS", ln=True)
-    pdf.set_fill_color(99, 102, 241)
-    pdf.rect(20, pdf.get_y(), 10, 1, 'F')
-    pdf.ln(5)
-
-    largeur_utile = 170
-
-    if transferts_a_afficher:
-        for t in transferts_a_afficher:
-            curr_y = pdf.get_y()
-            # 💡 CORRECTION : Nettoyage systématique des émetteurs et récepteurs pour le PDF
-            de_clean = clean_for_pdf(t['de'])
-            a_clean = clean_for_pdf(t['a'])
+    try:
+        query = text("SELECT * FROM tricount WHERE token_partage = :token ORDER BY date DESC")
+        with engine.connect() as conn:
+            res = conn.execute(query, {"token": token}).mappings().all()
+            transactions = [dict(r) for r in res]
             
-            if sujet:
-                if de_clean == sujet_clean:
-                    color = (225, 29, 72)
-                    texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {a_clean}"
+        if not transactions:
+            raise HTTPException(status_code=404, detail="Bilan vide.")
+            
+        df_groupe = pd.DataFrame(transactions)
+        transferts_finaux = calculer_balances(transactions)
+        total_depenses = df_groupe['montant'].sum() if not df_groupe.empty else 0
+        
+        group_name = transactions[0]["groupe"]
+        group_name_clean = clean_for_pdf(group_name)
+
+        if sujet:
+            sujet_clean = clean_for_pdf(sujet)
+            transferts_a_afficher = [
+                t for t in transferts_finaux 
+                if clean_for_pdf(t['de']) == sujet_clean or clean_for_pdf(t['a']) == sujet_clean
+            ]
+            titre_doc = f"NOTE : {sujet_clean}"
+            sous_titre = f"Bilan personnel dans le groupe {group_name_clean}"
+        else:
+            sujet_clean = None
+            transferts_a_afficher = transferts_finaux
+            titre_doc = group_name_clean
+            sous_titre = f"Bilan global du groupe - Total : {total_depenses:.2f} EUR"
+
+        # --- GÉNÉRATION DU PDF ---
+        pdf = StyledPDF()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.add_page()
+        pdf.header_style(titre_doc, sous_titre)
+        
+        pdf.set_left_margin(20)
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.set_text_color(30, 41, 59)
+        pdf.cell(0, 10, "RECAPITULATIF DES TRANSFERTS", ln=True)
+        pdf.set_fill_color(99, 102, 241)
+        pdf.rect(20, pdf.get_y(), 10, 1, 'F')
+        pdf.ln(5)
+
+        largeur_utile = 170
+
+        if transferts_a_afficher:
+            for t in transferts_a_afficher:
+                curr_y = pdf.get_y()
+                de_clean = clean_for_pdf(t['de'])
+                a_clean = clean_for_pdf(t['a'])
+                
+                if sujet:
+                    if de_clean == sujet_clean:
+                        color = (225, 29, 72)
+                        texte = f"[-] VOUS DEVEZ DONNER {t['montant']:.2f} EUR A {a_clean}"
+                    else:
+                        color = (5, 150, 105)
+                        texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {de_clean}"
                 else:
-                    color = (5, 150, 105)
-                    texte = f"[+] VOUS ALLEZ RECEVOIR {t['montant']:.2f} EUR DE {de_clean}"
-            else:
-                color = (79, 70, 229)
-                texte = f"> {de_clean} doit donner {t['montant']:.2f} EUR a {a_clean}"
-            
-            pdf.set_fill_color(248, 250, 252)
-            pdf.rect(20, curr_y, largeur_utile, 10, 'F')
-            pdf.set_fill_color(*color)
-            pdf.rect(20, curr_y, 1.5, 10, 'F')
-            
-            pdf.set_x(25)
-            pdf.set_text_color(*color)
-            pdf.set_font("Helvetica", "B", 10)
-            pdf.multi_cell(w=largeur_utile - 5, h=10, txt=texte, align='L')
-            pdf.ln(2)
-    else:
-        pdf.set_font("Helvetica", "I", 10)
-        pdf.set_text_color(150, 150, 150)
-        pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
+                    color = (79, 70, 229)
+                    texte = f"> {de_clean} doit donner {t['montant']:.2f} EUR a {a_clean}"
+                
+                pdf.set_fill_color(248, 250, 252)
+                pdf.rect(20, curr_y, largeur_utile, 10, 'F')
+                pdf.set_fill_color(*color)
+                pdf.rect(20, curr_y, 1.5, 10, 'F')
+                
+                pdf.set_x(25)
+                pdf.set_text_color(*color)
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.multi_cell(w=largeur_utile - 5, h=10, txt=texte, align='L')
+                pdf.ln(2)
+        else:
+            pdf.set_font("Helvetica", "I", 10)
+            pdf.set_text_color(150, 150, 150)
+            pdf.cell(0, 10, "Aucun transfert a effectuer.", ln=True)
 
-    pdf_bytes = bytes(pdf.output()) 
-    headers = {
-        'Content-Disposition': f'attachment; filename="Bilan_{group_name_clean}.pdf"',
-        'Access-Control-Expose-Headers': 'Content-Disposition'
-    }
-    return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+        # 💡 EXTRACTEUR UNIVERSEL DE BYTES PDF (Compatible fpdf ET fpdf2)
+        try:
+            raw_out = pdf.output()
+            if isinstance(raw_out, str):
+                pdf_bytes = raw_out.encode('latin-1')
+            else:
+                pdf_bytes = bytes(raw_out)
+        except Exception:
+            raw_out = pdf.output(dest='S')
+            if isinstance(raw_out, str):
+                pdf_bytes = raw_out.encode('latin-1')
+            else:
+                pdf_bytes = bytes(raw_out)
+
+        headers = {
+            'Content-Disposition': f'attachment; filename="Bilan_{group_name_clean}.pdf"',
+            'Access-Control-Expose-Headers': 'Content-Disposition'
+        }
+        return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
+    except Exception as e:
+        print("====== ERREUR CRASH GENERATION PDF SHARED ======")
+        traceback.print_exc()
+        print("================================================")
+        raise HTTPException(status_code=500, detail=f"Erreur interne de PDF: {str(e)}")
 
 
 
