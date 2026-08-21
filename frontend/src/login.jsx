@@ -2086,6 +2086,9 @@ const SortableAccountCard = ({ c }) => {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 1,
+    // 💡 AJOUT INDISPENSABLE : Dit au navigateur de ne pas interférer avec le scroll natif
+    // pour permettre au glisser-déposer de s'activer instantanément sur écran tactile
+    touchAction: 'none', 
   };
 
   return (
@@ -2159,7 +2162,7 @@ const SortableAccountCard = ({ c }) => {
         {/* 4. Zone des chiffres : Côte à côte en format large */}
         <div className="relative z-10 flex items-end justify-between w-full mt-auto gap-2 pt-2">
           
-          {/* GAUCHE : LE SOLDE (Gros et intact) */}
+          {/* GAUCHE : LE SOLDE */}
           <div className="flex flex-col items-start min-w-0 flex-1">
             <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none mb-1">
               {isEstimated ? 'Solde prévisionnel' : 'Solde'}
@@ -2170,33 +2173,32 @@ const SortableAccountCard = ({ c }) => {
             </h3>
           </div>
 
-          {/* DROITE : LES INTÉRÊTS (Même esthétique, aligné à droite, grosse écriture) */}
-            {c.taux > 0 && (
-              <div className="flex flex-col items-end shrink-0 max-w-[50%] text-right">
-                {/* Titre "Gains" + Petit Badge Taux d'intérêt */}
-                <div className="flex items-center gap-1 mb-1">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none">
-                    Interêts Estimé
-                  </span>
-                  <span className="text-[11px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.5 rounded leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
-                    {c.taux.toFixed(1)}%
-                  </span>
-                </div>
-                
-                {/* Montant des Intérêts */}
-                <h3 className="text-[13px] font-black text-white-300 tracking-tighter leading-none animate-pulse-subtle truncate w-full">
-                  +{c.interetsGagnesPériode.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                  <span className="text-[10px] ml-0.5 font-bold text-white-300/60 ">€</span>
-                </h3>
+          {/* DROITE : LES INTÉRÊTS */}
+          {c.taux > 0 && (
+            <div className="flex flex-col items-end shrink-0 max-w-[50%] text-right">
+              {/* Titre "Gains" */}
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none">
+                  Interêts Estimé
+                </span>
+                <span className="text-[11px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.5 rounded leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
+                  {c.taux.toFixed(1)}%
+                </span>
               </div>
-            )}
+              
+              {/* Montant des Intérêts */}
+              <h3 className="text-[13px] font-black text-white-300 tracking-tighter leading-none animate-pulse-subtle truncate w-full">
+                +{c.interetsGagnesPériode.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                <span className="text-[10px] ml-0.5 font-bold text-white-300/60 ">€</span>
+              </h3>
+            </div>
+          )}
 
         </div>
       </div>
     </div>
   );
 };
-
 
 
 const TransactionCard = ({ t, color, bg }) => {
