@@ -665,7 +665,7 @@ export default function DashboardMobile(props) {
              {/* GRAPHIQUES RECHARTS : TENDANCE GLOBALE */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <h3 className="text-xs font-bold text-white mb-2">Tendance Globale</h3>
-                <div className="h-60 w-full pb-2">
+                <div className="h-55 w-full pb-2">
                   <ResponsiveContainer width="100%" height="120%">
                     <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
@@ -677,10 +677,15 @@ export default function DashboardMobile(props) {
                           <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.25}/>
                           <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
                         </linearGradient>
+                        {/* 💡 CORRECTION : Ajout du dégradé de couleur pour l'épargne */}
+                        <linearGradient id="mobileColorEp" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.2}/>
+                          <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
+                        </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                       
-                      {/* 💡 CORRECTION : interval={0} rajouté pour forcer l'affichage de novembre et des 12 mois */}
+                      {/* 💡 interval={0} pour forcer l'affichage de novembre et des 12 mois */}
                       <XAxis 
                         dataKey="nom" 
                         axisLine={false} 
@@ -731,7 +736,7 @@ export default function DashboardMobile(props) {
                         )}
                       />
 
-                      {/* 💡 CORRECTION : Infobulle interactive (Tooltip) rajoutée au graphique des flux */}
+                      {/* Infobulle interactive (Tooltip) */}
                       <Tooltip 
                         cursor={{ stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }}
                         contentStyle={{ 
@@ -758,7 +763,7 @@ export default function DashboardMobile(props) {
                         }}
                       />
 
-                      {/* 💡 CORRECTION : Points de couleur de données (dot et activeDot) ajoutés */}
+                      {/* REVENUS */}
                       <Area 
                         type="monotone" 
                         dataKey="revenus" 
@@ -771,6 +776,8 @@ export default function DashboardMobile(props) {
                         dot={{ r: 2.5, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
                         activeDot={{ r: 4.5, strokeWidth: 0 }}
                       />
+
+                      {/* DÉPENSES */}
                       <Area 
                         type="monotone" 
                         dataKey="depenses" 
@@ -783,6 +790,20 @@ export default function DashboardMobile(props) {
                         dot={{ r: 2.5, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
                         activeDot={{ r: 4.5, strokeWidth: 0 }}
                       />
+
+                      {/* 💡 CORRECTION : Courbe d'Épargne (Net Épargné) réintégrée */}
+                      <Area 
+                        type="monotone" 
+                        dataKey="epargne" 
+                        hide={!visibleAnnuel?.epargne}
+                        stroke={userTheme.color_epargne || "#ffffff"} 
+                        strokeWidth={2}
+                        fill="url(#mobileColorEp)"
+                        connectNulls={true}
+                        isAnimationActive={false}
+                        dot={{ r: 2, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                        activeDot={{ r: 4, strokeWidth: 0 }}
+                      />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -791,7 +812,7 @@ export default function DashboardMobile(props) {
               {/* 📈 GRAPHIQUE ÉVOLUTION DÉTAILLÉE DES COMPTES DU PROFIL */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <h3 className="text-xs font-bold text-white mb-2">Évolution des Comptes</h3>
-                <div className="h-60 w-full pb-2">
+                <div className="h-55 w-full pb-2">
                   <ResponsiveContainer width="100%" height="120%">
                     <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       
