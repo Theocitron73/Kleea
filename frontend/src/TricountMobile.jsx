@@ -8,7 +8,7 @@ import {
 
 export default function TricountMobile(props) {
   const {
-    userId, groupes, activeGroupTab, setActiveTab, groupData,
+    userId, groupes, activeTab, setActiveTab, groupData,
     isModalOpen, setIsModalOpen, newGroupName, setNewGroupName, handleCreateGroup,
     isDeleteModalOpen, setIsDeleteModalOpen, groupToDelete, setGroupToDelete, handleDeleteGroup,
     isEditModalOpen, setIsEditModalOpen, groupToEdit, setGroupToEdit, handleRenameGroup,
@@ -90,11 +90,11 @@ export default function TricountMobile(props) {
         {groupes.map((grp, index) => (
           <button
             key={index}
-            /* 💡 CORRECTION : Liaison à setActiveTab (état parent synchronisé) */
+            /* 💡 CORRECTION : On appelle directement la fonction de changement d'onglet d'origine */
             onClick={() => setActiveTab(index)}
-            /* 💡 CORRECTION : Classe active liée à activeGroupTab */
+            /* 💡 CORRECTION : Classe active reliée à l'état d'origine activeTab */
             className={`py-2 px-5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${
-              activeGroupTab === index 
+              activeTab === index 
               ? "bg-[var(--glass-bg)] text-[var(--text-main)] border border-white/10 shadow-lg" 
               : "text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60"
             }`}
@@ -209,8 +209,8 @@ export default function TricountMobile(props) {
                   <div className="flex gap-1.5 shrink-0">
                     <button 
                       onClick={() => {
-                        /* 💡 CORRECTION : Liaison à activeGroupTab */
-                        setGroupToEdit({ oldName: groupes[activeGroupTab].nom, newName: groupes[activeGroupTab].nom });
+                        /* 💡 CORRECTION : Remplacement par activeTab */
+                        setGroupToEdit({ oldName: groupes[activeTab].nom, newName: groupes[activeTab].nom });
                         setIsEditModalOpen(true);
                       }}
                       className="p-2 bg-white/5 rounded-lg text-white/40 border border-white/5"
@@ -219,8 +219,8 @@ export default function TricountMobile(props) {
                     </button>
                     <button 
                       onClick={() => {
-                        /* 💡 CORRECTION : Liaison à activeGroupTab */
-                        setGroupToDelete(groupes[activeGroupTab].nom);
+                        /* 💡 CORRECTION : Remplacement par activeTab */
+                        setGroupToDelete(groupes[activeTab].nom);
                         setIsDeleteModalOpen(true);
                       }}
                       className="p-2 bg-rose-500/10 rounded-lg text-rose-400 border border-rose-500/10"
