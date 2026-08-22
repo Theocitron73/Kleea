@@ -16063,7 +16063,7 @@ if (!user) {
 
 
 {assistantData.open && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
     {/* Overlay flouté */}
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[var(--glass-blur)]" onClick={() => setAssistantData({ ...assistantData, open: false })} />
     
@@ -16073,7 +16073,7 @@ if (!user) {
         <div className="space-y-2">
           <h3 className="text-white font-black text-xl uppercase tracking-tighter">Assistant de Solde</h3>
           <p className="text-white/40 text-xs font-medium leading-relaxed">
-            Saisissez le solde actuel de votre compte <span className="text-white">"{assistantData.compte?.compte}"</span> tel qu'il apparaît sur votre banque. L'app calculera le solde initial nécessaire.
+            Importez quelques transactions, Saisissez le solde actuel de votre compte <span className="text-white">"{assistantData.compte?.compte}"</span> tel qu'il apparaît sur votre banque. L'app calculera le solde initial nécessaire.
           </p>
         </div>
 

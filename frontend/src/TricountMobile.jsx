@@ -540,8 +540,9 @@ export default function TricountMobile(props) {
           ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setEditingTransaction(null)} />
           <div 
-            className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
+            className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -676,6 +677,91 @@ export default function TricountMobile(props) {
           </div>
         </div>
       )}
+
+      {/* =========================================================================
+          💡 AJOUT SÉCURISÉ : LES TROIS MODALES DE GESTION DE GROUPE MANQUANTES !
+          ========================================================================= */}
+      
+      {/* 1. MODALE DE CRÉATION DE GROUPE (isModalOpen) */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
+          <div className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-4">
+              <div>
+                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">Nouveau Groupe</h4>
+                <p className="text-[9px] text-white/30 uppercase font-bold mt-1">Définissez le nom de votre projet</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-1.5 bg-white/5 rounded-xl text-white/40"><X size={16} /></button>
+            </div>
+            
+            <input 
+              autoFocus
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder="NOM DU GROUPE..."
+              className="w-full bg-black/40 border border-white/10 rounded-xl p-3 mb-6 text-xs font-bold uppercase tracking-wider text-white outline-none focus:border-[var(--primary)]/50 placeholder:text-white/10"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateGroup();
+              }}
+            />
+
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={() => setIsModalOpen(false)} className="py-2.5 rounded-xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60">Annuler</button>
+              <button onClick={handleCreateGroup} className="py-2.5 rounded-xl bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[var(--primary)]/15">Confirmer</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. MODALE DE RENOMMAGE DU GROUPE (isEditModalOpen) */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setIsEditModalOpen(false)} />
+          <div className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-2">
+              <div>
+                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">Modifier le nom</h4>
+                <p className="text-[9px] text-white/30 uppercase font-bold mt-1">Ancien nom : {groupToEdit.oldName}</p>
+              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-1.5 bg-white/5 rounded-xl text-white/40"><X size={16} /></button>
+            </div>
+            
+            <input 
+              autoFocus
+              value={groupToEdit.newName}
+              onChange={(e) => setGroupToEdit({...groupToEdit, newName: e.target.value})}
+              className="w-full bg-black/40 border border-white/10 rounded-xl p-3 mb-6 text-xs font-bold uppercase tracking-wider text-white outline-none focus:border-[var(--primary)]/50"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleRenameGroup();
+              }}
+            />
+
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setIsEditModalOpen(false)} className="py-2.5 rounded-xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60">Annuler</button>
+            <button onClick={handleRenameGroup} className="py-2.5 rounded-xl bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[var(--primary)]/15">Sauvegarder</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 3. MODALE DE SUPPRESSION DE GROUPE (isDeleteModalOpen) */}
+    {isDeleteModalOpen && (
+      <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="absolute inset-0" onClick={() => setIsDeleteModalOpen(false)} />
+        <div className="relative w-full max-w-sm bg-[#121214] border border-rose-500/20 rounded-3xl p-6 shadow-2xl z-10 text-center animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-12 h-12 bg-rose-500/10 text-rose-500 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <Trash2 size={24} />
+          </div>
+          <h3 className="text-sm font-black uppercase tracking-tighter mb-1">Supprimer le groupe ?</h3>
+          <p className="text-[10px] text-white/40 mb-6 font-bold uppercase italic">"{groupToDelete}" sera définitivement effacé.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => setIsDeleteModalOpen(false)} className="py-2.5 rounded-xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60">Garder</button>
+            <button onClick={handleDeleteGroup} className="py-2.5 rounded-xl bg-rose-500 text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-rose-500/15">Supprimer</button>
+          </div>
+        </div>
+      </div>
+    )}
 
     </div>
   );
