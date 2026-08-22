@@ -594,13 +594,22 @@ export default function GererMobile(props) {
         </div>
       )}
 
-      {/* =========================================================================
+{/* =========================================================================
           MODALE DE MODIFICATION RAPIDE DE TRANSACTION AVEC SELECTEURS PERSONNALISÉS
           ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          
+          {/* Calque de fond cliquable pour fermer */}
+          <div className="absolute inset-0" onClick={() => setEditingTransaction(null)} />
+
+          {/* Conteneur de la Modale - Entièrement centré, arrondi aux 4 coins et "overflow-visible" */}
           <div 
-            className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
+            /* 💡 CHANGEMENTS : 
+               - rounded-3xl et border pour arrondir les 4 coins et fermer la carte
+               - overflow-visible pour laisser flotter les CustomSelect par-dessus les bords 
+               - zoom-in-95 pour une transition d'apparition centrée plus naturelle */
+            className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header d'édition */}
@@ -610,8 +619,9 @@ export default function GererMobile(props) {
                 <p className="text-[9px] text-white/30 uppercase font-black">Modification express sur mobile</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setEditingTransaction(null)} 
-                className="p-1.5 bg-white/5 rounded-xl text-white/40"
+                className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
               >
                 <X size={16} />
               </button>
@@ -625,7 +635,7 @@ export default function GererMobile(props) {
                   type="text"
                   value={editingTransaction.nom || editingTransaction.libelle || ''}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, nom: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none animate-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none animate-none focus:border-[var(--primary)]/50 transition-colors"
                 />
               </div>
 
@@ -636,7 +646,7 @@ export default function GererMobile(props) {
                     type="number"
                     value={editingTransaction.montant}
                     onChange={(e) => setEditingTransaction({ ...editingTransaction, montant: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white outline-none"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
                   />
                 </div>
                 
@@ -690,14 +700,16 @@ export default function GererMobile(props) {
             {/* Actions */}
             <div className="flex gap-2 pt-3">
               <button 
+                type="button"
                 onClick={() => setEditingTransaction(null)}
                 className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl"
               >
                 Annuler
               </button>
               <button 
+                type="button"
                 onClick={handleSaveMobileTx}
-                className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/10"
+                className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/10 cursor-pointer"
               >
                 Sauvegarder
               </button>

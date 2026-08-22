@@ -31,7 +31,8 @@ export default function GuideView({ userTheme, setActiveTab }) {
             { label: "Création", desc: "Définissez vos comptes (CCP, Livrets, etc.), leur solde initial et assignez-les à un Groupe/Profil (ex: Perso, Pro, Commun)." },
             { label: "Sélecteur de Type", desc: "Le sélecteur de type pré-remplit et verrouille automatiquement le préfixe dans le nom de votre compte (ex: 'LEP - ') pour qu'il soit impossible à modifier par erreur." },
             { label: "Objectifs d'épargne", desc: "Saisissez une cible financière. Le Dashboard calculera automatiquement votre progression sous forme de jauge." },
-            { label: "Personnalisation", desc: "Modifiez la couleur de chaque compte d'un simple clic sur sa pastille colorée. C'est cette couleur qui représentera le compte sur tous les graphiques." }
+            { label: "Personnalisation", desc: "Modifiez la couleur de chaque compte d'un simple clic sur sa pastille colorée. C'est cette couleur qui représentera le compte sur tous les graphiques." },
+            { label: "Calcul automatique du solde de départ", desc: "Importez voir premières transactions et grâce à l'icône de baguette magique à côté du solde initial des comptes, rentrez le solde actuel de votre compte en banque, un calcul s'effectue pour trouver le solde initial du compte kleea" }
           ]
         },
         {
@@ -42,6 +43,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
             { label: "Glisser-Déposer / CSV", desc: "Récupérez le fichier CSV fourni par votre banque et glissez-le dans la zone dédiée de l'onglet d'importation." },
             { label: "Guide des banques", desc: "Un bouton '?' en haut à droite vous explique comment extraire un CSV propre depuis Boursorama, Crédit Agricole, Revolut, etc." },
             { label: "Liaison Bancaire Powens", desc: "Connectez et centralisez vos banques réelles de manière sécurisée en API. Associez vos comptes Powens à vos comptes locaux Kleea pour synchroniser vos soldes en temps réel." },
+            { label: "Catégorisation automatique", desc: "Grâce au lexique, remplissez les mots clés que vous trouvez pertinents pour que la catégorisation soit meilleure à chaque importation de données" },
             { label: "Validation des doublons", desc: "Le système sépare visuellement vos nouvelles transactions de celles déjà importées pour éviter tout doublon dans votre historique." }
           ]
         }

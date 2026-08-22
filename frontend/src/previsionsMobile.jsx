@@ -174,10 +174,12 @@ export default function PrevisionsMobile(props) {
               </span>
             </button>
           )}
-
           {/* ACCORDION FORMULAIRE D'AJOUT RAPIDE AVEC CUSTOM SELECTS */}
-          <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-hidden">
+          {/* 💡 CORRECTION : Remplacement de 'overflow-hidden' par 'overflow-visible' 
+             pour libérer l'affichage des listes CustomSelect à l'ouverture */}
+          <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-visible relative">
             <button
+              type="button"
               onClick={() => setShowAddForm(!showAddForm)}
               className="w-full flex items-center justify-between p-3.5 text-[10px] uppercase font-black text-white/70"
             >
@@ -189,7 +191,8 @@ export default function PrevisionsMobile(props) {
             </button>
 
             {showAddForm && (
-              <div className="p-4 border-t border-white/5 space-y-3.5 bg-black/20">
+              /* 💡 On s'assure d'avoir 'overflow-visible' ou aucune restriction ici également */
+              <div className="p-4 border-t border-white/5 space-y-3.5 bg-black/20 overflow-visible">
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Libellé</label>
                   <input 
@@ -250,6 +253,7 @@ export default function PrevisionsMobile(props) {
                 </div>
 
                 <button 
+                  type="button"
                   onClick={() => {
                     handleAddPrevision();
                     setShowAddForm(false);
@@ -538,8 +542,17 @@ export default function PrevisionsMobile(props) {
           ========================================================================= */}
       {editingTx && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          
+          {/* Calque de fond cliquable pour fermer */}
+          <div className="absolute inset-0" onClick={() => setEditingTx(null)} />
+
+          {/* Conteneur de la Modale - Entièrement centré, arrondi aux 4 coins et "overflow-visible" */}
           <div 
-            className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
+            /* 💡 CHANGEMENTS : 
+               - rounded-3xl et border pour arrondir les 4 coins et fermer la carte
+               - overflow-visible pour empêcher le rognage des CustomSelect
+               - zoom-in-95 pour une transition d'apparition centrée plus naturelle */
+            className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
@@ -549,8 +562,9 @@ export default function PrevisionsMobile(props) {
                 <p className="text-[9px] text-white/30 uppercase font-black">Changements appliqués instantanément</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setEditingTx(null)} 
-                className="p-1.5 bg-white/5 rounded-xl text-white/40"
+                className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
               >
                 <X size={16} />
               </button>
@@ -564,7 +578,7 @@ export default function PrevisionsMobile(props) {
                   type="text"
                   value={editingTx.nomPropre}
                   onChange={(e) => setEditingTx({ ...editingTx, nomPropre: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
                 />
               </div>
 
@@ -575,7 +589,7 @@ export default function PrevisionsMobile(props) {
                     type="number"
                     value={editingTx.montant}
                     onChange={(e) => setEditingTx({ ...editingTx, montant: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none"
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
                   />
                 </div>
                 <div>
@@ -618,14 +632,16 @@ export default function PrevisionsMobile(props) {
             {/* Validation */}
             <div className="flex gap-2 pt-3">
               <button 
+                type="button"
                 onClick={() => setEditingTx(null)}
                 className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl"
               >
                 Annuler
               </button>
               <button 
+                type="button"
                 onClick={handleSaveEdit}
-                className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/10"
+                className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/10 cursor-pointer"
               >
                 Sauvegarder
               </button>
