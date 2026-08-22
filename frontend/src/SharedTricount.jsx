@@ -551,7 +551,7 @@ export default function SharedTricount() {
 
       {/* MODALE DE MODIFICATION COMMUNE (PC & MOBILE) */}
       {editingTransaction && (
-        <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/80 backdrop-blur-sm p-4">
+       <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-white/5">
               <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400">Modifier la dépense</h3>

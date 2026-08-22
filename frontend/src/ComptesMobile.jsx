@@ -42,7 +42,7 @@ export default function ComptesMobile(props) {
 
       {/* 💡 LA FENÊTRE MODALE DE CRÉATION (VOLET TACTILE SÉCURISÉ) */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           {/* Calque de fond cliquable pour fermer la modale */}
           <div className="absolute inset-0" onClick={() => setIsCreateModalOpen(false)} />
 
@@ -255,8 +255,14 @@ export default function ComptesMobile(props) {
                   <div className="bg-black/40 p-1.5 rounded-xl border border-white/5 flex flex-col justify-between">
                     <div className="flex justify-between items-center mb-1">
                       <p className="text-[7px] font-black text-white/40 uppercase">Solde init.</p>
-                      <button onClick={() => openCalculateurAssistant(c)} className="text-white/40 active:scale-90" title="Ajuster">
-                        <Wand2 size={10} />
+                      
+                      {/* 💡 CORRECTION MOBILE : Bouton assistant de solde mis en relief néon tactile */}
+                      <button 
+                        onClick={() => openCalculateurAssistant(c)} 
+                        className="p-1 rounded-lg bg-[var(--primary)]/55 border border-[var(--primary)] text-[var(--text-main)] hover:scale-110 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
+                        title="Ajuster selon un solde à date"
+                      >
+                        <Wand2 size={11} strokeWidth={2.5} />
                       </button>
                     </div>
                     <div className="flex items-center justify-center">

@@ -15305,10 +15305,17 @@ if (!user) {
               <div className="grid grid-cols-3 gap-2">
                 {/* SOLDE INITIAL */}
                 <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
-                  <div className="flex justify-between items-start mb-1">
+                  <div className="flex justify-between items-center mb-1">
                     <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
-                    <button onClick={() => openCalculateurAssistant(c)} className="text-white hover:scale-110 transition-transform" title="Ajuster selon un solde à date">
-                      <Wand2 size={12} />
+                    
+                    {/* 💡 CORRECTION DESKTOP : Assistant mis en valeur avec un badge de texte explicite "Ajuster" */}
+                    <button 
+                      onClick={() => openCalculateurAssistant(c)} 
+                      className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--primary)]/40 border border-[var(--primary)] text-[var(--text-main)] hover:scale-105 active:scale-95 transition-all text-[8px] font-black uppercase tracking-wider cursor-pointer"
+                      title="Ajuster le solde de départ à une date précise"
+                    >
+                      <Wand2 size={10} strokeWidth={3} />
+                      <span>Ajuster</span>
                     </button>
                   </div>
                   <div className="flex items-center gap-0.5">

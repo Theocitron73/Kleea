@@ -537,7 +537,7 @@ export default function PrevisionsMobile(props) {
           MODALE DE MODIFICATION COMPLÈTE DE TRANSACTION AVEC CUSTOM SELECTS
           ========================================================================= */}
       {editingTx && (
-        <div className="fixed inset-0 z-[10000] flex items-end justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div 
             className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
             onClick={(e) => e.stopPropagation()}
