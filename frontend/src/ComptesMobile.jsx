@@ -40,14 +40,21 @@ export default function ComptesMobile(props) {
         <span>Créer un nouveau compte</span>
       </button>
 
-      {/* 💡 LA FENÊTRE MODALE DE CRÉATION (VOLET TACTILE SÉCURISÉ) */}
+      {/* 💡 LA FENÊTRE MODALE DE CRÉATION - ENTIÈREMENT CENTRÉE ET EXTÉRIEURE (overflow-visible) */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           {/* Calque de fond cliquable pour fermer la modale */}
           <div className="absolute inset-0" onClick={() => setIsCreateModalOpen(false)} />
 
           {/* Conteneur de la Modale */}
-          <div className="relative w-full max-w-md bg-[#121214] border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl z-10 animate-in slide-in-from-bottom-8 duration-300 max-h-[90vh] overflow-y-auto">
+          <div 
+            /* 💡 CHANGEMENTS : 
+               - border et rounded-3xl pour fermer et arrondir la carte sur ses 4 coins
+               - overflow-visible pour laisser le SketchPicker s'afficher en dehors sans être coupé 
+               - zoom-in-95 pour une transition d'apparition centrée plus naturelle */
+            className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 overflow-visible"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* En-tête */}
             <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
               <div>
@@ -55,6 +62,7 @@ export default function ComptesMobile(props) {
                 <p className="text-[9px] text-white/30 uppercase font-bold tracking-wider mt-1">Saisie des informations de départ</p>
               </div>
               <button 
+                type="button"
                 onClick={() => setIsCreateModalOpen(false)}
                 className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
               >
@@ -256,7 +264,7 @@ export default function ComptesMobile(props) {
                     <div className="flex justify-between items-center mb-1">
                       <p className="text-[7px] font-black text-white/40 uppercase">Solde init.</p>
                       
-                      {/* 💡 CORRECTION MOBILE : Bouton assistant de solde mis en relief néon tactile */}
+                      {/* Bouton assistant de solde mis en relief néon tactile */}
                       <button 
                         onClick={() => openCalculateurAssistant(c)} 
                         className="p-1 rounded-lg bg-[var(--primary)]/55 border border-[var(--primary)] text-[var(--text-main)] hover:scale-110 active:scale-95 transition-all flex items-center justify-center shadow-lg cursor-pointer"
