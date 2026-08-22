@@ -8,7 +8,7 @@ import {
 
 export default function TricountMobile(props) {
   const {
-    userId, groupes, activeTab, setactiveTab, groupData,
+    userId, groupes, activeGroupTab, setActiveTab, groupData,
     isModalOpen, setIsModalOpen, newGroupName, setNewGroupName, handleCreateGroup,
     isDeleteModalOpen, setIsDeleteModalOpen, groupToDelete, setGroupToDelete, handleDeleteGroup,
     isEditModalOpen, setIsEditModalOpen, groupToEdit, setGroupToEdit, handleRenameGroup,
@@ -90,9 +90,11 @@ export default function TricountMobile(props) {
         {groupes.map((grp, index) => (
           <button
             key={index}
-            onClick={() => setactiveTab(index)}
+            /* 💡 CORRECTION : Liaison à setActiveTab (état parent synchronisé) */
+            onClick={() => setActiveTab(index)}
+            /* 💡 CORRECTION : Classe active liée à activeGroupTab */
             className={`py-2 px-5 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all whitespace-nowrap ${
-              activeTab === index 
+              activeGroupTab === index 
               ? "bg-[var(--glass-bg)] text-[var(--text-main)] border border-white/10 shadow-lg" 
               : "text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60"
             }`}
@@ -207,7 +209,8 @@ export default function TricountMobile(props) {
                   <div className="flex gap-1.5 shrink-0">
                     <button 
                       onClick={() => {
-                        setGroupToEdit({ oldName: groupes[activeTab].nom, newName: groupes[activeTab].nom });
+                        /* 💡 CORRECTION : Liaison à activeGroupTab */
+                        setGroupToEdit({ oldName: groupes[activeGroupTab].nom, newName: groupes[activeGroupTab].nom });
                         setIsEditModalOpen(true);
                       }}
                       className="p-2 bg-white/5 rounded-lg text-white/40 border border-white/5"
@@ -216,7 +219,8 @@ export default function TricountMobile(props) {
                     </button>
                     <button 
                       onClick={() => {
-                        setGroupToDelete(groupes[activeTab].nom);
+                        /* 💡 CORRECTION : Liaison à activeGroupTab */
+                        setGroupToDelete(groupes[activeGroupTab].nom);
                         setIsDeleteModalOpen(true);
                       }}
                       className="p-2 bg-rose-500/10 rounded-lg text-rose-400 border border-rose-500/10"
@@ -255,7 +259,7 @@ export default function TricountMobile(props) {
                           </button>
                         </div>
 
-                        {/* Écran de confirmation de suppression imbriqué */}
+                        {/* Écran de confirmation de suppression */}
                         {deletingId === t.id && (
                           <div 
                             className="absolute inset-0 bg-rose-500/10 backdrop-blur-sm flex items-center justify-between px-4 animate-in fade-in duration-150"
