@@ -175,7 +175,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
           items: [
             { icon: Calculator, title: "Prorata Calculateur", desc: "Un outil pour calculer la répartition équitable d'une dépense commune (ex: loyer du couple) basée sur les revenus respectifs de chacun." },
             { icon: StickyNote, title: "Bloc-notes Auto-save", desc: "Un pense-bête persistant lié à votre profil pour noter vos investissements ou rappels financiers sans quitter l'écran." },
-            { icon: Palette, title: "Studio de Design & Menu", desc: "Personnalisez votre interface. Modifiez les couleurs des revenus/dépenses, l'intensité du flou (Glass) et l'arrondi. Pour Théo, activez ou désactivez dynamiquement l'affichage des pages sur les menus." }
+            
           ]
         }
       ]
