@@ -261,7 +261,7 @@ export default function SharedTricount() {
         <div>
           <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant Total (€)</label>
           <input 
-            type="number"
+            type="text"
             step="0.01"
             value={newTransaction.montant}
             onChange={(e) => setNewTransaction({...newTransaction, montant: parseFloat(e.target.value) || 0})}
@@ -329,7 +329,7 @@ export default function SharedTricount() {
 
                   {isSelected && (
                     <input 
-                      type="number"
+                      type="text"
                       step="0.01"
                       value={newTransaction.details_montants[p] || ""}
                       onChange={(e) => {
@@ -589,7 +589,7 @@ export default function SharedTricount() {
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
                 <input 
-                  type="number"
+                  type="text"
                   step="0.01"
                   value={editingTransaction.montant}
                   onChange={(e) => setEditingTransaction({...editingTransaction, montant: parseFloat(e.target.value) || 0})}
@@ -641,7 +641,7 @@ export default function SharedTricount() {
                       <span className="text-xs font-bold text-white/80">{personne}</span>
                       <div className="flex items-center gap-1.5">
                         <input 
-                          type="number"
+                          type="text"
                           step="0.01"
                           value={editingTransaction.details_montants?.[personne] ?? ""} 
                           onChange={(e) => updateMontantIndividuel(personne, e.target.value)}

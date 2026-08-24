@@ -348,7 +348,7 @@ export default function GererMobile(props) {
                 <div className="relative">
                   <label className="text-[8px] uppercase font-black text-white/30 block mb-1">Montant (€)</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     id="quick-montant-mobile"
                     placeholder="0.00" 
                     className="w-full bg-black/30 border border-white/10 rounded-xl pl-3 pr-6 py-2.5 text-xs font-mono font-bold text-white outline-none"
@@ -530,7 +530,7 @@ export default function GererMobile(props) {
                 <div className="col-span-4 relative">
                   <label className="text-[8px] uppercase font-black text-white/30 block mb-1">Limite (€)</label>
                   <input 
-                    type="number"
+                    type="text"
                     placeholder="0"
                     value={formBudget.somme}
                     onChange={(e) => setFormBudget({...formBudget, somme: e.target.value})}
@@ -643,7 +643,7 @@ export default function GererMobile(props) {
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
                   <input 
-                    type="number"
+                    type="text"
                     value={editingTransaction.montant}
                     onChange={(e) => setEditingTransaction({ ...editingTransaction, montant: e.target.value })}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"

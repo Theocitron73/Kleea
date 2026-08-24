@@ -133,7 +133,7 @@ export default function ComptesMobile(props) {
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Solde de départ</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     step="0.01" 
                     name="compteSolde"
                     placeholder="0.00" 
@@ -147,7 +147,7 @@ export default function ComptesMobile(props) {
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Taux d'intérêts %</label>
                   <input 
-                    type="number" 
+                    type="text" 
                     step="0.01" 
                     min="0" 
                     max="100" 
@@ -312,7 +312,7 @@ export default function ComptesMobile(props) {
                     <p className="text-[7px] font-black text-white/40 uppercase mb-1">Objectif</p>
                     <div className="flex items-center justify-center">
                       <input 
-                        type="number"
+                        type="text"
                         className="bg-transparent text-xs font-mono font-black text-white/70 outline-none w-full text-center"
                         value={c.objectif}
                         onChange={(e) => {
@@ -331,7 +331,7 @@ export default function ComptesMobile(props) {
                     <p className="text-[7px] font-black text-white/40 uppercase mb-1">Intérêt %</p>
                     <div className="flex items-center justify-center">
                       <input 
-                        type="number"
+                        type="text"
                         step="0.05"
                         min="0"
                         max="100"

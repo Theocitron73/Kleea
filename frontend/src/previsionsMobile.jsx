@@ -208,7 +208,7 @@ export default function PrevisionsMobile(props) {
                   <div>
                     <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant</label>
                     <input 
-                      type="number"
+                      type="text"
                       placeholder="0.00"
                       className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-mono font-bold text-white outline-none"
                       value={newPrevi.montant}
@@ -586,7 +586,7 @@ export default function PrevisionsMobile(props) {
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
                   <input 
-                    type="number"
+                    type="text"
                     value={editingTx.montant}
                     onChange={(e) => setEditingTx({ ...editingTx, montant: e.target.value })}
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
