@@ -10066,25 +10066,13 @@ const [duplicateModal, setDuplicateModal] = useState({
   isSelection: false
 });
 
-// 1. Déclencheur au clic sur le bouton de l'interface
+// 1. Déclencheur révisé pour la reconduction mensuelle classique (mois suivant)
 const handleTryDuplicate = () => {
-  const aCopier = selectedIds2.length > 0 
-    ? previsionsFiltrees.filter(p => selectedIds2.includes(p.id))
-    : previsionsFiltrees;
-
-  if (aCopier.length === 0) {
-    setNotification({
-      type: 'error',
-      message: "Aucune prévision à copier !"
-    });
-    return;
-  }
-
-  // On ouvre le modal avec les infos nécessaires
-  setDuplicateModal({
-    show: true,
-    count: aCopier.length,
-    isSelection: selectedIds2.length > 0
+  setDuplicateType('month');
+  setDuplicateModal({ 
+    show: true, 
+    count: selectedIds2.length, 
+    isSelection: selectedIds2.length > 0 
   });
 };
 
@@ -10747,6 +10735,67 @@ const [showPublicGuide, setShowPublicGuide] = useState(false);
       return () => window.removeEventListener('resize', checkScreenSize);
     }
   }, []);
+
+
+
+const [showDuplicateModal, setShowDuplicateConfirm] = useState(false);
+const [duplicateType, setDuplicateType] = useState('month'); // 'month' | 'year'
+
+
+// 2. Déclencheur pour la propagation sur l'année complète (mois restants)
+const handleTryPropagateYear = () => {
+  if (selectedIds2.length === 0) {
+    alert("Veuillez d'abord sélectionner au moins une prévision à propager.");
+    return;
+  }
+  setDuplicateType('year');
+  setDuplicateModal({ 
+    show: true, 
+    count: selectedIds2.length, 
+    isSelection: true 
+  });
+};
+
+// 3. Fonction d'exécution de la propagation annuelle (avec loadPrevisions() de recharge !)
+const confirmPropagateToYear = async () => {
+  try {
+    const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+
+    const response = await api.post(`/api/previsions/propagate-year`, {
+      ids: selectedIds2,
+      utilisateur: nomUtilisateur,
+      mois_actuel: filters.mois,
+      annee: filters.annee.toString()
+    });
+
+    if (response.data.status === "success") {
+      setSelectedIds2([]); // Vider les cases cochées
+      
+      // 💡 CORRECTION : Appel de votre vraie fonction de rafraîchissement
+      await loadPrevisions(); 
+      
+      // Utilisation de votre système de toasts d'origine
+      setNotification({
+        type: 'success',
+        message: `${response.data.inserted_count} prévisions propagées sur l'année avec succès !`
+      });
+      setTimeout(() => {
+        setNotification(null); 
+      }, 2000);
+    }
+  } catch (err) {
+    console.error("Erreur de propagation :", err);
+    setNotification({
+      type: 'error',
+      message: "Impossible de propager les prévisions sur l'année."
+    });
+    setTimeout(() => {
+      setNotification(null); 
+    }, 2000);
+  }
+};
+
+
 
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
@@ -12634,64 +12683,75 @@ if (!user) {
         {/* ================= COLONNE GAUCHE / BLOC PRINCIPAL : ACTIONS & MODIFS ================= */}
   <div className="flex-[3] flex flex-col min-w-0 w-full h-full">
 
-    {/* 1. FORMULAIRE D'AJOUT RESPONSIVE */}
-    <div className="grid grid-cols-12 gap-3 mb-6 p-4 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] relative z-30 shadow-xl w-full">
+{/* 1. FORMULAIRE D'AJOUT RESPONSIVE COMPACTÉ */}
+    {/* 💡 p-3 et mb-4 pour affiner le conteneur sur l'écran */}
+    <div className="grid grid-cols-12 gap-x-3 gap-y-2.5 mb-4 p-3 bg-[var(--glass-bg)] rounded-3xl border border-white/10 backdrop-blur-[var(--glass-blur)] relative z-30 shadow-xl w-full select-none">
 
-      {/* 1. Titre Stylisé & Boutons d'action */}
-      <div className="col-span-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-2 pb-3 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-[var(--primary)]/10 rounded-lg border border-[var(--primary)]/20">
-            <Plus size={14} className="text-[var(--primary)]" />
+      {/* 1. Titre Stylisé & Boutons d'action (Margins réduites) */}
+      <div className="col-span-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2.5 border-b border-white/5 mb-1">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-[var(--primary)]/10 rounded-lg border border-[var(--primary)]/20">
+            <Plus size={12} className="text-[var(--primary)]" />
           </div>
           <div>
-            <h3 className="text-[var(--text-main)] font-bold text-[13px] tracking-wide">Nouvelle Prévision</h3>
-            <p className="text-[9px] text-[var(--text-main)]/30 uppercase tracking-widest font-medium">Saisie express</p>
+            <h3 className="text-[11px] font-black text-white uppercase tracking-wider leading-none">Nouvelle Prévision</h3>
+            <p className="text-[8px] text-white/20 uppercase tracking-[0.2em] font-medium leading-none mt-0.5">Saisie express</p>
           </div>
         </div>
         
-        {/* Actions à droite : S'empilent joliment sur petit écran */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-start sm:justify-end">
+        {/* Actions à droite */}
+        <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto justify-start sm:justify-end">
+          {selectedIds2.length > 0 && (
+            <button
+              onClick={handleTryPropagateYear}
+              className="h-[30px] px-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] tracking-widest uppercase rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(16,185,129,0.15)]"
+            >
+              <span>Propager sur l'année ({selectedIds2.length})</span>
+              <div className="w-3.5 h-3.5 rounded-lg bg-black/10 flex items-center justify-center font-bold text-[8px]">⚡</div>
+            </button>
+          )}
+
           {previsionsFiltrees.length > 0 && (
             <button
               onClick={handleTryDuplicate}
-              className="h-[34px] px-4 w-full sm:w-auto bg-[var(--primary)] hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] tracking-widest uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer shadow-[0_4px_15px_rgba(16,185,129,0.2)]"
+              className="h-[30px] px-3 bg-[var(--primary)] hover:brightness-110 hover:saturate-150 text-white font-black text-[9px] tracking-widest uppercase rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.15)]"
             >
               <span>
                 {selectedIds2.length > 0 
                   ? `Reconduire la sélection (${selectedIds2.length})` 
                   : 'Reconduire le mois'}
               </span>
-              <div className="w-4 h-4 rounded-[var(--radius)] bg-black/10 flex items-center justify-center font-bold text-[9px]">+</div >
+              <div className="w-3.5 h-3.5 rounded-lg bg-black/10 flex items-center justify-center font-bold text-[8px]">+</div >
             </button>
           )}
 
-          <div className="px-3 py-1.5 sm:py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[9px] text-[var(--bg-primary)]-300/50 font-bold tracking-widest italic uppercase w-full sm:w-auto text-center sm:text-left">
+          <div className="px-2.5 py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[8.5px] text-indigo-300/40 font-black tracking-widest italic uppercase w-full sm:w-auto text-center sm:text-left leading-none">
             ⚡ Auto-save Ready
           </div>
         </div>
       </div>
         
-      {/* INPUT DATE : col-span-12 sur mobile, col-span-6 sur tablette, col-span-2 sur PC */}
+      {/* INPUT DATE (Hauteur réduite à h-[34px] et padding réduit) */}
       <div className="col-span-12 sm:col-span-6 md:col-span-2">
-        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Date</label>
-        <div className="flex items-center gap-2 bg-black/20 border border-white/10 rounded-[var(--radius)] px-3 py-2 h-[38px] focus-within:border-emerald-500/50 transition-all w-full">
-          <Calendar size={14} className="text-[var(--text-main)]/40" />
+        <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-black mb-0.5 block italic leading-none">Date</label>
+        <div className="flex items-center gap-1.5 bg-black/25 border border-white/10 rounded-xl px-2.5 h-[34px] focus-within:border-[var(--primary)]/50 transition-all w-full">
+          <Calendar size={12} className="text-[var(--text-main)]/30" />
           <DatePicker
             selected={newPrevi.date ? new Date(newPrevi.date) : null} 
             onChange={(date) => setNewPrevi({ ...newPrevi, date: date })}
             dateFormat="dd/MM/yyyy"
-            className="bg-transparent border-none outline-none text-[var(--text-main)] text-[11px] font-bold w-full cursor-pointer"
+            className="bg-transparent border-none outline-none text-[10px] font-bold text-white w-full cursor-pointer pl-0.5"
           />
         </div>
       </div>
 
       {/* INPUT LIBELLÉ */}
       <div className="col-span-12 sm:col-span-6 md:col-span-2">
-        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Libellé</label>
+        <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-black mb-0.5 block italic leading-none">Libellé</label>
         <input 
           type="text"
           placeholder="Ex: Salaire..."
-          className="w-full h-[38px] bg-black/20 border border-white/10 rounded-[var(--radius)] px-4 py-2 text-[11px] text-[var(--text-main)] outline-none focus:border-emerald-500/50 transition-all font-bold"
+          className="w-full h-[34px] bg-black/25 border border-white/10 rounded-xl px-3 py-1 text-[10px] text-white outline-none focus:border-[var(--primary)]/50 transition-all font-bold"
           value={newPrevi.nom}
           onChange={e => setNewPrevi({...newPrevi, nom: e.target.value})}
         />
@@ -12699,35 +12759,37 @@ if (!user) {
 
       {/* INPUT MONTANT */}
       <div className="col-span-12 sm:col-span-4 md:col-span-2">
-        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Montant</label>
+        <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-black mb-0.5 block italic leading-none">Montant</label>
         <input 
           type="number"
           placeholder="0.00"
-          className="w-full h-[38px] bg-black/20 border border-white/10 rounded-[var(--radius)] px-4 py-2 text-[11px] text-[var(--text-main)] outline-none focus:border-emerald-500/50 transition-all font-bold text-left sm:text-right"
+          className="w-full h-[34px] bg-black/25 border border-white/10 rounded-xl px-3 py-1 text-[10px] text-white outline-none focus:border-[var(--primary)]/50 transition-all font-bold text-left sm:text-right"
           value={newPrevi.montant}
           onChange={e => setNewPrevi({...newPrevi, montant: e.target.value})}
         />
       </div>
 
-      {/* INPUT CATÉGORIE */}
+      {/* INPUT CATÉGORIE (Enveloppé pour faire h-[34px]) */}
       <div className="col-span-12 sm:col-span-4 md:col-span-2">
-        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Catégorie</label>
+        <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-black mb-0.5 block italic leading-none">Catégorie</label>
         <CustomSelect 
           value={newPrevi.categorie}
           icon={Tag}
           options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
           onChange={(val) => setNewPrevi({...newPrevi, categorie: val})}
+          className="p-2.5 rounded-xl text-[10px] h-[34px] flex items-center justify-between bg-black/25 border border-white/10 hover:border-white/20 focus-within:border-[var(--primary)]/50"
         />
       </div>
 
-      {/* INPUT COMPTE */}
+      {/* INPUT COMPTE (Enveloppé pour faire h-[34px]) */}
       <div className="col-span-12 sm:col-span-4 md:col-span-2">
-        <label className="text-[9px] text-[var(--text-main)]/30 uppercase font-black mb-1 block italic">Compte</label>
+        <label className="text-[8px] text-[var(--text-main)]/30 uppercase font-black mb-0.5 block italic leading-none">Compte</label>
         <CustomSelect 
           value={newPrevi.compte}
           icon={Wallet}
           options={optionsComptes}
           onChange={(val) => setNewPrevi({...newPrevi, compte: val})}
+          className="p-2.5 rounded-xl text-[10px] h-[34px] flex items-center justify-between bg-black/25 border border-white/10 hover:border-white/20 focus-within:border-[var(--primary)]/50"
         />
       </div>
 
@@ -12735,10 +12797,10 @@ if (!user) {
       <div className="col-span-12 md:col-span-2 flex items-end">
         <button 
           onClick={handleAddPrevision}
-          className="w-full h-[38px] bg-[var(--primary)] transition-all hover:brightness-110 hover:saturate-200 text-[var(--text-main)] font-black text-[10px] uppercase rounded-[var(--radius)] transition-all active:scale-95 flex items-center justify-center gap-2"
+          className="w-full h-[34px] bg-[var(--primary)] hover:brightness-110 hover:saturate-150 text-white font-black text-[9px] uppercase rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-lg shadow-[var(--primary)]/15"
         >
           <span>Ajouter</span>
-          <div className="w-4 h-4 rounded-[var(--radius)] bg-white/20 flex items-center justify-center">+</div >
+          <div className="w-3.5 h-3.5 rounded-lg bg-white/20 flex items-center justify-center font-bold text-[8px]">+</div >
         </button>
       </div>
     </div>
@@ -12747,20 +12809,20 @@ if (!user) {
     {/* Passage en `flex-col` sur mobile et `lg:flex-row` sur grand écran */}
     <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0 w-full">
       
-      {/* BLOC TABLEAU */}
+{/* BLOC TABLEAU COMPACTÉ */}
       <div className="flex-[3] flex flex-col min-h-[350px] lg:min-h-0 relative group w-full">
         {/* Effet de lueur */}
         <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 to-fuchsia-500/5 rounded-[var(--radius)] blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000"></div>
 
-        <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[var(--radius)] shadow-2xl overflow-hidden w-full">
+        <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl shadow-2xl overflow-hidden w-full">
           
 {/* ZONE DE SCROLL INTERNE */}
-<div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar p-4 w-full">
-  <table className="w-full text-left border-separate border-spacing-y-2 relative z-10 table-fixed min-w-[650px]">
+<div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar p-3.5 w-full">
+  {/* 💡 border-spacing-y-1.5 pour rapprocher verticalement les lignes */}
+  <table className="w-full text-left border-separate border-spacing-y-1.5 relative z-10 table-fixed min-w-[650px]">
     <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
-      <tr className="text-[9px] text-[var(--text-main)]/30 uppercase font-black italic">
-        {/* On élargit un poil la première colonne pour accueillir l'œil (de w-12 à w-20) */}
-        <th className="px-4 py-3 w-20 text-center backdrop-blur-[var(--glass-blur)] bg-black/20">
+      <tr className="text-[8.5px] text-[var(--text-main)]/30 uppercase font-black italic">
+        <th className="px-3 py-2 w-20 text-center backdrop-blur-[var(--glass-blur)] bg-black/20 rounded-l-lg">
           <input 
             type="checkbox"
             checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
@@ -12768,22 +12830,19 @@ if (!user) {
             className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
           />
         </th>
-        <th className="px-4 py-3 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
-        <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
-        <th className="px-4 py-3 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
-        <th className="px-4 py-3 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
-        <th className="px-4 py-3 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Date</th>
+        <th className="px-3 py-2 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
+        <th className="px-3 py-2 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
+        <th className="px-3 py-2 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
+        <th className="px-3 py-2 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
+        <th className="px-3 py-2 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20 rounded-r-lg">Date</th>
       </tr>
     </thead>
 
-    <tbody className="before:content-[''] before:block before:h-2">
+    <tbody className="before:content-[''] before:block before:h-1">
       {previsionsFiltrees.length > 0 ? (
         previsionsFiltrees.map((prev) => {
           const isSelected = selectedIds2.includes(prev.id);
           const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
-          // 🔍 AJOUTE CE LOG ICI POUR VÉRIFIER :
-          //console.log(`Prévision ${prev.nom} (ID: ${prev.id}) -> valeur de actif :`, prev.actif, "Type :", typeof prev.actif);
-          // La ligne est active par défaut. Elle n'est désactivée QUE si prev.actif vaut explicitement false, 0, "0" ou "false"
           const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
 
           return (
@@ -12791,59 +12850,67 @@ if (!user) {
               key={prev.id} 
               className={`
                 group transition-all duration-300 
-                ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.08] hover:[&_.input-libelle]:bg-white/[0.08] hover:[&_.amount-box]:bg-white/[0.08] hover:[&_.amount-box]:border-white/20'}
-                {/* 💡 Si désactivé, on applique une opacité globale sur toute la ligne sauf au survol */}
+                ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.04]'}
                 ${!isActif ? 'opacity-30 hover:opacity-70 saturate-50' : ''}
               `}
             >
-              {/* PREMIÈRE CASE (Checkbox + Bouton d'activation Œil) */}
-              <td className={`p-3 border-y border-l border-white/5 text-center relative rounded-l-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300 ${isSelected ? "before:content-[''] before:absolute before:left-1.5 before:top-1/2 before:-translate-y-1/2 before:h-[60%] before:w-[3px] before:bg-[#10b981] before:rounded-full" : ""}`}>
-                <div className="flex items-center justify-center gap-2">
-                  <div className={isSelected ? "pl-1 transition-all" : ""}>
-                    <input 
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelect2(prev.id)}
-                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
-                    />
-                  </div>
+              {/* PREMIÈRE CASE (Checkbox + Bouton d'activation Œil - py-1.5) */}
+              <td className={`p-1.5 border-y border-l border-white/5 text-center relative rounded-l-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <div className="flex items-center justify-center gap-1.5">
+                  <input 
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelect2(prev.id)}
+                    className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
+                  />
                   
-                  {/* 💡 BOUTON MASQUER / ACTIVER LA TRANSACTION */}
                   <button
                     onClick={() => updatePrevision(prev.id, 'actif', !isActif)}
                     title={isActif ? "Désactiver du graphique et des calculs" : "Réactiver la transaction"}
                     className={`p-1 rounded-md transition-all cursor-pointer ${isActif ? 'text-white/20 hover:text-white/60 hover:bg-white/5' : 'text-rose-400 hover:text-rose-300 bg-rose-500/10'}`}
                   >
-                    {isActif ? <Eye size={12} /> : <EyeOff size={12} />}
+                    {isActif ? <Eye size={11} /> : <EyeOff size={11} />}
                   </button>
                 </div>
               </td>
               
-              {/* LIBELLÉ */}
-              <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+              {/* LIBELLÉ (Hauteur d'input réduite à py-1 et texte de 10.5px) */}
+              <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
                 <input 
-                  className={`input-libelle bg-white/[0.05] border border-white/10 focus:border-emerald-500/40 rounded-[var(--radius)] px-3 py-2 text-[11px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
+                  className={`input-libelle bg-white/[0.04] border border-white/5 focus:border-emerald-500/40 rounded-lg px-2.5 py-1 text-[10.5px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
                   defaultValue={prev.nom.replace('[PRÉVI] ', '')}
                   onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
                 />
               </td>
 
-              {/* CATÉGORIE */}
-              <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <CustomSelect value={prev.categorie} options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} icon={Tag} onChange={(val) => updatePrevision(prev.id, 'categorie', val)} />
+              {/* CATÉGORIE (💡 CustomSelect aminci à h-[28px]) */}
+              <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <CustomSelect 
+                  value={prev.categorie} 
+                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} 
+                  icon={Tag} 
+                  onChange={(val) => updatePrevision(prev.id, 'categorie', val)} 
+                  className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
+                />
               </td>
 
-              {/* COMPTE */}
-              <td className={`px-2 py-2 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <CustomSelect value={prev.compte} options={optionsComptes} icon={Wallet} onChange={(val) => updatePrevision(prev.id, 'compte', val)} />
+              {/* COMPTE (💡 CustomSelect aminci à h-[28px]) */}
+              <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <CustomSelect 
+                  value={prev.compte} 
+                  options={optionsComptes} 
+                  icon={Wallet} 
+                  onChange={(val) => updatePrevision(prev.id, 'compte', val)} 
+                  className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
+                />
               </td>
 
-              {/* MONTANT */}
-              <td className={`px-2 py-2 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <div className="amount-box flex items-center bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 transition-all duration-300">
+              {/* MONTANT (💡 Boîtier de montant aminci à h-[28px]) */}
+              <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <div className="amount-box flex items-center bg-white/[0.04] border border-white/5 rounded-xl px-2.5 h-[28px] transition-all duration-300">
                   <input 
                     type="number"
-                    className="bg-transparent border-none outline-none text-right font-black w-full text-[13px] transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
+                    className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
                     style={{ 
                       color: isTransfert 
                         ? '#6d00fc' 
@@ -12854,20 +12921,20 @@ if (!user) {
                     defaultValue={prev.montant}
                     onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
                   />
-                  <span className="ml-1 text-[9px] font-bold opacity-20 italic" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
+                  <span className="ml-1 text-[8px] font-bold opacity-30 leading-none" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
                 </div>
               </td>
 
-              {/* DATE */}
-              <td className={`px-4 py-2 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-[var(--radius)] ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <div className="inline-flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-[var(--radius)] px-3 py-2 focus-within:border-emerald-500/50 transition-all">
-                  <Calendar size={12} className="text-[var(--text-main)]/30" />
+              {/* DATE (💡 Boîtier de date aminci à h-[28px]) */}
+              <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                <div className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/5 rounded-xl px-2 h-[28px] focus-within:border-emerald-500/50 transition-all">
+                  <Calendar size={11} className="text-[var(--text-main)]/30" />
                   <DatePicker
                     selected={prev.date ? new Date(prev.date) : null}
                     onChange={(date) => updatePrevision(prev.id, 'date', date)}
                     dateFormat="dd/MM/yyyy"
                     portalId="root" 
-                    className="bg-transparent border-none outline-none text-[10px] font-black text-[var(--text-main)] w-20 text-right cursor-pointer"
+                    className="bg-transparent border-none outline-none text-[9.5px] font-black text-[var(--text-main)] w-18 text-right cursor-pointer"
                   />
                 </div>
               </td>
@@ -12919,162 +12986,155 @@ if (!user) {
     </div>
   </div>
 
-      {/* ================= COLONNE DROITE (25% ou flexible) : RÉCAP ANNUEL PROJETÉ ================= */}
-      <div className="flex-[1.2] min-w-[380px] flex flex-col bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] p-4 shadow-2xl relative overflow-hidden h-full">
-      
-
-        {/* SÉLECTEUR DE MOIS DYNAMIQUE */}
-         {moisDisponibles.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6 p-3 bg-white/[0.02] rounded-2xl border border-white/5 backdrop-blur-[var(--glass-blur)]">
-            <div className="w-full px-2 mb-2 flex justify-between items-center">
-              <span className="text-[8px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em]">Masquer/Activer les prévisions</span>
-              {excludedMonths.length > 0 && (
-                <button 
-                  onClick={() => setExcludedMonths([])}
-                  className="text-[9px] font-black text-rose-500/50 hover:text-rose-500 uppercase transition-colors cursor-pointer"
-                >
-                  Tout réactiver
-                </button>
-              )}
-            </div>
-            
-            {moisDisponibles.map(m => {
-              const isVisible = !excludedMonths.includes(m);
-              return (
-                <button
-                  key={m}
-                  onClick={() => setExcludedMonths(prev => 
-                    prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
-                  )}
-                  // On ajoute cursor-pointer, hover:scale, et des ombres dynamiques
-                  className={`
-                    relative px-3 py-1.5 rounded-xl text-[10px] font-black uppercase 
-                    transition-all duration-200 cursor-pointer select-none
-                    border active:scale-95
-                    ${isVisible 
-                      ? 'bg-[var(--glass-bg)] border-white/20 text-[var(--text-main)] shadow-lg' 
-                      : 'bg-black/20 border-white/5 text-[var(--text-main)]/20 opacity-40 hover:opacity-100'
-                    }
-                    hover:before:absolute hover:before:inset-0 hover:before:bg-[var(--glass-bg)] hover:before:rounded-xl
-                  `}
-                  style={{
-                    borderColor: isVisible ? `${userTheme.color_epargne}60` : '',
-                    boxShadow: isVisible ? `0 4px 12px ${userTheme.color_epargne}30` : '',
-                    // Au survol, on booste la luminosité via le style si besoin
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    {/* Petit point indicateur d'état */}
-                    <div 
-                      className={`w-1.5 h-1.5 rounded-full transition-all ${isVisible ? 'scale-100' : 'scale-50 opacity-0'}`}
-                      style={{ backgroundColor: userTheme.color_epargne }}
-                    />
-                    {m}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+{/* =========================================================================
+          COLONNE DROITE : ANALYSES, EXCLUSIONS & PROJECTIONS (PC - Hauteur stricte No-Scroll)
+          ========================================================================= */}
+      {/* 💡 flex-col h-full overflow-hidden et max-w-[410px] pour un alignement vertical parfait sans scroll */}
+      <div className="flex-[1.2] min-w-[380px] max-w-[410px] flex flex-col bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] p-4 shadow-2xl relative overflow-hidden h-full shrink-0 select-none">
         
         {/* EN-TÊTE DU RÉCAP */}
-        <div className="flex items-center justify-between mb-6 px-2">
+        <div className="flex items-center justify-between mb-3.5 px-2 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-emerald-500/20 rounded-[var(--radius)]">
-              <TrendingUp size={18} className="text-emerald-400" />
+            <div className="p-1.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400">
+              <TrendingUp size={13} />
             </div>
             <div>
-              <h3 className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-[0.2em] italic leading-none">Projections</h3>
-              <p className="text-[8px] text-[var(--text-main)]/20 font-bold uppercase tracking-widest mt-1 italic">Année {filters.annee}</p>
+              <h3 className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-[0.15em] leading-none">Projections</h3>
+              <p className="text-[7.5px] text-[var(--text-main)]/30 font-black uppercase tracking-widest mt-1 italic">Année {filters.annee}</p>
             </div>
           </div>
         </div>
 
-        {/* TABLEAU RÉCAPITULATIF PROJETÉ */}
-        <div className="flex-1 overflow-y-auto p-2 custom-scrollbar min-h-0">
+        {/* 💡 SÉLECTEUR DE MOIS EXCLUSIF EN MICRO-GÉLULES ULTRA DISCRÈTES (Shrink-0) */}
+        {moisDisponibles.length > 0 && (
+          <div className="shrink-0 mb-3 px-1.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[7.5px] font-black text-white/20 uppercase tracking-widest">Exclure de la projection</span>
+              {excludedMonths.length > 0 && (
+                <button 
+                  onClick={() => setExcludedMonths([])}
+                  className="text-[8.5px] font-black text-rose-500/60 hover:text-rose-400 uppercase transition-colors cursor-pointer"
+                >
+                  Réactiver tout
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {moisDisponibles.map(m => {
+                const isVisible = !excludedMonths.includes(m);
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setExcludedMonths(prev => 
+                      prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
+                    )}
+                    className={`
+                      px-1.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-tight
+                      transition-all duration-150 cursor-pointer border active:scale-95
+                      ${isVisible 
+                        ? 'bg-white/[0.02] border-white/5 text-white/40 hover:text-white hover:border-white/10' 
+                        : 'bg-rose-500/10 border-rose-500/20 text-rose-300 font-bold shadow-[0_0_8px_rgba(244,63,94,0.1)]'
+                      }
+                    `}
+                  >
+                    {m.substring(0, 3).toUpperCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ==========================================================
+            TABLEAU RÉCAPITULATIF PROJETÉ (Grille 100% intégrée - No-Scroll)
+            ========================================================== */}
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
           
           {/* EN-TÊTE DES COLONNES */}
-          <div className="grid grid-cols-5 px-4 mb-3">
-            {['Mois', 'Revenus', 'Dépenses', 'Épargne', 'Cumul'].map((h) => (
-              <span key={h} className="text-[8px] font-black uppercase tracking-widest text-[var(--text-main)]/20 last:text-right">
-                {h}
-              </span>
-            ))}
+          <div className="grid grid-cols-12 px-4 mb-2 shrink-0 select-none">
+            <span className="col-span-3 text-[7.5px] font-black uppercase tracking-widest text-white/20">Mois</span>
+            <span className="col-span-2 text-[7.5px] font-black uppercase tracking-widest text-white/20 text-right pr-1">Revenus</span>
+            <span className="col-span-2 text-[7.5px] font-black uppercase tracking-widest text-white/20 text-right pr-1">Dépenses</span>
+            <span className="col-span-2 text-[7.5px] font-black uppercase tracking-widest text-white/20 text-center">Épargne</span>
+            <span className="col-span-3 text-[7.5px] font-black uppercase tracking-widest text-white/20 text-right">Cumul</span>
           </div>
 
-          {/* LISTE DES MOIS */}
-          <div className="space-y-2">
-          {/* Dans ton map du tableau de droite */}
+          {/* LISTE DES 12 MOIS ÉTIRÉE SUR TOUTE LA HAUTEUR SANS SCROLL */}
+          <div className="flex-1 grid grid-rows-12 gap-1 min-h-0 h-full w-full overflow-hidden select-none">
             {recapPrevisionsStats.map((m, i) => {
-              // On considère comme "actif" (non grisé) tout ce qui n'est pas du réel pur passé
               const estInteractif = m.type === 'projeté' || m.type === 'mixte';
               
               return (
                 <div 
                   key={i} 
                   className={`
-                    grid grid-cols-5 items-center px-4 py-4 rounded-[var(--radius)] border 
-                    transition-all duration-300 group backdrop-blur-[var(--glass-blur)]
+                    grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-200 group h-full min-h-0
                     ${estInteractif 
-                      ? 'bg-[var(--glass-bg)] border-white/5 shadow-inner hover:bg-white/[0.06] hover:border-white/10 opacity-100' 
-                      : 'bg-white/[0.01] border-white/[0.02] opacity-40 hover:opacity-70'
+                      ? 'bg-black/20 border-white/5 hover:bg-white/[0.04]' 
+                      : 'bg-white/[0.01] border-transparent opacity-40'
                     }
                     ${m.isMasque ? 'grayscale opacity-20' : ''} 
                   `}
                 >
-                  {/* 1. MOIS & TYPE */}
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/60 transition-colors">
+                  {/* 1. MOIS & TYPE (col-span-3) */}
+                  <div className="col-span-3 flex flex-col justify-center min-h-0">
+                    <span className="text-[10px] font-black uppercase tracking-tighter text-white/40 group-hover:text-white/60 transition-colors leading-none">
                       {m.nom}
                     </span>
-                    <span className="text-[7px] uppercase font-bold text-[var(--text-main)]/10 italic group-hover:text-[var(--text-main)]/20">
+                    <span className="text-[6.5px] uppercase font-bold text-white/20 italic leading-none mt-0.5">
                       {m.type}
                     </span>
                   </div>
 
-                  {/* 2. REVENUS PROJETÉS (Dynamique) */}
+                  {/* 2. REVENUS PROJETÉS (col-span-2 - 2 décimales) */}
                   <div 
-                    className="text-[13px] font-black tracking-tighter transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
-                    style={{ color: m.revenus > 0 ? `${userTheme.color_revenus}e6` : 'rgba(255,255,255,0.1)' }}
+                    className="col-span-2 font-black tracking-tighter text-right pr-1 whitespace-nowrap min-h-0" 
+                    style={{ 
+                      color: m.revenus > 0 ? `${userTheme.color_revenus}e6` : 'rgba(255,255,255,0.06)',
+                      fontSize: isCompact ? '11px' : '11px'
+                    }}
                   >
-                    {m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '—'}
+                    {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                   </div>
 
-                  {/* 3. DÉPENSES PROJETÉES (Dynamique) */}
+                  {/* 3. DÉPENSES PROJETÉES (col-span-2 - 2 décimales) */}
                   <div 
-                    className="text-[13px] font-black tracking-tighter transition-all duration-300 group-hover:brightness-125 group-hover:saturate-150"
-                    style={{ color: m.depenses > 0 ? `${userTheme.color_depenses}e6` : 'rgba(255,255,255,0.1)' }}
+                    className="col-span-2 font-black tracking-tighter text-right pr-1 whitespace-nowrap min-h-0" 
+                    style={{ 
+                      color: m.depenses > 0 ? `${userTheme.color_depenses}e6` : 'rgba(255,255,255,0.06)',
+                      fontSize: isCompact ? '11px' : '11px'
+                    }}
                   >
-                    {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€` : '—'}
+                    {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                   </div>
 
-                  {/* 4. ÉPARGNE / BALANCE (Badge Dynamique) */}
-                  <div>
+                  {/* 4. ÉPARGNE / BALANCE (col-span-2) */}
+                  <div className="col-span-2 flex items-center justify-center min-h-0">
                     <span 
-                      className="inline-block px-2 py-0.5 rounded-lg text-[13px] font-black transition-all duration-300 group-hover:scale-110 group-hover:brightness-110"
+                      className="inline-block rounded-lg font-mono font-black text-center whitespace-nowrap leading-none transition-all" 
                       style={{ 
-                        // Fond à 15% d'opacité, texte plein, et bordure à 20% d'opacité
-                        backgroundColor: `${userTheme.color_epargne}15`,
-                        color: userTheme.color_epargne,
-                        border: `1px solid ${userTheme.color_epargne}20`
+                        backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}12` : `${userTheme.color_depenses}12`, 
+                        color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                        border: `1px solid ${m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses}15`,
+                        fontSize: isCompact ? '10px' : '10px',
+                        padding: isCompact ? '2px 4px' : '3px 6px'
                       }}
                     >
-                      {m.epargne !== 0 ? `${m.epargne > 0 ? '+' : ''}${Math.round(m.epargne)}€` : '0€'}
+                      {m.epargne !== 0 ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0€'}
                     </span>
                   </div>
 
-                  {/* 5. SOLDE TOTAL (CUMUL) */}
-                  <div className="text-right">
-                    <div 
-                      className={`text-[15px] font-black tracking-tighter transition-all duration-500 ${estInteractif ? '' : 'text-[var(--text-main)]/20'}`}
+                  {/* 5. SOLDE TOTAL (col-span-3 - 2 décimales) */}
+                  <div className="col-span-3 text-right flex items-center justify-end min-h-0">
+                    <span 
+                      className="font-mono font-black tracking-tighter leading-none whitespace-nowrap" 
                       style={{ 
-                        color: estInteractif ? userTheme.color_revenus : undefined,
-                        textShadow: estInteractif ? `0 0 15px ${userTheme.color_patrimoine}30` : 'none'
+                        color: estInteractif ? userTheme.color_patrimoine : 'rgba(255,255,255,0.2)',
+                        fontSize: isCompact ? '12px' : '12px'
                       }}
                     >
-                      {m.soldeTotal?.toLocaleString('fr-FR')}
-                      <span className="text-[10px] ml-0.5 opacity-50">€</span>
-                    </div>
+                      {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                    </span>
                   </div>
                 </div>
               );
@@ -13082,96 +13142,70 @@ if (!user) {
           </div>
         </div>
 
-{/* TOTAL FINAL ET JAUGE ÉPARGNE - PROJECTION FIN D'ANNÉE */}
-<div className="mt-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-[var(--radius)] flex flex-col gap-4">
-  
-  {/* SECTION 1 : Les Chiffres Globaux (Ton ancien bloc adapté) */}
-  <div className="flex justify-between items-center">
-    <div className="flex flex-col">
-      <span className="text-[8px] font-black text-emerald-500/40 uppercase italic tracking-widest">
-        Résultat projeté fin {filters.annee}
-      </span>
-      <span className="text-xl font-black text-[var(--text-main)] tracking-tighter">
-        {recapPrevisionsStats && recapPrevisionsStats.length > 0 
-          ? `${recapPrevisionsStats[recapPrevisionsStats.length - 1].soldeTotal?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
-          : "0.00€"
-        }
-      </span>
-    </div>
-    
-    {/* Petit badge indicateur de tendance (Sécurisé pour éviter le NaN/Infinity) */}
-    <div className="h-6 w-6 rounded-full bg-[var(--glass-bg)] border border-white/5 flex items-center justify-center text-[9px] font-black text-[var(--text-main)]/40 italic">
-      {recapPrevisionsStats && recapPrevisionsStats[0]?.soldeTotal !== 0
-        ? `${Math.round(((recapPrevisionsStats[recapPrevisionsStats.length - 1]?.soldeTotal / recapPrevisionsStats[0]?.soldeTotal) - 1) * 100)}%`
-        : "0%"
-      }
-    </div>
-  </div>
-
-  {/* Séparateur subtil */}
-  <div className="h-[1px] w-full bg-white/5" />
-
-  {/* SECTION 2 : La Jauge d'Épargne Prévisionnelle intégrée */}
-  <div className="flex flex-col gap-2">
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex items-center gap-2">
-        {/* Petit badge icône simulation discret */}
-        <div className="w-6 h-6 rounded-lg flex items-center justify-center border border-cyan-500/20 shrink-0"
-        style={{ 
-                        // Fond à 15% d'opacité, texte plein, et bordure à 20% d'opacité
-                        backgroundColor: `${userTheme.color_epargne}15`,
-                        color: userTheme.color_epargne,
-                        border: `1px solid ${userTheme.color_epargne}20`
-                      }}>
-          <span className="text-xs">🏆</span> 
-        </div>
-        <div>
-          <h4 className="text-[var(--text-main)]/40 text-[8px] font-black uppercase tracking-[0.1em] leading-tight">
-            Projection Épargne Annuelle
-          </h4>
-          {objectifAnnuelGlobal > 0 ? (
-            <p className="text-[var(--text-main)] font-black text-sm leading-tight mt-0.5">
-              {Math.floor(statsEpargnePrevisionnelle.montant).toLocaleString('fr-FR')} € 
-              <span className="text-[var(--text-main)]/20 text-[9px] font-medium ml-1">
-                / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
+        {/* 💡 SYNTHÈSE TOTAUX COMPACTE (Resserrée de 40% pour parer au No-Scroll) */}
+        <div className="mt-3.5 p-3 bg-emerald-500/[0.01] border border-emerald-500/10 rounded-2xl flex flex-col gap-2.5 shrink-0 select-none text-[10px]">
+          {/* Section Chiffre global ultra compacte */}
+          <div className="flex justify-between items-center">
+            <div className="flex flex-col">
+              <span className="text-[7.5px] font-black text-emerald-500/40 uppercase italic tracking-wider leading-none mb-1">
+                Résultat projeté fin {filters.annee}
               </span>
-            </p>
-          ) : (
-            <p className="text-[var(--text-main)]/20 font-black text-[10px] uppercase mt-0.5">Objectif non défini</p>
-          )}
-        </div>
-      </div>
+              <span className="text-sm font-black text-white tracking-tighter leading-none">
+                {recapPrevisionsStats && recapPrevisionsStats.length > 0 
+                  ? `${recapPrevisionsStats[recapPrevisionsStats.length - 1].soldeTotal?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€`
+                  : "0.00€"
+                }
+              </span>
+            </div>
+            
+            {/* Tendance */}
+            <div className="h-6.5 w-6.5 rounded-lg bg-black/30 border border-white/5 flex items-center justify-center text-[8px] font-black text-white/40 italic tabular-nums">
+              {recapPrevisionsStats && recapPrevisionsStats[0]?.soldeTotal !== 0
+                ? `${Math.round(((recapPrevisionsStats[recapPrevisionsStats.length - 1]?.soldeTotal / recapPrevisionsStats[0]?.soldeTotal) - 1) * 100)}%`
+                : "0%"
+              }
+            </div>
+          </div>
 
-      {/* Badge % dynamique */}
-      {objectifAnnuelGlobal > 0 && (
-        <div className={`text-[9px] font-black px-1.5 py-0.5 rounded border transition-all duration-300  ${
-          statsEpargnePrevisionnelle.pourcentage >= 100 
-            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(6,182,212,0.05)]'
-        }`}>
-          {statsEpargnePrevisionnelle.pourcentage}%
-        </div>
-      )}
-    </div>
+          <div className="h-[1px] w-full bg-white/[0.02]" />
 
-    {/* La barre de progression fine */}
-    {objectifAnnuelGlobal > 0 && (
-      <div className="mt-0.5">
-        <div className="relative h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-          <div 
-            className="h-full rounded-full transition-all duration-1000 ease-out"
-            style={{ 
-              width: `${Math.min(pourcentageAnnuel, 100)}%`,
-              background: `linear-gradient(90deg, ${userTheme.color_epargne || '#ffffff'}90, ${userTheme.color_epargne || '#f1c40f'})`,
-              boxShadow: `0 0 10px ${(userTheme.color_epargne || '#f1c40f')}33`
-              }}
-          />
-        </div>
-      </div>
-    )}
-  </div>
+          {/* Jauge d'épargne intégrée compactée */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[7.5px] font-black text-white/30 uppercase tracking-wider leading-none">
+                  Projection Épargne Annuelle :
+                </span>
+                {objectifAnnuelGlobal > 0 && (
+                  <span className="text-[10px] font-mono font-black text-white leading-none">
+                    {Math.floor(statsEpargnePrevisionnelle.montant).toLocaleString('fr-FR')}€
+                    <span className="text-white/20 text-[8px] font-medium ml-0.5">/{objectifAnnuelGlobal.toLocaleString('fr-FR')}€</span>
+                  </span>
+                )}
+              </div>
 
-</div>
+              {objectifAnnuelGlobal > 0 && (
+                <div className="text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+                  {statsEpargnePrevisionnelle.pourcentage}%
+                </div>
+              )}
+            </div>
+
+            {/* Jauge fine d'épargne */}
+            {objectifAnnuelGlobal > 0 && (
+              <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                <div 
+                  className="h-full rounded-full transition-all duration-1000 ease-out"
+                  style={{ 
+                    width: `${Math.min(pourcentageAnnuel, 100)}%`,
+                    background: `linear-gradient(90deg, ${userTheme.color_epargne || '#ffffff'}90, ${userTheme.color_epargne || '#f1c40f'})`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
       </div>
         </div>
@@ -16313,6 +16347,77 @@ if (!user) {
   />
 )}
 
+
+
+{/* =========================================================================
+          💡 MODALE UNIFIÉE DE CONFIRMATION (RECONDUCTION MENSUELLE VS ANNUELLE)
+          ========================================================================= */}
+      {duplicateModal.show && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          {/* Calque de fond cliquable pour fermer */}
+          <div className="absolute inset-0" onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} />
+
+          {/* Conteneur de la Modale - Entièrement centré et overflow-visible */}
+          <div className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 overflow-visible">
+            {/* En-tête de la modale */}
+            <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-4">
+              <div>
+                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">
+                  {duplicateType === 'year' ? 'Propagation Annuelle' : 'Reconduire le mois'}
+                </h4>
+                <p className="text-[9px] text-white/30 uppercase font-bold mt-1">
+                  {duplicateType === 'year' ? 'Duplication sur les mois restants' : 'Duplication vers le mois suivant'}
+                </p>
+              </div>
+              <button 
+                onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} 
+                className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Corps de texte dynamique selon l'action demandée */}
+            <div className="space-y-3 mb-6 text-xs text-white/60 leading-relaxed select-none">
+              {duplicateType === 'year' ? (
+                <p>
+                  Voulez-vous propager ces <strong className="text-white">{selectedIds2.length} prévisions sélectionnées</strong> sur l'intégralité des mois restants de l'année <strong className="text-emerald-400">{filters.annee}</strong> (jusqu'à Décembre) ?
+                </p>
+              ) : (
+                <p>
+                  Voulez-vous reconduire {selectedIds2.length > 0 ? `les ${selectedIds2.length} prévisions sélectionnées` : "l'intégralité des prévisions de ce mois"} vers le mois suivant ?
+                </p>
+              )}
+              <p className="text-[10px] text-white/30 italic">
+                Cette action va cloner et adapter automatiquement les dates d'échéance des mouvements correspondants.
+              </p>
+            </div>
+
+            {/* Actions de validation */}
+            <div className="grid grid-cols-2 gap-3">
+              <button 
+                onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} 
+                className="py-2.5 rounded-xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60"
+              >
+                Annuler
+              </button>
+              <button 
+                onClick={() => {
+                  if (duplicateType === 'year') {
+                    confirmPropagateToYear(); // ⚡ Appelle la propagation sur le reste de l'année
+                  } else {
+                    handleConfirmDuplicate(); // 💡 Appelle votre vraie fonction d'origine
+                  }
+                  setDuplicateModal({ show: false, count: 0, isSelection: false });
+                }} 
+                className="py-2.5 rounded-xl bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[var(--primary)]/15 cursor-pointer"
+              >
+                Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
 <style jsx>{`
   @keyframes progress {

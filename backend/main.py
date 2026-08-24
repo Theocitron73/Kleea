@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional
-from typing import List
+from typing import List, Any # 💡 Importez "Any" depuis typing
 import io
 from fastapi import UploadFile, File
 from passlib.context import CryptContext
@@ -31,7 +31,7 @@ import requests
 from urllib.parse import quote
 from fastapi import APIRouter
 import traceback
-
+import calendar
 
 def get_ascii_hostname():
     return "localhost"
@@ -3416,3 +3416,183 @@ def read_powens_transactions(user_token: str):
                 detail="Jeton Powens invalide ou expiré."
             )
         raise HTTPException(status_code=500, detail=error_msg)
+
+
+
+
+class PropagateYearRequest(BaseModel):
+    ids: List[int]
+    utilisateur: Any  # 💡 Accepte une chaîne de caractères OU un dictionnaire/objet
+    mois_actuel: Any  # 💡 Accepte une chaîne ou un entier
+    annee: Any        # 💡 Accepte une chaîne ou un entier
+
+@app.post("/api/previsions/propagate-year")
+def propagate_previsions_year(req: PropagateYearRequest):
+    # 💡 1. DICTIONNAIRE IMBRIQUÉ : Traduction du français en chiffres
+    MONTH_NAME_TO_INT = {
+        "janvier": 1, "jan": 1, "jan.": 1,
+        "fevrier": 2, "fev": 2, "février": 2, "fév.": 2,
+        "mars": 3, "mar": 3, "mar.": 3,
+        "avril": 4, "avr": 4, "avr.": 4,
+        "mai": 5,
+        "juin": 6, "jui": 6, "jui.": 6,
+        "juillet": 7, "juil": 7, "juil.": 7,
+        "aout": 8, "aout.": 8, "août": 8, "août.": 8,
+        "septembre": 9, "sep": 9, "sept": 9, "sept.": 9,
+        "octobre": 10, "oct": 10, "oct.": 10,
+        "novembre": 11, "nov": 11, "nov.": 11,
+        "decembre": 12, "dec": 12, "décembre": 12, "déc.": 12
+    }
+
+    # 💡 2. LISTE IMBRIQUÉE : Traduction des index en noms sans accents
+    MONTH_INT_TO_NAME = [
+        "", "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
+        "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"
+    ]
+
+    # 💡 3. CALCULATEUR IMBRIQUÉ : Dernier jour du mois (sans import)
+    def get_last_day_of_month(year: int, month: int) -> int:
+        if month == 2:
+            is_leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
+            return 29 if is_leap else 28
+        return [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month]
+
+    try:
+        user_clean = req.utilisateur.lower().strip()
+        
+        # 1. AUTO-DÉTECTION DYNAMIQUE DE LA TABLE (previsions ou previsionnel)
+        table_name = "previsions"
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("SELECT 1 FROM previsions LIMIT 1"))
+                table_name = "previsions"
+            except Exception:
+                try:
+                    conn.execute(text("SELECT 1 FROM previsionnel LIMIT 1"))
+                    table_name = "previsionnel"
+                except Exception as e_table:
+                    print("ERREUR DIAGNOSTIQUE TABLE SQL INTROUVABLE")
+                    raise HTTPException(
+                        status_code=500, 
+                        detail=f"La table de prévisions (previsions ou previsionnel) n'a pas pu être trouvée. Erreur SQL : {str(e_table)}"
+                    )
+
+        # 2. AUTO-DÉTECTION DE LA COLONNE DE DÉSIGNATION (nom, libellé ou libelle)
+        column_name = "nom"
+        with engine.connect() as conn:
+            try:
+                conn.execute(text(f"SELECT nom FROM {table_name} LIMIT 1"))
+                column_name = "nom"
+            except Exception:
+                try:
+                    conn.execute(text(f"SELECT libellé FROM {table_name} LIMIT 1"))
+                    column_name = "libellé"
+                except Exception:
+                    try:
+                        conn.execute(text(f"SELECT libelle FROM {table_name} LIMIT 1"))
+                        column_name = "libelle"
+                    except Exception as e_col:
+                        raise HTTPException(
+                            status_code=500, 
+                            detail=f"Impossible d'identifier la colonne de désignation (nom, libellé, libelle) dans la table '{table_name}'. Erreur : {str(e_col)}"
+                        )
+
+        # 3. AUTO-DÉTECTION DE LA COLONNE D'ANNÉE (année ou annee)
+        year_column = "année"
+        with engine.connect() as conn:
+            try:
+                conn.execute(text(f"SELECT année FROM {table_name} LIMIT 1"))
+                year_column = "année"
+            except Exception:
+                try:
+                    conn.execute(text(f"SELECT annee FROM {table_name} LIMIT 1"))
+                    year_column = "annee"
+                except Exception:
+                    year_column = "année"
+
+        # 4. RÉCUPÉRATION DES PRÉVISIONS SOURCES
+        query_fetch = text(f"""
+            SELECT id, date, {column_name} as nom, montant, categorie, compte, actif, utilisateur
+            FROM {table_name} 
+            WHERE id IN :ids AND LOWER(utilisateur) = :u
+        """)
+        
+        with engine.connect() as conn:
+            res = conn.execute(query_fetch, {"ids": tuple(req.ids), "u": user_clean}).mappings().all()
+            previsions_sources = [dict(r) for r in res]
+            
+        if not previsions_sources:
+            raise HTTPException(status_code=404, detail="Aucun mouvement d'origine trouvé pour ces identifiants.")
+
+        # SÉCURISATION DU MOIS
+        mois_raw = str(req.mois_actuel)
+        mois_normalise = mois_raw.lower().strip()
+        mois_normalise = mois_normalise.replace('é', 'e').replace('û', 'u').replace('ô', 'o').replace('è', 'e')
+        
+        if mois_normalise.isdigit():
+            current_month_int = int(mois_normalise)
+        else:
+            current_month_int = MONTH_NAME_TO_INT.get(mois_normalise)
+            if not current_month_int:
+                current_month_int = next((v for k, v in MONTH_NAME_TO_INT.items() if k in mois_normalise), None)
+
+        if not current_month_int:
+            raise HTTPException(status_code=400, detail=f"Mois actuellement non reconnu : {req.mois_actuel}")
+
+        if current_month_int >= 12:
+            return {"status": "success", "inserted_count": 0, "message": "Déjà sur le mois de Décembre."}
+
+        new_rows = []
+        target_year = int(req.annee)
+
+        # 5. BOUCLE DE DUPLICATION DE MASSE
+        for prev in previsions_sources:
+            original_date = prev["date"]
+            if isinstance(original_date, str):
+                dt_orig = date.fromisoformat(original_date.split(" ")[0])
+            else:
+                dt_orig = original_date
+                
+            orig_day = dt_orig.day
+
+            for m_idx in range(current_month_int + 1, 13):
+                try:
+                    target_date = date(target_year, m_idx, orig_day)
+                except ValueError:
+                    last_day = get_last_day_of_month(target_year, m_idx)
+                    target_date = date(target_year, m_idx, last_day)
+
+                target_month_name = MONTH_INT_TO_NAME[m_idx]
+
+                new_rows.append({
+                    "d": target_date,
+                    "n": prev["nom"],
+                    "m": prev["montant"],
+                    "cat": prev["categorie"],
+                    "c": prev["compte"],
+                    "a": prev["actif"],
+                    "u": prev["utilisateur"],
+                    "mois": target_month_name,
+                    "annee": target_year
+                })
+
+        # 6. INSERTION DE MASSE (BULK INSERT) DANS LA BONNE TABLE/COLONNE
+        query_insert = text(f"""
+            INSERT INTO {table_name} (date, {column_name}, montant, categorie, compte, actif, utilisateur, mois, {year_column})
+            VALUES (:d, :n, :m, :cat, :c, :a, :u, :mois, :annee)
+            ON CONFLICT ON CONSTRAINT constraint_prev DO NOTHING
+        """)
+        
+        with engine.begin() as conn:
+            for row in new_rows:
+                conn.execute(query_insert, row)
+                
+        return {"status": "success", "inserted_count": len(new_rows)}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print("====== ERREUR CRASH PROPAGATION ======")
+        traceback.print_exc()
+        print("======================================")
+        raise HTTPException(status_code=500, detail=f"Erreur interne de propagation: {str(e)}")
