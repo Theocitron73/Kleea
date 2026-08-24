@@ -18,7 +18,10 @@
         {
             "label": "run-backend",
             "type": "shell",
-            "command": "cd 'D:\\App finance\\3.0\\backend'; .\\venv\\Scripts\\activate; uvicorn main:app --reload",
+            "options": {
+                "cwd": "${workspaceFolder}/3.0/backend"
+            },
+            "command": ".\\venv\\Scripts\\activate; uvicorn main:app --reload",
             "isBackground": true,
             "presentation": {
                 "group": "server-group",
@@ -29,7 +32,10 @@
         {
             "label": "run-frontend",
             "type": "shell",
-            "command": "cd 'D:\\App finance\\3.0\\frontend'; npm run dev",
+            "options": {
+                "cwd": "${workspaceFolder}/3.0/frontend"
+            },
+            "command": "npm run dev",
             "isBackground": true,
             "presentation": {
                 "group": "server-group",

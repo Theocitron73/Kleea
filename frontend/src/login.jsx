@@ -10732,6 +10732,22 @@ const [visibleAnnuel, setVisibleAnnuel] = useState({
 
 const [showPublicGuide, setShowPublicGuide] = useState(false);
 
+// 💡 AJOUT : Détection de l'écran de PC standard 1080p pour le mode compact
+  const [isCompact, setIsCompact] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const checkScreenSize = () => {
+        const width = window.innerWidth;
+        // Compact uniquement sur écran de bureau classique 1080p (entre 1024px et 1999px)
+        setIsCompact(width >= 1024 && width < 2000);
+      };
+      checkScreenSize();
+      window.addEventListener('resize', checkScreenSize);
+      return () => window.removeEventListener('resize', checkScreenSize);
+    }
+  }, []);
+
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
 const [hiddenComptes, setHiddenComptes] = useState({});
@@ -11669,12 +11685,12 @@ if (!user) {
                 </div>
                   
 
-                {/* COLONNE 2 : RECAP ANNUEL */}
+               {/* COLONNE 2 : RECAP ANNUEL */}
                 <div className="col-span-12 lg:col-span-4 flex flex-col h-[500px] lg:h-full min-h-0">
                   <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-[var(--glass-blur)]">
                     
-               {/* EN-TÊTE FIXE */}
-                <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
+               {/* EN-TÊTE FIXE COMPACTÉ SUR PC POUR GAGNER DE LA HAUTEUR */}
+                <div className="p-4 lg:p-3 xl:p-2.5 shrink-0 border-b border-white/10 flex items-center justify-between select-none">
                   <div className="flex flex-col">
                     <div className="flex items-baseline gap-3">
                       <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
@@ -11687,19 +11703,19 @@ if (!user) {
                       </div>
                     </div>
                     
-                    {/* BARRE VERTE ET SOLDE AU 1ER JANVIER CÔTE À CÔTE */}
-                    <div className="mt-2 flex items-center gap-3">
-                      <div className="h-1 w-12 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] shrink-0" />
+                    {/* BARRE VERTE ET SOLDE AU 1ER JANVIER RESSERRÉS */}
+                    <div className="mt-1.5 flex items-center gap-2.5">
+                      <div className="h-1 w-10 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] shrink-0" />
                       
-                      <div className="flex items-center gap-1.5 leading-none">
-                        <span className="text-[10px] font-bold text-[var(--text-main)]/40 uppercase tracking-wider">
+                      <div className="flex items-center gap-1 leading-none">
+                        <span className="text-[9px] font-bold text-[var(--text-main)]/40 uppercase tracking-wider">
                           Solde 1er janvier :
                         </span>
                         <span 
                           className="text-[12px] font-black tracking-tight"
                           style={{ color: userTheme.color_patrimoine }}
                         >
-                          {soldePremierJanvier.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                          {soldePremierJanvier.toLocaleString('fr-FR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}€
                         </span>
                       </div>
                     </div>
@@ -11749,52 +11765,84 @@ if (!user) {
 
                     {/* CONTENU DYNAMIQUE */}
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
-                      {annualTab === 'list' && (
+                      
+                        {annualTab === 'list' && (
                         <div className="flex flex-col h-full w-full overflow-hidden">
-                          {/* EN-TÊTE DISCRET */}
-                          <div className="grid grid-cols-5 px-6 mb-2 shrink-0">
-                            {['Mois', 'Revenus', 'Dépenses', 'Épargne', 'Cumul'].map((h) => (
-                              <span key={h} className="text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20 last:text-right">
-                                {h}
-                              </span>
-                            ))}
+                          {/* EN-TÊTE DISCRET ALIGNÉ SUR 12 COLONNES */}
+                          <div className="grid grid-cols-12 px-6 mb-2 shrink-0 select-none">
+                            <span className="col-span-3 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Mois</span>
+                            <span className="col-span-2 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Revenus</span>
+                            <span className="col-span-2 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Dépenses</span>
+                            <span className="col-span-2 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Épargne</span>
+                            <span className="col-span-3 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20 text-right">Cumul</span>
                           </div>
 
-                          {/* ZONE STRICTEMENT BRIDÉE AU 1080P */}
-                          <div className="flex-1 grid grid-rows-12 gap-1 min-h-0 h-full w-full overflow-hidden">
+                          {/* ZONE DE GRILLE DES MOIS ADAPTATIVE ET PROTÉGÉE CONTRE LE SCROLL */}
+                          <div className="flex-1 grid grid-rows-12 gap-1 min-h-0 h-full w-full overflow-hidden select-none">
                             {recapAnnuelStats.map((m, i) => (
                               <div 
                                 key={i} 
-                                className="grid grid-cols-5 items-center px-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-xl transition-all duration-200 group h-full min-h-0"
+                                /* Passage en grid-cols-12 pour élargir horizontalement le nom des mois */
+                                className={`grid grid-cols-12 items-center px-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-xl transition-all duration-200 group h-full min-h-0 ${
+                                  isCompact ? 'py-1' : 'py-0.5'
+                                }`}
                               >
-                                {/* MOIS */}
-                                <div className="flex items-center min-h-0">
-                                  <span className="text-[10px] font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors">
+                                {/* MOIS (col-span-3 : Élargi horizontalement à 25% de la largeur totale) */}
+                                <div className="col-span-3 flex items-center min-h-0">
+                                  <span className={`font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors ${
+                                    isCompact ? 'text-xs' : 'text-[10px]'
+                                  }`}>
                                     {m.nom}
                                   </span>
                                 </div>
 
-                                {/* REVENUS */}
-                                <div className="text-[1.5vh] min-[2000px]:text-[1.5vh] font-black tracking-tighter whitespace-nowrap min-h-0" style={{ color: `${userTheme.color_revenus}e6` }}>
-                                  {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : '—'}
+                                {/* REVENUS (col-span-2 - 💡 Changé pour afficher 2 décimales) */}
+                                <div 
+                                  className="col-span-2 font-black tracking-tighter whitespace-nowrap min-h-0 transition-all" 
+                                  style={{ 
+                                    color: `${userTheme.color_revenus}e6`,
+                                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                  }}
+                                >
+                                  {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                 </div>
 
-                                {/* DÉPENSES */}
-                                <div className="text-[1.5vh] min-[2000px]:text-[1.5vh] font-black tracking-tighter whitespace-nowrap min-h-0" style={{ color: `${userTheme.color_depenses}e6` }}>
+                                {/* DÉPENSES (col-span-2 - 💡 Changé pour afficher 2 décimales) */}
+                                <div 
+                                  className="col-span-2 font-black tracking-tighter whitespace-nowrap min-h-0 transition-all" 
+                                  style={{ 
+                                    color: `${userTheme.color_depenses}e6`,
+                                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                  }}
+                                >
                                   {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/5">—</span>}
                                 </div>
 
-                                {/* ÉPARGNE */}
-                                <div className="flex items-center min-h-0">
-                                  <span className="inline-block px-[0.4vw] py-[0.1vh] rounded-full text-[1vh] min-[2000px]:text-[1vh] font-black whitespace-nowrap" style={{ backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses }}>
-                                    {m.epargne !== null ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : '—'}
+                                {/* ÉPARGNE (col-span-2 - 💡 Suppression du Math.round et ajout de 2 décimales) */}
+                                <div className="col-span-2 flex items-center min-h-0">
+                                  <span 
+                                    className="inline-block rounded-full font-black whitespace-nowrap transition-all text-center" 
+                                    style={{ 
+                                      backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
+                                      color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                                      fontSize: isCompact ? '1.35vh' : '1vh', 
+                                      padding: isCompact ? '0.1vh 0.8vw' : '0.1vh 0.4vw'
+                                    }}
+                                  >
+                                    {m.epargne !== null ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                 </div>
 
-                                {/* CUMUL TOTAL */}
-                                <div className="text-right col-span-1 flex items-center justify-end min-h-0">
-                                  <div className="text-[1.7vh] min-[2000px]:text-[1.9vh] font-black tracking-tighter leading-none whitespace-nowrap" style={{ color: userTheme.color_patrimoine }}>
-                                    {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                {/* CUMUL TOTAL (col-span-3 - 💡 Changé pour afficher 2 décimales) */}
+                                <div className="col-span-3 text-right flex items-center justify-end min-h-0">
+                                  <div 
+                                    className="font-black tracking-tighter leading-none whitespace-nowrap transition-all" 
+                                    style={{ 
+                                      color: userTheme.color_patrimoine,
+                                      fontSize: isCompact ? '2.15vh' : '1.7vh' 
+                                    }}
+                                  >
+                                    {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
                                   </div>
                                 </div>
                               </div>
@@ -11814,24 +11862,25 @@ if (!user) {
                         </div>
                       )}
 
-                      {/* NOVEL ONGLET : HEATMAP DE L'ANNÉE */}
-                {annualTab === 'calendar' && (
-                  <CalendarSection 
-                    toutesLesTransactions={toutesLesTransactions}
-                    comptesDuProfil={comptesDuProfil}
-                    filters={filters}
-                    moisListe={moisListe}
-                  />
-                )}
+                      {/* HEATMAP DE L'ANNÉE */}
+                      {annualTab === 'calendar' && (
+                        <CalendarSection 
+                          toutesLesTransactions={toutesLesTransactions}
+                          comptesDuProfil={comptesDuProfil}
+                          filters={filters}
+                          moisListe={moisListe}
+                        />
+                      )}
 
-                {annualTab === 'wrapped' && (
-                  <WrappedSection 
-                    toutesLesTransactions={toutesLesTransactions}
-                    comptesDuProfil={comptesDuProfil}
-                    filters={filters}
-                    moisListe={moisListe}
-                  />
-                )}
+                      {/* RÉTROSPECTIVE WRAPPED */}
+                      {annualTab === 'wrapped' && (
+                        <WrappedSection 
+                          toutesLesTransactions={toutesLesTransactions}
+                          comptesDuProfil={comptesDuProfil}
+                          filters={filters}
+                          moisListe={moisListe}
+                        />
+                      )}
                     </div>
                   </div>
 

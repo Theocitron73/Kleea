@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+sqlalchemy
+pandas
+python-dotenv
+pydantic[email]
+bcrypt==4.0.1
+passlib[bcrypt]==1.7.4
+fastapi-mail
+fpdf
+python-multipart
+cryptography
+psycopg2-binary
+resend
+google-genai
