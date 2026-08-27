@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen 
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -4901,31 +4901,28 @@ export const DemenagementPage = ({ user, toutesLesCategories = [], comptes = [] 
 
 
 
-const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount,setActiveTab }) => {
+const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount, setActiveTab }) => {
+  // ==========================================
+  // 1. DÉCLARATION DE TOUS LES STATES (useState)
+  // ==========================================
   const [profileData, setProfileData] = useState(null);
   const [transactionCount, setTransactionCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
-
-  // État d'ouverture pour la section Powens pliable
   const [isPowensOpen, setIsPowensOpen] = useState(false);
-
-  // États pour l'édition des détails personnels
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editLoading, setEditLoading] = useState(false);
-
-  // États pour le changement de mot de passe
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordStatus, setPasswordStatus] = useState({ type: '', msg: '' });
-
-  // États pour la suppression de compte
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [importMode, setImportMode] = useState(powensData?.import_mode || 'manual');
+
 
   const isAdmin = user?.toLowerCase() === 'theo';
 
@@ -4963,6 +4960,15 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
     }
     fetchProfileAndStats();
   }, [user]);
+
+
+// 1. Ajoutez cet effet pour synchroniser l'affichage dès que profileData est chargé de la BDD :
+useEffect(() => {
+  if (profileData?.import_mode) {
+    setImportMode(profileData.import_mode);
+  }
+}, [profileData]);
+
 
   const handleSaveDetails = async (e) => {
     e.preventDefault();
@@ -5028,6 +5034,26 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
     email: "email@non-configure.fr",
     name: "Utilisateur Kleea"
   } : profileData;
+
+
+
+
+
+// 2. Mettez à jour handleToggleImportMode pour changer également l'état de profileData localement :
+const handleToggleImportMode = async (mode) => {
+  try {
+    await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
+    setImportMode(mode);
+    
+    // 🟢 Mettre à jour l'état local de profileData pour assurer la cohérence
+    setProfileData(prev => prev ? { ...prev, import_mode: mode } : prev);
+    
+    showNotify(`Mode d'import défini sur : ${mode === 'auto' ? 'Automatique' : 'Manuel'} ⚡`, 'success');
+  } catch (err) {
+    console.error("Erreur de mise à jour du mode d'import :", err);
+  }
+};
+
 
   return (
   <div className="max-w-2xl mx-auto space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -5195,6 +5221,43 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
           <span className="text-[10px] font-black text-white/60">Kleea v.3.9</span>
         </div>
       </div>
+
+<div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3">
+  <div className="flex items-center justify-between">
+    <div>
+      <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">
+        Mode d'importation Global
+      </h4>
+      <p className="text-[10px] text-white/40 mt-0.5">
+        Basculez entre l'import automatique Powens et l'import de relevés CSV.
+      </p>
+    </div>
+  </div>
+  
+  <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
+    <button
+      onClick={() => handleToggleImportMode('auto')}
+      className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
+        importMode === 'auto'
+          ? 'bg-[var(--primary)] text-white shadow-lg'
+          : 'text-white/40 hover:text-white'
+      }`}
+    >
+      🔌 Automatique
+    </button>
+    <button
+      onClick={() => handleToggleImportMode('manual')}
+      className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
+        importMode === 'manual'
+          ? 'bg-[var(--primary)] text-white shadow-lg'
+          : 'text-white/40 hover:text-white'
+      }`}
+    >
+      📂 Manuel (CSV)
+    </button>
+  </div>
+</div>
+
     </div>
 
     {/* FORMULAIRE DE MODIFICATION DU MOT DE PASSE */}
@@ -7094,16 +7157,21 @@ const currentKey = activeTab || 'default';
 const filters = filtersByPage[currentKey] || filtersByPage['default'];
 
 // Fonction helper pour mettre à jour les filtres de la page actuelle
+// 🟢 VERSION CORRIGÉE ET SÉCURISÉE :
 const setFilters = (newFiltersOrFn) => {
   setFiltersByPage(prev => {
-    const currentPageFilters = prev[currentKey];
+    // Si l'onglet actif n'a pas de filtres propres (ex: 'importer'), 
+    // on redirige la lecture et l'écriture vers la clé 'default'
+    const keyToUpdate = prev[currentKey] ? currentKey : 'default';
+    const currentPageFilters = prev[keyToUpdate];
+    
     const updatedFields = typeof newFiltersOrFn === 'function' 
       ? newFiltersOrFn(currentPageFilters) 
       : newFiltersOrFn;
 
     const updatedState = {
       ...prev,
-      [currentKey]: {
+      [keyToUpdate]: {
         ...currentPageFilters,
         ...updatedFields
       }
@@ -7116,6 +7184,8 @@ const setFilters = (newFiltersOrFn) => {
     return updatedState;
   });
 };
+
+
   const [deleteModal, setDeleteModal] = useState({ show: false, accountName: null });
   const [toutesLesTransactions, setToutesLesTransactions] = useState([]);
   const [editForm, setEditForm] = useState({});
@@ -7273,20 +7343,25 @@ const showNotify = (msg, type) => {
 };
 
 
-  // Ajoute la fonction pour récupérer les données de la table configuration
-  const fetchComptes = async () => {
-    if (!user) return;
-    try {
-      const res = await api.get(`/config-comptes/${user}`);
-      setComptes(res.data);
-    } catch (err) {
-      console.error("Erreur chargement comptes", err);
-    }
-  };
+const fetchComptes = async () => {
+  if (!user) {
+    setLoading(false);
+    return;
+  }
+  try {
+    const res = await api.get(`/config-comptes/${user}`);
+    setComptes(res.data);
+  } catch (err) {
+    console.error("Erreur chargement comptes", err);
+  } finally {
+    setLoading(false); // 🟢 Désactive l'état de chargement initial
+  }
+};
 
 
 const [selectedType, setSelectedType] = useState("");
 const [compteName, setCompteName] = useState("");
+const [creationPowensName, setCreationPowensName] = useState("");
 
 const typeOptions = [
   { v: "CCP", l: "CCP" },
@@ -7300,7 +7375,6 @@ const typeOptions = [
 const handleAddCompte = async (e) => {
   e.preventDefault();
   
-  // Validation : s'assurer qu'un libellé a bien été tapé après le préfixe
   let finalCompteName = compteName.trim().toUpperCase();
   if (selectedType) {
     const prefix = `${selectedType} - `;
@@ -7310,34 +7384,48 @@ const handleAddCompte = async (e) => {
     }
   }
 
-  // Lecture robuste des éléments du formulaire via leur attribut "name"
   const nouveauCompte = {
     compte: finalCompteName,
     groupe: e.target.elements["compteGroupe"].value.trim().toUpperCase(),
     solde: parseFloat(e.target.elements["compteSolde"].value) || 0,
     taux: parseFloat(e.target.elements["compteTaux"].value) || 0,
-    objectif: 0, // Géré ensuite sur la carte du compte
+    objectif: 0,
     couleur: newCompteColor,
     utilisateur: user,
-    powens_name: null
+    powens_name: creationPowensName || null 
   };
 
   try {
     await api.post(`/config-comptes`, nouveauCompte);
     e.target.reset(); 
-    setCompteName(""); // Réinitialisation locale
-    setSelectedType(""); // Réinitialisation du sélecteur
-    setNewCompteColor("#6366f1"); // Couleur par défaut
+    setCompteName(""); 
+    setSelectedType(""); 
+    setNewCompteColor("#6366f1"); 
+    setCreationPowensName(""); 
     setShowAddPicker(false);
-    fetchComptes();   
-    
-    // 💡 AJOUT : Recalcul et rafraîchissement des virements dynamiques avec le nouveau compte
-    fetchCategories(); 
+    await fetchComptes();   
+    await fetchCategories(); 
+
+    // 🟢 IMPORT IMMÉDIAT LORS DE LA CRÉATION
+    if (importMode === 'auto' && creationPowensName) {
+      setNotification({ message: "Liaison établie. Importation initiale en cours... ⚡", type: "success" });
+      try {
+        await api.post(`/powens/sync-user/${user}`);
+        await api.post(`/powens/recalculate-balances/${user}`);
+        await fetchTransactions();
+        await fetchComptes();
+        setNotification({ message: "Transactions importées et solde calculé avec succès !", type: "success" });
+      } catch (syncErr) {
+        console.error("Échec de l'importation initiale:", syncErr);
+        setNotification({ message: "Erreur lors de l'importation initiale.", type: "error" });
+      } finally {
+        setTimeout(() => setNotification(null), 3000);
+      }
+    }
   } catch (err) {
     alert("Erreur lors de l'ajout");
   }
 };
-
 
 
 
@@ -9283,38 +9371,60 @@ const fetchPowensConnections = useCallback(async () => {
   }
 }, [user]); // Assure-toi que `user` est bien stable ou utilise ses propriétés primitives si besoin
 
-// 🟢 1. GESTION DU CALLBACK REDIRECT DE POWENS AU CHARGEMENT DE LA PAGE
+// 🟢 VERSION SÉCURISÉE CONTRE LE DÉCALAGE ASYNCHRONE :
 useEffect(() => {
   const handlePowensCallback = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const powensCode = urlParams.get('code');
-    const connectionId = urlParams.get('connection_id'); // Renvoyé lors de l'ajout d'un établissement
+    const connectionId = urlParams.get('connection_id');
+
+    if (!powensCode && !connectionId) return; // Si pas de callback Powens, on ne fait rien
 
     const existingToken = localStorage.getItem('powens_user_token');
     const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
 
-    // -------------------------------------------------------------
-    // CAS 1 : L'utilisateur a DÉJÀ un token (Ajout d'une 2e+ banque)
-    // -------------------------------------------------------------
+    // 🟢 Récupération immédiate et prioritaire du mode d'import réel en BDD
+    let actualImportMode = 'manual';
+    try {
+      const profileRes = await api.get(`/profile/${nomUtilisateur}`);
+      if (profileRes.data?.import_mode) {
+        actualImportMode = profileRes.data.import_mode;
+        setImportMode(actualImportMode); // Synchronise l'état local
+      }
+    } catch (e) {
+      console.error("Erreur de pré-chargement du profil pour Powens:", e);
+    }
+
+    // CAS 1 : L'utilisateur a DÉJÀ un token (Ajout d'une autre banque)
     if (existingToken && (powensCode || connectionId)) {
       setNotification({ message: "Nouvel établissement connecté avec succès !", type: "success" });
-
-      setTimeout(() => {
-        setNotification(null); 
-      }, 2000);
+      setTimeout(() => setNotification(null), 2000);
       
-      // Nettoyer l'URL
       window.history.replaceState({}, document.title, window.location.pathname);
-
-      // Recharger la liste des banques
       await fetchPowensConnections();
-      setShowPowensModal(true);
+
+      setActiveTab('comptes'); // 🟢 Redirige vers la configuration des comptes
+
+      if (actualImportMode !== 'auto') {
+        setShowPowensModal(true);
+      } else {
+        // Mode automatique : exécution en arrière-plan et mise à jour
+        try {
+          setIsManualSyncing(true);
+          await api.post(`/powens/sync-user/${nomUtilisateur}`);
+          await api.post(`/powens/recalculate-balances/${nomUtilisateur}`);
+          fetchTransactions();
+          fetchComptes();
+        } catch (err) {
+          console.error("Erreur de synchronisation automatique initiale :", err);
+        } finally {
+          setIsManualSyncing(false);
+        }
+      }
       return;
     }
 
-    // -------------------------------------------------------------
-    // CAS 2 : Tout PREMIER ajout de banque (Pas encore de token)
-    // -------------------------------------------------------------
+    // CAS 2 : Tout PREMIER ajout de banque
     if (powensCode && !existingToken) {
       try {
         const redirectUri = window.location.origin + window.location.pathname;
@@ -9324,11 +9434,8 @@ useEffect(() => {
 
         if (res.data?.access_token) {
           const newToken = res.data.access_token;
-          
-          // Enregistrement du token dans le localStorage
           localStorage.setItem('powens_user_token', newToken);
 
-          // Sauvegarde explicite du token dans la table `users` de la BDD
           if (nomUtilisateur) {
             await api.post('/powens/sauvegarder-token', {
               utilisateur: nomUtilisateur,
@@ -9337,23 +9444,31 @@ useEffect(() => {
           }
 
           setNotification({ message: "Compte bancaire connecté avec succès !", type: "success" });
-          setTimeout(() => {
-            setNotification(null); 
-          }, 2000);
-          
-          // Nettoyer l'URL
+          setTimeout(() => setNotification(null), 2000);
           window.history.replaceState({}, document.title, window.location.pathname);
 
-          // Recharger la liste & ouvrir la modale
           await fetchPowensConnections();
-          setShowPowensModal(true);
+
+          setActiveTab('comptes'); // 🟢 Redirige vers la configuration des comptes
+
+          if (actualImportMode !== 'auto') {
+            setShowPowensModal(true);
+          } else {
+            try {
+              setIsManualSyncing(true);
+              await api.post(`/powens/sync-user/${nomUtilisateur}`);
+              await api.post(`/powens/recalculate-balances/${nomUtilisateur}`);
+              fetchTransactions();
+              fetchComptes();
+            } catch (err) {
+              console.error("Erreur de synchronisation automatique initiale :", err);
+            } finally {
+              setIsManualSyncing(false);
+            }
+          }
         }
       } catch (err) {
         console.error("Erreur lors de l'échange du token Powens:", err);
-        setNotification({ message: "Échec de l'association du compte Powens.", type: "error" });
-        setTimeout(() => {
-          setNotification(null); 
-        }, 3000);
       }
     }
   };
@@ -9368,12 +9483,12 @@ useEffect(() => {
   }
 }, [activeTab, fetchPowensConnections]);
 
-// 🟢 3. ACTION DU BOUTON "SYNCHRONISATION POWENS"
-const handleSyncPowens = async () => {
+// 🟢 Ajout d'un paramètre optionnel 'overrideMode'
+const handleSyncPowens = async (overrideMode = null) => {
+  const activeMode = overrideMode || importMode; // Utilise le mode forcé s'il est fourni, sinon l'état
   const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
   const token = localStorage.getItem('powens_user_token');
 
-  // Si pas de token valide, redirection WebView
   if (!token) {
     setIsSyncingPowens(true);
     try {
@@ -9388,17 +9503,30 @@ const handleSyncPowens = async () => {
       }
     } catch (error) {
       setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
-      setTimeout(() => {
-        setNotification(null); 
-        }, 2000);
-
+      setTimeout(() => setNotification(null), 2000);
     } finally {
       setIsSyncingPowens(false);
     }
   } else {
-    // Si le token existe, rafraîchir d'abord les comptes puis ouvrir la modale
     await fetchPowensConnections();
-    setShowPowensModal(true);
+    
+    if (activeMode === 'auto') {
+      setIsManualSyncing(true);
+      try {
+        await api.post(`/powens/sync-user/${nomUtilisateur}`);
+        await api.post(`/powens/recalculate-balances/${nomUtilisateur}`);
+        await fetchTransactions();
+        await fetchComptes();
+        setNotification({ message: "Comptes synchronisés avec succès ! ⚡", type: "success" });
+        setTimeout(() => setNotification(null), 2500);
+      } catch (err) {
+        console.error("Erreur de synchro silencieuse :", err);
+      } finally {
+        setIsManualSyncing(false);
+      }
+    } else {
+      setShowPowensModal(true);
+    }
   }
 };
 
@@ -9614,10 +9742,8 @@ useEffect(() => {
 
 
 
-// 🟢 ASSOCIATION MANUELLE CORRIGÉE
 const handleAssociateAccount = async (powensAccountName, targetCompte) => {
   try {
-    // Si targetCompte est vide, on cherche le compte qui avait ce powensAccountName pour le retirer
     const targetCompteName = targetCompte || "";
     
     const localCompteObj = targetCompteName
@@ -9634,7 +9760,7 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
       solde: parseFloat(localCompteObj.solde || 0),
       objectif: parseFloat(localCompteObj.objectif || 0),
       couleur: localCompteObj.couleur || "#000000",
-      utilisateur: (localCompteObj.utilisateur || currentUser || "defaut").toLowerCase(),
+      utilisateur: (localCompteObj.utilisateur || user || "defaut").toLowerCase(),
       taux: parseFloat(localCompteObj.taux || 0),
       powens_name: newPowensName
     };
@@ -9644,7 +9770,6 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
       updatedCompte
     );
 
-    // Mettre à jour le state local directement
     if (typeof setComptes === "function") {
       setComptes((prevComptes) =>
         prevComptes.map((c) =>
@@ -9653,11 +9778,23 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
       );
     }
 
-    if (typeof fetchConfigComptes === "function") {
-      await fetchConfigComptes();
+    // 🟢 IMPORT IMMÉDIAT LORS DE LA LIAISON MANUELLE :
+    if (importMode === 'auto' && newPowensName) {
+      setNotification({ message: "Liaison établie. Synchronisation du compte... ⚡", type: "success" });
+      try {
+        await api.post(`/powens/sync-user/${user}`);
+        await api.post(`/powens/recalculate-balances/${user}`);
+        await fetchTransactions();
+        await fetchComptes();
+        setNotification({ message: "Synchronisation et calcul du solde réussis !", type: "success" });
+      } catch (syncErr) {
+        console.error("Échec de la synchronisation:", syncErr);
+        setNotification({ message: "Erreur lors de la synchronisation.", type: "error" });
+      } finally {
+        setTimeout(() => setNotification(null), 3000);
+      }
     }
-    
-    // Relance immédiate après maj du state
+
     setTimeout(() => {
       checkNewTransactions();
     }, 100);
@@ -10796,6 +10933,101 @@ const confirmPropagateToYear = async () => {
 };
 
 
+
+// Ajoutez cet état dans votre composant principal `FinanceApp`
+const [showOnboarding, setShowOnboarding] = useState(false);
+const [loading, setLoading] = useState(true);
+const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+
+// Effet pour détecter si l'utilisateur n'a aucun compte configuré
+useEffect(() => {
+  if (user && comptes.length === 0 && !loading && !onboardingDismissed) {
+    setShowOnboarding(true);
+  }
+}, [comptes, loading, user, onboardingDismissed]); // 🟢 Ajout de onboardingDismissed dans les dépendances
+
+const handleChooseMode = async (mode) => {
+  try {
+    await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
+    setImportMode(mode); 
+    
+    setOnboardingDismissed(true);
+    setShowOnboarding(false);
+    
+    if (mode === 'auto') {
+      const token = localStorage.getItem('powens_user_token');
+      if (token) {
+        // 🟢 Redirection directe si déjà connecté
+        setActiveTab('comptes'); 
+      }
+      handleSyncPowens(mode); 
+    } else {
+      // 🟢 Redirection pour saisie manuelle
+      setActiveTab('comptes'); 
+    }
+  } catch (err) {
+    console.error("Erreur mode onboarding:", err);
+  }
+};
+
+
+const [importMode, setImportMode] = useState('manual');
+
+// Ajoutez cet effet de synchronisation dans FinanceApp
+useEffect(() => {
+  if (user) {
+    api.get(`/profile/${user}`).then(res => {
+      if (res.data?.import_mode) {
+        setImportMode(res.data.import_mode);
+      }
+    });
+  }
+}, [user]);
+
+
+// 🟢 SYNCHRONISATION EN ARRIÈRE-PLAN PLANIFIÉE (TOUTES LES 6 HEURES)
+const performBackgroundSyncIfNeeded = useCallback(async () => {
+  if (!user || importMode !== 'auto') return;
+
+  const token = localStorage.getItem('powens_user_token');
+  if (!token) return;
+
+  const now = Date.now();
+  const lastSyncStr = localStorage.getItem(`last_powens_sync_time_${user}`);
+  const sixHoursInMs = 6 * 60 * 60 * 1000; // 6 heures de battement
+
+  if (!lastSyncStr || (now - parseInt(lastSyncStr, 10)) > sixHoursInMs) {
+    try {
+      // Exécution de la synchronisation et ajustement des soldes de départ
+      await api.post(`/powens/sync-user/${user}`);
+      await api.post(`/powens/recalculate-balances/${user}`);
+      
+      // Enregistrement de l'heure de réussite
+      localStorage.setItem(`last_powens_sync_time_${user}`, now.toString());
+      
+      // Actualisation des données locales à l'écran
+      await fetchTransactions();
+      await fetchComptes();
+    } catch (err) {
+      console.error("Erreur lors de la synchronisation planifiée d'arrière-plan:", err);
+    }
+  }
+}, [user, importMode, fetchTransactions, fetchComptes]);
+
+// Effet pour surveiller et déclencher le cycle de vérification
+useEffect(() => {
+  if (user && importMode === 'auto') {
+    // Vérification immédiate lors de l'ouverture du site
+    performBackgroundSyncIfNeeded();
+
+    // Vérification récurrente toutes les 30 minutes pendant que l'onglet reste ouvert
+    const interval = setInterval(() => {
+      performBackgroundSyncIfNeeded();
+    }, 30 * 60 * 1000);
+
+    return () => clearInterval(interval);
+  }
+}, [user, importMode, performBackgroundSyncIfNeeded]);
 
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
@@ -13064,6 +13296,11 @@ if (!user) {
             {recapPrevisionsStats.map((m, i) => {
               const estInteractif = m.type === 'projeté' || m.type === 'mixte';
               
+              // Création de garde-fous numériques pour éviter les plantages de typage
+              const safeRevenus = m.revenus || 0;
+              const safeDepenses = m.depenses || 0;
+              const safeEpargne = m.epargne || 0;
+
               return (
                 <div 
                   key={i} 
@@ -13076,7 +13313,7 @@ if (!user) {
                     ${m.isMasque ? 'grayscale opacity-20' : ''} 
                   `}
                 >
-                  {/* 1. MOIS & TYPE (col-span-3) */}
+                  {/* 1. MOIS & TYPE */}
                   <div className="col-span-3 flex flex-col justify-center min-h-0">
                     <span className="text-[10px] font-black uppercase tracking-tighter text-white/40 group-hover:text-white/60 transition-colors leading-none">
                       {m.nom}
@@ -13086,45 +13323,54 @@ if (!user) {
                     </span>
                   </div>
 
-                  {/* 2. REVENUS PROJETÉS (col-span-2 - 2 décimales) */}
+                  {/* 2. REVENUS PROJETÉS */}
                   <div 
                     className="col-span-2 font-black tracking-tighter text-right pr-1 whitespace-nowrap min-h-0" 
                     style={{ 
-                      color: m.revenus > 0 ? `${userTheme.color_revenus}e6` : 'rgba(255,255,255,0.06)',
+                      color: safeRevenus > 0 ? `${userTheme.color_revenus}e6` : 'rgba(255,255,255,0.06)',
                       fontSize: isCompact ? '11px' : '11px'
                     }}
                   >
-                    {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                    {m.revenus !== null && m.revenus > 0 
+                      ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
+                      : '—'
+                    }
                   </div>
 
-                  {/* 3. DÉPENSES PROJETÉES (col-span-2 - 2 décimales) */}
+                  {/* 3. DÉPENSES PROJETÉES */}
                   <div 
                     className="col-span-2 font-black tracking-tighter text-right pr-1 whitespace-nowrap min-h-0" 
                     style={{ 
-                      color: m.depenses > 0 ? `${userTheme.color_depenses}e6` : 'rgba(255,255,255,0.06)',
+                      color: safeDepenses > 0 ? `${userTheme.color_depenses}e6` : 'rgba(255,255,255,0.06)',
                       fontSize: isCompact ? '11px' : '11px'
                     }}
                   >
-                    {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                    {m.depenses !== null && m.depenses > 0 
+                      ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
+                      : '—'
+                    }
                   </div>
 
-                  {/* 4. ÉPARGNE / BALANCE (col-span-2) */}
+                  {/* 4. ÉPARGNE / BALANCE */}
                   <div className="col-span-2 flex items-center justify-center min-h-0">
                     <span 
                       className="inline-block rounded-lg font-mono font-black text-center whitespace-nowrap leading-none transition-all" 
                       style={{ 
-                        backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}12` : `${userTheme.color_depenses}12`, 
-                        color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                        border: `1px solid ${m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses}15`,
+                        backgroundColor: safeEpargne >= 0 ? `${userTheme.color_epargne}12` : `${userTheme.color_depenses}12`, 
+                        color: safeEpargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                        border: `1px solid ${safeEpargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses}15`,
                         fontSize: isCompact ? '10px' : '10px',
                         padding: isCompact ? '2px 4px' : '3px 6px'
                       }}
                     >
-                      {m.epargne !== 0 ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0€'}
+                      {m.epargne !== null && m.epargne !== 0 
+                        ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
+                        : '0€'
+                      }
                     </span>
                   </div>
 
-                  {/* 5. SOLDE TOTAL (col-span-3 - 2 décimales) */}
+                  {/* 5. SOLDE TOTAL */}
                   <div className="col-span-3 text-right flex items-center justify-end min-h-0">
                     <span 
                       className="font-mono font-black tracking-tighter leading-none whitespace-nowrap" 
@@ -13133,7 +13379,10 @@ if (!user) {
                         fontSize: isCompact ? '12px' : '12px'
                       }}
                     >
-                      {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                      {m.soldeTotal !== null 
+                        ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` 
+                        : '—'
+                      }
                     </span>
                   </div>
                 </div>
@@ -15306,6 +15555,27 @@ if (!user) {
           className="w-16 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-black placeholder:text-[var(--text-main)]/30" 
         />
 
+{/* GROUPE, SOLDE, TAUX (existant...) */}
+        
+        {/* 🟢 AJOUT DU SÉLECTEUR DE COMPTE RÉEL EN MODE AUTOMATIQUE */}
+        {importMode === 'auto' && (
+          <div className="w-52 shrink-0">
+            <CustomSelect 
+              value={creationPowensName}
+              options={[
+                { v: "", l: "-- Liaison compte réel (Aucun) --" },
+                ...(powensData?.accounts || []).map(acc => ({
+                  v: acc.name,
+                  l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
+                }))
+              ]}
+              onChange={(val) => setCreationPowensName(val)}
+              icon={Building2}
+              className="p-2.5 rounded-[var(--radius)] text-[10px] font-bold uppercase tracking-widest cursor-pointer bg-black/25"
+            />
+          </div>
+        )}
+
         <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10 shrink-0">
           <button
             type="button"
@@ -15333,18 +15603,18 @@ if (!user) {
     </div>
 
     {/* GRILLE DE CARTES COMPTES */}
-    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
-      {comptes.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
-            <div 
-              key={c.compte} 
-              className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col gap-4 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
-              style={{ 
-                backgroundColor: `${c.couleur}80`,
-                backdropFilter: 'blur(12px)',
-              }}
-            >
+      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
+        {comptes.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
+              <div 
+                key={c.compte} 
+                className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col gap-4 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
+                style={{ 
+                  backgroundColor: `${c.couleur}80`,
+                  backdropFilter: 'blur(12px)',
+                }}
+              >
               {/* LIGNE 1 : INFOS ET ACTIONS */}
               <div className="flex justify-between items-start relative">
                 <div className="flex-1 min-w-0">
@@ -15434,6 +15704,30 @@ if (!user) {
                     <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
                   </div>
                 </div>
+
+                {/* 🟢 AJOUT DU BLOC DE SÉLECTION DE COMPTE RÉEL SI LE MODE AUTO EST ACTIF */}
+                  {importMode === 'auto' && (
+                    <div className="mt-2 pt-3 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
+                      <span className="text-[8px] font-black text-white/40 uppercase tracking-widest pl-1 flex items-center gap-1">
+                        <Building2 size={10} className="text-[var(--primary)]" /> Liaison avec un compte réel
+                      </span>
+                      <CustomSelect
+                        value={c.powens_name || ""}
+                        options={[
+                          { v: "", l: "-- Associer aucun compte --" },
+                          ...(powensData?.accounts || []).map(acc => ({
+                            v: acc.name,
+                            l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
+                          }))
+                        ]}
+                        onChange={(selectedValue) => {
+                          handleAssociateAccount(selectedValue, c.compte);
+                        }}
+                        icon={Building2}
+                        className="p-1 px-2.5 rounded-lg text-[9px] bg-black/45 border-white/5"
+                      />
+                    </div>
+                  )}
                 
                 {/* OBJECTIF D'ÉPARGNE */}
                 <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner">
@@ -15490,21 +15784,47 @@ if (!user) {
           ))}
         </div>
       ) : (
-        /* --- ÉTAT VIDE --- */
-        <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
-            <div className="relative w-20 h-20 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center shadow-2xl">
-              <Wallet size={32} className="text-[var(--primary)]/80" />
+         /* --- ÉTAT VIDE AMÉLIORÉ --- */
+          importMode === 'auto' ? (
+            // 🟢 bulle d'information explicative pour le mode automatique
+            <div className="max-w-xl mx-auto flex flex-col items-center justify-center text-center p-8 bg-indigo-500/[0.02] border-2 border-dashed border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-md relative overflow-hidden group">
+              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/0 via-indigo-500/5 to-transparent pointer-events-none" />
+              
+              <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-6 shadow-[0_0_15px_rgba(99,102,241,0.1)]">
+                <HelpCircle size={28} className="text-indigo-400" />
+              </div>
+              
+              <h3 className="text-white font-black text-sm uppercase tracking-widest mb-3">
+                Pourquoi créer un compte Virtuel Kleea ?
+              </h3>
+              
+              <p className="text-[11px] text-white/60 leading-relaxed max-w-sm mb-6 uppercase tracking-tight">
+                Bien que votre banque réelle soit connectée via Powens, Kleea a besoin d'un <strong className="text-indigo-400">compte miroir local</strong> pour y stocker vos écritures synchronisées, projeter vos soldes futurs et héberger vos objectifs d'épargne.
+                <br /><br />
+                Saisissez simplement un nom dans le formulaire ci-dessus (ex: <i>"Compte Courant"</i>) et <strong className="text-indigo-400">associez-le à votre compte réel</strong>. L'application synchronisera le tout automatiquement !
+              </p>
+
+              <div className="flex items-center gap-1.5 text-[9px] font-black text-indigo-400 uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-xl">
+                <Sparkles size={11} className="animate-pulse" /> Saisissez les informations ci-dessus pour commencer
+              </div>
             </div>
-          </div>
-          <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">Aucun compte configuré</h3>
-          <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
-            Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
-          </p>
-        </div>
-      )}
-    </div>
+          ) : (
+            /* --- ÉTAT VIDE MANUEL CLASSIQUE --- */
+            <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
+                <div className="relative w-20 h-20 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center shadow-2xl">
+                  <Wallet size={32} className="text-[var(--primary)]/80" />
+                </div>
+              </div>
+              <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">Aucun compte configuré</h3>
+              <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
+                Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
+              </p>
+            </div>
+          )
+        )}
+      </div>
 
     <style>{`
       .custom-scrollbar::-webkit-scrollbar { width: 3px; }
@@ -15535,6 +15855,10 @@ if (!user) {
         openCalculateurAssistant={openCalculateurAssistant}
         handleColorChange={handleColorChange}
         CustomSelect={CustomSelect}
+        // 🟢 AJOUT POUR LA SYNCHRONISATION MOBILE :
+        importMode={importMode}
+        powensData={powensData}
+        handleAssociateAccount={handleAssociateAccount}
       />
     </div>
   </>
@@ -16419,12 +16743,50 @@ if (!user) {
         </div>
       )}
 
-<style jsx>{`
+
+{showOnboarding && (
+  <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div className="bg-[#111113] border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+      <div className="w-16 h-16 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full flex items-center justify-center mx-auto text-2xl">
+        ✨
+      </div>
+      <div>
+        <h2 className="text-xl font-black uppercase tracking-wider text-white">Bienvenue sur Kleea</h2>
+        <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">Configurez votre espace de gestion</p>
+      </div>
+      
+      <p className="text-xs text-white/60 leading-relaxed">
+        Comment souhaitez-vous importer vos écritures financières sur l'application ? Vous pourrez changer d'avis à tout moment dans votre profil.
+      </p>
+
+      <div className="grid grid-cols-1 gap-3 pt-2">
+        <button
+          onClick={() => handleChooseMode('auto')}
+          className="p-4 bg-[var(--primary)] hover:opacity-90 text-white rounded-2xl flex flex-col items-center gap-1 transition-all group cursor-pointer"
+        >
+          <span className="text-[11px] font-black uppercase tracking-widest">🔌 Synchronisation Automatique</span>
+          <span className="text-[8px] opacity-60 uppercase font-medium">Relevés en temps réel (recommandé)</span>
+        </button>
+
+        <button
+          onClick={() => handleChooseMode('manual')}
+          className="p-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl flex flex-col items-center gap-1 transition-all cursor-pointer"
+        >
+          <span className="text-[11px] font-black uppercase tracking-widest">📂 Mode Manuel (CSV)</span>
+          <span className="text-[8px] opacity-40 uppercase font-medium">Imports de fichiers bancaires manuels</span>
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+<style dangerouslySetInnerHTML={{__html: `
   @keyframes progress {
     from { width: 100%; }
     to { width: 0%; }
   }
-`}</style>
+`}} />
 
 
     </div>  
