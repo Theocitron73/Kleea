@@ -3321,7 +3321,7 @@ async def import_powens(
             )
         raise HTTPException(status_code=500, detail=error_msg)
 
-# 🟢 FILTRAGE STRICT : NE GARDE QUE LA CONNEXION LA PLUS RÉCENTE ET LES COMPTES ACTIFS
+# 🟢 VERSION SÉCURISÉE : IDENTIFICATION STRICTE PAR ID_CONNECTOR (NE MÉLANGE JAMAIS 2 BANQUES)
 @app.get("/powens/connections-and-accounts")
 def get_connections_and_accounts(user_token: str):
     domain = POWENS_DOMAIN.rstrip('/')
@@ -3332,21 +3332,23 @@ def get_connections_and_accounts(user_token: str):
 
     headers = {"Authorization": f"Bearer {user_token}"}
 
-    # 1. Récupération des connexions
-    conn_res = requests.get(f"{domain}/users/me/connections", headers=headers)
+    # 1. 🟢 CRUCIAL : ?expand=connector pour récupérer le connecteur et son nom réel
+    conn_res = requests.get(f"{domain}/users/me/connections?expand=connector", headers=headers)
     connections = conn_res.json().get("connections", []) if conn_res.status_code == 200 else []
 
-    # On ne garde que les connexions non supprimées et on privilégie l'ID le plus grand (la plus récente)
     valid_connections = [c for c in connections if not c.get("deleted")]
     valid_connections.sort(key=lambda x: x.get("id", 0), reverse=True)
 
     unique_connections = {}
     for c in valid_connections:
-        conn_name = c.get("connector", {}).get("name") or c.get("name")
-        # On ne garde que la connexion la plus récente par banque
-        if conn_name not in unique_connections:
-            unique_connections[conn_name] = {
+        # 🟢 On groupe par l'ID technique du connecteur bancaire (ex: LBP != Revolut)
+        connector_id = c.get("id_connector") or (c.get("connector", {}).get("id")) or c.get("id")
+        conn_name = c.get("connector", {}).get("name") or f"Banque #{connector_id}"
+
+        if connector_id not in unique_connections:
+            unique_connections[connector_id] = {
                 "id": c.get("id"),
+                "connector_id": connector_id,
                 "connector_name": conn_name,
                 "state": c.get("state"),
                 "last_update": c.get("last_update")
@@ -3359,25 +3361,20 @@ def get_connections_and_accounts(user_token: str):
     acc_res = requests.get(f"{domain}/users/me/accounts", headers=headers)
     accounts = acc_res.json().get("accounts", []) if acc_res.status_code == 200 else []
 
-    # On ne retient que les comptes rattachés aux connexions actives
     filtered_accounts = []
     seen_account_names = set()
 
-    # On trie les comptes par ID décroissant pour analyser les plus récents d'abord
     accounts.sort(key=lambda x: x.get("id", 0), reverse=True)
 
     for a in accounts:
-        # Ignore les comptes supprimés ou désactivés
         if a.get("deleted") or a.get("disabled"):
             continue
 
         conn_id = a.get("connection_id") or a.get("id_connection")
-        # Ignore les comptes des anciennes connexions fantômes
         if conn_id not in active_conn_ids:
             continue
 
         raw_name = a.get("name", "").strip()
-        # Évite les doublons de même intitulé au sein de la même connexion
         dedup_key = f"{conn_id}_{raw_name.upper()}"
         if dedup_key in seen_account_names:
             continue
@@ -3398,6 +3395,7 @@ def get_connections_and_accounts(user_token: str):
         "accounts_count": len(filtered_accounts),
         "accounts": filtered_accounts
     }
+
 
 class SavePowensTokenRequest(BaseModel):
     utilisateur: str
@@ -3734,7 +3732,7 @@ def build_powens_account_id_to_kleea_map(powens_accounts: list, config_rows: lis
     return mapping
 
 
-# 🟢 1. ROUTE DE VÉRIFICATION EXACTE DES NOUVEAUTÉS
+# 🟢 1. VÉRIFICATION STRICTE DU MOIS EN COURS (ÉLIMINE LES DIZAINES DE MOIS PASSÉS)
 @app.get("/powens/check-sync/{username}")
 def check_sync_status(username: str):
     user_clean = username.lower().strip()
@@ -3771,12 +3769,10 @@ def check_sync_status(username: str):
 
     # Mapping universel ID Powens -> Compte Kleea
     acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, config_rows)
-    print(f"🔍 [CHECK-SYNC] Comptes résolus pour '{user_clean}': {acc_id_to_kleea}")
-
     if not acc_id_to_kleea:
         return {"has_pending": False, "count": 0, "accounts": {}}
 
-    # 3. Répertoire exact des transactions en BDD (Date, Montant au centime, Nom, Compte)
+    # 3. Répertoire exact des transactions en BDD
     with engine.connect() as conn:
         query_existing = text("""
             SELECT date, nom, montant, compte FROM transactions WHERE LOWER(utilisateur) = LOWER(:u)
@@ -3790,18 +3786,26 @@ def check_sync_status(username: str):
             c_val = str(r[3] or "").strip().upper()
             db_existing_set.add((d_str, m_val, n_str, c_val))
 
-    # 4. Détection avec gestion des occurrences #2, #3
+    # 🟢 BORNE DE DATE : Uniquement le mois en cours (ex: depuis le 2026-09-01)
+    now = datetime.now()
+    start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
+
     batch_tracker = {}
     pending_by_account = {}
     total_pending = 0
 
     for tx in powens_txs:
+        raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+        
+        # 🟢 Ignore toutes les transactions des mois antérieurs
+        if raw_date < start_of_current_month:
+            continue
+
         acc_id = str(tx.get("id_account"))
         local_account = acc_id_to_kleea.get(acc_id)
         if not local_account:
             continue
 
-        raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
         montant = round(float(tx.get("value", 0.0)), 2)
         libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
         base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
@@ -3812,18 +3816,30 @@ def check_sync_status(username: str):
 
         nom_final = base_nom if occurrence == 1 else f"{base_nom} #{occurrence}"
 
-        # Vérification d'existence exacte
+        # Vérifications d'existence en BDD
         is_in_db = (raw_date, montant, nom_final.upper(), local_account.upper()) in db_existing_set
-        is_in_db_fallback = (raw_date, montant, libelle_brut.upper(), local_account.upper()) in db_existing_set
+        is_in_db_raw = (raw_date, montant, base_nom.upper(), local_account.upper()) in db_existing_set
+        is_in_db_notest = (raw_date, montant, libelle_brut.upper(), local_account.upper()) in db_existing_set
 
-        if not is_in_db and not is_in_db_fallback:
+        # Vérification intelligente si le libellé avait été légèrement nettoyé lors d'un import précédent
+        is_duplicate = False
+        if not is_in_db and not is_in_db_raw and not is_in_db_notest:
+            cleaned_new = clean_text_for_matching(libelle_brut)
+            for (d_str, m_val, n_str, c_val) in db_existing_set:
+                if d_str == raw_date and abs(m_val - montant) < 0.01 and c_val == local_account.upper():
+                    cleaned_db = clean_text_for_matching(n_str)
+                    if cleaned_new in cleaned_db or cleaned_db in cleaned_new:
+                        is_duplicate = True
+                        break
+
+        if not is_in_db and not is_in_db_raw and not is_in_db_notest and not is_duplicate:
             total_pending += 1
             if local_account not in pending_by_account:
                 pending_by_account[local_account] = {"count": 0, "amount": 0.0}
             pending_by_account[local_account]["count"] += 1
             pending_by_account[local_account]["amount"] = round(pending_by_account[local_account]["amount"] + abs(montant), 2)
 
-    print(f"📊 [CHECK-SYNC] Résultat: {total_pending} transaction(s) en attente pour '{user_clean}'")
+    print(f"📊 [CHECK-SYNC] Mois en cours ({start_of_current_month}) -> {total_pending} transaction(s) en attente pour '{user_clean}'")
     return {
         "has_pending": total_pending > 0,
         "count": total_pending,
@@ -3831,7 +3847,7 @@ def check_sync_status(username: str):
     }
 
 
-# 🟢 2. ROUTE D'IMPORTATION HARMONISÉE
+# 🟢 2. SYNCHRONISATION ALIGNÉE SUR LE MOIS EN COURS
 @app.post("/powens/sync-user/{username}")
 async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
     user_clean = username.lower().strip()
@@ -3863,12 +3879,10 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
 
-    # Mapping universel ID Powens -> Compte Kleea
     acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, config_rows)
     if not acc_id_to_kleea:
         return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
 
-    # Bâtir les tables d'IBANs pour les virements internes
     iban_to_local_name = {}
     number_to_local_name = {}
     for acc in powens_accounts:
@@ -3886,16 +3900,25 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     success_count = 0
     batch_occurrence_tracker = {}
 
+    # 🟢 BORNE DE DATE : Seul le mois en cours est synchronisé
+    now = datetime.now()
+    start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
+
     with engine.connect() as conn:
         for tx in powens_raw:
             try:
+                raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+                
+                # 🟢 Ignore les mois antérieurs
+                if raw_date < start_of_current_month:
+                    continue
+
                 tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
                 local_account_name = acc_id_to_kleea.get(tx_account_id)
                 if not local_account_name:
                     continue
                     
                 montant = float(tx.get("value", 0.0))
-                raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
                 libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
                 base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
                 
@@ -3932,7 +3955,6 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 libelle_lower = libelle_brut.lower()
                 libelle_compact = libelle_brut.upper().replace(" ", "")
                 
-                # Virements internes par IBAN
                 autre_compte_local = None
                 for target_iban, local_name in iban_to_local_name.items():
                     if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
@@ -3953,7 +3975,6 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 if autre_compte_local:
                     cat = f"🔄 Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"🔄 Virement : {autre_compte_local} vers {local_account_name}"
 
-                # Mémoire & mots-clés
                 if cat == "❓ Autre":
                     for m in memoire_rules:
                         if m["nom"].lower() in libelle_lower:
@@ -3971,7 +3992,6 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                                     cat = rule["categorie"]
                                     break
 
-                # Virements externes
                 if cat == "❓ Autre":
                     is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
                     if is_transfer:
@@ -4113,3 +4133,61 @@ def sync_all_users_background(auth_key: str = None):
                 print(f"Échec synchro cron pour {u[0]}: {str(e)}")
                 
     return {"status": "success", "synchronized_users": synced_users}
+
+@app.post("/powens/clean-duplicates/{username}")
+def clean_powens_duplicates(username: str):
+    """
+    Supprime les connexions en doublon pour une MÊME banque,
+    sans jamais toucher aux autres banques.
+    """
+    user_clean = username.lower().strip()
+
+    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+    with engine.connect() as conn:
+        res = conn.execute(query_token, {"u": user_clean}).fetchone()
+        if not res or not res[0]:
+            raise HTTPException(status_code=400, detail="Aucun token Powens.")
+        user_token = res[0]
+
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+
+    headers = {"Authorization": f"Bearer {user_token}"}
+
+    # 🟢 Récupération avec expand
+    res_conn = requests.get(f"{domain}/users/me/connections?expand=connector", headers=headers)
+    connections = res_conn.json().get("connections", []) if res_conn.status_code == 200 else []
+    
+    by_connector = {}
+    for c in connections:
+        # Groupement strict par ID de connecteur
+        connector_id = c.get("id_connector") or (c.get("connector", {}).get("id"))
+        if connector_id not in by_connector:
+            by_connector[connector_id] = []
+        by_connector[connector_id].append(c)
+
+    deleted_ids = []
+    kept_ids = []
+
+    for connector_id, conn_list in by_connector.items():
+        conn_list.sort(key=lambda x: x.get("id", 0), reverse=True)
+        
+        kept = conn_list[0]
+        bank_label = kept.get("connector", {}).get("name") or f"Banque #{connector_id}"
+        kept_ids.append({"id": kept.get("id"), "bank": bank_label})
+
+        # Supprime uniquement les doublons d'une même banque
+        for old in conn_list[1:]:
+            old_id = old.get("id")
+            del_res = requests.delete(f"{domain}/users/me/connections/{old_id}", headers=headers)
+            if del_res.status_code in [200, 204]:
+                deleted_ids.append({"id": old_id, "bank": bank_label})
+
+    return {
+        "status": "success",
+        "deleted_connections": deleted_ids,
+        "kept_connections": kept_ids
+    }
