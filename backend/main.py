@@ -3677,21 +3677,17 @@ def check_is_duplicate(conn, user: str, date_str: str, montant: float, label: st
             
     return False
 
-# 🟢 MODULE AVANCÉ : DÉTECTION DE TRANSFERT PAR COMPARISON D'IBAN & NUMÉROS DE COMPTE POWENS
+# 🟢 MODE AUTO : GESTION DES OCCURRENCES ET INDEXATION #2, #3 SANS CONFLIT SQL
 @app.post("/powens/sync-user/{username}")
 async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
     """
-    Déclenche la récupération de toutes les connexions Powens d'un utilisateur,
-    normalise, déduplique et insère les nouvelles transactions.
-    Détection intelligente des virements croisés par analyse d'IBAN et numéro de compte.
-    Exception automatique pour l'utilisateur "test".
+    Récupère les flux Powens, indexe les doublons légitimes (#2, #3...)
+    et importe l'ensemble des écritures sans bloquer sur la contrainte unique.
     """
     user_clean = username.lower().strip()
-    
-    # Détection automatique de l'utilisateur de test
     is_test_user = (user_clean == "test")
 
-    # 1. Récupérer le token de l'utilisateur
+    # 1. Récupération du token utilisateur
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
@@ -3699,7 +3695,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
             raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
         user_token = res[0]
         
-    # 2. Récupérer les comptes Powens de l'utilisateur
+    # 2. Récupération des comptes Powens (Correspondance ID -> Nom)
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
@@ -3710,13 +3706,11 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     try:
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
         powens_accounts = res_acc.json().get("accounts", [])
-        
-        # Dictionnaire ID de compte -> Nom Powens (ex: {"12345": "MR LEBARBIER THEO"})
         id_to_name = {str(acc["id"]): acc["name"].strip().upper() for acc in powens_accounts if acc.get("id")}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur de récupération des comptes Powens: {str(e)}")
 
-    # 3. Récupérer les configurations de comptes locaux pour faire le lien (Nom Powens -> Nom Kleea)
+    # 3. Récupération du mapping Kleea
     query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
     with engine.connect() as conn:
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
@@ -3725,134 +3719,120 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     if not accounts_map:
         return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
 
-    # 🟢 4. BÂTIR LES DICTIONNAIRES DE CORRESPONDANCE PAR IBAN & NUMÉRO DE COMPTE
+    # 4. Correspondance IBAN / Numéro de compte
     iban_to_local_name = {}
     number_to_local_name = {}
-    
     for acc in powens_accounts:
         p_name = acc.get("name", "").strip().upper()
-        iban = acc.get("iban", "").strip().upper().replace(" ", "")  # Retire les espaces de l'IBAN
-        number = acc.get("number", "").strip().upper().replace(" ", "")  # Retire les espaces du numéro de compte
-        
-        # Si cet établissement Powens est bien associé à un compte local Kleea
+        iban = acc.get("iban", "").strip().upper().replace(" ", "")
+        number = acc.get("number", "").strip().upper().replace(" ", "")
         if p_name in accounts_map:
             local_name = accounts_map[p_name]
-            if iban:
-                iban_to_local_name[iban] = local_name
-            if number:
-                number_to_local_name[number] = local_name
+            if iban: iban_to_local_name[iban] = local_name
+            if number: number_to_local_name[number] = local_name
 
-    # 5. Récupérer les transactions brutes de Powens
+    # 5. Récupération des transactions brutes
     try:
         powens_raw = get_powens_transactions(user_token)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur de communication Powens: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
 
     mots_cles_rules = get_mots_cles_rules(user_clean)
     memoire_rules = get_memoire(user_clean)
-    
     mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
     success_count = 0
+
+    # Suivi du nombre d'occurrences pour chaque combinaison (Date, Montant, Nom de base) dans le lot
+    batch_occurrence_tracker = {}
 
     with engine.connect() as conn:
         for tx in powens_raw:
             try:
-                # Récupérer l'ID de compte depuis la transaction
                 tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
-                if not tx_account_id:
-                    continue
+                if not tx_account_id: continue
                 
-                # Traduire l'ID en Nom de compte
                 powens_acc_name = id_to_name.get(tx_account_id)
-                if not powens_acc_name:
-                    continue
+                if not powens_acc_name: continue
                     
                 acc_name_upper = powens_acc_name.strip().upper()
-                if acc_name_upper not in accounts_map:
-                    continue
+                if acc_name_upper not in accounts_map: continue
                     
                 local_account_name = accounts_map[acc_name_upper]
                 montant = float(tx.get("value", 0.0))
                 raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
-                libelle = tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction"
+                libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
                 
-                # EXCEPTION ANTI-DOUBLON : Sautée uniquement si l'utilisateur est "test"
-                if not is_test_user:
-                    if check_is_duplicate(conn, user_clean, raw_date, montant, libelle):
-                        continue
+                # Base de nom (avec tag [TEST] si applicable)
+                base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
                 
-                # Appliquer l'auto-catégorisation
+                # 🟢 CALCUL DE L'INDEX D'OCCURRENCE (#1, #2, #3...)
+                tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
+                occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
+                batch_occurrence_tracker[tracker_key] = occurrence_in_batch
+                
+                # Libellé final avec suffixe s'il y a plus d'une occurrence
+                if occurrence_in_batch == 1:
+                    nom_final = base_nom
+                else:
+                    nom_final = f"{base_nom} #{occurrence_in_batch}"
+
+                # 🟢 VÉRIFICATION D'EXISTENCE EXACTE EN BASE DE DONNÉES
+                # Si cette occurrence précise existe déjà en BDD, on ne la réinsère pas
+                check_existing_query = text("""
+                    SELECT 1 FROM transactions 
+                    WHERE LOWER(utilisateur) = LOWER(:u) 
+                      AND date = :d 
+                      AND ABS(montant - :m) < 0.001 
+                      AND nom = :n 
+                      AND compte = :co 
+                    LIMIT 1
+                """)
+                already_in_db = conn.execute(check_existing_query, {
+                    "u": user_clean,
+                    "d": raw_date,
+                    "m": montant,
+                    "n": nom_final,
+                    "co": local_account_name
+                }).fetchone()
+
+                if already_in_db:
+                    continue  # Déjà importée lors d'une synchronisation précédente
+
+                # Catégorisation
                 cat = "❓ Autre"
-                libelle_lower = libelle.lower()
+                libelle_lower = libelle_brut.lower()
+                libelle_compact = libelle_brut.upper().replace(" ", "")
                 
-                # Détection de virement (Powens API + Analyse lexicale)
-                is_powens_transfer = (tx.get("type") == "transfer")
-                is_text_transfer = any(k in libelle.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
+                # 1. Détection virement interne
+                autre_compte_local = None
+                for target_iban, local_name in iban_to_local_name.items():
+                    if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
+                        autre_compte_local = local_name
+                        break
                 
-                if is_powens_transfer or is_text_transfer:
-                    autre_compte_local = None
-                    # Compactage du libellé pour la recherche d'IBAN (supprime les espaces et passe en majuscules)
-                    libelle_compact = libelle.upper().replace(" ", "")
-                    
-                    # 🟢 A. RECHERCHE PAR IBAN COÏNCIDENT (Comptes connectés automatiquement)
-                    for target_iban, local_name in iban_to_local_name.items():
-                        if local_name.upper() == local_account_name.upper():
-                            continue # Évite de s'auto-détecter
-                            
-                        if target_iban in libelle_compact:
+                if not autre_compte_local:
+                    for target_number, local_name in number_to_local_name.items():
+                        if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
                             autre_compte_local = local_name
                             break
-                    
-                    # 🟢 B. RECHERCHE PAR NUMÉRO DE COMPTE COÏNCIDENT (Comptes connectés automatiquement)
-                    if not autre_compte_local:
-                        for target_number, local_name in number_to_local_name.items():
-                            if local_name.upper() == local_account_name.upper():
-                                continue
-                                
-                            if target_number in libelle_compact:
-                                autre_compte_local = local_name
-                                break
-                    
-                    # 🟢 C. RECHERCHE DIRECTE DES LIAISONS MANUELLES (ex: IBAN écrit manuellement dans Kleea)
-                    if not autre_compte_local:
-                        for p_name, l_name in accounts_map.items():
-                            if l_name.upper() == local_account_name.upper():
-                                continue
-                            # On nettoie la valeur écrite en BDD pour la comparer à l'écriture bancaire
+                            
+                if not autre_compte_local:
+                    for p_name, l_name in accounts_map.items():
+                        if l_name.upper() != local_account_name.upper():
                             p_name_compact = p_name.replace(" ", "").upper()
                             if p_name_compact and p_name_compact in libelle_compact:
                                 autre_compte_local = l_name
                                 break
 
-                    # 🟢 D. RECHERCHE PAR TEXTE SIMPLE (Fallback en cas de virement externe ou livret non-détecté)
-                    if not autre_compte_local:
-                        for p_name, l_name in accounts_map.items():
-                            if l_name.upper() == local_account_name.upper():
-                                continue
-                            p_name_clean = clean_text_for_matching(p_name)
-                            l_name_clean = clean_text_for_matching(l_name)
-                            libelle_clean = clean_text_for_matching(libelle)
-                            
-                            if (p_name_clean and p_name_clean in libelle_clean) or (l_name_clean and l_name_clean in libelle_clean):
-                                autre_compte_local = l_name
-                                break
-                    
-                    # Attribution de la catégorie de virement finalisée
-                    if autre_compte_local:
-                        if montant < 0:
-                            cat = f"🔄 Virement : {local_account_name} vers {autre_compte_local}"
-                        else:
-                            cat = f"🔄 Virement : {autre_compte_local} vers {local_account_name}"
-                    else:
-                        # Fallback générique
-                        types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL", "LIVRET"]
-                        type_cible = next((t for t in types_epargne if t in libelle.upper()), None)
-                        if type_cible:
-                            cat = f"🔄 Virement : {local_account_name} vers {type_cible}" if montant < 0 else f"🔄 Virement : {type_cible} vers {local_account_name}"
-                        else:
-                            cat = "🔄 Transfert Interne"
-                
-                # RÈGLES DE MÉMOIRE & MOTS-CLÉS CLASSIQUES (si ce n'est pas un virement)
+                if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
+                    types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
+                    type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
+                    if type_cible: autre_compte_local = type_cible
+
+                if autre_compte_local:
+                    cat = f"🔄 Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"🔄 Virement : {autre_compte_local} vers {local_account_name}"
+
+                # 2. Mémoire et mots-clés
                 if cat == "❓ Autre":
                     for m in memoire_rules:
                         if m["nom"].lower() in libelle_lower:
@@ -3870,24 +3850,33 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                                     cat = rule["categorie"]
                                     break
 
-                # Tag [TEST] ajouté uniquement pour l'utilisateur "test"
-                nom_final = f"[TEST] {libelle}" if is_test_user else libelle
+                # 3. Virements externes
+                if cat == "❓ Autre":
+                    is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
+                    if is_transfer:
+                        cat = "🤝 Virements Reçus" if montant > 0 else "💸 Virements envoyé"
 
-                # Insertion
+                # Insertion sans risque de collision unique
                 dt = datetime.strptime(raw_date, "%Y-%m-%d")
                 insert_query = text("""
                     INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte)
                     VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
+                    ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
+                    RETURNING id
                 """)
-                conn.execute(insert_query, {
+                res_insert = conn.execute(insert_query, {
                     "d": raw_date, "n": nom_final, "m": montant, "c": cat,
                     "u": user_clean, "mo": mois_fr[dt.month - 1], "a": dt.year,
                     "co": local_account_name
                 })
-                conn.commit() # Valide la transaction de cette ligne
-                success_count += 1
+                conn.commit()
+
+                if res_insert.fetchone():
+                    success_count += 1
+
             except Exception as line_error:
-                print(f"Erreur d'importation d'une transaction Powens: {line_error}")
+                conn.rollback()
+                print(f"Ligne ignorée : {line_error}")
                 continue
             
     return {"status": "success", "added": success_count}

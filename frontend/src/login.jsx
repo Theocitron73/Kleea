@@ -4901,7 +4901,10 @@ export const DemenagementPage = ({ user, toutesLesCategories = [], comptes = [] 
 
 
 
-const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount, setActiveTab }) => {
+const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount, setActiveTab,
+  importMode,       // 🟢 Ajout
+  setImportMode     // 🟢 Ajout
+}) => {
   // ==========================================
   // 1. DÉCLARATION DE TOUS LES STATES (useState)
   // ==========================================
@@ -4921,10 +4924,12 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
   const [passwordStatus, setPasswordStatus] = useState({ type: '', msg: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [importMode, setImportMode] = useState(powensData?.import_mode || 'manual');
 
 
   const isAdmin = user?.toLowerCase() === 'theo';
+
+
+  
 
   const fetchProfileAndStats = async () => {
     try {
@@ -5039,20 +5044,23 @@ useEffect(() => {
 
 
 
-// 2. Mettez à jour handleToggleImportMode pour changer également l'état de profileData localement :
-const handleToggleImportMode = async (mode) => {
-  try {
-    await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
-    setImportMode(mode);
-    
-    // 🟢 Mettre à jour l'état local de profileData pour assurer la cohérence
-    setProfileData(prev => prev ? { ...prev, import_mode: mode } : prev);
-    
-    showNotify(`Mode d'import défini sur : ${mode === 'auto' ? 'Automatique' : 'Manuel'} ⚡`, 'success');
-  } catch (err) {
-    console.error("Erreur de mise à jour du mode d'import :", err);
-  }
-};
+// 🟢 2. Mise à jour de la fonction de bascule pour actualiser le parent FinanceApp
+  const handleToggleImportMode = async (mode) => {
+    try {
+      await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
+      
+      // 🟢 Met à jour instantanément la variable globale dans toute l'application
+      if (typeof setImportMode === 'function') {
+        setImportMode(mode);
+      }
+      
+      setProfileData(prev => prev ? { ...prev, import_mode: mode } : prev);
+      showNotify(`Mode d'import défini sur : ${mode === 'auto' ? 'Automatique' : 'Manuel'} ⚡`, 'success');
+    } catch (err) {
+      console.error("Erreur de mise à jour du mode d'import :", err);
+    }
+  };
+
 
 
   return (
@@ -5084,181 +5092,188 @@ const handleToggleImportMode = async (mode) => {
       </div>
     </div>
 
-    {/* DÉTAILS DU COMPTE */}
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    
+{/* DÉTAILS DU COMPTE */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+  
+  {/* 1. Informations personnelles (Modifiables) */}
+  <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">
+          Détails Personnels
+        </h4>
+        {!isEditing && (
+          <button 
+            onClick={() => setIsEditing(true)}
+            className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+          >
+            Modifier
+          </button>
+        )}
+      </div>
       
-      {/* Informations personnelles (Modifiables) */}
-      <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">
-              Détails Personnels
-            </h4>
-            {!isEditing && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
-              >
-                Modifier
-              </button>
+      {!isEditing ? (
+        <div className="space-y-2">
+          <div>
+            <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Nom Complet</span>
+            <span className="text-xs font-bold text-white">{data.name}</span>
+          </div>
+          <div>
+            <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Identifiant (Username)</span>
+            <span className="text-xs font-bold text-white/50">@{data.username}</span>
+          </div>
+          <div>
+            <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Adresse E-mail</span>
+            <span className="text-xs font-bold text-white/80 break-all">{data.email}</span>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSaveDetails} className="space-y-2">
+          <div>
+            <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Nom Complet</label>
+            <input 
+              type="text" 
+              value={editName} 
+              onChange={e => setEditName(e.target.value)} 
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
+              required 
+            />
+          </div>
+          <div>
+            <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Identifiant (Non modifiable)</label>
+            <input 
+              type="text" 
+              value={`@${data.username}`} 
+              disabled 
+              className="w-full bg-white/5 border border-white/5 rounded-lg px-2.5 py-1 text-xs font-semibold text-white/30 cursor-not-allowed"
+            />
+          </div>
+          <div>
+            <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Adresse E-mail</label>
+            <input 
+              type="email" 
+              value={editEmail} 
+              onChange={e => setEditEmail(e.target.value)} 
+              className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
+              required 
+            />
+          </div>
+          <div className="flex gap-2 pt-1">
+            <button 
+              type="submit" 
+              disabled={editLoading}
+              className="bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition"
+            >
+              {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
+            </button>
+            <button 
+              type="button" 
+              onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
+              className="bg-white/5 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5"
+            >
+              Annuler
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  </div>
+
+  {/* 2. Sécurité et statut */}
+  <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
+    <div>
+      <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">
+        Sécurité du Coffre
+      </h4>
+      
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
+            {isAdmin ? (
+              <span className="text-[10px] font-black text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
+                Administrateur
+              </span>
+            ) : (
+              <span className="text-[10px] font-black text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
+                Utilisateur
+              </span>
             )}
           </div>
-          
-          {!isEditing ? (
-            <div className="space-y-2">
-              <div>
-                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Nom Complet</span>
-                <span className="text-xs font-bold text-white">{data.name}</span>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Identifiant (Username)</span>
-                <span className="text-xs font-bold text-white/50">@{data.username}</span>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Adresse E-mail</span>
-                <span className="text-xs font-bold text-white/80 break-all">{data.email}</span>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSaveDetails} className="space-y-2">
-              <div>
-                <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Nom Complet</label>
-                <input 
-                  type="text" 
-                  value={editName} 
-                  onChange={e => setEditName(e.target.value)} 
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
-                  required 
-                />
-              </div>
-              <div>
-                <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Identifiant (Non modifiable)</label>
-                <input 
-                  type="text" 
-                  value={`@${data.username}`} 
-                  disabled 
-                  className="w-full bg-white/5 border border-white/5 rounded-lg px-2.5 py-1 text-xs font-semibold text-white/30 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Adresse E-mail</label>
-                <input 
-                  type="email" 
-                  value={editEmail} 
-                  onChange={e => setEditEmail(e.target.value)} 
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-2.5 py-1 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition"
-                  required 
-                />
-              </div>
-              <div className="flex gap-2 pt-1">
-                <button 
-                  type="submit" 
-                  disabled={editLoading}
-                  className="bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition"
-                >
-                  {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
-                  className="bg-white/5 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5"
-                >
-                  Annuler
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
 
-      {/* Sécurité et statut */}
-      <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
-        <div>
-          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">
-            Sécurité du Coffre
-          </h4>
-          
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
-                {isAdmin ? (
-                  <span className="text-[10px] font-black text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
-                    Administrateur
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-black text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
-                    Utilisateur
-                  </span>
-                )}
-              </div>
-
-              <div className="text-right">
-                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Transactions</span>
-                <span className="text-xs font-black text-white bg-white/5 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-white/5 shadow-inner">
-                  {transactionCount}
-                </span>
-              </div>
-            </div>
-            
-            <div className="pt-1">
-              <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Statut du mot de passe</span>
-              <div className="flex items-center justify-between mt-0.5">
-                <span className="text-xs font-bold text-emerald-400">Sécurisé</span>
-                <button 
-                  onClick={() => setShowPasswordForm(!showPasswordForm)}
-                  className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
-                >
-                  {showPasswordForm ? 'Annuler' : 'Changer'}
-                </button>
-              </div>
-            </div>
+          <div className="text-right">
+            <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Transactions</span>
+            <span className="text-xs font-black text-white bg-white/5 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-white/5 shadow-inner">
+              {transactionCount}
+            </span>
           </div>
         </div>
-
-        <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-          <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-          <span className="text-[10px] font-black text-white/60">Kleea v.3.9</span>
+        
+        <div className="pt-1">
+          <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Statut du mot de passe</span>
+          <div className="flex items-center justify-between mt-0.5">
+            <span className="text-xs font-bold text-emerald-400">Sécurisé</span>
+            <button 
+              onClick={() => setShowPasswordForm(!showPasswordForm)}
+              className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+            >
+              {showPasswordForm ? 'Annuler' : 'Changer'}
+            </button>
+          </div>
         </div>
       </div>
+    </div>
 
-<div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3">
-  <div className="flex items-center justify-between">
-    <div>
+    <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+      <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
+      <span className="text-[10px] font-black text-white/60">Kleea v.3.9</span>
+    </div>
+  </div>
+
+  {/* 🟢 3. Mode d'importation Global (md:col-span-2 pour occuper les 2 colonnes en pleine largeur) */}
+  <div className="md:col-span-2 bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    {/* Titre & Description */}
+    <div className="space-y-0.5">
       <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">
         Mode d'importation Global
       </h4>
-      <p className="text-[10px] text-white/40 mt-0.5">
+      <p className="text-[10px] text-white/50 leading-relaxed">
         Basculez entre l'import automatique Powens et l'import de relevés CSV.
       </p>
     </div>
-  </div>
-  
-  <div className="grid grid-cols-2 gap-2 p-1 bg-black/40 rounded-xl border border-white/5">
-    <button
-      onClick={() => handleToggleImportMode('auto')}
-      className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
-        importMode === 'auto'
-          ? 'bg-[var(--primary)] text-white shadow-lg'
-          : 'text-white/40 hover:text-white'
-      }`}
-    >
-      🔌 Automatique
-    </button>
-    <button
-      onClick={() => handleToggleImportMode('manual')}
-      className={`py-2 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${
-        importMode === 'manual'
-          ? 'bg-[var(--primary)] text-white shadow-lg'
-          : 'text-white/40 hover:text-white'
-      }`}
-    >
-      📂 Manuel (CSV)
-    </button>
-  </div>
-</div>
 
+    {/* Sélecteur compact */}
+    <div className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/5 w-fit shrink-0 select-none">
+      <button
+        type="button"
+        onClick={() => handleToggleImportMode('auto')}
+        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+          importMode === 'auto'
+            ? 'bg-[var(--primary)] text-white shadow-md'
+            : 'text-white/40 hover:text-white hover:bg-white/5'
+        }`}
+      >
+        <Zap size={12} className={importMode === 'auto' ? 'text-amber-300 fill-amber-300' : 'opacity-60'} />
+        <span>Automatique</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => handleToggleImportMode('manual')}
+        className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+          importMode === 'manual'
+            ? 'bg-[var(--primary)] text-white shadow-md'
+            : 'text-white/40 hover:text-white hover:bg-white/5'
+        }`}
+      >
+        <FileUp size={12} className={importMode === 'manual' ? 'text-white' : 'opacity-60'} />
+        <span>Manuel (CSV)</span>
+      </button>
     </div>
+  </div>
+
+</div>
 
     {/* FORMULAIRE DE MODIFICATION DU MOT DE PASSE */}
     {showPasswordForm && (
@@ -7343,6 +7358,7 @@ const showNotify = (msg, type) => {
 };
 
 
+// 🟢 CHARGEMENT DES COMPTES & DÉTECTION SÉCURISÉE DU PREMIER ACCÈS
 const fetchComptes = async () => {
   if (!user) {
     setLoading(false);
@@ -7350,11 +7366,19 @@ const fetchComptes = async () => {
   }
   try {
     const res = await api.get(`/config-comptes/${user}`);
-    setComptes(res.data);
+    const userComptes = res.data || [];
+    setComptes(userComptes);
+
+    // 🟢 L'Onboarding ne s'affiche QUE si la BDD confirme que l'utilisateur a 0 compte
+    if (userComptes.length === 0 && !onboardingDismissed) {
+      setShowOnboarding(true);
+    } else {
+      setShowOnboarding(false); // Ferme ou laisse fermé si l'utilisateur a déjà des comptes
+    }
   } catch (err) {
     console.error("Erreur chargement comptes", err);
   } finally {
-    setLoading(false); // 🟢 Désactive l'état de chargement initial
+    setLoading(false);
   }
 };
 
@@ -7503,13 +7527,16 @@ const handleLogin = async (e) => {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('user')
-    setUser(null)
-    // Optionnel : réinitialiser les champs pour la prochaine connexion
-    setLoginName('')
-    setLoginPassword('')
-  }
+const handleLogout = () => {
+  localStorage.removeItem('user');
+  setUser(null);
+  setComptes([]);
+  setShowOnboarding(false);
+  setOnboardingDismissed(false);
+  setLoading(true); // 🟢 Prépare le chargement pour la prochaine connexion
+  setLoginName('');
+  setLoginPassword('');
+};
 
 
 
@@ -9203,11 +9230,9 @@ const transactionsCalculees = useMemo(() => {
 
 const [fileName, setFileName] = useState("");
 
-// --- ÉTAPE 3 : Modifier handleFileUpload ---
+// 🟢 PARSING CSV AVEC NUMÉROTATION DES DOUBLONS (#2, #3...) ET DÉTECTION
 const handleFileUpload = async (file) => {
   if (!file) return;
-
-  // 1. On capture le nom immédiatement pour l'UI
   setFileName(file.name);
   
   const formData = new FormData();
@@ -9221,53 +9246,62 @@ const handleFileUpload = async (file) => {
       { headers: { 'Content-Type': 'multipart/form-data' } }
     );
     
-    const lignesBrutes = response.data; // Les transactions renvoyées par Python
+    const lignesBrutes = response.data;
+    const trackerOccurrences = {};
+    let nbDoublonsDetectes = 0;
 
-    // --- ALGORITHME DE DÉTECTION DES DOUBLONS INTERNES ---
-    const lignesUniques = [];
-    const clesVisitees = new Set();
-    let aDesDoublonsDansLeCsv = false;
+    // Répertoire des transactions existantes en BDD pour comparer
+    const existingDbSet = new Set(
+      (toutesLesTransactions || []).map(t => 
+        `${t.date}_${roundNum(t.montant)}_${t.nom.trim().toUpperCase()}`
+      )
+    );
 
-    lignesBrutes.forEach((t) => {
-      // On crée une empreinte unique pour la ligne (Date + Nom nettoyé + Montant)
-      const cleUnique = `${t.date}-${t.nom.trim().toLowerCase()}-${t.montant}`;
+    function roundNum(val) {
+      return Number(parseFloat(val) || 0).toFixed(2);
+    }
+
+    const lignesTraitees = lignesBrutes.map((t) => {
+      const baseNom = t.nom.trim();
+      const cleGroupe = `${t.date}_${roundNum(t.montant)}_${baseNom.toUpperCase()}`;
       
-      if (!clesVisitees.has(cleUnique)) {
-        clesVisitees.add(cleUnique);
-        lignesUniques.push(t); // On garde cette transaction (première fois qu'on la voit)
-      } else {
-        aDesDoublonsDansLeCsv = true; // C'est un doublon au sein du même fichier !
+      const occurrence = (trackerOccurrences[cleGroupe] || 0) + 1;
+      trackerOccurrences[cleGroupe] = occurrence;
+
+      let nomAjuste = baseNom;
+      let isDuplicate = false;
+
+      if (occurrence > 1) {
+        nomAjuste = `${baseNom} #${occurrence}`;
+        isDuplicate = true;
+        nbDoublonsDetectes++;
+      } else if (existingDbSet.has(cleGroupe)) {
+        // Déjà existant en base de données
+        isDuplicate = true;
+        nbDoublonsDetectes++;
       }
+
+      return {
+        ...t,
+        nom: nomAjuste,
+        isPotentialDuplicate: isDuplicate,
+        duplicateIndex: occurrence
+      };
     });
-    // -----------------------------------------------------
 
-    // 2. On stocke uniquement les transactions uniques pour le tableau
-    setTempTransactions(lignesUniques);
+    setTempTransactions(lignesTraitees);
 
-    // 3. Si on a trouvé des doublons, on prévient l'utilisateur
-    if (aDesDoublonsDansLeCsv) {
+    if (nbDoublonsDetectes > 0) {
       setNotification({ 
-        message: "⚠️ Attention : Des lignes identiques ont été détectées à l'intérieur du fichier CSV. Elles ont été nettoyées automatiquement !", 
+        message: `ℹ️ ${nbDoublonsDetectes} transaction(s) similaire(s) détectée(s) et indexée(s) (#2, #3...). Vérifiez le tableau avant import.`, 
         type: 'success' 
       });
-
-      // Auto-suppression du message après 5 secondes
-      setTimeout(() => {
-        setNotification(null);
-      }, 5000);
+      setTimeout(() => setNotification(null), 4500);
     }
 
   } catch (error) {
     console.error("Erreur import:", error);
-    
-    // Remplacement de l'alert() moche par ta jolie notification si elle existe
-    if (typeof setNotification === 'function') {
-      setNotification({ message: "Erreur lors de l'envoi ou de l'analyse du CSV", type: 'error' });
-    } else {
-      alert("Erreur lors de l'envoi");
-    }
-    
-    // Reset le nom si ça échoue
+    setNotification({ message: "Erreur lors de l'analyse du CSV", type: 'error' });
     setFileName("");
   }
 };
@@ -9629,20 +9663,18 @@ const handleConnectNewBank = async () => {
 const [hasPendingSync, setHasPendingSync] = useState(false);
 const [syncCountByAccount, setSyncCountByAccount] = useState({});
 const [isCheckingSync, setIsCheckingSync] = useState(false);
-
-// 🟢 CHECK SYNC
+const [loading, setLoading] = useState(true);
+// 🟢 CHECK SYNC SÉCURISÉ (Garde toutes les fonctions existantes + corrige le bug d'écart)
 const checkNewTransactions = useCallback(async () => {
   const token = localStorage.getItem("powens_user_token");
 
   // Si pas de token Powens, on arrête silencieusement
   if (!token) {
-    //console.log("ℹ️ [CHECK SYNC] Aucun token Powens trouvé.");
     return;
   }
 
-  // Si les comptes ne sont pas encore chargés depuis le backend
-  if (!comptes || comptes.length === 0) {
-    //console.log("⏳ [CHECK SYNC] En attente du chargement de 'comptes'...");
+  // 🟢 Garde-fou supplémentaire : on attend la fin du chargement initial
+  if (loading || !comptes || comptes.length === 0) {
     return;
   }
 
@@ -9672,18 +9704,17 @@ const checkNewTransactions = useCallback(async () => {
       // Calcul avec la liste des transactions si chargée
       const totalTransactions = (toutesLesTransactions || [])
         .filter((t) => (t.compte || "").trim().toUpperCase() === accountKey)
-        .reduce((sum, t) => sum + parseFloat(t.montant || 0), 0);
+        .reduce((sum, t) => sum + (parseFloat(t.montant) || 0), 0);
 
-      currentSiteBalances[accountKey] = soldeInitial + totalTransactions;
+      currentSiteBalances[accountKey] = Math.round((soldeInitial + totalTransactions) * 100) / 100;
     });
 
     // 3. Comparaison avec Powens
     let hasNewTransactions = false;
     const accountsNeedingSync = {};
-    const debugTable = [];
 
     powensAccounts.forEach((acc) => {
-      const bankBalance = parseFloat(acc.balance || 0);
+      const bankBalance = Math.round(parseFloat(acc.balance || 0) * 100) / 100;
       const powensRawNameUpper = (acc.name || "").trim().toUpperCase();
 
       // 1. Récupération du nom associé sur le site
@@ -9698,8 +9729,8 @@ const checkNewTransactions = useCallback(async () => {
       const hasMatch = siteBalance !== undefined;
       const currentSiteBalance = hasMatch ? siteBalance : 0;
 
-      // 4. Calcul de l'écart
-      const diff = Math.abs(bankBalance - currentSiteBalance);
+      // 4. Calcul de l'écart réel
+      const diff = Math.round(Math.abs(bankBalance - currentSiteBalance) * 100) / 100;
       const isDesynced = !hasMatch || diff > 0.01;
 
       // 🟢 On stocke le montant de l'écart (diff) pour l'afficher sur le bouton
@@ -9707,31 +9738,17 @@ const checkNewTransactions = useCallback(async () => {
         hasNewTransactions = true;
         accountsNeedingSync[siteAccountName] = diff; 
       }
-      /*
-      debugTable.push({
-        "Compte Powens": acc.name,
-        "Compte Associé BDD": siteAccountName,
-        "Solde Powens": `${bankBalance.toFixed(2)} €`,
-        "Solde Actuel Site": hasMatch ? `${currentSiteBalance.toFixed(2)} €` : "Non associé",
-        "Écart": `${diff.toFixed(2)} €`,
-        "Désynchronisé ?": isDesynced ? "❌ OUI" : "✅ OK"
-      });
-      */
     });
-
-    //console.group("🔍 [DEBUG SYNC POWENS] Comparaison Instantanée Globale");
-    //console.table(debugTable);
-    //console.groupEnd();
 
     setHasPendingSync(hasNewTransactions);
     setSyncCountByAccount(accountsNeedingSync);
 
   } catch (err) {
-    //console.error("❌ Erreur checkNewTransactions:", err);
+    // Erreur silencieuse
   } finally {
     setIsCheckingSync(false);
   }
-}, [comptes, toutesLesTransactions]);
+}, [comptes, toutesLesTransactions, loading]);
 
 useEffect(() => {
   if (comptes && comptes.length > 0) {
@@ -10936,7 +10953,7 @@ const confirmPropagateToYear = async () => {
 
 // Ajoutez cet état dans votre composant principal `FinanceApp`
 const [showOnboarding, setShowOnboarding] = useState(false);
-const [loading, setLoading] = useState(true);
+
 const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
 // Effet pour détecter si l'utilisateur n'a aucun compte configuré
@@ -10986,33 +11003,39 @@ useEffect(() => {
 
 
 // 🟢 SYNCHRONISATION EN ARRIÈRE-PLAN PLANIFIÉE (TOUTES LES 6 HEURES)
-const performBackgroundSyncIfNeeded = useCallback(async () => {
-  if (!user || importMode !== 'auto') return;
+const performBackgroundSyncIfNeeded = useCallback(async (forcedMode = null) => {
+  const activeMode = forcedMode || importMode;
+  if (!user || activeMode !== 'auto') return;
 
   const token = localStorage.getItem('powens_user_token');
   if (!token) return;
 
   const now = Date.now();
   const lastSyncStr = localStorage.getItem(`last_powens_sync_time_${user}`);
-  const sixHoursInMs = 6 * 60 * 60 * 1000; // 6 heures de battement
+  const sixHoursInMs = 6 * 60 * 60 * 1000;
 
-  if (!lastSyncStr || (now - parseInt(lastSyncStr, 10)) > sixHoursInMs) {
+  if (!lastSyncStr || (now - parseInt(lastSyncStr, 10)) > sixHoursInMs || forcedMode) {
+    // 🟢 1. Active l'indicateur visuel au démarrage
+    setIsAutoSyncingOnLoad(true);
+
     try {
-      // Exécution de la synchronisation et ajustement des soldes de départ
       await api.post(`/powens/sync-user/${user}`);
       await api.post(`/powens/recalculate-balances/${user}`);
-      
-      // Enregistrement de l'heure de réussite
       localStorage.setItem(`last_powens_sync_time_${user}`, now.toString());
       
-      // Actualisation des données locales à l'écran
       await fetchTransactions();
       await fetchComptes();
+      await fetchPowensConnections();
     } catch (err) {
-      console.error("Erreur lors de la synchronisation planifiée d'arrière-plan:", err);
+      console.error("Erreur lors de la synchronisation d'arrière-plan:", err);
+    } finally {
+      // 🟢 2. Masque l'indicateur avec un léger délai pour confirmer la fin
+      setTimeout(() => {
+        setIsAutoSyncingOnLoad(false);
+      }, 1500);
     }
   }
-}, [user, importMode, fetchTransactions, fetchComptes]);
+}, [user, importMode, fetchTransactions, fetchComptes, fetchPowensConnections]);
 
 // Effet pour surveiller et déclencher le cycle de vérification
 useEffect(() => {
@@ -11032,14 +11055,29 @@ useEffect(() => {
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
 const [hiddenComptes, setHiddenComptes] = useState({});
+
+const [isAutoSyncingOnLoad, setIsAutoSyncingOnLoad] = useState(false);
+
+// 🟢 CHARGEMENT IMMÉDIAT AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
   if (user) {
     fetchTransactions();
-    fetchComptes(); // <--- N'oublie pas d'appeler la fonction ici
-    fetchUserTheme("theo"); // <--- Charge le thème SQL ici
+    fetchComptes();
+    fetchUserTheme("theo");
+    fetchPowensConnections(); // 🟢 Charge les comptes Powens immédiatement dès l'ouverture
     api.get(`/note/${user}`).then(res => setNote(res.data.texte));
+    
+    // 🟢 Récupère le mode d'importation et lance la synchronisation d'arrière-plan si auto
+    api.get(`/profile/${user}`).then(res => {
+      if (res.data?.import_mode) {
+        setImportMode(res.data.import_mode);
+        if (res.data.import_mode === 'auto') {
+          performBackgroundSyncIfNeeded(res.data.import_mode);
+        }
+      }
+    });
   }
-}, [user]);
+}, [user, fetchPowensConnections]);
 
 
 
@@ -14523,51 +14561,52 @@ if (!user) {
                 </div>
               </td>
 
-              <td className="p-4 pr-0 group/name border-b border-white/[0.05] max-w-[300px]">
-                <div className={`flex flex-col border-l-4 transition-all pl-3 py-1 ${
-                  (t.categorie && t.categorie.includes("🔄 Virement")) 
-                    ? "border-[var(--primary)]/50 group-hover/name:border-[var(--primary)]" 
-                    : parseFloat(t.montant) > 0 
-                      ? "border-emerald-500/50 group-hover/name:border-emerald-400" 
-                      : "border-rose-500/50 group-hover/name:border-rose-400"
-                }`}>
-                  <div className="flex items-start gap-2">
-                    <textarea
-                      rows="1"
-                      defaultValue={t.nom}
-                      onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
-                      onInput={handleInput}
-                      ref={(el) => {
-                        if (el) {
-                          el.style.height = "auto";
-                          el.style.height = `${el.scrollHeight}px`;
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          e.target.blur();
-                        }
-                      }}
-                      className="bg-[var(--glass-bg)] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20"
-                      placeholder="Modifier le libellé..."
-                    />
-                    <div className="mt-2 shrink-0">
-                      <Pencil size={12} className="text-[var(--text-main)]/10 group-hover/name:text-[var(--text-main)]/40 transition-colors" />
+              {/* Dans le tableau de l'onglet 'gerer' (Desktop) */}
+                <td className="p-4 pr-0 group/name border-b border-white/[0.05] max-w-[300px]">
+                  <div className={`flex flex-col border-l-4 transition-all pl-3 py-1 ${
+                    (t.categorie && t.categorie.includes("🔄 Virement")) 
+                      ? "border-[var(--primary)]/50 group-hover/name:border-[var(--primary)]" 
+                      : parseFloat(t.montant) > 0 
+                        ? "border-emerald-500/50 group-hover/name:border-emerald-400" 
+                        : "border-rose-500/50 group-hover/name:border-rose-400"
+                  }`}>
+                    <div className="flex items-start gap-2">
+                      <textarea
+                        rows="1"
+                        defaultValue={t.nom}
+                        onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
+                        onInput={handleInput}
+                        className="bg-[var(--glass-bg)] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07]"
+                        placeholder="Modifier le libellé..."
+                      />
+                      
+                      {/* 🟢 PASTILLE D'AVERTISSEMENT SI LE NOM CONTIENT UN '#' */}
+                      {/#\d+$/.test(t.nom) && (
+                        <span 
+                          title="Transaction similaire identifiée avec un index (#). Vous pouvez la renommer ou la supprimer si nécessaire."
+                          className="shrink-0 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[7px] font-black uppercase cursor-help mt-1.5"
+                        >
+                          {t.nom.match(/#\d+$/)[0]}
+                        </span>
+                      )}
+
+                      <div className="mt-2 shrink-0">
+                        <Pencil size={12} className="text-[var(--text-main)]/10 group-hover/name:text-[var(--text-main)]/40 transition-colors" />
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-1.5 ml-1">
+                      <span className="text-[9px] text-[var(--text-main)]/20 uppercase font-black tracking-tighter">{t.compte}</span>
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${
+                        (t.categorie && t.categorie.includes("🔄 Virement"))
+                          ? "bg-[var(--primary)]/10 text-[var(--primary)]/70"
+                          : parseFloat(t.montant) > 0 ? "bg-emerald-500/10 text-emerald-400/70" : "bg-rose-500/10 text-rose-400/70"
+                      }`}>
+                        {(t.categorie && t.categorie.includes("🔄 Virement")) ? "Transfert" : parseFloat(t.montant) > 0 ? "Revenu" : "Dépense"}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-1.5 ml-1">
-                    <span className="text-[9px] text-[var(--text-main)]/20 uppercase font-black tracking-tighter">{t.compte}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${
-                      (t.categorie && t.categorie.includes("🔄 Virement"))
-                        ? "bg-[var(--primary)]/10 text-[var(--primary)]/70"
-                        : parseFloat(t.montant) > 0 ? "bg-emerald-500/10 text-emerald-400/70" : "bg-rose-500/10 text-rose-400/70"
-                    }`}>
-                      {(t.categorie && t.categorie.includes("🔄 Virement")) ? "Transfert" : parseFloat(t.montant) > 0 ? "Revenu" : "Dépense"}
-                    </span>
-                  </div>
-                </div>
-              </td>
+                </td>
 
               <td className="p-4 pl-0 text-right border-b border-white/[0.05] w-32">
                 <span className={`text-[13px] font-black tabular-nums transition-colors ${
@@ -15230,9 +15269,32 @@ if (!user) {
                               
                               <td className="p-4">
                                 <div className="flex items-center gap-2">
-                                  <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[250px]">
+                                  {/* Nom de la transaction */}
+                                  <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[240px]">
                                     {t.nom}
                                   </div>
+
+                                  {/* 🟢 BADGE DOUBLON / OCCURRENCE INDEXÉE (#2, #3...) */}
+                                  {(() => {
+                                    // 1. Détection si le nom contient déjà un index (ex: "PEAGE AUTOROUT #2")
+                                    const matchIndex = t.nom?.match(/#(\d+)/);
+                                    const indexOccurrence = matchIndex ? parseInt(matchIndex[1], 10) : (t.duplicateIndex || 1);
+                                    
+                                    // 2. Vérification si c'est un doublon (soit par le tag, soit par le numéro #2+, soit par le nom)
+                                    const estUnDoublon = t.isPotentialDuplicate || Boolean(matchIndex) || indexOccurrence > 1;
+
+                                    if (!estUnDoublon) return null;
+
+                                    return (
+                                      <span 
+                                        title="Transaction similaire détectée le même jour avec le même montant"
+                                        className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0 flex items-center gap-1 shadow-sm"
+                                      >
+                                        <span>⚠️</span>
+                                        <span>{indexOccurrence > 1 ? `Doublon #${indexOccurrence}` : 'Doublon potentiel'}</span>
+                                      </span>
+                                    );
+                                  })()}
 
                                   {/* Badge indicateur de statut (Déjà importé VS Nouveau) */}
                                   {isImported ? (
@@ -15240,7 +15302,7 @@ if (!user) {
                                       Déjà importé
                                     </span>
                                   ) : (
-                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-300  border border-rose-500/20 shrink-0 flex items-center gap-1">
+                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-300 border border-rose-500/20 shrink-0 flex items-center gap-1">
                                       <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
                                       Nouveau
                                     </span>
@@ -15481,309 +15543,453 @@ if (!user) {
       </span>
     </div>
 
-   {/* FORMULAIRE : CONFIGURATION DES COMPTES */}
-    <div className="z-[900] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
-      <form onSubmit={handleAddCompte} className="flex items-center gap-4">
-        <div className="flex flex-col border-r border-white/10 pr-4 shrink-0">
-          <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-tighter">Nouveau</span>
-          <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
-        </div>
+   {/* FORMULAIRE : CONFIGURATION DES COMPTES (RÉÉQUILIBRÉ) */}
+<div className="z-[900] bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-3 rounded-[var(--radius)] border border-white/10 shadow-lg">
+  <form onSubmit={handleAddCompte} className="flex flex-wrap lg:flex-nowrap items-center gap-2.5">
+    
+    {/* BADGE TITRE */}
+    <div className="flex flex-col border-r border-white/10 pr-3 shrink-0 select-none">
+      <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-tighter">Nouveau</span>
+      <span className="text-[7.5px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
+    </div>
 
-        {/* 💡 INTÉGRATION DE VOTRE CUSTOM SELECT */}
-        <div className="w-52 shrink-0">
-          <CustomSelect 
-            value={selectedType}
-            options={typeOptions}
-            onChange={(type) => {
-              setSelectedType(type);
-              if (type) {
-                setCompteName(`${type} `); // Ajoute le type comme préfixe automatiquement
-              } else {
-                setCompteName("");
-              }
-            }}
-            icon={CreditCard} // Icône de carte bancaire pour illustrer le type
-            className="p-2.5 rounded-[var(--radius)] text-[10px] font-bold uppercase tracking-widest cursor-pointer"
-          />
-        </div>
+    {/* 1. TYPE DE COMPTE (Calibré à w-36 au lieu de w-52) */}
+    <div className="w-36 shrink-0">
+      <CustomSelect 
+        value={selectedType}
+        options={typeOptions}
+        onChange={(type) => {
+          setSelectedType(type);
+          if (type) {
+            setCompteName(`${type} `);
+          } else {
+            setCompteName("");
+          }
+        }}
+        icon={CreditCard}
+        className="h-[38px] p-2 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider cursor-pointer bg-black/30 border-white/10"
+      />
+    </div>
 
-        {/* LE NOM DU COMPTE AVEC LE PRÉFIXE IMPOSSIBLE À MODIFIER */}
-        <input 
-          type="text" 
-          name="compteName"
-          placeholder="NOM DU COMPTE" 
-          value={compteName}
-          onChange={(e) => {
-            let val = e.target.value;
-            if (selectedType) {
-              const prefix = `${selectedType} `;
-              // On empêche la suppression ou la modification du préfixe sélectionné
-              if (!val.startsWith(prefix)) {
-                val = prefix;
-              }
+    {/* 2. NOM DU COMPTE (Largeur prioritaire) */}
+    <div className="flex-[1.4] min-w-[130px]">
+      <input 
+        type="text" 
+        name="compteName"
+        placeholder="NOM DU COMPTE" 
+        value={compteName}
+        onChange={(e) => {
+          let val = e.target.value;
+          if (selectedType) {
+            const prefix = `${selectedType} `;
+            if (!val.startsWith(prefix)) {
+              val = prefix;
             }
-            setCompteName(val);
-          }}
-          className="flex-[1.5] bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" 
-          required 
-        />
+          }
+          setCompteName(val);
+        }}
+        className="w-full h-[38px] bg-black/30 px-3 rounded-xl border border-white/10 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-wider placeholder:text-[var(--text-main)]/20" 
+        required 
+      />
+    </div>
 
-        {/* AUTRES INPUTS */}
-        <input 
-          type="text" 
-          name="compteGroupe"
-          placeholder="GROUPE (PERSO, COMMUN...)" 
-          className="flex-1 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-widest placeholder:text-[var(--text-main)]/20" 
-          required 
-        />
+    {/* 3. GROUPE (PERSO, COMMUN...) */}
+    <div className="flex-1 min-w-[110px]">
+      <input 
+        type="text" 
+        name="compteGroupe"
+        placeholder="GROUPE (PERSO...)" 
+        className="w-full h-[38px] bg-black/30 px-3 rounded-xl border border-white/10 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-wider placeholder:text-[var(--text-main)]/20" 
+        required 
+      />
+    </div>
 
+    {/* 4. SOLDE INITIAL AVEC SYMBOLE € */}
+    <div className="w-24 shrink-0">
+      <div className="flex items-center bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-white/20">
         <input 
           type="number" 
           step="0.01" 
           name="compteSolde"
-          placeholder="SOLDE" 
-          className="w-20 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-bold" 
+          placeholder="0.00" 
+          className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-mono font-bold text-right" 
         />
-        
+        <span className="text-[9px] font-bold text-white/30 ml-1 select-none">€</span>
+      </div>
+    </div>
+
+    {/* 5. TAUX D'INTÉRÊT AVEC SYMBOLE % */}
+    <div className="w-20 shrink-0">
+      <div className="flex items-center bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-white/20">
         <input 
           type="number" 
           step="0.01" 
           min="0" 
           max="100" 
           name="compteTaux"
-          placeholder="TAUX %" 
-          className="w-16 bg-[var(--glass-bg)] p-2.5 rounded-[var(--radius)] border border-white/5 outline-none text-[var(--text-main)] text-[10px] font-black placeholder:text-[var(--text-main)]/30" 
+          placeholder="0.0" 
+          className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-mono font-bold text-right placeholder:text-[var(--text-main)]/20" 
         />
+        <span className="text-[9px] font-bold text-white/30 ml-1 select-none">%</span>
+      </div>
+    </div>
 
-{/* GROUPE, SOLDE, TAUX (existant...) */}
-        
-        {/* 🟢 AJOUT DU SÉLECTEUR DE COMPTE RÉEL EN MODE AUTOMATIQUE */}
-        {importMode === 'auto' && (
-          <div className="w-52 shrink-0">
-            <CustomSelect 
-              value={creationPowensName}
+    {/* 6. LIAISON COMPTE RÉEL / IBAN (BLOC UNIQUE FUSIONNÉ) */}
+    {importMode === 'auto' && (
+      <div className="flex-[1.2] min-w-[170px]">
+        <div className="flex items-center gap-1.5 bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-[var(--primary)]/50 transition-colors">
+          <Building2 size={12} className="text-[var(--primary)] shrink-0 opacity-60" />
+          <input 
+            type="text" 
+            name="creationPowensInput"
+            placeholder="IBAN OU POWENS..." 
+            value={creationPowensName}
+            onChange={(e) => setCreationPowensName(e.target.value.toUpperCase())}
+            className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[9.5px] font-mono font-bold uppercase placeholder:text-[var(--text-main)]/20 truncate" 
+          />
+          {powensData?.accounts?.length > 0 && (
+            <div className="shrink-0">
+              <CustomSelect 
+                value=""
+                options={[
+                  { v: "", l: "-- Liste Powens --" },
+                  ...powensData.accounts.map(acc => ({
+                    v: acc.name,
+                    l: `${acc.name} (${acc.balance}€)`
+                  }))
+                ]}
+                onChange={(val) => {
+                  if (val) setCreationPowensName(val);
+                }}
+                className="p-1 px-2 text-[8px] font-bold bg-white/5 border-white/5 cursor-pointer rounded-lg hover:bg-white/10"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    )}
+
+    {/* 7. TEINTE COULEUR */}
+    <div className="flex flex-col items-center gap-0.5 px-2 border-l border-white/10 shrink-0 select-none">
+      <button
+        type="button"
+        onClick={() => setShowAddPicker(!showAddPicker)}
+        className="p-0.5 bg-black/40 rounded-lg border border-white/20 hover:scale-110 active:scale-95 transition-transform relative cursor-pointer"
+        title="Choisir la couleur"
+      >
+        <div className="w-6 h-6 rounded-md shadow-inner" style={{ backgroundColor: newCompteColor }} />
+      </button>
+      <span className="text-[6.5px] font-black text-[var(--text-main)]/30 uppercase">Teinte</span>
+    </div>
+    
+    {/* 8. BOUTON CRÉER */}
+    <button 
+      type="submit" 
+      className="h-[38px] px-5 bg-white text-black rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-white transition-all shadow-lg active:scale-95 shrink-0 cursor-pointer"
+    >
+      Créer
+    </button>
+
+    {/* COLOR PICKER POPUP */}
+    {showAddPicker && (
+      <div className="absolute z-[1001] top-full mt-2 right-10 shadow-2xl animate-in zoom-in-95">
+        <div className="fixed inset-0 cursor-default" onClick={() => setShowAddPicker(false)} />
+        <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+          <SketchPicker color={newCompteColor} onChange={(color) => setNewCompteColor(color.hex)} disableAlpha />
+        </div>
+      </div>
+    )}
+  </form>
+</div>
+
+
+    {/* GRILLE DE CARTES COMPTES */}
+<div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
+  {comptes.length > 0 ? (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
+        <div 
+          key={c.compte} 
+          className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col justify-between gap-3 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
+          style={{ 
+            backgroundColor: `${c.couleur}80`,
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          {/* LIGNE 1 : INFOS ET ACTIONS */}
+          <div className="flex justify-between items-start relative">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
+              <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1.5 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
+                <Pencil size={10} className="text-[var(--primary)]" />
+                <input 
+                  className="bg-transparent text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-28"
+                  value={c.groupe}
+                  onChange={(e) => {
+                    const newComptes = [...comptes];
+                    newComptes[i].groupe = e.target.value;
+                    setComptes(newComptes);
+                  }}
+                  onBlur={() => handleBlurUpdate(c)}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-4 items-start">
+              <div className="flex flex-col items-center gap-1.5">
+                <button 
+                  onClick={() => setShowPicker(showPicker === i ? null : i)}
+                  className="w-7 h-7 rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90 cursor-pointer"
+                  style={{ backgroundColor: c.couleur }}
+                />
+                <span className="text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
+              </div>
+
+              <button 
+                onClick={() => openDeleteModal(c.compte)} 
+                className="p-2.5 rounded-[var(--radius)] bg-rose-500/20 text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-[var(--text-main)] transition-all duration-300 shadow-xl border border-rose-500/40 cursor-pointer"
+                title="Supprimer le compte"
+              >
+                <Trash2 size={18} />
+              </button>
+            </div>
+          </div>
+
+          {/* LIGNE 2 : LES 3 METRIQUES SUR UNE SEULE LIGNE NETTE */}
+          <div className="grid grid-cols-3 gap-2">
+            
+            {/* 1. SOLDE INITIAL */}
+            <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner relative flex flex-col justify-between">
+              <div className="flex justify-between items-center mb-1">
+                <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
+                <button 
+                  onClick={() => openCalculateurAssistant(c)} 
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--primary)]/40 border border-[var(--primary)] text-[var(--text-main)] hover:scale-105 active:scale-95 transition-all text-[8px] font-black uppercase tracking-wider cursor-pointer"
+                  title="Ajuster le solde de départ"
+                >
+                  <Wand2 size={10} strokeWidth={3} />
+                  <span>Ajuster</span>
+                </button>
+              </div>
+              <div className="flex items-center gap-0.5">
+                <input 
+                  type="text"
+                  className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
+                  value={c.solde}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (/^[0-9.,-]*$/.test(val) || val === "") {
+                      const newComptes = [...comptes];
+                      newComptes[i].solde = val;
+                      setComptes(newComptes);
+                    }
+                  }}
+                  onBlur={() => {
+                    let finalValue = c.solde;
+                    if (typeof finalValue === 'string') finalValue = finalValue.replace(',', '.').trim();
+                    const numericValue = parseFloat(finalValue);
+                    const newComptes = [...comptes];
+                    if (!isNaN(numericValue)) {
+                      const roundedValue = Math.round(numericValue * 100) / 100;
+                      newComptes[i].solde = roundedValue;
+                      setComptes(newComptes);
+                      handleBlurUpdate({ ...c, solde: roundedValue });
+                    } else {
+                      newComptes[i].solde = 0;
+                      setComptes(newComptes);
+                      handleBlurUpdate({ ...c, solde: 0 });
+                    }
+                  }}
+                />
+                <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+              </div>
+            </div>
+
+            {/* 2. OBJECTIF D'ÉPARGNE */}
+            <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner flex flex-col justify-between">
+              <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif</p>
+              <div className="flex items-center gap-0.5">
+                <input 
+                  type="number"
+                  className="bg-transparent text-xs font-black text-[var(--text-main)]/70 outline-none w-full"
+                  value={c.objectif}
+                  onChange={(e) => {
+                    const newComptes = [...comptes];
+                    newComptes[i].objectif = parseFloat(e.target.value) || 0;
+                    setComptes(newComptes);
+                  }}
+                  onBlur={() => handleBlurUpdate(c)}
+                />
+                <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+              </div>
+            </div>
+
+            {/* 3. TAUX D'INTÉRÊT */}
+            <div className="bg-black/20 p-2 rounded-[var(--radius)] border border-emerald-500/10 shadow-inner flex flex-col justify-between">
+              <p className="text-[8px] font-black text-[var(--text-main)]/50 uppercase mb-1 tracking-tighter">Taux intérêts</p>
+              <div className="flex items-center gap-0.5">
+                <input 
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="100"
+                  placeholder="0.00"
+                  className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
+                  value={c.taux || ""}
+                  onChange={(e) => {
+                    const newComptes = [...comptes];
+                    newComptes[i].taux = parseFloat(e.target.value) || 0;
+                    setComptes(newComptes);
+                  }}
+                  onBlur={() => handleBlurUpdate(c)}
+                />
+                <span className="text-[10px] font-black text-[var(--text-main)]/40">%</span>
+              </div>
+            </div>
+
+          </div>
+
+{/* LIGNE 3 : LIAISON COMPTE RÉEL / IBAN (CLARTÉ : CHOIX POWENS OU IBAN) */}
+{importMode === 'auto' && (
+  <div className="pt-2.5 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
+    <div className="flex justify-between items-center px-1">
+      <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
+        <Building2 size={10} className="text-[var(--primary)]" /> Liaison pour synchronisation
+      </span>
+    </div>
+
+    {(() => {
+      // 1. Est-il lié à un compte Powens connecté ?
+      const isLinkedToPowens = (powensData?.accounts || []).some(
+        acc => acc.name.trim().toUpperCase() === (c.powens_name || "").trim().toUpperCase()
+      );
+
+      // 2. Est-il lié via un IBAN manuel (ex: LEP non connecté) ?
+      const isManualIban = !isLinkedToPowens && Boolean(c.powens_name);
+
+      // CAS 1 : Compte connecté via Powens
+      if (isLinkedToPowens) {
+        return (
+          <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <div className="flex items-center gap-2 truncate pr-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_#34d399]" />
+              <div className="flex flex-col truncate">
+                <span className="text-[10px] font-black text-emerald-300 uppercase truncate">
+                  {c.powens_name}
+                </span>
+                <span className="text-[7px] text-emerald-400/60 font-bold uppercase tracking-wider">
+                  Banque connectée
+                </span>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => handleAssociateAccount("", c.compte)}
+              className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
+              title="Dissocier ce compte"
+            >
+              Délier
+            </button>
+          </div>
+        );
+      }
+
+      // CAS 2 : Compte avec IBAN manuel enregistré
+      if (isManualIban) {
+        return (
+          <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+            <div className="flex items-center gap-2 truncate pr-2">
+              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_#818cf8]" />
+              <div className="flex flex-col truncate">
+                <span className="text-[9.5px] font-mono font-bold text-indigo-200 truncate uppercase">
+                  {c.powens_name}
+                </span>
+                <span className="text-[7px] text-indigo-400/60 font-bold uppercase tracking-wider">
+                  IBAN manuel enregistré
+                </span>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={() => {
+                const updated = { ...c, powens_name: null };
+                handleBlurUpdate(updated);
+              }}
+              className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
+              title="Supprimer cet IBAN"
+            >
+              Retirer
+            </button>
+          </div>
+        );
+      }
+
+      // CAS 3 : Non lié -> Choix explicite (Soit Powens, SOIT IBAN)
+      return (
+        <div className="flex flex-col gap-1.5 pt-0.5">
+          {/* OPTION A : Sélection depuis la banque connectée */}
+          {powensData?.accounts?.length > 0 && (
+            <CustomSelect
+              value=""
               options={[
-                { v: "", l: "-- Liaison compte réel (Aucun) --" },
-                ...(powensData?.accounts || []).map(acc => ({
+                { v: "", l: "🏦 Lier un compte Powens connecté..." },
+                ...powensData.accounts.map(acc => ({
                   v: acc.name,
                   l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
                 }))
               ]}
-              onChange={(val) => setCreationPowensName(val)}
+              onChange={(selectedValue) => {
+                if (selectedValue) handleAssociateAccount(selectedValue, c.compte);
+              }}
               icon={Building2}
-              className="p-2.5 rounded-[var(--radius)] text-[10px] font-bold uppercase tracking-widest cursor-pointer bg-black/25"
+              className="p-1.5 px-2.5 rounded-lg text-[8.5px] bg-black/40 border-white/5 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
             />
-          </div>
-        )}
+          )}
 
-        <div className="flex flex-col items-center gap-1 px-2 border-l border-white/10 shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowAddPicker(!showAddPicker)}
-            className="p-0.5 bg-[var(--glass-bg)] rounded-lg border border-white/20 hover:scale-110 transition-transform relative"
-          >
-            <div className="w-7 h-7 rounded-md shadow-inner" style={{ backgroundColor: newCompteColor }} />
-          </button>
-          <span className="text-[7px] font-black text-[var(--text-main)]/30 uppercase">Teinte</span>
-        </div>
-        
-        <button type="submit" className="px-6 py-2.5 bg-white text-black rounded-[var(--radius)] font-black uppercase text-[10px] tracking-widest hover:bg-emerald-500 hover:text-[var(--text-main)] transition-all shadow-lg active:scale-95 shrink-0">
-          Créer
-        </button>
-
-        {showAddPicker && (
-          <div className="absolute z-[1001] top-full mt-2 right-10 shadow-2xl animate-in zoom-in-95">
-            <div className="fixed inset-0" onClick={() => setShowAddPicker(false)} />
-            <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
-              <SketchPicker color={newCompteColor} onChange={(color) => setNewCompteColor(color.hex)} disableAlpha />
+          {/* Séparateur visuel OU */}
+          {powensData?.accounts?.length > 0 && (
+            <div className="flex items-center gap-2 px-1 my-0.5">
+              <div className="h-px flex-1 bg-white/5" />
+              <span className="text-[7px] font-black uppercase text-white/20 tracking-widest">OU</span>
+              <div className="h-px flex-1 bg-white/5" />
             </div>
-          </div>
-        )}
-      </form>
+          )}
+
+          {/* OPTION B : Saisie d'un IBAN manuel (pour les comptes non connectés) */}
+          <input
+            type="text"
+            placeholder="Coller l'IBAN si compte non connecté (ex: FR49...)"
+            defaultValue=""
+            onBlur={(e) => {
+              const val = e.target.value.trim().toUpperCase();
+              if (val) {
+                const updated = { ...c, powens_name: val };
+                handleBlurUpdate(updated);
+              }
+            }}
+            className="w-full bg-black/40 border border-white/5 focus:border-[var(--primary)]/50 rounded-lg px-2.5 py-1.5 text-[8.5px] font-mono text-white placeholder:text-white/20 outline-none transition-all uppercase"
+          />
+        </div>
+      );
+    })()}
+  </div>
+)}
+
+          {/* COLOR PICKER (POPOVER) */}
+          {showPicker === i && (
+            <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
+              <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
+              <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
+                <SketchPicker color={c.couleur} onChange={(color) => handleColorChange(i, color)} disableAlpha />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
-
-    {/* GRILLE DE CARTES COMPTES */}
-      <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
-        {comptes.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
-              <div 
-                key={c.compte} 
-                className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col gap-4 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
-                style={{ 
-                  backgroundColor: `${c.couleur}80`,
-                  backdropFilter: 'blur(12px)',
-                }}
-              >
-              {/* LIGNE 1 : INFOS ET ACTIONS */}
-              <div className="flex justify-between items-start relative">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
-                  <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1.5 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
-                    <Pencil size={10} className="text-[var(--primary)]" />
-                    <input 
-                      className="bg-transparent text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-28"
-                      value={c.groupe}
-                      onChange={(e) => {
-                        const newComptes = [...comptes];
-                        newComptes[i].groupe = e.target.value;
-                        setComptes(newComptes);
-                      }}
-                      onBlur={() => handleBlurUpdate(c)}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-4 items-start">
-                  <div className="flex flex-col items-center gap-1.5">
-                    <button 
-                      onClick={() => setShowPicker(showPicker === i ? null : i)}
-                      className="w-7 h-7 rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90"
-                      style={{ backgroundColor: c.couleur }}
-                    />
-                    <span className="text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
-                  </div>
-
-                  <button 
-                    onClick={() => openDeleteModal(c.compte)} 
-                    className="p-2.5 rounded-[var(--radius)] bg-rose-500/20 text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-[var(--text-main)] transition-all duration-300 shadow-xl border border-rose-500/40"
-                    title="Supprimer le compte"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-
-              {/* LIGNE 2 : DATA EXTENSION GRILLE À 3 COLONNES */}
-              <div className="grid grid-cols-3 gap-2">
-                {/* SOLDE INITIAL */}
-                <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner relative">
-                  <div className="flex justify-between items-center mb-1">
-                    <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
-                    
-                    {/* 💡 CORRECTION DESKTOP : Assistant mis en valeur avec un badge de texte explicite "Ajuster" */}
-                    <button 
-                      onClick={() => openCalculateurAssistant(c)} 
-                      className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--primary)]/40 border border-[var(--primary)] text-[var(--text-main)] hover:scale-105 active:scale-95 transition-all text-[8px] font-black uppercase tracking-wider cursor-pointer"
-                      title="Ajuster le solde de départ à une date précise"
-                    >
-                      <Wand2 size={10} strokeWidth={3} />
-                      <span>Ajuster</span>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-0.5">
-                    <input 
-                      type="text"
-                      className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
-                      value={c.solde}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (/^[0-9.,-]*$/.test(val) || val === "") {
-                          const newComptes = [...comptes];
-                          newComptes[i].solde = val;
-                          setComptes(newComptes);
-                        }
-                      }}
-                      onBlur={() => {
-                        let finalValue = c.solde;
-                        if (typeof finalValue === 'string') finalValue = finalValue.replace(',', '.').trim();
-                        const numericValue = parseFloat(finalValue);
-                        const newComptes = [...comptes];
-                        if (!isNaN(numericValue)) {
-                          const roundedValue = Math.round(numericValue * 100) / 100;
-                          newComptes[i].solde = roundedValue;
-                          setComptes(newComptes);
-                          handleBlurUpdate({ ...c, solde: roundedValue });
-                        } else {
-                          newComptes[i].solde = 0;
-                          setComptes(newComptes);
-                          handleBlurUpdate({ ...c, solde: 0 });
-                        }
-                      }}
-                    />
-                    <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
-                  </div>
-                </div>
-
-                {/* 🟢 AJOUT DU BLOC DE SÉLECTION DE COMPTE RÉEL SI LE MODE AUTO EST ACTIF */}
-                  {importMode === 'auto' && (
-                    <div className="mt-2 pt-3 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
-                      <span className="text-[8px] font-black text-white/40 uppercase tracking-widest pl-1 flex items-center gap-1">
-                        <Building2 size={10} className="text-[var(--primary)]" /> Liaison avec un compte réel
-                      </span>
-                      <CustomSelect
-                        value={c.powens_name || ""}
-                        options={[
-                          { v: "", l: "-- Associer aucun compte --" },
-                          ...(powensData?.accounts || []).map(acc => ({
-                            v: acc.name,
-                            l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
-                          }))
-                        ]}
-                        onChange={(selectedValue) => {
-                          handleAssociateAccount(selectedValue, c.compte);
-                        }}
-                        icon={Building2}
-                        className="p-1 px-2.5 rounded-lg text-[9px] bg-black/45 border-white/5"
-                      />
-                    </div>
-                  )}
-                
-                {/* OBJECTIF D'ÉPARGNE */}
-                <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner">
-                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif</p>
-                  <div className="flex items-center gap-0.5">
-                    <input 
-                      type="number"
-                      className="bg-transparent text-xs font-black text-[var(--text-main)]/70 outline-none w-full"
-                      value={c.objectif}
-                      onChange={(e) => {
-                        const newComptes = [...comptes];
-                        newComptes[i].objectif = parseFloat(e.target.value) || 0;
-                        setComptes(newComptes);
-                      }}
-                      onBlur={() => handleBlurUpdate(c)}
-                    />
-                    <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
-                  </div>
-                </div>
-
-                {/* 💡 NOUVEAU BLOC : LE RENDEMENT DU TAUX D'INTÉRÊT EN DIRECT */}
-                <div className="bg-black/20 p-2 rounded-[var(--radius)] border border-emerald-500/10 shadow-inner">
-                  <p className="text-[8px] font-black text-[var(--text-main)]/50 uppercase mb-1 tracking-tighter">taux d'interets</p>
-                  <div className="flex items-center gap-0.5">
-                    <input 
-                      type="number"
-                      step="0.05"
-                      min="0"
-                      max="100"
-                      placeholder="0.00"
-                      className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
-                      value={c.taux || ""}
-                      onChange={(e) => {
-                        const newComptes = [...comptes];
-                        newComptes[i].taux = parseFloat(e.target.value) || 0;
-                        setComptes(newComptes);
-                      }}
-                      onBlur={() => handleBlurUpdate(c)}
-                    />
-                    <span className="text-[10px] font-black text-[var(--text-main)]/40">%</span>
-                  </div>
-                </div>
-              </div>
-
-              {showPicker === i && (
-                <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
-                  <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
-                  <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
-                    <SketchPicker color={c.couleur} onChange={(color) => handleColorChange(i, color)} disableAlpha />
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
+  ) : (
          /* --- ÉTAT VIDE AMÉLIORÉ --- */
           importMode === 'auto' ? (
             // 🟢 bulle d'information explicative pour le mode automatique
@@ -16124,6 +16330,9 @@ if (!user) {
     syncCountByAccount={syncCountByAccount}
     handleAssociateAccount={handleAssociateAccount}
     setActiveTab={setActiveTab}
+    // 🟢 AJOUT DES PROPS DE SYNCHRONISATION :
+    importMode={importMode}
+    setImportMode={setImportMode}
   />
 )}
 
@@ -16152,6 +16361,28 @@ if (!user) {
         userTheme={userTheme} 
         setUserTheme={setUserTheme} 
       />
+
+      {/* 🟢 INDICATEUR DE SYNCHRONISATION AUTOMATIQUE EN COURS AU DÉMARRAGE */}
+      {isAutoSyncingOnLoad && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/85 backdrop-blur-xl border border-indigo-500/30 text-white shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
+            {/* Animation spinner et point pulsant */}
+            <div className="relative flex items-center justify-center">
+              <span className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
+            </div>
+
+            <div className="flex flex-col text-left">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5 leading-none">
+                <span>Synchronisation automatique</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
+              </span>
+              <span className="text-[8px] font-bold text-white/50 uppercase tracking-widest leading-none mt-1">
+                Actualisation des comptes et écritures...
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
      
 
       {deleteModal.show && (

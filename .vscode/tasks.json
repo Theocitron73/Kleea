@@ -19,7 +19,7 @@
             "label": "run-backend",
             "type": "shell",
             "options": {
-                "cwd": "${workspaceFolder}/3.0/backend"
+                "cwd": "${workspaceFolder}/backend"
             },
             "command": ".\\venv\\Scripts\\activate; uvicorn main:app --reload",
             "isBackground": true,
@@ -33,7 +33,7 @@
             "label": "run-frontend",
             "type": "shell",
             "options": {
-                "cwd": "${workspaceFolder}/3.0/frontend"
+                "cwd": "${workspaceFolder}/frontend"
             },
             "command": "npm run dev",
             "isBackground": true,
