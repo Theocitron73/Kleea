@@ -5227,7 +5227,7 @@ useEffect(() => {
 
     <div className="pt-2 border-t border-white/5 flex items-center justify-between">
       <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-      <span className="text-[10px] font-black text-white/60">Kleea v.3.9</span>
+      <span className="text-[10px] font-black text-white/60">Kleea v.4.0</span>
     </div>
   </div>
 
@@ -10614,7 +10614,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "3.9"; 
+const CURRENT_VERSION = "4.0"; 
 
 useEffect(() => {
   if (!user) return;
@@ -11371,7 +11371,7 @@ if (!user) {
               <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-                    Kleea <span className="text-[var(--primary)]">v.3.9</span>
+                    Kleea <span className="text-[var(--primary)]">v.{CURRENT_VERSION}</span>
                   </span>
                   <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
                     Stable Build
@@ -16805,23 +16805,23 @@ if (!user) {
   <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
     
     {/* Conteneur de la modale */}
-    <div className="w-full max-w-xl bg-slate-900/90 border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden transform transition-all scale-100">
+    <div className="w-full max-w-xl bg-slate-900/95 border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden transform transition-all scale-100">
       
       {/* Effets de lumière néon en tâche de fond */}
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-amber-500/10 blur-2xl rounded-full" />
-      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-cyan-500/10 blur-2xl rounded-full" />
+      <div className="absolute -top-12 -right-12 w-24 h-24 bg-indigo-500/10 blur-2xl rounded-full" />
+      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-emerald-500/10 blur-2xl rounded-full" />
 
       {/* En-tête */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-cyan-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(245,158,11,0.15)]">
-          <span className="text-xl">🚀</span>
+        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
+          <span className="text-xl">⚡</span>
         </div>
         <div>
-          <span className="text-[8px] font-black text-amber-400 uppercase tracking-[0.2em] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+          <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
             Mise à jour v{CURRENT_VERSION}
           </span>
           <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-wider mt-1">
-            Quoi de neuf dans l'application ?
+            Arrivée du Mode Automatique
           </h3>
         </div>
       </div>
@@ -16829,41 +16829,67 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* 💡 NOUVEAUTÉ 1 : ERGONOMIE MOBILE COMPLÈTE */}
+        {/* NOUVEAUTÉ 1 : SYNCHRONISATION CONTINUE SANS EFFORT */}
         <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)] animate-in slide-in-from-top-2 duration-300">
-          <span className="text-base mt-0.5">📱</span>
+          <span className="text-base mt-0.5">🔌</span>
           <div>
-            <h4 className="text-[15px] font-black text-indigo-400 uppercase tracking-wide">
-              Expérience Mobile & Interface Tactile
+            <h4 className="text-[14px] font-black text-indigo-400 uppercase tracking-wide">
+              Synchronisation Automatique Continue
             </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              L'intégralité du site et de ses fonctionnalités (Dashboard, Historique, Comptes, Importations, Prévisions) est désormais <strong className="text-indigo-400">adaptée pour les smartphones</strong>. Les tableaux denses se transforment en fiches tactiles aérées, et les modifications se font via des volets d'édition bas (Bottom Sheets) conçus pour un usage fluide à une main.
+            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
+              Plus besoin d'importer manuellement vos fichiers CSV. Dès que votre banque réelle est connectée via Powens, vos transactions sont automatiquement récupérées à l'ouverture du site et synchronisées <strong className="text-indigo-400">toutes les 6 heures en arrière-plan</strong>.
             </p>
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 2 : NOUVEAU CALCUL ÉPARGNE & PROJETS */}
+        {/* NOUVEAUTÉ 2 : CALCUL AUTOMATIQUE DU SOLDE INITIAL */}
+        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(16,185,129,0.03)]">
+          <span className="text-base mt-0.5">⚖️</span>
+          <div>
+            <h4 className="text-[14px] font-black text-emerald-400 uppercase tracking-wide">
+              Ajustement Automatique des Soldes
+            </h4>
+            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
+              L'application calcule automatiquement le <strong className="text-emerald-400">solde de départ exact</strong> de vos comptes miroirs Kleea. Votre solde global affiché sur le Dashboard correspond ainsi toujours en temps réel à l'argent présent sur votre banque.
+            </p>
+          </div>
+        </div>
+
+        {/* NOUVEAUTÉ 3 : DÉTECTION CROISÉE DES VIREMENTS & IBAN */}
         <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
-          <span className="text-base mt-0.5">🎯</span>
+          <span className="text-base mt-0.5">🔄</span>
           <div>
-            <h4 className="text-[15px] font-black text-cyan-400 uppercase tracking-wide">
-              Gestion Intelligente des Projets & Enveloppes
+            <h4 className="text-[14px] font-black text-cyan-400 uppercase tracking-wide">
+              Détection Intelligente des Virements Internes
             </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Vos projets se financent désormais uniquement sur l' <strong className="text-cyan-400">argent réellement disponible</strong> sur votre compte. L'application protège d'abord vos enveloppes de charges et ajuste automatiquement le montant attribué à vos objectifs pour éviter tout risque de sur-financement.
+            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
+              Grâce à l'analyse croisée des IBANs et numéros de comptes, les virements entre vos comptes (ex: <i>CCP vers Livret A / LEP</i>) sont <strong className="text-cyan-400">automatiquement catégorisés en transferts internes</strong>, même si vous avez écrit un motif personnalisé lors du virement. Les rentrées externes (salaires, remboursements) restent quant à elles classées dans leurs vraies catégories.
             </p>
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 3 : SYNCHRONISATION BANCAIRE POWENS */}
+        {/* NOUVEAUTÉ 4 : GESTION DES DOUBLONS & INDEXATION (#2, #3) */}
         <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
-          <span className="text-base mt-0.5">🏦</span>
+          <span className="text-base mt-0.5">🛡️</span>
           <div>
-            <h4 className="text-[15px] font-black text-amber-400 uppercase tracking-wide">
-              Synchronisation Bancaire Avancée
+            <h4 className="text-[14px] font-black text-amber-400 uppercase tracking-wide">
+              Indexation Transparente des Écritures Identiques
             </h4>
-            <p className="text-[13px] font-medium text-[var(--text-main)]/60 mt-0.5 leading-relaxed">
-              Connecte et centralise tes banques/comptes réel en toute sécurité grâce à <strong className="text-amber-400">la plateforme <a href="https://powens.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-amber-300 transition-colors">Powens</a></strong>. Retrouve un accès direct à tes soldes en temps réel via le nouveau menu déroulant discret, synchronise tes flux en un clic ou importe tes relevés manuellement en CSV.
+            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
+              Plus aucun blocage lors de l'import : si plusieurs transactions identiques ont lieu le même jour (ex: plusieurs péages ou micro-achats), elles sont indexées avec <strong className="text-amber-400">#2, #3...</strong> et signalées visuellement pour vous permettre de les vérifier, renommer ou supprimer à tout moment.
+            </p>
+          </div>
+        </div>
+
+        {/* NOUVEAUTÉ 5 : CONTRÔLE TOTAL DANS LE PROFIL */}
+        <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(168,85,247,0.03)]">
+          <span className="text-base mt-0.5">⚙️</span>
+          <div>
+            <h4 className="text-[14px] font-black text-purple-400 uppercase tracking-wide">
+              Liberté de Choix (Profil)
+            </h4>
+            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
+              Vous gardez le contrôle : basculez à tout instant entre le <strong className="text-purple-400">Mode Automatique</strong> et le <strong className="text-purple-400">Mode Manuel (CSV)</strong> directement depuis la page de votre profil.
             </p>
           </div>
         </div>
@@ -16873,9 +16899,9 @@ if (!user) {
       {/* Bouton de fermeture */}
       <button
         onClick={handleClosePatchModal}
-        className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 outline-none"
+        className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 outline-none cursor-pointer"
       >
-        Découvrir les nouveautés !
+        Découvrir le mode automatique !
       </button>
 
     </div>
