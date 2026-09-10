@@ -16901,7 +16901,7 @@ if (!user) {
         onClick={handleClosePatchModal}
         className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 outline-none cursor-pointer"
       >
-        Découvrir le mode automatique !
+        Découvrir le mode automatique !!
       </button>
 
     </div>
