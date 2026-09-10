@@ -3321,23 +3321,29 @@ async def import_powens(
             )
         raise HTTPException(status_code=500, detail=error_msg)
 
+# 🟢 FILTRAGE STRICT : NE GARDE QUE LA CONNEXION LA PLUS RÉCENTE ET LES COMPTES ACTIFS
 @app.get("/powens/connections-and-accounts")
 def get_connections_and_accounts(user_token: str):
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
 
     headers = {"Authorization": f"Bearer {user_token}"}
 
-    # 1. Connexions
+    # 1. Récupération des connexions
     conn_res = requests.get(f"{domain}/users/me/connections", headers=headers)
     connections = conn_res.json().get("connections", []) if conn_res.status_code == 200 else []
 
-    # Dédoublonnage des connexions par nom de connecteur (pour éviter d'avoir ID 14 et ID 15 si c'est la même banque)
+    # On ne garde que les connexions non supprimées et on privilégie l'ID le plus grand (la plus récente)
+    valid_connections = [c for c in connections if not c.get("deleted")]
+    valid_connections.sort(key=lambda x: x.get("id", 0), reverse=True)
+
     unique_connections = {}
-    for c in connections:
+    for c in valid_connections:
         conn_name = c.get("connector", {}).get("name") or c.get("name")
-        # On garde la première ou on peut prioriser selon l'ID le plus élevé (souvent le plus récent)
+        # On ne garde que la connexion la plus récente par banque
         if conn_name not in unique_connections:
             unique_connections[conn_name] = {
                 "id": c.get("id"),
@@ -3347,29 +3353,44 @@ def get_connections_and_accounts(user_token: str):
             }
 
     filtered_connections = list(unique_connections.values())
+    active_conn_ids = {c["id"] for c in filtered_connections}
 
-    # 2. Comptes
+    # 2. Récupération des comptes
     acc_res = requests.get(f"{domain}/users/me/accounts", headers=headers)
     accounts = acc_res.json().get("accounts", []) if acc_res.status_code == 200 else []
 
-    # Dédoublonnage des comptes
-    unique_accounts = {}
-    for a in accounts:
-        name = a.get("name")
-        balance = a.get("balance")
-        key = f"{name}_{balance}"
-        
-        if key not in unique_accounts:
-            unique_accounts[key] = {
-                "id": a.get("id"),
-                "connection_id": a.get("connection_id") or a.get("id_connection"),
-                "name": name,
-                "balance": balance,
-                "currency": a.get("currency", {}).get("symbol", "€") if isinstance(a.get("currency"), dict) else "€",
-                "bank_name": a.get("company_name") or a.get("connector", {}).get("name")
-            }
+    # On ne retient que les comptes rattachés aux connexions actives
+    filtered_accounts = []
+    seen_account_names = set()
 
-    filtered_accounts = list(unique_accounts.values())
+    # On trie les comptes par ID décroissant pour analyser les plus récents d'abord
+    accounts.sort(key=lambda x: x.get("id", 0), reverse=True)
+
+    for a in accounts:
+        # Ignore les comptes supprimés ou désactivés
+        if a.get("deleted") or a.get("disabled"):
+            continue
+
+        conn_id = a.get("connection_id") or a.get("id_connection")
+        # Ignore les comptes des anciennes connexions fantômes
+        if conn_id not in active_conn_ids:
+            continue
+
+        raw_name = a.get("name", "").strip()
+        # Évite les doublons de même intitulé au sein de la même connexion
+        dedup_key = f"{conn_id}_{raw_name.upper()}"
+        if dedup_key in seen_account_names:
+            continue
+        seen_account_names.add(dedup_key)
+
+        filtered_accounts.append({
+            "id": a.get("id"),
+            "connection_id": conn_id,
+            "name": raw_name,
+            "balance": a.get("balance"),
+            "currency": a.get("currency", {}).get("symbol", "€") if isinstance(a.get("currency"), dict) else "€",
+            "bank_name": a.get("company_name") or a.get("connector", {}).get("name")
+        })
 
     return {
         "connections_count": len(filtered_connections),
