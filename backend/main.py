@@ -3677,17 +3677,146 @@ def check_is_duplicate(conn, user: str, date_str: str, montant: float, label: st
             
     return False
 
-# 🟢 MODE AUTO : GESTION DES OCCURRENCES ET INDEXATION #2, #3 SANS CONFLIT SQL
-@app.post("/powens/sync-user/{username}")
-async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
+# 🟢 FONCTION UTILITAIRE : MAPPING UNIVERSEL POWENS -> KLEEA (NOM, IBAN, NUMÉRO, ID)
+def build_powens_account_id_to_kleea_map(powens_accounts: list, config_rows: list) -> dict:
     """
-    Récupère les flux Powens, indexe les doublons légitimes (#2, #3...)
-    et importe l'ensemble des écritures sans bloquer sur la contrainte unique.
+    Associe de manière infaillible l'ID technique Powens (str) au compte Kleea local (str),
+    que l'utilisateur ait renseigné le nom Powens, un IBAN, un numéro de compte ou un ID.
     """
+    mapping = {}
+    for acc in powens_accounts:
+        acc_id = str(acc.get("id"))
+        acc_name = str(acc.get("name") or "").strip().upper()
+        acc_name_compact = acc_name.replace(" ", "")
+        acc_iban = str(acc.get("iban") or "").strip().upper().replace(" ", "")
+        acc_number = str(acc.get("number") or "").strip().upper().replace(" ", "")
+
+        for row in config_rows:
+            local_compte = row[0]
+            k_link = str(row[1] or "").strip().upper().replace(" ", "")
+            if not k_link:
+                continue
+
+            # Correspondance flexible (ID, Nom, IBAN ou Numéro de compte)
+            is_match = (
+                k_link == acc_id or 
+                k_link == acc_name_compact or 
+                k_link in acc_name_compact or 
+                acc_name_compact in k_link or
+                (acc_iban and (k_link == acc_iban or k_link in acc_iban or acc_iban in k_link)) or
+                (acc_number and (k_link == acc_number or k_link in acc_number or acc_number in k_link))
+            )
+
+            if is_match:
+                mapping[acc_id] = local_compte
+                break
+    return mapping
+
+
+# 🟢 1. ROUTE DE VÉRIFICATION EXACTE DES NOUVEAUTÉS
+@app.get("/powens/check-sync/{username}")
+def check_sync_status(username: str):
     user_clean = username.lower().strip()
     is_test_user = (user_clean == "test")
 
-    # 1. Récupération du token utilisateur
+    # 1. Token utilisateur
+    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+    with engine.connect() as conn:
+        res = conn.execute(query_token, {"u": user_clean}).fetchone()
+        if not res or not res[0]:
+            return {"has_pending": False, "count": 0, "accounts": {}}
+        user_token = res[0]
+
+        # 2. Configurations Kleea
+        query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
+        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+        if not config_rows:
+            return {"has_pending": False, "count": 0, "accounts": {}}
+
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+
+    headers = {"Authorization": f"Bearer {user_token}"}
+    try:
+        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
+        powens_accounts = res_acc.json().get("accounts", [])
+        powens_txs = get_powens_transactions(user_token)
+    except Exception as e:
+        print(f"❌ [CHECK-SYNC] Erreur API Powens: {e}")
+        return {"has_pending": False, "count": 0, "accounts": {}, "error": str(e)}
+
+    # Mapping universel ID Powens -> Compte Kleea
+    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, config_rows)
+    print(f"🔍 [CHECK-SYNC] Comptes résolus pour '{user_clean}': {acc_id_to_kleea}")
+
+    if not acc_id_to_kleea:
+        return {"has_pending": False, "count": 0, "accounts": {}}
+
+    # 3. Répertoire exact des transactions en BDD (Date, Montant au centime, Nom, Compte)
+    with engine.connect() as conn:
+        query_existing = text("""
+            SELECT date, nom, montant, compte FROM transactions WHERE LOWER(utilisateur) = LOWER(:u)
+        """)
+        existing_rows = conn.execute(query_existing, {"u": user_clean}).fetchall()
+        db_existing_set = set()
+        for r in existing_rows:
+            d_str = str(r[0]).split(" ")[0]
+            n_str = str(r[1] or "").strip().upper()
+            m_val = round(float(r[2]), 2)
+            c_val = str(r[3] or "").strip().upper()
+            db_existing_set.add((d_str, m_val, n_str, c_val))
+
+    # 4. Détection avec gestion des occurrences #2, #3
+    batch_tracker = {}
+    pending_by_account = {}
+    total_pending = 0
+
+    for tx in powens_txs:
+        acc_id = str(tx.get("id_account"))
+        local_account = acc_id_to_kleea.get(acc_id)
+        if not local_account:
+            continue
+
+        raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+        montant = round(float(tx.get("value", 0.0)), 2)
+        libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
+        base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
+
+        tracker_key = (raw_date, montant, base_nom.upper(), local_account.upper())
+        occurrence = batch_tracker.get(tracker_key, 0) + 1
+        batch_tracker[tracker_key] = occurrence
+
+        nom_final = base_nom if occurrence == 1 else f"{base_nom} #{occurrence}"
+
+        # Vérification d'existence exacte
+        is_in_db = (raw_date, montant, nom_final.upper(), local_account.upper()) in db_existing_set
+        is_in_db_fallback = (raw_date, montant, libelle_brut.upper(), local_account.upper()) in db_existing_set
+
+        if not is_in_db and not is_in_db_fallback:
+            total_pending += 1
+            if local_account not in pending_by_account:
+                pending_by_account[local_account] = {"count": 0, "amount": 0.0}
+            pending_by_account[local_account]["count"] += 1
+            pending_by_account[local_account]["amount"] = round(pending_by_account[local_account]["amount"] + abs(montant), 2)
+
+    print(f"📊 [CHECK-SYNC] Résultat: {total_pending} transaction(s) en attente pour '{user_clean}'")
+    return {
+        "has_pending": total_pending > 0,
+        "count": total_pending,
+        "accounts": pending_by_account
+    }
+
+
+# 🟢 2. ROUTE D'IMPORTATION HARMONISÉE
+@app.post("/powens/sync-user/{username}")
+async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
+    user_clean = username.lower().strip()
+    is_test_user = (user_clean == "test")
+
+    # 1. Token utilisateur
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
@@ -3695,7 +3824,10 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
             raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
         user_token = res[0]
         
-    # 2. Récupération des comptes Powens (Correspondance ID -> Nom)
+        # 2. Configurations Kleea
+        query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
+        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
@@ -3706,78 +3838,54 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     try:
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
         powens_accounts = res_acc.json().get("accounts", [])
-        id_to_name = {str(acc["id"]): acc["name"].strip().upper() for acc in powens_accounts if acc.get("id")}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur de récupération des comptes Powens: {str(e)}")
-
-    # 3. Récupération du mapping Kleea
-    query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
-    with engine.connect() as conn:
-        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
-        accounts_map = {row[1].strip().upper(): row[0] for row in config_rows if row[1]}
-
-    if not accounts_map:
-        return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
-
-    # 4. Correspondance IBAN / Numéro de compte
-    iban_to_local_name = {}
-    number_to_local_name = {}
-    for acc in powens_accounts:
-        p_name = acc.get("name", "").strip().upper()
-        iban = acc.get("iban", "").strip().upper().replace(" ", "")
-        number = acc.get("number", "").strip().upper().replace(" ", "")
-        if p_name in accounts_map:
-            local_name = accounts_map[p_name]
-            if iban: iban_to_local_name[iban] = local_name
-            if number: number_to_local_name[number] = local_name
-
-    # 5. Récupération des transactions brutes
-    try:
         powens_raw = get_powens_transactions(user_token)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
+
+    # Mapping universel ID Powens -> Compte Kleea
+    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, config_rows)
+    if not acc_id_to_kleea:
+        return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
+
+    # Bâtir les tables d'IBANs pour les virements internes
+    iban_to_local_name = {}
+    number_to_local_name = {}
+    for acc in powens_accounts:
+        acc_id = str(acc.get("id"))
+        local_name = acc_id_to_kleea.get(acc_id)
+        if local_name:
+            iban = acc.get("iban", "").strip().upper().replace(" ", "")
+            number = acc.get("number", "").strip().upper().replace(" ", "")
+            if iban: iban_to_local_name[iban] = local_name
+            if number: number_to_local_name[number] = local_name
 
     mots_cles_rules = get_mots_cles_rules(user_clean)
     memoire_rules = get_memoire(user_clean)
     mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
     success_count = 0
-
-    # Suivi du nombre d'occurrences pour chaque combinaison (Date, Montant, Nom de base) dans le lot
     batch_occurrence_tracker = {}
 
     with engine.connect() as conn:
         for tx in powens_raw:
             try:
                 tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
-                if not tx_account_id: continue
-                
-                powens_acc_name = id_to_name.get(tx_account_id)
-                if not powens_acc_name: continue
+                local_account_name = acc_id_to_kleea.get(tx_account_id)
+                if not local_account_name:
+                    continue
                     
-                acc_name_upper = powens_acc_name.strip().upper()
-                if acc_name_upper not in accounts_map: continue
-                    
-                local_account_name = accounts_map[acc_name_upper]
                 montant = float(tx.get("value", 0.0))
                 raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
                 libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
-                
-                # Base de nom (avec tag [TEST] si applicable)
                 base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
                 
-                # 🟢 CALCUL DE L'INDEX D'OCCURRENCE (#1, #2, #3...)
+                # Calcul de l'index d'occurrence (#1, #2, #3...)
                 tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
                 occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
                 batch_occurrence_tracker[tracker_key] = occurrence_in_batch
                 
-                # Libellé final avec suffixe s'il y a plus d'une occurrence
-                if occurrence_in_batch == 1:
-                    nom_final = base_nom
-                else:
-                    nom_final = f"{base_nom} #{occurrence_in_batch}"
+                nom_final = base_nom if occurrence_in_batch == 1 else f"{base_nom} #{occurrence_in_batch}"
 
-                # 🟢 VÉRIFICATION D'EXISTENCE EXACTE EN BASE DE DONNÉES
-                # Si cette occurrence précise existe déjà en BDD, on ne la réinsère pas
+                # Vérification d'existence en BDD
                 check_existing_query = text("""
                     SELECT 1 FROM transactions 
                     WHERE LOWER(utilisateur) = LOWER(:u) 
@@ -3796,14 +3904,14 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 }).fetchone()
 
                 if already_in_db:
-                    continue  # Déjà importée lors d'une synchronisation précédente
+                    continue
 
                 # Catégorisation
                 cat = "❓ Autre"
                 libelle_lower = libelle_brut.lower()
                 libelle_compact = libelle_brut.upper().replace(" ", "")
                 
-                # 1. Détection virement interne
+                # Virements internes par IBAN
                 autre_compte_local = None
                 for target_iban, local_name in iban_to_local_name.items():
                     if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
@@ -3815,14 +3923,6 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                         if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
                             autre_compte_local = local_name
                             break
-                            
-                if not autre_compte_local:
-                    for p_name, l_name in accounts_map.items():
-                        if l_name.upper() != local_account_name.upper():
-                            p_name_compact = p_name.replace(" ", "").upper()
-                            if p_name_compact and p_name_compact in libelle_compact:
-                                autre_compte_local = l_name
-                                break
 
                 if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
                     types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
@@ -3832,7 +3932,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 if autre_compte_local:
                     cat = f"🔄 Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"🔄 Virement : {autre_compte_local} vers {local_account_name}"
 
-                # 2. Mémoire et mots-clés
+                # Mémoire & mots-clés
                 if cat == "❓ Autre":
                     for m in memoire_rules:
                         if m["nom"].lower() in libelle_lower:
@@ -3850,13 +3950,12 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                                     cat = rule["categorie"]
                                     break
 
-                # 3. Virements externes
+                # Virements externes
                 if cat == "❓ Autre":
                     is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
                     if is_transfer:
                         cat = "🤝 Virements Reçus" if montant > 0 else "💸 Virements envoyé"
 
-                # Insertion sans risque de collision unique
                 dt = datetime.strptime(raw_date, "%Y-%m-%d")
                 insert_query = text("""
                     INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte)
@@ -3880,7 +3979,6 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 continue
             
     return {"status": "success", "added": success_count}
-
 
 # 🟢 CORRECTIF : ALIGNEMENT DES PARAMÈTRES ET TRACABILITÉ DES RECALCULS
 @app.post("/powens/recalculate-balances/{username}")
@@ -3940,9 +4038,11 @@ def recalculate_initial_balances(username: str):
             
             # Calculer la somme des transactions de ce compte
             # 🟢 CORRIGÉ : Remplacement de :c par :co pour correspondre aux paramètres passés
+            # 🟢 Requête insensible à la casse et aux espaces superflus
             query_sum = text("""
                 SELECT COALESCE(SUM(montant), 0) FROM transactions 
-                WHERE LOWER(utilisateur) = LOWER(:u) AND compte = :co
+                WHERE LOWER(utilisateur) = LOWER(:u) 
+                AND TRIM(UPPER(compte)) = TRIM(UPPER(:co))
             """)
             total_transactions = conn.execute(query_sum, {"u": user_clean, "co": compte_local_name}).scalar()
             print(f"📊 [BALANCE RECALC] Somme des transactions Kleea pour '{compte_local_name}': {total_transactions}€")

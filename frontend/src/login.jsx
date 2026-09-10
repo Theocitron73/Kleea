@@ -9306,39 +9306,38 @@ const handleFileUpload = async (file) => {
   }
 };
 
+// 🟢 ENVOI EXCLUSIF DES NOUVELLES TRANSACTIONS
 const confirmBatchImport = async () => {
   try {
-    const response = await api.post(`/transactions/batch`, transactionsCalculees);
-    
-    // Si au moins une transaction a été ajoutée OU si le serveur répond "success"
-    if (response.data.status === "success") {
-       // 1. On vide la zone d'importation
-       setTempTransactions([]);
-       
-       // 2. Gestion de l'affichage de la notification (Succès global vs Doublons détectés)
-       if (response.data.warning) {
-         setNotification({ 
-           message: `${response.data.added} nouvelles transactions importées. (Attention : des doublons déjà existants ont été ignorés)`, 
-           type: 'success' // Utilise 'warning' ou 'error' selon les couleurs de ton composant de notification
-         });
-       } else {
-         setNotification({ 
-           message: `${response.data.added} transactions importées avec succès`, 
-           type: 'success' 
-         });
-       }
+    // On filtre pour ne pas renvoyer celles qui sont déjà en base
+    const nouvellesLignes = transactionsCalculees.filter(t => !t.isAlreadyImported);
 
-       // 3. Auto-suppression après 3.5 secondes pour laisser le temps de lire l'avertissement
+    if (nouvellesLignes.length === 0) {
+      setNotification({ message: "Aucune nouvelle transaction à importer.", type: "warning" });
+      return;
+    }
+
+    const response = await api.post(`/transactions/batch`, nouvellesLignes);
+    
+    if (response.data.status === "success") {
+       setTempTransactions([]);
+       setFileName("");
+       
+       setNotification({ 
+         message: `${response.data.added} nouvelle(s) transaction(s) importée(s) avec succès ! ⚡`, 
+         type: 'success' 
+       });
+
        setTimeout(() => {
          setNotification(null);
        }, 3500);
 
-       // 4. On recharge les données depuis le serveur
        await fetchTransactions(); 
+       await fetchComptes();
     }
   } catch (error) {
     console.error("Erreur import:", error);
-    setNotification({ message: "Erreur lors de l'insertion", type: 'error' });
+    setNotification({ message: "Erreur lors de l'insertion des écritures", type: 'error' });
   }
 };
 
@@ -9564,7 +9563,7 @@ const handleSyncPowens = async (overrideMode = null) => {
   }
 };
 
-// 🟢 4. RÉSULTAT DE L'IMPORTATION POWENS (mis à jour pour TOUT afficher)
+// 🟢 VERSION CORRIGÉE : N'INDEXE COMME "DÉJÀ IMPORTÉ" QUE CE QUI EST RÉELLEMENT EN BDD
 const handlePowensImportSuccess = (transactions, accountName) => {
   if (!transactions || transactions.length === 0) {
     setNotification({ 
@@ -9574,56 +9573,63 @@ const handlePowensImportSuccess = (transactions, accountName) => {
     return;
   }
 
-  // 1. Fonction de génération de clé unique
-  const getTxKey = (t) => {
-    const dateStr = t.date ? String(t.date).trim() : "";
-    const nomStr = (t.nom || t.libelle || "").trim().toLowerCase().replace(/\s+/g, ' ');
-    const montantNum = Number(t.montant).toFixed(2);
-    return `${dateStr}_${nomStr}_${montantNum}`;
-  };
+  const normalize = (str) => (str || "").trim().toUpperCase().replace(/\s+/g, ' ');
+  const roundNum = (val) => Number(parseFloat(val) || 0).toFixed(2);
 
-  // 2. Clés existantes en BDD / State global
-  const existingKeys = new Set(
-    (toutesLesTransactions || []).map(t => getTxKey(t))
+  // 1. Répertoire des transactions déjà enregistrées en base de données avec leur libellé exact
+  const existingDbKeys = new Set(
+    (toutesLesTransactions || []).map(t => 
+      `${t.date}_${roundNum(t.montant)}_${normalize(t.nom)}`
+    )
   );
 
-  // 3. Traiter TOUTES les transactions sans les filtrer, mais en les marquant
-  const clesVuesDansCeLot = new Set();
+  // 2. Compteur d'occurrences pour le lot entrant
+  const batchOccurrences = {};
 
   const transactionsMarquees = transactions.map(t => {
-    const key = getTxKey(t);
+    const baseNom = (t.nom || t.libelle || "Transaction").trim();
+    const dateStr = t.date ? String(t.date).trim() : "";
+    const montantStr = roundNum(t.montant);
 
-    const existeEnBDD = existingKeys.has(key);
-    const existeDansMemeLot = clesVuesDansCeLot.has(key);
+    // Clé de groupe pour compter les répétitions au sein de ce même import
+    const groupKey = `${dateStr}_${montantStr}_${normalize(baseNom)}`;
+    const occurence = (batchOccurrences[groupKey] || 0) + 1;
+    batchOccurrences[groupKey] = occurence;
 
-    // Si la transaction existe déjà en BDD ou est un doublon dans ce même lot
-    const isAlreadyImported = existeEnBDD || existeDansMemeLot;
+    // Si c'est une 2e ou 3e écriture identique dans le lot, on ajoute le suffixe #2, #3
+    let nomFinal = baseNom;
+    if (occurence > 1 && !/#\d+$/.test(nomFinal)) {
+      nomFinal = `${baseNom} #${occurence}`;
+    }
 
-    clesVuesDansCeLot.add(key);
+    // 🟢 VÉRIFICATION STRICTE EN BDD : Est-ce que CE nom (avec son # si doublon) est déjà en base ?
+    const exactKey = `${dateStr}_${montantStr}_${normalize(nomFinal)}`;
+    const alreadyInDb = existingDbKeys.has(exactKey);
 
     return {
       ...t,
-      isAlreadyImported // 👈 Propriété utilisée pour griser et gérer la sélection
+      nom: nomFinal,
+      isAlreadyImported: alreadyInDb, // 🟢 Ne vaut true QUE si réellement présent en base de données
+      isPotentialDuplicate: occurence > 1 || alreadyInDb,
+      duplicateIndex: occurence
     };
   });
 
   const nbNouvelles = transactionsMarquees.filter(t => !t.isAlreadyImported).length;
-  const nbDéjaImportees = transactionsMarquees.length - nbNouvelles;
+  const nbDejaImportees = transactionsMarquees.length - nbNouvelles;
 
   setFileName(`Import Powens (${accountName})`);
   setTempTransactions(transactionsMarquees);
 
   setNotification({ 
-    message: `${transactionsMarquees.length} transactions récupérées (${nbNouvelles} nouvelles, ${nbDéjaImportees} déjà importées).`, 
+    message: `${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s) à importer, ${nbDejaImportees} déjà en base).`, 
     type: "success" 
   });
-
-  setTimeout(() => {
-    setNotification(null); 
-  }, 3000);
+  setTimeout(() => setNotification(null), 3500);
 
   fetchPowensConnections();
 };
+
 
 const handleConnectNewBank = async () => {
   setIsSyncingPowens(true);
@@ -9664,99 +9670,32 @@ const [hasPendingSync, setHasPendingSync] = useState(false);
 const [syncCountByAccount, setSyncCountByAccount] = useState({});
 const [isCheckingSync, setIsCheckingSync] = useState(false);
 const [loading, setLoading] = useState(true);
-// 🟢 CHECK SYNC SÉCURISÉ (Garde toutes les fonctions existantes + corrige le bug d'écart)
+// 🟢 APPEL DIRECT DU STATUT DE SYNCHRONISATION
 const checkNewTransactions = useCallback(async () => {
+  if (!user) return;
   const token = localStorage.getItem("powens_user_token");
-
-  // Si pas de token Powens, on arrête silencieusement
-  if (!token) {
-    return;
-  }
-
-  // 🟢 Garde-fou supplémentaire : on attend la fin du chargement initial
-  if (loading || !comptes || comptes.length === 0) {
-    return;
-  }
+  if (!token) return;
 
   setIsCheckingSync(true);
   try {
-    const res = await api.get(`/powens/connections-and-accounts`, {
-      params: { user_token: token }
-    });
-
-    const powensAccounts = res.data?.accounts || [];
-
-    // 1. Map de mapping Powens -> BDD
-    const powensToLocalNameMap = {};
-    comptes.forEach((c) => {
-      if (c.powens_name) {
-        powensToLocalNameMap[c.powens_name.trim().toUpperCase()] = c.compte;
-      }
-    });
-
-    // 2. Calcul du solde actuel du site pour CHAQUE compte
-    const currentSiteBalances = {};
-    comptes.forEach((c) => {
-      if (!c.compte) return;
-      const accountKey = c.compte.trim().toUpperCase();
-      const soldeInitial = parseFloat(c.solde || 0);
-
-      // Calcul avec la liste des transactions si chargée
-      const totalTransactions = (toutesLesTransactions || [])
-        .filter((t) => (t.compte || "").trim().toUpperCase() === accountKey)
-        .reduce((sum, t) => sum + (parseFloat(t.montant) || 0), 0);
-
-      currentSiteBalances[accountKey] = Math.round((soldeInitial + totalTransactions) * 100) / 100;
-    });
-
-    // 3. Comparaison avec Powens
-    let hasNewTransactions = false;
-    const accountsNeedingSync = {};
-
-    powensAccounts.forEach((acc) => {
-      const bankBalance = Math.round(parseFloat(acc.balance || 0) * 100) / 100;
-      const powensRawNameUpper = (acc.name || "").trim().toUpperCase();
-
-      // 1. Récupération du nom associé sur le site
-      const siteAccountName = powensToLocalNameMap[powensRawNameUpper] || acc.name;
-      const siteKeyUpper = siteAccountName.trim().toUpperCase();
-
-      // 2. Définition de isAssociated
-      const isAssociated = Boolean(powensToLocalNameMap[powensRawNameUpper]);
-
-      // 3. Solde actuel du site
-      const siteBalance = currentSiteBalances[siteKeyUpper];
-      const hasMatch = siteBalance !== undefined;
-      const currentSiteBalance = hasMatch ? siteBalance : 0;
-
-      // 4. Calcul de l'écart réel
-      const diff = Math.round(Math.abs(bankBalance - currentSiteBalance) * 100) / 100;
-      const isDesynced = !hasMatch || diff > 0.01;
-
-      // 🟢 On stocke le montant de l'écart (diff) pour l'afficher sur le bouton
-      if (isDesynced && isAssociated) {
-        hasNewTransactions = true;
-        accountsNeedingSync[siteAccountName] = diff; 
-      }
-    });
-
-    setHasPendingSync(hasNewTransactions);
-    setSyncCountByAccount(accountsNeedingSync);
-
+    const res = await api.get(`/powens/check-sync/${user}`);
+    if (res.data) {
+      setHasPendingSync(Boolean(res.data.has_pending));
+      setSyncCountByAccount(res.data.accounts || {});
+    }
   } catch (err) {
-    // Erreur silencieuse
+    console.error("Erreur check-sync:", err);
   } finally {
     setIsCheckingSync(false);
   }
-}, [comptes, toutesLesTransactions, loading]);
+}, [user]);
 
+// Déclencheur automatique lors de changements de transactions ou de comptes
 useEffect(() => {
-  if (comptes && comptes.length > 0) {
+  if (user) {
     checkNewTransactions();
   }
-}, [comptes, toutesLesTransactions, checkNewTransactions]);
-
-
+}, [user, comptes, toutesLesTransactions, checkNewTransactions]);
 
 
 const handleAssociateAccount = async (powensAccountName, targetCompte) => {
@@ -14562,7 +14501,8 @@ if (!user) {
               </td>
 
               {/* Dans le tableau de l'onglet 'gerer' (Desktop) */}
-                <td className="p-4 pr-0 group/name border-b border-white/[0.05] max-w-[300px]">
+                {/* 🟢 CELLULE DU LIBELLÉ : MULTI-LIGNES AUTOMATIQUE ET ÉLARGIE */}
+                <td className="p-4 pr-0 group/name border-b border-white/[0.05] min-w-[300px] max-w-[500px]">
                   <div className={`flex flex-col border-l-4 transition-all pl-3 py-1 ${
                     (t.categorie && t.categorie.includes("🔄 Virement")) 
                       ? "border-[var(--primary)]/50 group-hover/name:border-[var(--primary)]" 
@@ -14576,11 +14516,24 @@ if (!user) {
                         defaultValue={t.nom}
                         onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
                         onInput={handleInput}
-                        className="bg-[var(--glass-bg)] border border-white/5 text-[13px] leading-tight font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07]"
+                        // 🟢 Calcule et ajuste la hauteur dès l'affichage pour afficher tout le texte
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = "auto";
+                            el.style.height = `${el.scrollHeight}px`;
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            e.target.blur();
+                          }
+                        }}
+                        className="bg-[var(--glass-bg)] border border-white/5 text-[12.5px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20 break-words"
                         placeholder="Modifier le libellé..."
                       />
                       
-                      {/* 🟢 PASTILLE D'AVERTISSEMENT SI LE NOM CONTIENT UN '#' */}
+                      {/* PASTILLE D'AVERTISSEMENT SI LE NOM CONTIENT UN '#' */}
                       {/#\d+$/.test(t.nom) && (
                         <span 
                           title="Transaction similaire identifiée avec un index (#). Vous pouvez la renommer ou la supprimer si nécessaire."
@@ -14607,7 +14560,6 @@ if (!user) {
                     </div>
                   </div>
                 </td>
-
               <td className="p-4 pl-0 text-right border-b border-white/[0.05] w-32">
                 <span className={`text-[13px] font-black tabular-nums transition-colors ${
                   (t.categorie && t.categorie.includes("🔄 Virement")) ? 'text-[var(--primary)]' : parseFloat(t.montant) < 0 ? 'text-rose-400' : 'text-emerald-400'
@@ -15095,40 +15047,34 @@ if (!user) {
                     </p>
                   </div>
 
-                  {/* Séparateur vertical + Contenu à droite (UNIQUEMENT SI AU MOINS UN COMPTE EST CONNECTÉ) */}
-                  {hasConnectedPowens && (
-                    <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
-                      {hasPendingSync && unsyncedAccounts.length > 0 ? (
-                        unsyncedAccounts.map(([name, amount]) => {
-                          const formattedAmount = typeof amount === "number"
-                            ? `${amount.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-                            : "";
+                  {/* Séparateur vertical + Contenu à droite */}
+                    {hasConnectedPowens && (
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
+                        {hasPendingSync && unsyncedAccounts.length > 0 ? (
+                          unsyncedAccounts.map(([name, data]) => {
+                            const count = typeof data === 'object' ? data.count : data;
 
-                          return (
-                            <span 
-                              key={name} 
-                              className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
-                              title={`${name} : ${formattedAmount}`}
-                            >
-                              <span className="truncate">{name}</span>
-                              {formattedAmount && (
+                            return (
+                              <span 
+                                key={name} 
+                                className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
+                                title={`${name} : ${count} nouvelle(s) transaction(s) en attente`}
+                              >
+                                <span className="truncate">{name}</span>
                                 <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
-                                  {formattedAmount}
+                                  {count} {count > 1 ? 'nouvelles' : 'nouvelle'}
                                 </span>
-                              )}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        /* Pastille verte uniquement lorsqu'un compte est connecté et à jour */
-                        <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          Tout est synchronisé pour le moment
-                        </span>
-                      )}
-                    </div>
-                  )}
-
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Tout est synchronisé pour le moment
+                          </span>
+                        )}
+                      </div>
+                    )}
                 </div>
               </div>
             );
