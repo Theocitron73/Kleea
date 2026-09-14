@@ -13,15 +13,20 @@ export default function PrevisionsMobile(props) {
     categoriesVisibles, optionsComptes, chartDataPrevisions, PrevisionsChartView,
     moisDisponibles, excludedMonths, setExcludedMonths, recapPrevisionsStats,
     objectifAnnuelGlobal, statsEpargnePrevisionnelle, pourcentageAnnuel,
-    SortableAccountCard,
-    // Récupération de votre composant CustomSelect pour la saisie et modification
-    CustomSelect
+    SortableAccountCard, CustomSelect, toutesLesTransactions = []
   } = props;
 
   // États de navigation mobile
   const [mobileSubTab, setMobileSubTab] = useState('flux'); // 'flux' | 'projections'
   const [editingTx, setEditingTx] = useState(null); // Gère l'édition tactile d'une prévision
   const [showAddForm, setShowAddForm] = useState(false); // Permet de plier/déplier le formulaire d'ajout
+
+  const extractEmoji = (str) => {
+    if (!str) return null;
+    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
+    const match = str.match(emojiRegex);
+    return match ? match[0] : null;
+  };
 
   const handleOpenEdit = (prev) => {
     setEditingTx({ 
@@ -60,10 +65,8 @@ export default function PrevisionsMobile(props) {
         </div>
       </div>
 
-      {/* 2. 💡 RESTAURATION DES FILTRES DE PÉRIODE MOBILES COMPACTS ET HORIZONTAUX D'ORIGINE */}
+      {/* 2. FILTRES DE PÉRIODE MOBILES */}
       <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2 shrink-0">
-        
-        {/* Filtre Profil & Année */}
         <div className="flex justify-between items-center gap-2">
           {/* Groupes */}
           <div className="flex bg-black/30 p-0.5 rounded-lg">
@@ -114,7 +117,7 @@ export default function PrevisionsMobile(props) {
         </div>
       </div>
 
-      {/* 3. LISTE HORIZONTALE DES COMPTES COMPACTS */}
+      {/* 3. LISTE HORIZONTALE DES COMPTES */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 shrink-0 select-none">
         {soldesPrevisionnels && soldesPrevisionnels.map(c => (
           <div key={c.compte} className="min-w-[160px] shrink-0">
@@ -130,7 +133,7 @@ export default function PrevisionsMobile(props) {
         ))}
       </div>
 
-      {/* 4. SÉLECTION DES SOUS-ONGLETS */}
+      {/* 4. COMMUTATEUR D'ONGLETS */}
       <div className="flex border-b border-white/5 mb-4 select-none shrink-0">
         <button 
           onClick={() => setMobileSubTab('flux')}
@@ -155,7 +158,7 @@ export default function PrevisionsMobile(props) {
       </div>
 
       {/* =========================================================================
-          ONGLET 1 : LES FLUX PRÉVUS (SAISIE EXPRESS + FICHE DE MODIFICATION)
+          ONGLET 1 : LES FLUX PRÉVUS AVEC SUIVI DU RÉALISÉ & RESTE À DÉPENSER
           ========================================================================= */}
       {mobileSubTab === 'flux' && (
         <div className="space-y-4 animate-in fade-in duration-200">
@@ -174,9 +177,8 @@ export default function PrevisionsMobile(props) {
               </span>
             </button>
           )}
-          {/* ACCORDION FORMULAIRE D'AJOUT RAPIDE AVEC CUSTOM SELECTS */}
-          {/* 💡 CORRECTION : Remplacement de 'overflow-hidden' par 'overflow-visible' 
-             pour libérer l'affichage des listes CustomSelect à l'ouverture */}
+
+          {/* FORMULAIRE D'AJOUT RAPIDE */}
           <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-visible relative">
             <button
               type="button"
@@ -191,7 +193,6 @@ export default function PrevisionsMobile(props) {
             </button>
 
             {showAddForm && (
-              /* 💡 On s'assure d'avoir 'overflow-visible' ou aucune restriction ici également */
               <div className="p-4 border-t border-white/5 space-y-3.5 bg-black/20 overflow-visible">
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Libellé</label>
@@ -231,7 +232,6 @@ export default function PrevisionsMobile(props) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 items-end">
-                  {/* CustomSelect Catégorie */}
                   <CustomSelect 
                     label="Catégorie"
                     value={newPrevi.categorie}
@@ -241,7 +241,6 @@ export default function PrevisionsMobile(props) {
                     className="p-2.5 rounded-xl text-[10px]"
                   />
 
-                  {/* CustomSelect Compte */}
                   <CustomSelect 
                     label="Compte associé"
                     value={newPrevi.compte}
@@ -266,79 +265,144 @@ export default function PrevisionsMobile(props) {
             )}
           </div>
 
-          {/* LISTE DES TRANSACTIONS PRÉVUES (FICHE INTERACTIVE) */}
+          {/* LISTE DES TRANSACTIONS PRÉVUES AVEC JAUGE D'AVANCEMENT & SUIVI RÉEL */}
           <div className="space-y-2">
             {previsionsFiltrees.length > 0 ? (
               previsionsFiltrees.map((prev) => {
                 const isSelected = selectedIds2.includes(prev.id);
                 const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
                 const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+                const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
+                const montantAbs = Math.abs(parseFloat(prev.montant) || 0);
+
+                // 💡 Calcul dynamique du suivi réel sur mobile
+                const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
+                const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+                const restant = montantAbs - consomme;
+                const depasse = restant < 0;
+                const pct = montantAbs > 0 ? Math.min(100, Math.round((consomme / montantAbs) * 100)) : 0;
+
+                const rawNom = prev.nom.replace('[PRÉVI] ', '');
+                const emojiItem = extractEmoji(rawNom) || extractEmoji(prev.categorie) || (isRevenu ? "💰" : "📌");
+                const nomAffiche = rawNom.replace(emojiItem, '').trim() || rawNom;
 
                 return (
                   <div 
                     key={prev.id}
                     onClick={() => handleOpenEdit(prev)}
-                    className={`p-3 bg-[var(--glass-bg)] border border-white/5 rounded-2xl flex items-center justify-between transition-all active:bg-white/5 ${
+                    className={`p-3 bg-[var(--glass-bg)] border border-white/5 rounded-2xl flex flex-col gap-2 transition-all active:bg-white/5 ${
                       !isActif ? 'opacity-35 saturate-50' : ''
                     } ${isSelected ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : ''}`}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      
-                      {/* Checkbox tactiles */}
-                      <input 
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect2(prev.id)}
-                        onClick={(e) => e.stopPropagation()} 
-                        className="w-4.5 h-4.5 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded shrink-0 relative z-10"
-                      />
+                    {/* LIGNE 1 : INFOS, MONTANT & DATE */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        {/* Checkbox */}
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect2(prev.id)}
+                          onClick={(e) => e.stopPropagation()} 
+                          className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded shrink-0 relative z-10"
+                        />
 
-                      <div className="min-w-0">
-                        <p className={`text-xs font-bold text-white truncate pr-2 ${!isActif ? 'line-through text-white/50' : ''}`}>
-                          {prev.nom.replace('[PRÉVI] ', '')}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          <span className="text-[8px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
-                            {prev.compte}
-                          </span>
-                          <span className="text-[8px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded font-black max-w-[90px] truncate">
-                            {prev.categorie}
-                          </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs shrink-0">{emojiItem}</span>
+                            <p className={`text-xs font-black uppercase text-white truncate pr-1 ${!isActif ? 'line-through text-white/50' : ''}`}>
+                              {nomAffiche}
+                            </p>
+                            {liees.length > 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[7px] font-black uppercase shrink-0">
+                                {liees.length} tx
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                            <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
+                              {prev.compte}
+                            </span>
+                            <span className="text-[7.5px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded font-bold max-w-[85px] truncate">
+                              {prev.categorie}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="text-right shrink-0 ml-2 flex items-center gap-3">
-                      <div>
-                        <span className="text-xs font-mono font-black" style={{ 
-                          color: isTransfert 
-                            ? '#a78bfa' 
-                            : prev.montant > 0 
-                              ? userTheme.color_revenus 
-                              : userTheme.color_depenses 
-                        }}>
-                          {prev.montant > 0 ? '+' : ''}{prev.montant.toFixed(0)} €
-                        </span>
-                        <p className="text-[8px] text-white/30 font-bold uppercase mt-1">
-                          {prev.date ? new Date(prev.date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'}) : 'À définir'}
-                        </p>
+                      {/* Montant & Date */}
+                      <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
+                        <div>
+                          <span className="text-xs font-mono font-black" style={{ 
+                            color: isTransfert 
+                              ? '#a78bfa' 
+                              : isRevenu
+                                ? userTheme.color_revenus 
+                                : userTheme.color_depenses 
+                          }}>
+                            {isRevenu ? '+' : ''}{prev.montant.toFixed(0)} €
+                          </span>
+                          <p className="text-[8px] text-white/30 font-bold uppercase mt-0.5">
+                            {prev.date ? new Date(prev.date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'}) : 'À définir'}
+                          </p>
+                        </div>
+
+                        {/* Bouton Œil */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            updatePrevision(prev.id, 'actif', !isActif);
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all ${
+                            isActif 
+                              ? 'text-white/20 border-white/5 hover:text-white' 
+                              : 'text-rose-400 border-rose-500/20 bg-rose-500/5'
+                          }`}
+                        >
+                          {isActif ? <Eye size={12} /> : <EyeOff size={12} />}
+                        </button>
                       </div>
-
-                      {/* Bouton Œil */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          updatePrevision(prev.id, 'actif', !isActif);
-                        }}
-                        className={`p-1.5 rounded-lg border transition-all ${
-                          isActif 
-                            ? 'text-white/20 border-white/5 hover:text-white' 
-                            : 'text-rose-400 border-rose-500/20 bg-rose-500/5'
-                        }`}
-                      >
-                        {isActif ? <Eye size={12} /> : <EyeOff size={12} />}
-                      </button>
                     </div>
+
+                    {/* LIGNE 2 : JAUGE ET SUIVI DU RÉALISÉ (Affiché si au moins une transaction liée) */}
+                    {liees.length > 0 && (
+                      <div className="pt-1.5 border-t border-white/5 space-y-1">
+                        <div className="flex justify-between items-center text-[7.5px] font-black uppercase tracking-tight">
+                          <span className="text-white/40">
+                            {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{consomme.toFixed(0)}€</strong>
+                          </span>
+                          
+                          {/* Statut différencié revenus vs dépenses */}
+                          {isRevenu ? (
+                            <span className={depasse ? 'text-emerald-400 font-bold' : restant === 0 ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                              {depasse 
+                                ? `+${Math.abs(restant).toFixed(0)}€ surplus` 
+                                : restant === 0 
+                                  ? '100% perçu' 
+                                  : `Attendu: ${Math.max(0, restant).toFixed(0)}€`}
+                            </span>
+                          ) : (
+                            <span className={depasse ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                              {depasse 
+                                ? `Dépassé (+${Math.abs(restant).toFixed(0)}€)` 
+                                : `Reste: ${restant.toFixed(0)}€`}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              isRevenu
+                                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
+                                : depasse ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                            }`}
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 );
               })
@@ -537,25 +601,15 @@ export default function PrevisionsMobile(props) {
         </div>
       )}
 
-      {/* =========================================================================
-          MODALE DE MODIFICATION COMPLÈTE DE TRANSACTION AVEC CUSTOM SELECTS
-          ========================================================================= */}
+      {/* MODALE D'ÉDITION MOBILE */}
       {editingTx && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          
-          {/* Calque de fond cliquable pour fermer */}
           <div className="absolute inset-0" onClick={() => setEditingTx(null)} />
 
-          {/* Conteneur de la Modale - Entièrement centré, arrondi aux 4 coins et "overflow-visible" */}
           <div 
-            /* 💡 CHANGEMENTS : 
-               - rounded-3xl et border pour arrondir les 4 coins et fermer la carte
-               - overflow-visible pour empêcher le rognage des CustomSelect
-               - zoom-in-95 pour une transition d'apparition centrée plus naturelle */
             className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
                 <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la prévision</h4>
@@ -570,7 +624,6 @@ export default function PrevisionsMobile(props) {
               </button>
             </div>
 
-            {/* Inputs de modification avec CustomSelect */}
             <div className="space-y-4">
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
@@ -607,7 +660,6 @@ export default function PrevisionsMobile(props) {
               </div>
 
               <div className="grid grid-cols-2 gap-3 items-end">
-                {/* CustomSelect Catégorie */}
                 <CustomSelect 
                   label="Catégorie"
                   value={editingTx.categorie}
@@ -617,7 +669,6 @@ export default function PrevisionsMobile(props) {
                   className="p-2.5 rounded-xl text-[10px]"
                 />
 
-                {/* CustomSelect Compte */}
                 <CustomSelect 
                   label="Compte"
                   value={editingTx.compte}
@@ -629,7 +680,6 @@ export default function PrevisionsMobile(props) {
               </div>
             </div>
 
-            {/* Validation */}
             <div className="flex gap-2 pt-3">
               <button 
                 type="button"

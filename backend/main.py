@@ -98,28 +98,21 @@ def read_root():
 @app.get("/transactions/{username}")
 def get_transactions(username: str):
     u_lower = username.lower()
-    query = text("SELECT id, date, nom, montant, categorie, utilisateur, mois, année, compte, enveloppe FROM transactions WHERE LOWER(utilisateur) = :u")
-    
+    query = text("""
+        SELECT id, date, nom, montant, categorie, utilisateur, mois, année, compte, enveloppe, prevision_id 
+        FROM transactions 
+        WHERE LOWER(utilisateur) = :u
+    """)
     try:
         with engine.connect() as conn:
-            # On exécute la requête de manière standard avec SQLAlchemy
             result = conn.execute(query, {"u": u_lower})
-            
-            # On récupère les clés (noms des colonnes) et les lignes
             columns = result.keys()
             records = [dict(zip(columns, row)) for row in result.fetchall()]
-            
-            # Optionnel : Si tu as besoin de formater les dates en string pour éviter les bugs JSON
             for record in records:
                 if record.get('date') and not isinstance(record['date'], str):
                     record['date'] = record['date'].strftime('%Y-%m-%d')
-                    
             return records
-
     except Exception as e:
-        print(f"Erreur lors de la récupération des transactions: {e}")
-        # Crucial : Lever une vraie HTTPException propre pour que FastAPI 
-        # renvoie le bon code d'erreur au navigateur AVEC les en-têtes CORS !
         raise HTTPException(status_code=500, detail=f"Erreur Base de données: {str(e)}")
 
 
@@ -131,9 +124,10 @@ class Transaction(BaseModel):
     mois: str
     annee: int
     compte: str
-    id: Optional[int] = None  # Très important pour les modifs
-    date: Optional[str] = None # Accepte que ce soit vide
-    enveloppe: Optional[str] = None # 👈 AJOUT ICI
+    id: Optional[int] = None
+    date: Optional[str] = None
+    enveloppe: Optional[str] = None
+    prevision_id: Optional[int] = None  # 👈 AJOUT ICI
 
 @app.post("/transactions")
 def add_transaction(t: Transaction):
@@ -181,7 +175,7 @@ def add_transaction(t: Transaction):
 def update_transaction(t_id: int, t: Transaction):
     query = text("""
         UPDATE transactions 
-        SET nom=:n, montant=:m, categorie=:c, mois=:mo, année=:a, compte=:co, enveloppe=:env 
+        SET nom=:n, montant=:m, categorie=:c, mois=:mo, année=:a, compte=:co, enveloppe=:env, prevision_id=:prev_id 
         WHERE id=:id AND utilisateur=:u
     """)
     try:
@@ -189,7 +183,9 @@ def update_transaction(t_id: int, t: Transaction):
             conn.execute(query, {
                 "n": t.nom, "m": t.montant, "c": t.categorie, 
                 "mo": t.mois, "a": t.annee, "co": t.compte,
-                "env": t.enveloppe, "id": t_id, "u": t.utilisateur.lower()
+                "env": t.enveloppe, 
+                "prev_id": t.prevision_id,  # 👈 AJOUT ICI
+                "id": t_id, "u": t.utilisateur.lower()
             })
             conn.commit()
         return {"status": "success"}

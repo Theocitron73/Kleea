@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
-  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown,Wallet 
+  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 
@@ -23,8 +23,8 @@ export default function GererMobile(props) {
     fetchMemoire, elementsAppris, handleDeleteMemory,
     newTx, setNewTx, selectedDate, setSelectedDate, submitQuickTransaction,
     transactionsFiltrees, selectedIds, toggleAll, toggleSelect, updateCell,
-    allocations,searchTerm,
-    // 💡 Récupération de votre composant CustomSelect
+    allocations, searchTerm,
+    allPrevisionsAnnee = [], toutesLesTransactions = [],
     CustomSelect
   } = props;
 
@@ -32,6 +32,13 @@ export default function GererMobile(props) {
   const [activeSection, setActiveSection] = useState('transactions'); // 'transactions' | 'tools' | 'budgets'
   const [showFilters, setShowFilters] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null); // Transaction en cours d'édition mobile
+
+  const extractEmoji = (str) => {
+    if (!str) return null;
+    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
+    const match = str.match(emojiRegex);
+    return match ? match[0] : null;
+  };
 
   // Gérer l'ouverture du volet d'édition mobile d'une transaction
   const openEditTx = (tx) => {
@@ -42,18 +49,18 @@ export default function GererMobile(props) {
   const handleSaveMobileTx = async () => {
     if (!editingTransaction) return;
     
-    // On met à jour les champs modifiés
     await updateCell(editingTransaction.id, 'nom', editingTransaction.nom);
     await updateCell(editingTransaction.id, 'montant', parseFloat(editingTransaction.montant));
     await updateCell(editingTransaction.id, 'compte', editingTransaction.compte);
     await updateCell(editingTransaction.id, 'categorie', editingTransaction.categorie);
     await updateCell(editingTransaction.id, 'mois', editingTransaction.mois);
     await updateCell(editingTransaction.id, 'enveloppe', editingTransaction.enveloppe);
+    // 💡 Mise à jour de la prévision liée
+    await updateCell(editingTransaction.id, 'prevision_id', editingTransaction.prevision_id ? parseInt(editingTransaction.prevision_id) : null);
     
     setEditingTransaction(null);
   };
 
-  // Formater proprement la date sur mobile de manière sécurisée
   const getFormattedDate = (t) => {
     if (t.date) {
       try {
@@ -75,7 +82,7 @@ export default function GererMobile(props) {
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
       
-      {/* 1. ZONE DE NOTIFICATION GLOBALE */}
+      {/* NOTIFICATION FLOTTANTE */}
       {lastLearned && (
         <div className="fixed top-4 left-4 right-4 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300">
           <div className="bg-[#121212] border border-white/10 rounded-2xl p-4 shadow-2xl backdrop-blur-[var(--glass-blur)] relative overflow-hidden">
@@ -96,14 +103,13 @@ export default function GererMobile(props) {
         </div>
       )}
 
-      {/* 2. EN-TÊTE MOBILE COMPACT */}
+      {/* HEADER MOBILE */}
       <div className="flex items-center justify-between mb-4 mt-2">
         <div>
           <h1 className="text-xl font-black tracking-tight">Historique</h1>
           <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Gestion des flux</p>
         </div>
         
-        {/* Bouton d'accès rapide aux filtres */}
         <button 
           onClick={() => setShowFilters(!showFilters)}
           className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${
@@ -117,7 +123,7 @@ export default function GererMobile(props) {
         </button>
       </div>
 
-      {/* 3. RECAP MENSUEL RAPIDE */}
+      {/* RECAP MENSUEL RAPIDE */}
       <div className="grid grid-cols-3 gap-2 mb-4 bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl">
         <div className="text-center">
           <p className="text-[8px] font-bold text-white/30 uppercase">Entrées</p>
@@ -135,7 +141,7 @@ export default function GererMobile(props) {
         </div>
       </div>
 
-      {/* 4. TIROIR DES FILTRES MOBILE AVEC SÉLECTEURS PERSONNALISÉS */}
+      {/* FILTRES DÉROULANTS */}
       {showFilters && (
         <div className="mb-4 bg-[#121214] border border-[var(--primary)]/30 rounded-2xl p-4 space-y-3.5 animate-in slide-in-from-top-4 duration-200">
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -144,7 +150,6 @@ export default function GererMobile(props) {
           </div>
           
           <div className="space-y-4">
-            {/* Profil cible */}
             <CustomSelect 
               label="Profil cible"
               value={filters.profil}
@@ -154,7 +159,6 @@ export default function GererMobile(props) {
               className="p-2.5 rounded-xl text-[10px]"
             />
 
-            {/* Compte bancaire */}
             <CustomSelect 
               label="Compte bancaire"
               value={selectedCompte}
@@ -168,7 +172,6 @@ export default function GererMobile(props) {
             />
 
             <div className="grid grid-cols-2 gap-3">
-              {/* Mois */}
               <CustomSelect 
                 label="Mois"
                 value={filters.mois}
@@ -178,7 +181,6 @@ export default function GererMobile(props) {
                 className="p-2.5 rounded-xl text-[10px]"
               />
 
-              {/* Année */}
               <CustomSelect 
                 label="Année"
                 value={filters.annee}
@@ -195,7 +197,7 @@ export default function GererMobile(props) {
         </div>
       )}
 
-      {/* 5. COMMUTATEUR D'ONGLETS DE FONCTIONNALITÉS MOBILE */}
+      {/* SÉLECTEUR DE SOUS-ONGLETS */}
       <div className="flex border-b border-white/5 mb-4 select-none">
         <button 
           onClick={() => setActiveSection('transactions')}
@@ -230,11 +232,10 @@ export default function GererMobile(props) {
       </div>
 
       {/* =========================================================================
-          ONGLET 1 : LES TRANSACTIONS
+          ONGLET 1 : LES TRANSACTIONS AVEC BADGE PRÉVISION
           ========================================================================= */}
       {activeSection === 'transactions' && (
         <div className="space-y-3 flex-1 animate-in fade-in duration-200">
-          {/* Barre de Recherche Dynamique */}
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
             <input
@@ -251,20 +252,28 @@ export default function GererMobile(props) {
             )}
           </div>
 
-          {/* INDICATEUR D'ACTION TACTILE DISCRET */}
-          <div className="flex items-center gap-2 px-1 py-1 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl animate-pulse">
+          <div className="flex items-center gap-2 px-1 py-1 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl">
             <span className="text-[11px] pl-1">💡</span>
             <span className="text-[9px] font-black text-indigo-300/80 uppercase tracking-wider">
-              Touchez une transaction pour la modifier rapidement
+              Touchez une transaction pour la lier à une prévision
             </span>
           </div>
 
-          {/* Liste des transactions */}
           <div className="space-y-2 mt-2">
             {transactionsFiltrees.length > 0 ? (
               transactionsFiltrees.map((t) => {
                 const estVirement = t.categorie && t.categorie.includes("🔄 Virement");
                 const estRevenu = parseFloat(t.montant) > 0;
+
+                // 💡 Recherche de la prévision liée pour afficher son badge
+                const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
+                let nomPrevAssociee = null;
+                let emojiPrevAssociee = null;
+                if (prevAssociee) {
+                  const rawNom = prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '');
+                  emojiPrevAssociee = extractEmoji(rawNom) || extractEmoji(prevAssociee.categorie) || (estRevenu ? "💰" : "📌");
+                  nomPrevAssociee = rawNom.replace(emojiPrevAssociee, '').trim() || rawNom;
+                }
                 
                 return (
                   <div 
@@ -273,7 +282,6 @@ export default function GererMobile(props) {
                     className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      {/* Badge indicateur de type */}
                       <div className={`w-2.5 h-10 rounded-full shrink-0 ${
                         estVirement ? 'bg-[var(--primary)]/40' : estRevenu ? 'bg-emerald-500/40' : 'bg-rose-500/40'
                       }`} />
@@ -287,11 +295,18 @@ export default function GererMobile(props) {
                           <span className="text-[8px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded font-black max-w-[90px] truncate">
                             {t.categorie || "❓ Autre"}
                           </span>
+
+                          {/* 💡 BADGE DISCRET DE LA PRÉVISION LIÉE */}
+                          {nomPrevAssociee && (
+                            <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[100px] truncate flex items-center gap-0.5">
+                              <span>{emojiPrevAssociee}</span>
+                              <span className="truncate">{nomPrevAssociee}</span>
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Bloc montant + Date + Indicateur d'édition */}
                     <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
                       <div>
                         <span className={`text-xs font-mono font-black ${
@@ -306,7 +321,6 @@ export default function GererMobile(props) {
                         </p>
                       </div>
                       
-                      {/* Petit badge d'édition tactile discret */}
                       <div className="p-1.5 bg-white/[0.02] border border-white/5 rounded-lg text-white/20">
                         <Pencil size={10} />
                       </div>
@@ -325,12 +339,11 @@ export default function GererMobile(props) {
       )}
 
       {/* =========================================================================
-          ONGLET 2 : OUTILS
+          ONGLET 2 : OUTILS / CATÉGORIES / SAISIE EXPRESS
           ========================================================================= */}
       {props.activeTab === 'gerer' && activeSection === 'tools' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* SAISIE EXPRESS AVEC SELECTEURS PERSONNALISÉS */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Plus size={12} /> Nouvelle Transaction Express
@@ -356,7 +369,6 @@ export default function GererMobile(props) {
                   <span className="absolute right-3 top-[65%] -translate-y-1/2 text-[10px] text-white/30 font-bold">€</span>
                 </div>
                 
-                {/* CustomSelect Compte */}
                 <CustomSelect 
                   value={newTx.compte}
                   options={props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))}
@@ -367,7 +379,6 @@ export default function GererMobile(props) {
               </div>
 
               <div className="grid grid-cols-2 gap-3 items-end">
-                {/* CustomSelect Catégorie */}
                 <CustomSelect 
                   value={newTx.categorie}
                   options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
@@ -406,7 +417,7 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* CREER UNE CATEGORIE */}
+          {/* CRÉER UNE CATÉGORIE */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-white/60 tracking-widest mb-3">
               Créer une Catégorie
@@ -433,7 +444,7 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* VISIBILITE DES CATEGORIES */}
+          {/* VISIBILITÉ DES CATÉGORIES */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-[10px] font-black uppercase text-white/60 tracking-widest">
@@ -485,7 +496,6 @@ export default function GererMobile(props) {
       {activeSection === 'budgets' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* DEFINIR UN BUDGET AVEC SELECTEURS PERSONNALISÉS */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Target size={12} /> Définir un Budget
@@ -549,7 +559,6 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* LISTE ET PROGRESSION DES BUDGETS */}
           <div className="space-y-3">
             {budgets.map((b) => {
               const depenseReelle = props.toutesLesTransactions
@@ -579,7 +588,6 @@ export default function GererMobile(props) {
                     </div>
                   </div>
                   
-                  {/* Barre de Progression */}
                   <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden mt-1">
                     <div 
                       className={`h-full transition-all duration-500 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
@@ -594,25 +602,17 @@ export default function GererMobile(props) {
         </div>
       )}
 
-{/* =========================================================================
-          MODALE DE MODIFICATION RAPIDE DE TRANSACTION AVEC SELECTEURS PERSONNALISÉS
+      {/* =========================================================================
+          MODALE D'ÉDITION MOBILE DE TRANSACTION AVEC SÉLECTEUR DE PRÉVISION LIÉE
           ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          
-          {/* Calque de fond cliquable pour fermer */}
           <div className="absolute inset-0" onClick={() => setEditingTransaction(null)} />
 
-          {/* Conteneur de la Modale - Entièrement centré, arrondi aux 4 coins et "overflow-visible" */}
           <div 
-            /* 💡 CHANGEMENTS : 
-               - rounded-3xl et border pour arrondir les 4 coins et fermer la carte
-               - overflow-visible pour laisser flotter les CustomSelect par-dessus les bords 
-               - zoom-in-95 pour une transition d'apparition centrée plus naturelle */
             className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header d'édition */}
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
                 <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la transaction</h4>
@@ -627,15 +627,14 @@ export default function GererMobile(props) {
               </button>
             </div>
 
-            {/* Inputs de modification avec CustomSelect */}
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
                 <input 
                   type="text"
                   value={editingTransaction.nom || editingTransaction.libelle || ''}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, nom: e.target.value })}
-                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none animate-none focus:border-[var(--primary)]/50 transition-colors"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2.5 text-xs font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
                 />
               </div>
 
@@ -650,7 +649,6 @@ export default function GererMobile(props) {
                   />
                 </div>
                 
-                {/* CustomSelect Compte */}
                 <CustomSelect 
                   label="Compte associé"
                   value={editingTransaction.compte}
@@ -662,7 +660,6 @@ export default function GererMobile(props) {
               </div>
 
               <div className="grid grid-cols-2 gap-3 items-end">
-                {/* CustomSelect Catégorie */}
                 <CustomSelect 
                   label="Catégorie"
                   value={editingTransaction.categorie || "❓ Autre"}
@@ -672,7 +669,6 @@ export default function GererMobile(props) {
                   className="p-2.5 rounded-xl text-[10px]"
                 />
                 
-                {/* CustomSelect Mois affecté */}
                 <CustomSelect 
                   label="Mois affecté"
                   value={editingTransaction.mois || "À définir"}
@@ -682,6 +678,70 @@ export default function GererMobile(props) {
                   className="p-2.5 rounded-xl text-[10px]"
                 />
               </div>
+
+              {/* 💡 SÉLECTEUR DE PRÉVISION LIÉE (FILTRÉ PAR MOIS, GROUPE ET SENS + OU -) */}
+              {(() => {
+                const isTxPositive = (parseFloat(editingTransaction.montant) || 0) >= 0;
+                const compteTx = (comptes || []).find(c => 
+                  (c.compte || "").trim().toUpperCase() === (editingTransaction.compte || "").trim().toUpperCase()
+                );
+                const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
+
+                const previsionsDispos = (allPrevisionsAnnee || []).filter(p => {
+                  const matchMois = String(p.mois || "").toLowerCase().trim() === String(editingTransaction.mois || "").toLowerCase().trim();
+                  const anneeT = parseInt(editingTransaction.annee || editingTransaction.année || filters.annee || new Date().getFullYear());
+                  const anneeP = parseInt(p.annee || p.année || new Date().getFullYear());
+                  const matchAnnee = (anneeT === anneeP);
+
+                  let matchGroupe = true;
+                  if (groupeCible) {
+                    const compteP = (comptes || []).find(c => 
+                      (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
+                    );
+                    matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
+                  }
+
+                  const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
+                  const matchSens = (isTxPositive === isPrevPositive);
+
+                  return matchMois && matchAnnee && matchGroupe && matchSens;
+                }).map(p => {
+                  const rawNom = p.nom.replace(/^\[PRÉVI\]\s*/i, '');
+                  const emojiItem = extractEmoji(rawNom) || extractEmoji(p.categorie) || (isTxPositive ? "💰" : "📌");
+                  const nomAffiche = rawNom.replace(emojiItem, '').trim() || rawNom;
+                  const montantPrev = Math.abs(parseFloat(p.montant) || 0);
+
+                  const liees = (toutesLesTransactions || []).filter(tx => tx.prevision_id === p.id);
+                  const consomme = liees.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.montant) || 0), 0);
+                  const restant = montantPrev - consomme;
+
+                  const labelStatut = isTxPositive
+                    ? (consomme >= montantPrev ? `[100% Reçu]` : `[Attendu: ${Math.max(0, restant).toFixed(0)}€]`)
+                    : (restant < 0 ? `[Dépassé +${Math.abs(restant).toFixed(0)}€]` : `[Reste: ${restant.toFixed(0)}€]`);
+
+                  return {
+                    v: String(p.id),
+                    l: `${emojiItem} ${nomAffiche} (${montantPrev.toFixed(0)}€ ${labelStatut})`
+                  };
+                });
+
+                return (
+                  <CustomSelect 
+                    label={isTxPositive ? "Prévision liée (Revenu)" : "Prévision liée (Dépense)"}
+                    value={editingTransaction.prevision_id ? String(editingTransaction.prevision_id) : ""}
+                    options={[
+                      { v: "", l: "✕ Aucune prévision" },
+                      ...previsionsDispos
+                    ]}
+                    onChange={(val) => setEditingTransaction({ 
+                      ...editingTransaction, 
+                      prevision_id: val ? parseInt(val) : null 
+                    })}
+                    icon={Target}
+                    className="p-2.5 rounded-xl text-[10px]"
+                  />
+                );
+              })()}
 
               {/* CustomSelect Enveloppe d'épargne */}
               <CustomSelect 
@@ -697,7 +757,6 @@ export default function GererMobile(props) {
               />
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 pt-3">
               <button 
                 type="button"

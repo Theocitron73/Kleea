@@ -8667,6 +8667,10 @@ const updateCell = async (id, field, value) => {
   // --- 2. PRÉPARATION DES DONNÉES POUR SQL ---
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
 
+  let parsedValue = value;
+  if (field === 'montant') parsedValue = parseFloat(value);
+  if (field === 'prevision_id') parsedValue = value ? parseInt(value) : null;
+
   const updatedData = {
     nom: transactionActive.nom,
     montant: transactionActive.montant,
@@ -8675,11 +8679,12 @@ const updateCell = async (id, field, value) => {
     mois: transactionActive.mois,
     compte: transactionActive.compte,
     // 💡 SÉCURITÉ : On conserve l'enveloppe actuelle pour ne pas l'effacer lors d'autres modifs
-    enveloppe: transactionActive.enveloppe, 
+    enveloppe: transactionActive.enveloppe,
+    prevision_id: transactionActive.prevision_id, // 👈 Conserver la valeur existante
     annee: parseInt(transactionActive.annee || transactionActive.année || new Date().getFullYear()),
     
     // On applique la modification demandée (nom, montant, catégorie OU enveloppe)
-    [field]: field === 'montant' ? parseFloat(value) : value 
+    [field]: parsedValue 
   };
 
   try {
@@ -9967,18 +9972,39 @@ const soldesPrevisionnels = useMemo(() => {
   const impactPrevisions = {};
   soldesTries.forEach(c => { impactPrevisions[c.compte.trim().toUpperCase()] = 0; });
 
-  // CHANGEMENT ICI : On utilise previsionsActivesPourRecap
+  const maintenant = new Date();
+  const moisActuelIdx = maintenant.getMonth();
+  const anneeActuelle = maintenant.getFullYear();
+  const anneeFiltre = parseInt(filters.annee);
+
   previsionsActivesPourRecap.forEach(p => {
-    const montant = parseFloat(p.montant) || 0;
     const compteSrc = (p.compte || "").trim().toUpperCase();
     const cat = (p.categorie || "").toUpperCase();
     const nomTrans = (p.nom || "").toUpperCase();
     const texteIntegral = `${nomTrans} ${cat}`;
 
-    if (impactPrevisions.hasOwnProperty(compteSrc)) {
-      impactPrevisions[compteSrc] += montant;
+    const d = new Date(p.date);
+    const estMoisEnCours = (anneeFiltre === anneeActuelle && d.getMonth() === moisActuelIdx);
+
+    const montantBrut = parseFloat(p.montant) || 0;
+    const montantAbs = Math.abs(montantBrut);
+
+    let montantImpact = montantBrut;
+
+    // 💡 Mois en cours : On ne prend en compte QUE LE RESTE À VENIR (plus de doublon de salaire !)
+    if (estMoisEnCours) {
+      const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
+      const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
+      const resteAVenir = Math.max(0, montantAbs - montantConsomme);
+
+      montantImpact = montantBrut >= 0 ? resteAVenir : -resteAVenir;
     }
 
+    if (impactPrevisions.hasOwnProperty(compteSrc)) {
+      impactPrevisions[compteSrc] += montantImpact;
+    }
+
+    // Gestion des transferts internes
     if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
       const groupeSource = comptes.find(c => c.compte.trim().toUpperCase() === compteSrc)?.groupe;
       let meilleurMatch = null;
@@ -9996,7 +10022,7 @@ const soldesPrevisionnels = useMemo(() => {
         }
       }
       if (meilleurMatch && impactPrevisions.hasOwnProperty(meilleurMatch)) {
-        impactPrevisions[meilleurMatch] -= montant;
+        impactPrevisions[meilleurMatch] -= montantImpact;
       }
     }
   });
@@ -10005,8 +10031,7 @@ const soldesPrevisionnels = useMemo(() => {
     ...c,
     soldeFinalEstime: c.soldePeriode + (impactPrevisions[c.compte.trim().toUpperCase()] || 0)
   }));
-  // CHANGEMENT ICI : previsionsActivesPourRecap en dépendance
-}, [soldesTries, previsionsActivesPourRecap, comptes]);
+}, [soldesTries, previsionsActivesPourRecap, comptes, toutesLesTransactions, filters.annee]);
 
 const soldeGlobalProjete = useMemo(() => 
   soldesPrevisionnels.reduce((acc, c) => acc + c.soldeFinalEstime, 0)
@@ -10153,36 +10178,55 @@ const recapPrevisionsStats = useMemo(() => {
     const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
     const estMasque = excludedMonths.includes(nomMoisComplet);
 
-    // Données réelles (Toujours conservées)
+    // 1. Données réelles existantes
     const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0, soldeTotal: 0 };
 
+    // Si le mois est complètement passé, on affiche uniquement le réel
     if (estPasse) {
       cumulMobile = statsReelles.soldeTotal ?? cumulMobile;
       return { ...statsReelles, type: 'réel' };
     }
 
-    // --- CALCUL DES PRÉVISIONS ---
+    // 2. Prévisions actives du mois
     const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
       const d = new Date(p.date);
       return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
     });
 
-    // On calcule les prévisions, mais on les passe à 0 si le mois est masqué
-    const revPrevi = estMasque ? 0 : previsionsDuMois
-      .filter(p => p.montant > 0 && !estUnTransfertPrevi(p))
-      .reduce((acc, p) => acc + (parseFloat(p.montant) || 0), 0);
-      
-    const depPrevi = estMasque ? 0 : previsionsDuMois
-      .filter(p => p.montant < 0 && !estUnTransfertPrevi(p))
-      .reduce((acc, p) => acc + Math.abs(parseFloat(p.montant) || 0), 0);
+    let revPrevi = 0;
+    let depPrevi = 0;
 
-    // --- FUSION ---
-    // Les revenus/dépenses affichés sont : Réel (toujours) + Prévi (si pas masqué)
-    const totalRev = statsReelles.revenus + revPrevi;
-    const totalDep = statsReelles.depenses + depPrevi;
+    if (!estMasque) {
+      previsionsDuMois.forEach(p => {
+        if (estUnTransfertPrevi(p)) return;
+
+        const montantPrevuAbs = Math.abs(parseFloat(p.montant) || 0);
+
+        if (estMoisEnCours) {
+          // 💡 CALCUL DU RESTE À VENIR : On déduit ce qui a déjà été payé/reçu
+          const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
+          const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
+          
+          // Ce qui reste encore attendu pour la fin du mois (0 si déjà payé ou dépassé)
+          const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
+
+          if (p.montant > 0) revPrevi += resteAVenir;
+          else depPrevi += resteAVenir;
+        } else {
+          // Pour les mois futurs : 100% de la prévision est encore à venir
+          if (p.montant > 0) revPrevi += montantPrevuAbs;
+          else depPrevi += montantPrevuAbs;
+        }
+      });
+    }
+
+    // 3. FUSION SANS DOUBLON :
+    // Mois en cours : Réel déjà débité + Prévisions restantes attendues
+    // Mois futur : 0 réel + 100% des prévisions
+    const totalRev = (statsReelles.revenus || 0) + revPrevi;
+    const totalDep = (statsReelles.depenses || 0) + depPrevi;
     const balanceMois = totalRev - totalDep;
 
-    // Le cumul prend en compte le réel + les prévi non masquées
     cumulMobile += balanceMois;
 
     return {
@@ -10192,10 +10236,10 @@ const recapPrevisionsStats = useMemo(() => {
       epargne: balanceMois,
       soldeTotal: cumulMobile,
       type: estMoisEnCours ? 'mixte' : 'projeté',
-      isMasque: estMasque // On garde le flag pour le style visuel
+      isMasque: estMasque
     };
   });
-}, [recapAnnuelStats, previsionsActivesPourRecap, filters.annee, moisListe, excludedMonths]);
+}, [recapAnnuelStats, previsionsActivesPourRecap, filters.annee, moisListe, excludedMonths, toutesLesTransactions]);
 
 
 
@@ -10366,46 +10410,42 @@ const statsEpargnePrevisionnelle = useMemo(() => {
 
     const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
     const estMasque = excludedMonths.includes(nomMoisComplet);
-
-    // Récupération des données réelles du mois
     const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0 };
 
-    // CAS 1 : Le mois est PASSÉ -> Épargne réelle stockée
-    if (estPasse) {
+    if (estPasse || estMasque) {
       return acc + (parseFloat(statsReelles.epargne) || 0);
     }
 
-    // CAS 2 : Le mois est MASQUÉ -> On se rabat sur le réel
-    if (estMasque) {
-      return acc + (parseFloat(statsReelles.epargne) || 0);
-    }
-
-    // CAS 3 : Le mois est ACTIF (Futur/En cours et non masqué) -> Épargne projetée
     const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
       const d = new Date(p.date);
       return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
     });
 
-    const revPrevi = previsionsDuMois
-      .filter(p => p.montant > 0 && !estUnTransfertPrevi(p))
-      .reduce((sum, p) => sum + (parseFloat(p.montant) || 0), 0);
-      
-    const depPrevi = previsionsDuMois
-      .filter(p => p.montant < 0 && !estUnTransfertPrevi(p))
-      .reduce((sum, p) => sum + Math.abs(parseFloat(p.montant) || 0), 0);
+    let revPrevi = 0;
+    let depPrevi = 0;
 
-    const totalRev = statsReelles.revenus + revPrevi;
-    const totalDep = statsReelles.depenses + depPrevi;
-    
-    const balanceMoisProjetee = totalRev - totalDep;
+    previsionsDuMois.forEach(p => {
+      if (estUnTransfertPrevi(p)) return;
+      const montantPrevuAbs = Math.abs(parseFloat(p.montant) || 0);
 
-    // 🔥 CORRECTION : On ajoute la balance telle quelle (qu'elle soit positive ou négative)
-    // Si balanceMoisProjetee vaut -200€, faire "acc + (-200)" va correctement soustraire 200€ du cumul global
-    return acc + balanceMoisProjetee;
+      if (estMoisEnCours) {
+        const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
+        const montantConsomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+        const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
 
+        if (p.montant > 0) revPrevi += resteAVenir;
+        else depPrevi += resteAVenir;
+      } else {
+        if (p.montant > 0) revPrevi += montantPrevuAbs;
+        else depPrevi += montantPrevuAbs;
+      }
+    });
+
+    const totalRev = (statsReelles.revenus || 0) + revPrevi;
+    const totalDep = (statsReelles.depenses || 0) + depPrevi;
+    return acc + (totalRev - totalDep);
   }, 0);
 
-  // Calcul du pourcentage face à l'objectif global (avec une sécurité pour ne pas descendre sous 0%)
   const pourcentage = objectifAnnuelGlobal > 0 
     ? Math.max(0, Math.round((cumulEpargneAnnuel / objectifAnnuelGlobal) * 100))
     : 0;
@@ -10414,8 +10454,7 @@ const statsEpargnePrevisionnelle = useMemo(() => {
     montant: cumulEpargneAnnuel,
     pourcentage: pourcentage
   };
-
-}, [previsionsActivesPourRecap, recapAnnuelStats, filters.annee, moisListe, excludedMonths, objectifAnnuelGlobal]);
+}, [previsionsActivesPourRecap, recapAnnuelStats, filters.annee, moisListe, excludedMonths, objectifAnnuelGlobal, toutesLesTransactions]);
 
 useEffect(() => {
   loadAvailablePreviPeriods();
@@ -10680,7 +10719,8 @@ const handleClosePatchModal = () => {
 
 
 const [activeDropdownId, setActiveDropdownId] = useState(null);
-
+const [activePrevisionDropdownId, setActivePrevisionDropdownId] = useState(null);
+const [dropdownPosition, setDropdownPosition] = useState('bottom'); // 'bottom' ou 'top'
 
 // Variable de verrouillage
 const isSyncing = useRef(false);
@@ -11093,6 +11133,42 @@ useEffect(() => {
 const [hiddenComptes, setHiddenComptes] = useState({});
 
 const [isAutoSyncingOnLoad, setIsAutoSyncingOnLoad] = useState(false);
+
+
+const previsionsTracking = useMemo(() => {
+  const map = {};
+
+  (allPrevisionsAnnee || []).forEach(p => {
+    const prevMontantAbs = Math.abs(parseFloat(p.montant) || 0);
+    map[p.id] = {
+      prev: p,
+      prevMontant: prevMontantAbs,
+      consomme: 0,
+      nbTransactions: 0,
+      transactions: []
+    };
+  });
+
+  (toutesLesTransactions || []).forEach(t => {
+    if (t.prevision_id && map[t.prevision_id]) {
+      const montantTx = Math.abs(parseFloat(t.montant) || 0);
+      map[t.prevision_id].consomme += montantTx;
+      map[t.prevision_id].nbTransactions += 1;
+      map[t.prevision_id].transactions.push(t);
+    }
+  });
+
+  Object.keys(map).forEach(id => {
+    const item = map[id];
+    item.restant = item.prevMontant - item.consomme;
+    item.depasse = item.consomme > item.prevMontant;
+    item.pct = item.prevMontant > 0 
+      ? Math.min(100, Math.round((item.consomme / item.prevMontant) * 100)) 
+      : 0;
+  });
+
+  return map;
+}, [allPrevisionsAnnee, toutesLesTransactions]);
 
 // 🟢 CHARGEMENT IMMÉDIAT AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
@@ -13144,131 +13220,207 @@ if (!user) {
       </tr>
     </thead>
 
-    <tbody className="before:content-[''] before:block before:h-1">
-      {previsionsFiltrees.length > 0 ? (
-        previsionsFiltrees.map((prev) => {
-          const isSelected = selectedIds2.includes(prev.id);
-          const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
-          const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
+      <tbody className="before:content-[''] before:block before:h-1">
+            {previsionsFiltrees.length > 0 ? (
+              previsionsFiltrees.map((prev) => {
+                const isSelected = selectedIds2.includes(prev.id);
+                const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+                const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
 
-          return (
-            <tr 
-              key={prev.id} 
-              className={`
-                group transition-all duration-300 
-                ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.04]'}
-                ${!isActif ? 'opacity-30 hover:opacity-70 saturate-50' : ''}
-              `}
-            >
-              {/* PREMIÈRE CASE (Checkbox + Bouton d'activation Œil - py-1.5) */}
-              <td className={`p-1.5 border-y border-l border-white/5 text-center relative rounded-l-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <div className="flex items-center justify-center gap-1.5">
-                  <input 
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect2(prev.id)}
-                    className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
-                  />
-                  
-                  <button
-                    onClick={() => updatePrevision(prev.id, 'actif', !isActif)}
-                    title={isActif ? "Désactiver du graphique et des calculs" : "Réactiver la transaction"}
-                    className={`p-1 rounded-md transition-all cursor-pointer ${isActif ? 'text-white/20 hover:text-white/60 hover:bg-white/5' : 'text-rose-400 hover:text-rose-300 bg-rose-500/10'}`}
+                // 💡 Calcul dynamique : Réalisé vs Restant (avec fallback sécurisé)
+                const tracking = (typeof previsionsTracking !== 'undefined' && previsionsTracking?.[prev.id]) || (() => {
+                  const montantAbs = Math.abs(parseFloat(prev.montant) || 0);
+                  const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
+                  const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+                  const restant = montantAbs - consomme;
+                  const depasse = consomme > montantAbs;
+                  const pct = montantAbs > 0 ? Math.min(100, Math.round((consomme / montantAbs) * 100)) : 0;
+                  return { consomme, restant, depasse, pct, nbTransactions: liees.length, transactions: liees };
+                })();
+
+                return (
+                  <tr 
+                    key={prev.id} 
+                    className={`
+                      group transition-all duration-300 
+                      ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.04]'}
+                      ${!isActif ? 'opacity-30 hover:opacity-70 saturate-50' : ''}
+                    `}
                   >
-                    {isActif ? <Eye size={11} /> : <EyeOff size={11} />}
-                  </button>
-                </div>
-              </td>
-              
-              {/* LIBELLÉ (Hauteur d'input réduite à py-1 et texte de 10.5px) */}
-              <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <input 
-                  className={`input-libelle bg-white/[0.04] border border-white/5 focus:border-emerald-500/40 rounded-lg px-2.5 py-1 text-[10.5px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
-                  defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                  onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                />
-              </td>
+                    {/* PREMIÈRE CASE (Checkbox + Bouton d'activation Œil) */}
+                    <td className={`p-1.5 border-y border-l border-white/5 text-center relative rounded-l-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <input 
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect2(prev.id)}
+                          className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
+                        />
+                        
+                        <button
+                          onClick={() => updatePrevision(prev.id, 'actif', !isActif)}
+                          title={isActif ? "Désactiver du graphique et des calculs" : "Réactiver la transaction"}
+                          className={`p-1 rounded-md transition-all cursor-pointer ${isActif ? 'text-white/20 hover:text-white/60 hover:bg-white/5' : 'text-rose-400 hover:text-rose-300 bg-rose-500/10'}`}
+                        >
+                          {isActif ? <Eye size={11} /> : <EyeOff size={11} />}
+                        </button>
+                      </div>
+                    </td>
+                    
+                    {/* LIBELLÉ (avec badge du nombre de transactions rattachées) */}
+                    <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                      <div className="flex items-center gap-1.5 w-full">
+                        <input 
+                          className={`input-libelle bg-white/[0.04] border border-white/5 focus:border-emerald-500/40 rounded-lg px-2.5 py-1 text-[10.5px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
+                          defaultValue={prev.nom.replace('[PRÉVI] ', '')}
+                          onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
+                        />
+                        {tracking.nbTransactions > 0 && (
+                          <span 
+                            title={`${tracking.nbTransactions} transaction(s) liée(s) : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
+                            className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0 cursor-help"
+                          >
+                            {tracking.nbTransactions} tx
+                          </span>
+                        )}
+                      </div>
+                    </td>
 
-              {/* CATÉGORIE (💡 CustomSelect aminci à h-[28px]) */}
-              <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <CustomSelect 
-                  value={prev.categorie} 
-                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} 
-                  icon={Tag} 
-                  onChange={(val) => updatePrevision(prev.id, 'categorie', val)} 
-                  className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
-                />
-              </td>
+                    {/* CATÉGORIE */}
+                    <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                      <CustomSelect 
+                        value={prev.categorie} 
+                        options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} 
+                        icon={Tag} 
+                        onChange={(val) => updatePrevision(prev.id, 'categorie', val)} 
+                        className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
+                      />
+                    </td>
 
-              {/* COMPTE (💡 CustomSelect aminci à h-[28px]) */}
-              <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <CustomSelect 
-                  value={prev.compte} 
-                  options={optionsComptes} 
-                  icon={Wallet} 
-                  onChange={(val) => updatePrevision(prev.id, 'compte', val)} 
-                  className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
-                />
-              </td>
+                    {/* COMPTE */}
+                    <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                      <CustomSelect 
+                        value={prev.compte} 
+                        options={optionsComptes} 
+                        icon={Wallet} 
+                        onChange={(val) => updatePrevision(prev.id, 'compte', val)} 
+                        className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
+                      />
+                    </td>
 
-              {/* MONTANT (💡 Boîtier de montant aminci à h-[28px]) */}
-              <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <div className="amount-box flex items-center bg-white/[0.04] border border-white/5 rounded-xl px-2.5 h-[28px] transition-all duration-300">
-                  <input 
-                    type="number"
-                    className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
-                    style={{ 
-                      color: isTransfert 
-                        ? '#6d00fc' 
-                        : prev.montant > 0 
-                          ? `${userTheme.color_revenus}e6` 
-                          : `${userTheme.color_depenses}e6` 
-                    }}
-                    defaultValue={prev.montant}
-                    onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
-                  />
-                  <span className="ml-1 text-[8px] font-bold opacity-30 leading-none" style={{ color: isTransfert ? '#6d00fc' : prev.montant > 0 ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
-                </div>
-              </td>
+                    {/* MONTANT PRÉVU & DÉTAIL RÉALISÉ (ADAPTÉ REVENUS ET DÉPENSES) */}
+                    <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                      {(() => {
+                        const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
 
-              {/* DATE (💡 Boîtier de date aminci à h-[28px]) */}
-              <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                <div className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/5 rounded-xl px-2 h-[28px] focus-within:border-emerald-500/50 transition-all">
-                  <Calendar size={11} className="text-[var(--text-main)]/30" />
-                  <DatePicker
-                    selected={prev.date ? new Date(prev.date) : null}
-                    onChange={(date) => updatePrevision(prev.id, 'date', date)}
-                    dateFormat="dd/MM/yyyy"
-                    portalId="root" 
-                    className="bg-transparent border-none outline-none text-[9.5px] font-black text-[var(--text-main)] w-18 text-right cursor-pointer"
-                  />
-                </div>
-              </td>
-            </tr>
-          );
-        })
-      ) : (
-                  /* --- ÉTAT VIDE --- */
-                  <tr>
-                    <td colSpan="6" className="py-24">
-                      <div className="flex flex-col items-center justify-center text-center px-4">
-                        <div className="relative mb-6">
-                            <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
-                            <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
-                              <Calendar size={28} className="text-[var(--primary)]/40" />
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {/* Input Montant */}
+                            <div className="amount-box flex items-center bg-white/[0.04] border border-white/5 rounded-xl px-2.5 h-[28px] transition-all duration-300">
+                              <input 
+                                type="number"
+                                className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
+                                style={{ 
+                                  color: isTransfert 
+                                    ? '#6d00fc' 
+                                    : isRevenu
+                                      ? `${userTheme.color_revenus}e6` 
+                                      : `${userTheme.color_depenses}e6` 
+                                }}
+                                defaultValue={prev.montant}
+                                onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                              />
+                              <span className="ml-1 text-[8px] font-bold opacity-30 leading-none" style={{ color: isTransfert ? '#6d00fc' : isRevenu ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
                             </div>
-                        </div>
-                        <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
-                          Calendrier de prévisions vide
-                        </h3>
-                        <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic max-w-xs">
-                          Aucun mouvement programmé pour cette période. <br/>Ajouter des prévisions pour anticiper vos dépenses.
-                        </p>
+
+                            {/* Détail Réalisé vs Restant */}
+                            {tracking.nbTransactions > 0 ? (
+                              <div className="flex flex-col gap-0.5 px-1">
+                                <div className="flex items-center justify-between text-[7.5px] font-black uppercase tracking-tight">
+                                  <span className="text-white/40">
+                                    {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{tracking.consomme.toFixed(0)}€</strong>
+                                  </span>
+
+                                  {/* Statut différencié */}
+                                  {isRevenu ? (
+                                    <span className={tracking.depasse ? 'text-emerald-400 font-bold' : tracking.restant === 0 ? 'text-emerald-400' : 'text-amber-400 font-bold'}>
+                                      {tracking.depasse 
+                                        ? `+${Math.abs(tracking.restant).toFixed(0)}€ surplus` 
+                                        : tracking.restant === 0 
+                                          ? '100% perçu' 
+                                          : `Attendu: ${Math.max(0, tracking.restant).toFixed(0)}€`}
+                                    </span>
+                                  ) : (
+                                    <span className={tracking.depasse ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                                      {tracking.depasse 
+                                        ? `Dépassé (+${Math.abs(tracking.restant).toFixed(0)}€)` 
+                                        : `Reste: ${tracking.restant.toFixed(0)}€`}
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                {/* Barre de progression */}
+                                <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                  <div 
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      isRevenu
+                                        ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
+                                        : tracking.depasse ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                                    }`}
+                                    style={{ width: `${Math.min(tracking.pct, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end px-1">
+                                <span className="text-[7.5px] font-bold text-white/20 uppercase tracking-widest italic">
+                                  0 liée
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
+
+                    {/* DATE */}
+                    <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                      <div className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/5 rounded-xl px-2 h-[28px] focus-within:border-emerald-500/50 transition-all">
+                        <Calendar size={11} className="text-[var(--text-main)]/30" />
+                        <DatePicker
+                          selected={prev.date ? new Date(prev.date) : null}
+                          onChange={(date) => updatePrevision(prev.id, 'date', date)}
+                          dateFormat="dd/MM/yyyy"
+                          portalId="root" 
+                          className="bg-transparent border-none outline-none text-[9.5px] font-black text-[var(--text-main)] w-18 text-right cursor-pointer"
+                        />
                       </div>
                     </td>
                   </tr>
-                )}
-              </tbody>
+                );
+              })
+            ) : (
+              /* --- ÉTAT VIDE --- */
+              <tr>
+                <td colSpan="6" className="py-24">
+                  <div className="flex flex-col items-center justify-center text-center px-4">
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full"></div>
+                      <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
+                        <Calendar size={28} className="text-[var(--primary)]/40" />
+                      </div>
+                    </div>
+                    <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
+                      Calendrier de prévisions vide
+                    </h3>
+                    <p className="text-[var(--text-main)]/30 text-[9px] font-bold uppercase tracking-widest mt-3 leading-relaxed italic max-w-xs">
+                      Aucun mouvement programmé pour cette période. <br/>Ajouter des prévisions pour anticiper vos dépenses.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
             </table>
           </div>
         </div>
@@ -13565,6 +13717,7 @@ if (!user) {
         CustomSelect={CustomSelect}
         // 💡 CETTE LIGNE PERMET DE LIER LE COMPOSANT DE CARTES GRAPHIQUES POUR MOBILE :
         SortableAccountCard={SortableAccountCard}
+        toutesLesTransactions={toutesLesTransactions}
       />
     </div>
   </>
@@ -14556,6 +14709,10 @@ if (!user) {
         </th>
         
         <th className="p-4 w-32 text-[10px] font-black text-[var(--text-main)]/40 uppercase">Mois Affecté</th>
+
+        <th className="p-4 w-28 text-center text-[10px] font-black text-[var(--text-main)]/40 uppercase">
+          Prévision
+        </th>
         
         {/* 💡 EN-TÊTE ULTRA DISCRET POUR L'ENVELOPPE */}
         <th className="p-4 w-24 text-center text-[10px] font-black text-[var(--text-main)]/40 uppercase">Enveloppe</th>
@@ -14683,6 +14840,221 @@ if (!user) {
                   onChange={(val) => updateCell(t.id, 'mois', val)}
                 />
               </td>
+
+
+             {/* 💡 CELLULE PRÉVISION LIÉE : SÉPARATION DÉPENSES/REVENUS + VOCABULAIRE ADAPTÉ */}
+<td className={`p-4 border-b border-white/[0.05] w-28 text-center relative ${activePrevisionDropdownId === t.id ? 'z-[60]' : ''}`}>
+  {(() => {
+    const extractEmoji = (str) => {
+      if (!str) return null;
+      const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
+      const match = str.match(emojiRegex);
+      return match ? match[0] : null;
+    };
+
+    // Sens du flux de la transaction actuelle (+ ou -)
+    const isTxPositive = (parseFloat(t.montant) || 0) >= 0;
+
+    // Groupe/profil cible
+    const compteTx = (comptes || []).find(c => 
+      (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase()
+    );
+    const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
+
+    // Prévision actuellement associée
+    const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
+    let nomBadge = null;
+    let emojiBadge = null;
+
+    if (prevAssociee) {
+      const rawNom = prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '');
+      emojiBadge = extractEmoji(rawNom) || extractEmoji(prevAssociee.categorie) || "📌";
+      nomBadge = rawNom.replace(emojiBadge, '').trim() || rawNom;
+    }
+
+    // 🎯 FILTRAGE STRICT : Mois + Année + Groupe + SENS DU FLUX (Positif avec Positif, Négatif avec Négatif)
+    const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
+      const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
+      const anneeT = parseInt(t.annee || t.année || new Date().getFullYear());
+      const anneeP = parseInt(p.annee || p.année || new Date().getFullYear());
+      const matchAnnee = (anneeT === anneeP);
+
+      let matchGroupe = true;
+      if (groupeCible) {
+        const compteP = (comptes || []).find(c => 
+          (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
+        );
+        matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
+      }
+
+      // 💡 Filtrage Positif / Négatif :
+      const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
+      const matchSens = (isTxPositive === isPrevPositive);
+
+      return matchMois && matchAnnee && matchGroupe && matchSens;
+    });
+
+    return (
+      <div className="flex flex-col items-center justify-center gap-1">
+        
+        {/* BADGE */}
+        {nomBadge ? (
+          <span 
+            title={`Lié à : ${nomBadge}`}
+            className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 uppercase max-w-[95px] truncate flex items-center justify-center gap-1 tracking-tighter"
+          >
+            <span className="shrink-0">{emojiBadge}</span>
+            <span className="truncate">{nomBadge}</span>
+          </span>
+        ) : (
+          <div className="h-[15px]" />
+        )}
+
+        {/* BOUTON 3 POINTS */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (activePrevisionDropdownId === t.id) {
+              setActivePrevisionDropdownId(null);
+            } else {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const spaceBelow = window.innerHeight - rect.bottom;
+              setDropdownPosition(spaceBelow < 280 ? 'top' : 'bottom');
+              setActivePrevisionDropdownId(t.id);
+            }
+          }}
+          className={`w-7 h-7 flex items-center justify-center rounded-full transition-all cursor-pointer ${
+            activePrevisionDropdownId === t.id 
+              ? 'bg-white/10 text-white' 
+              : 'text-[var(--text-main)]/30 hover:bg-white/5 hover:text-[var(--text-main)]'
+          }`}
+          title="Lier à une prévision"
+        >
+          <MoreHorizontal size={14} />
+        </button>
+
+        {/* DROPDOWN POPUP */}
+        {activePrevisionDropdownId === t.id && (
+          <>
+            <div 
+              className="fixed inset-0 z-50 cursor-default" 
+              onClick={(e) => {
+                e.stopPropagation();
+                setActivePrevisionDropdownId(null);
+              }}
+            />
+
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className={`
+                absolute right-0 w-64 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-xl
+                ${dropdownPosition === 'top' 
+                  ? 'bottom-full mb-2 animate-in fade-in slide-in-from-bottom-2 duration-150' 
+                  : 'top-12 animate-in fade-in slide-in-from-top-2 duration-150'
+                }
+              `}
+            >
+              {/* Header avec indicateur de flux */}
+              <div className="px-2.5 py-1 text-[8px] font-black text-white/40 uppercase tracking-widest border-b border-white/5 flex items-center justify-between mb-1">
+                <span>{isTxPositive ? '🟢 Revenus' : '🔴 Dépenses'} • {t.mois}</span>
+                <span className="text-emerald-400 font-bold shrink-0">{previsionsDuMois.length} dispo</span>
+              </div>
+
+              {/* DÉLIER */}
+              <button
+                onClick={async () => {
+                  await updateCell(t.id, 'prevision_id', null);
+                  setActivePrevisionDropdownId(null);
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  !t.prevision_id 
+                    ? 'bg-white/10 text-white' 
+                    : 'text-white/40 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <span>✕</span> Aucune prévision
+              </button>
+
+              {/* LISTE DES PRÉVISIONS ADAPTÉE */}
+              <div className="max-h-56 overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-0.5">
+                {previsionsDuMois.length > 0 ? (
+                  previsionsDuMois.map((p) => {
+                    const isSelected = t.prevision_id === p.id;
+                    const rawNom = p.nom.replace(/^\[PRÉVI\]\s*/i, '');
+                    const emojiItem = extractEmoji(rawNom) || extractEmoji(p.categorie) || (isTxPositive ? "💰" : "📌");
+                    const nomAffiche = rawNom.replace(emojiItem, '').trim() || rawNom;
+                    const montantPrev = Math.abs(parseFloat(p.montant) || 0);
+
+                    // Calcul du réalisé
+                    const liees = (toutesLesTransactions || []).filter(tx => tx.prevision_id === p.id);
+                    const consomme = liees.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.montant) || 0), 0);
+                    const restant = montantPrev - consomme;
+
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={async () => {
+                          await updateCell(t.id, 'prevision_id', p.id);
+                          setActivePrevisionDropdownId(null);
+                        }}
+                        className={`w-full text-left p-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                          isSelected 
+                            ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' 
+                            : 'bg-white/[0.02] hover:bg-white/[0.06] text-white/70 hover:text-white border border-transparent'
+                        }`}
+                      >
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs shrink-0">{emojiItem}</span>
+                            <span className="truncate text-[10.5px] font-black uppercase text-white">
+                              {nomAffiche}
+                            </span>
+                          </div>
+                          
+                          {/* 💡 AFFICHAGE DIFFÉRENCIÉ SELON REVENU OU DÉPENSE */}
+                          <div className="flex items-center gap-1 text-[8px] font-mono mt-0.5">
+                            <span className="text-white/40">Prévu: {montantPrev.toFixed(0)}€</span>
+                            <span className="text-white/20">•</span>
+
+                            {isTxPositive ? (
+                              // Cas d'un Revenu (vert si perçu, bonus vert si surplus, ambre si attente)
+                              <span className={consomme >= montantPrev ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
+                                {consomme >= montantPrev 
+                                  ? `100% Reçu (${consomme.toFixed(0)}€)` 
+                                  : `En attente: ${Math.max(0, restant).toFixed(0)}€`}
+                              </span>
+                            ) : (
+                              // Cas d'une Dépense (vert si reste, rouge si dépassé)
+                              <span className={restant < 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                                {restant < 0 
+                                  ? `Dépassé (+${Math.abs(restant).toFixed(0)}€)` 
+                                  : `Reste: ${restant.toFixed(0)}€`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {isSelected && (
+                          <span className="text-emerald-400 text-xs font-black shrink-0">✓</span>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <p className="text-[9px] text-center text-white/20 py-3 italic">
+                    Aucun {isTxPositive ? 'revenu prévisionnel' : 'dépense prévisionnelle'} ce mois-ci
+                  </p>
+                )}
+              </div>
+
+            </div>
+          </>
+        )}
+
+      </div>
+    );
+  })()}
+</td>
 
               {/* 💡 CELLULE AVEC FENÊTRE MODALE QUI SE DÉPLIE */}
 {/* 💡 CELLULE MODIFIÉE : BADGE AU-DESSUS DES 3 POINTS */}
@@ -14875,6 +15247,7 @@ if (!user) {
         allocations={allocations}
         activeTab={activeTab}
         soldesTries={soldesTries}
+        allPrevisionsAnnee={allPrevisionsAnnee}
         toutesLesTransactions={toutesLesTransactions}
         CustomSelect={CustomSelect}
       />
