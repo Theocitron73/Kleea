@@ -7537,17 +7537,27 @@ const handleAddCompte = async (e) => {
 
 
 
-// 🟢 CONTRÔLE STRICT DE LA MODALE PAR LE NOMBRE DE TRANSACTIONS
+// 🟢 NE ROUVRE PAS LA MODALE SI ON REVIENT DE POWENS OU SI UNE BANQUE EST DÉJÀ LIÉE
 const fetchTransactions = async () => {
   try {
     const res = await api.get(`/transactions/${user}`);
     const transactionsList = res.data || [];
     setToutesLesTransactions(transactionsList);
 
-    // 🟢 RÈGLE ABSOLUE :
-    // S'il y a 0 transaction -> Afficher la modale
-    // Dès qu'il y a au moins 1 transaction -> Ne pas afficher la modale
-    if (transactionsList.length === 0 && !onboardingDismissed) {
+    // Vérifications contextuelles
+    const urlParams = new URLSearchParams(window.location.search);
+    const isReturningFromPowens = urlParams.has('code') || urlParams.has('connection_id');
+    const hasPowensToken = Boolean(localStorage.getItem("powens_user_token"));
+    const hasPassedOnboarding = localStorage.getItem(`onboarding_done_${user}`) === 'true';
+
+    // 🟢 La modale ne s'ouvre QUE pour un premier accès réel (pas au retour de Powens)
+    if (
+      transactionsList.length === 0 &&
+      !onboardingDismissed &&
+      !isReturningFromPowens &&
+      !hasPowensToken &&
+      !hasPassedOnboarding
+    ) {
       setShowOnboarding(true);
     } else {
       setShowOnboarding(false);
@@ -9491,10 +9501,17 @@ useEffect(() => {
     const powensCode = urlParams.get('code');
     const connectionId = urlParams.get('connection_id');
 
-    if (!powensCode && !connectionId) return; // Si pas de callback Powens, on ne fait rien
+    if (!powensCode && !connectionId) return;
+
+    // 🟢 Bloque immédiatement et définitivement la modale d'onboarding au retour de Powens
+    setShowOnboarding(false);
+    setOnboardingDismissed(true);
+    const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
+    if (nomUtilisateur) {
+      localStorage.setItem(`onboarding_done_${nomUtilisateur}`, 'true');
+    }
 
     const existingToken = localStorage.getItem('powens_user_token');
-    const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
 
     // 🟢 Récupération immédiate et prioritaire du mode d'import réel en BDD
     let actualImportMode = 'manual';
