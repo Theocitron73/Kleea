@@ -7303,7 +7303,7 @@ const [editingIndex, setEditingIndex] = useState(null);
 const [toutesLesCategories, setToutesLesCategories] = useState([]);
 const [categoriesPerso, setCategoriesPerso] = useState([]);
 const [masquees, setMasquees] = useState([]); // <-- Nouvel état à ajouter
-
+/*
 useEffect(() => {
   const chargerDonnees = async () => {
     try {
@@ -7327,7 +7327,7 @@ useEffect(() => {
 
   if (user) chargerDonnees();
 }, [user]);
-
+*/
 
 
 const [userTheme, setUserTheme] = useState({
@@ -9772,10 +9772,10 @@ const checkNewTransactions = useCallback(async () => {
 
 // Déclencheur automatique lors de changements de transactions ou de comptes
 useEffect(() => {
-  if (user) {
+  if (user && !loading) {
     checkNewTransactions();
   }
-}, [user, comptes, toutesLesTransactions, checkNewTransactions]);
+}, [user, loading, checkNewTransactions]);
 
 
 const handleAssociateAccount = async (powensAccountName, targetCompte) => {
