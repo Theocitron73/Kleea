@@ -7618,12 +7618,18 @@ const handleLogin = async (e) => {
   }
 
 const handleLogout = () => {
+  // 1. Nettoyage impératif des clés résiduelles dans le navigateur
   localStorage.removeItem('user');
+  localStorage.removeItem('powens_user_token'); // 👈 Évite de transmettre le jeton au prochain utilisateur
+
+  // 2. Réinitialisation des états pour la session suivante
   setUser(null);
+  setImportMode('manual'); // 👈 Réinitialise impérativement à 'manual'
   setComptes([]);
+  setPowensData({ connections_count: 0, connections: [], accounts_count: 0, accounts: [] }); // 👈 Vide les banques connectées
   setShowOnboarding(false);
   setOnboardingDismissed(false);
-  setLoading(true); // 🟢 Prépare le chargement pour la prochaine connexion
+  setLoading(true);
   setLoginName('');
   setLoginPassword('');
 };
@@ -9453,7 +9459,6 @@ const [powensData, setPowensData] = useState({
   accounts: []
 });
 
-// 🟢 Fonction de récupération des données Powens synchronisée avec la BDD
 const fetchPowensConnections = useCallback(async () => {
   try {
     const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
@@ -9461,43 +9466,35 @@ const fetchPowensConnections = useCallback(async () => {
 
     let userToken = null;
 
-    // 1. Récupération depuis la BDD
+    // 1. Récupération stricte depuis la BDD pour CET utilisateur
     try {
       const resToken = await api.get(`/powens/recuperer-token?utilisateur=${encodeURIComponent(nomUtilisateur)}`);
       userToken = resToken.data?.user_token;
-      
-      // S'il est trouvé en BDD, on met à jour le localStorage pour que le reste de l'app le voit
-      if (userToken) {
-        localStorage.setItem("powens_user_token", userToken);
-      }
     } catch (e) {
-      //console.log("Vérification BDD échouée...");
+      console.error("Erreur vérification token BDD:", e);
     }
 
-    // 2. Fallback localStorage
+    // 2. S'il n'a pas de jeton en BDD, on vide le localStorage résiduel et on arrête là
     if (!userToken) {
-      userToken = localStorage.getItem("powens_user_token");
-      if (userToken) {
-        await api.post('/powens/sauvegarder-token', {
-          utilisateur: nomUtilisateur,
-          user_token: userToken
-        });
-      }
-    } else {
-      localStorage.setItem("powens_user_token", userToken);
+      localStorage.removeItem("powens_user_token");
+      setPowensData({ connections_count: 0, connections: [], accounts_count: 0, accounts: [] });
+      return;
     }
 
-    if (!userToken) return;
+    // 3. S'il a bien un jeton personnel, on met à jour son localStorage
+    localStorage.setItem("powens_user_token", userToken);
 
-    // 3. Récupération des comptes
+    // 4. Récupération des connexions et comptes
     const res = await api.get(`/powens/connections-and-accounts?user_token=${encodeURIComponent(userToken)}`);
     if (res.data) {
       setPowensData(res.data);
     }
   } catch (err) {
-    //console.error("Erreur lors du chargement des banques/comptes Powens:", err);
+    console.error("Erreur chargement banques/comptes Powens:", err);
   }
-}, [user]); // Assure-toi que `user` est bien stable ou utilise ses propriétés primitives si besoin
+}, [user]);
+
+
 
 // 🟢 VERSION SÉCURISÉE CONTRE LE DÉCALAGE ASYNCHRONE :
 useEffect(() => {
@@ -11112,7 +11109,7 @@ const performBackgroundSyncIfNeeded = useCallback(async (forcedMode = null) => {
     }
   }
 }, [user, importMode, fetchTransactions, fetchComptes, fetchPowensConnections]);
-
+/*
 // Effet pour surveiller et déclencher le cycle de vérification
 useEffect(() => {
   if (user && importMode === 'auto') {
@@ -11127,7 +11124,7 @@ useEffect(() => {
     return () => clearInterval(interval);
   }
 }, [user, importMode, performBackgroundSyncIfNeeded]);
-
+*/
 // État pour le deuxième graphique (Détaillé)
 // On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
 const [hiddenComptes, setHiddenComptes] = useState({});
@@ -11170,22 +11167,23 @@ const previsionsTracking = useMemo(() => {
   return map;
 }, [allPrevisionsAnnee, toutesLesTransactions]);
 
-// 🟢 CHARGEMENT IMMÉDIAT AU DÉMARRAGE DE L'APPLICATION
+// 🟢 CHARGEMENT SÉCURISÉ AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
   if (user) {
     fetchTransactions();
     fetchComptes();
     fetchUserTheme("theo");
-    fetchPowensConnections(); // 🟢 Charge les comptes Powens immédiatement dès l'ouverture
+    fetchPowensConnections();
     api.get(`/note/${user}`).then(res => setNote(res.data.texte));
     
-    // 🟢 Récupère le mode d'importation et lance la synchronisation d'arrière-plan si auto
+    // 🟢 On attend la réponse officielle de la BDD sur le mode d'import avant toute décision
     api.get(`/profile/${user}`).then(res => {
-      if (res.data?.import_mode) {
-        setImportMode(res.data.import_mode);
-        if (res.data.import_mode === 'auto') {
-          performBackgroundSyncIfNeeded(res.data.import_mode);
-        }
+      const modeBDD = res.data?.import_mode || 'manual';
+      setImportMode(modeBDD);
+
+      // 🛑 On ne lance la synchro QUE si la BDD confirme formellement le mode 'auto' pour ce compte
+      if (modeBDD === 'auto') {
+        performBackgroundSyncIfNeeded('auto');
       }
     });
   }
