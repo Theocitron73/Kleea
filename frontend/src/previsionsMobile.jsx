@@ -3,6 +3,7 @@ import {
   Calendar, Tag, Wallet, Plus, Eye, EyeOff, TrendingUp, PieChart as PieChartIcon, X, Check, Copy, User, Search
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
+import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
 
 export default function PrevisionsMobile(props) {
   const {
@@ -294,10 +295,9 @@ export default function PrevisionsMobile(props) {
                       !isActif ? 'opacity-35 saturate-50' : ''
                     } ${isSelected ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : ''}`}
                   >
-                    {/* LIGNE 1 : INFOS, MONTANT & DATE */}
+                    {/* LIGNE 1 : INFOS, MONTANT & DATE AVEC ICÔNE COLORÉE */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5 min-w-0">
-                        {/* Checkbox */}
                         <input 
                           type="checkbox"
                           checked={isSelected}
@@ -308,9 +308,12 @@ export default function PrevisionsMobile(props) {
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs shrink-0">{emojiItem}</span>
+                            {/* 💡 Remplacement de l'émoji par l'icône de la catégorie */}
+                            <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
+                              <CategoryIcon name={prev.categorie || prev.nom} size={12} />
+                            </div>
                             <p className={`text-xs font-black uppercase text-white truncate pr-1 ${!isActif ? 'line-through text-white/50' : ''}`}>
-                              {nomAffiche}
+                              {prev.nom.replace('[PRÉVI] ', '')}
                             </p>
                             {liees.length > 0 && (
                               <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[7px] font-black uppercase shrink-0">
@@ -319,13 +322,14 @@ export default function PrevisionsMobile(props) {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
                             <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
                               {prev.compte}
                             </span>
-                            <span className="text-[7.5px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded font-bold max-w-[85px] truncate">
-                              {prev.categorie}
-                            </span>
+                            <div className="flex items-center gap-1 bg-[var(--primary)]/10 text-[var(--primary)] px-1.5 py-0.5 rounded text-[7.5px] font-black max-w-[95px] truncate">
+                              <CategoryIcon name={prev.categorie} size={9} />
+                              <span className="truncate">{getCleanCategoryName(prev.categorie)}</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -334,11 +338,7 @@ export default function PrevisionsMobile(props) {
                       <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
                         <div>
                           <span className="text-xs font-mono font-black" style={{ 
-                            color: isTransfert 
-                              ? '#a78bfa' 
-                              : isRevenu
-                                ? userTheme.color_revenus 
-                                : userTheme.color_depenses 
+                            color: isTransfert ? '#a78bfa' : isRevenu ? userTheme.color_revenus : userTheme.color_depenses 
                           }}>
                             {isRevenu ? '+' : ''}{prev.montant.toFixed(0)} €
                           </span>
@@ -347,16 +347,13 @@ export default function PrevisionsMobile(props) {
                           </p>
                         </div>
 
-                        {/* Bouton Œil */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             updatePrevision(prev.id, 'actif', !isActif);
                           }}
                           className={`p-1.5 rounded-lg border transition-all ${
-                            isActif 
-                              ? 'text-white/20 border-white/5 hover:text-white' 
-                              : 'text-rose-400 border-rose-500/20 bg-rose-500/5'
+                            isActif ? 'text-white/20 border-white/5' : 'text-rose-400 border-rose-500/20 bg-rose-500/5'
                           }`}
                         >
                           {isActif ? <Eye size={12} /> : <EyeOff size={12} />}

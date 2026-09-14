@@ -33,9 +33,8 @@ import ComptesMobile from './ComptesMobile';
 import TricountMobile from './TricountMobile';
 import GuideView from './GuideView';
 import { Link as RouterLink } from 'react-router-dom';
+import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap,getCategoryIconInfo  } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 
-
-// Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
   // 1. Convertir HEX en RGB
   let r = parseInt(hex.slice(1, 3), 16);
@@ -93,7 +92,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
   // Couleur de base
   const baseColor = userTheme.color_depenses || "#6366f1"; 
 
-  // Filtrage
+  // Filtrage des données visibles
   const { visibleData, totalVisible } = useMemo(() => {
     const visible = data.filter(d => !hiddenCategories.has(d.name));
     const total = visible.reduce((acc, curr) => acc + curr.value, 0);
@@ -116,12 +115,6 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
     </div>
   );
 
-  const extractEmoji = (name) => {
-    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/g;
-    const match = name.match(emojiRegex);
-    return match ? match[0] : '•';
-  };
-
   const toggleCategory = (name) => {
     setHiddenCategories(prev => {
       const next = new Set(prev);
@@ -131,37 +124,46 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
     });
   };
 
-  // Label personnalisé avec positionnement resserré sur mobile
+  // 💡 Label personnalisé : Affiche la VRAIE icône vectorielle bien nette + le %
   const renderCustomizedLabel = (props) => {
     const { cx, cy, midAngle, outerRadius, value, name } = props;
     const realPercent = totalVisible > 0 ? (value / totalVisible) * 100 : 0;
     
-    if (realPercent < (isMobile ? 3 : 2)) return null;
+    // N'affiche pas le label si la part est trop fine pour éviter les superpositions
+    if (realPercent < (isMobile ? 4 : 3)) return null;
 
     const RADIAN = Math.PI / 180;
-    // 💡 Coefficient ajusté à 1.04 sur mobile pour coller les labels au grand cercle
-    const radius = outerRadius * (isMobile ? 1.04 : 1.12); 
+    // Rayon ajusté pour laisser de l'espace à l'icône
+    const radius = outerRadius * (isMobile ? 1.15 : 1.18); 
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
+    const iconSize = isMobile ? 18 : 22;
+
     return (
-      <g className="animate-in fade-in duration-500">
-        <text 
-          x={x} 
-          y={y - (isMobile ? 3 : 6)} 
-          textAnchor={x > cx ? 'start' : 'end'} 
-          dominantBaseline="central" 
-          style={{ fontSize: isMobile ? '11px' : '12px' }}
+      <g className="animate-in fade-in duration-500 pointer-events-none select-none">
+        {/* Vraie icône vectorielle colorée */}
+        <foreignObject 
+          x={x - iconSize / 2} 
+          y={y - iconSize - 2} 
+          width={iconSize} 
+          height={iconSize}
+          style={{ overflow: 'visible' }}
         >
-          {extractEmoji(name)}
-        </text>
+          <div className="w-full h-full flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+            <CategoryIcon name={name} size={iconSize} />
+          </div>
+        </foreignObject>
+
+        {/* Pourcentage lisible avec ombre portée */}
         <text 
           x={x} 
-          y={y + (isMobile ? 7 : 12)} 
+          y={y + 8} 
           fill="white" 
-          textAnchor={x > cx ? 'start' : 'end'} 
+          textAnchor="middle" 
           dominantBaseline="central" 
-          className="text-[8px] md:text-[10px] font-black tracking-tighter"
+          className="text-[9px] md:text-[11px] font-black tracking-tighter"
+          style={{ textShadow: '0 2px 5px rgba(0,0,0,0.9)' }}
         >
           {`${realPercent.toFixed(0)}%`}
         </text>
@@ -170,24 +172,23 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
   };
 
   return (
-    /* 💡 padding réduit de p-4 à p-1.5 sur mobile pour maximiser la surface d'affichage */
-    <div className={`h-full w-full flex flex-col min-h-0 select-none ${isMobile ? 'p-1.5' : 'p-4'}`}>
-      <p className="text-[10px] font-black uppercase text-white/20 mb-2 tracking-[0.3em] text-center shrink-0">
+    <div className={`h-full w-full flex flex-col min-h-0 select-none ${isMobile ? 'p-1.5' : 'p-3'}`}>
+      <p className="text-[10px] font-black uppercase text-white/30 mb-2 tracking-[0.25em] text-center shrink-0">
         Répartition des dépenses {currentYear}
       </p>
       
       <div className="flex-1 flex flex-row items-center min-h-0 relative">
         
-        {/* GRAPHIQUE (ZONE PRINCIPALE ENGRANDIE) */}
+        {/* GRAPHIQUE DONUT */}
         <div className="flex-1 h-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={visibleData}
                 cx="50%" cy="50%"
-                /* 💡 Rayons agrandis sur mobile pour occuper un maximum d'espace */
-                innerRadius={isMobile ? "60%" : "55%"} 
-                outerRadius={isMobile ? "80%" : "75%"}
+                /* Rayons réajustés pour laisser respirer les icônes autour */
+                innerRadius={isMobile ? "50%" : "48%"} 
+                outerRadius={isMobile ? "70%" : "68%"}
                 paddingAngle={visibleData.length > 1 ? 3 : 0}
                 dataKey="value"
                 stroke="none"
@@ -200,10 +201,12 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
                   <Cell 
                     key={entry.name} 
                     fill={gradientColors[index]} 
-                    className="outline-none" 
+                    className="outline-none cursor-pointer hover:opacity-90 transition-opacity" 
                   />
                 ))}
               </Pie>
+
+              {/* Tooltip enrichi avec l'icône de la catégorie */}
               <Tooltip
                 isAnimationActive={false}
                 animationDuration={0}
@@ -212,9 +215,14 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
                   if (active && payload && payload.length) {
                     const p = payload[0].payload;
                     return (
-                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-md z-50">
-                        <p className="text-[10px] font-black uppercase text-white/40 mb-1 tracking-widest">{p.name}</p>
-                        <p className="text-sm font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
+                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-md z-50 flex items-center gap-3">
+                        <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                          <CategoryIcon name={p.name} size={18} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase text-white/40 mb-0.5 tracking-widest">{p.name}</p>
+                          <p className="text-sm font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
+                        </div>
                       </div>
                     );
                   }
@@ -224,48 +232,51 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
             </PieChart>
           </ResponsiveContainer>
 
-          {/* CENTRE DU DONUT */}
+          {/* CENTRE DU DONUT : MONTANT TOTAL */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-[7px] md:text-[8px] font-black text-white/10 uppercase tracking-[0.2em] mb-1">Total</span>
-            <span className="text-base md:text-xl font-black text-white tracking-tighter leading-none">
+            <span className="text-[8px] md:text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-0.5">Total</span>
+            <span className="text-lg md:text-2xl font-black text-white tracking-tighter leading-none">
               {totalVisible.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
             </span>
           </div>
         </div>
 
-        {/* LÉGENDE ÉMOJI À DROITE COMPACTÉE POUR MOBILE */}
-        <div className={`${isMobile ? 'w-10 gap-2' : 'w-14 gap-3'} h-full flex flex-col py-2 border-l border-white/5 items-center overflow-y-auto no-scrollbar shrink-0 bg-white/[0.01]`}>
-          <div className="mb-2 flex flex-col items-center gap-1 opacity-20">
-            {hiddenCategories.size > 0 ? <EyeOff size={10} strokeWidth={3} /> : <Eye size={10} strokeWidth={3} />}
-            <span className="text-[6px] font-black uppercase tracking-tighter italic">Filtre</span>
+        {/* 💡 LÉGENDE LATÉRALE : ICÔNES AGRANDIES & BOUTONS PLUS LARGES */}
+        <div className={`${isMobile ? 'w-12 gap-2' : 'w-16 gap-2.5'} h-full flex flex-col py-2 border-l border-white/5 items-center overflow-y-auto custom-scrollbar shrink-0 bg-white/[0.01]`}>
+          <div className="mb-1 flex flex-col items-center gap-1 opacity-25">
+            {hiddenCategories.size > 0 ? <EyeOff size={11} strokeWidth={2.5} /> : <Eye size={11} strokeWidth={2.5} />}
+            <span className="text-[7px] font-black uppercase tracking-tighter">Filtre</span>
           </div>
+          
           {data.map((entry) => {
             const isHidden = hiddenCategories.has(entry.name);
             return (
               <button
                 key={entry.name}
                 onClick={() => toggleCategory(entry.name)}
-                title={entry.name}
-                className={`group relative flex items-center justify-center rounded-xl border transition-all duration-500 shrink-0 ${
-                  isMobile ? 'w-8 h-8' : 'w-10 h-10'
+                title={getCleanCategoryName(entry.name)}
+                className={`group relative flex items-center justify-center rounded-2xl border transition-all duration-300 shrink-0 cursor-pointer ${
+                  isMobile ? 'w-9 h-9' : 'w-11 h-11'
                 } ${
                   isHidden 
-                  ? 'bg-transparent border-transparent grayscale opacity-10 scale-90' 
-                  : 'bg-[var(--glass-bg)] border-white/10 shadow-lg scale-100 hover:border-white/30'
+                    ? 'bg-transparent border-transparent opacity-20 scale-90' 
+                    : 'bg-white/5 border-white/10 shadow-lg scale-100 hover:border-white/30 hover:bg-white/10 hover:scale-105'
                 }`}
               >
-                <span className={`leading-none transition-transform duration-500 ${isMobile ? 'text-sm' : 'text-lg'} ${isHidden ? 'scale-75' : 'scale-100'}`}>
-                  {extractEmoji(entry.name)}
-                </span>
-                <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#0a0a0b] border border-white/10 flex items-center justify-center transition-all duration-300 ${
-                  isHidden ? 'opacity-100 scale-100' : 'opacity-0 scale-50 group-hover:opacity-100 group-hover:scale-100'
+                {/* 💡 Icônes agrandies de 16px à 22px sur desktop et 18px sur mobile */}
+                <CategoryIcon name={entry.name} size={isMobile ? 18 : 22} />
+                
+                {/* Pastille masqué */}
+                <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0a0a0b] border border-white/15 flex items-center justify-center transition-opacity ${
+                  isHidden ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}>
-                  {isHidden ? <EyeOff size={7} color="white" strokeWidth={3} /> : <Eye size={7} color="white" strokeWidth={3} />}
+                  {isHidden ? <EyeOff size={8} color="white" /> : <Eye size={8} color="white" />}
                 </div>
               </button>
             );
           })}
         </div>
+
       </div>
     </div>
   );
@@ -1981,12 +1992,10 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
 
 
 
-const CustomSelect = ({ label, value, options, onChange, icon: Icon, className = "" }) => {
+const CustomSelect = ({ label, value, options, onChange, icon: Icon, isCategory = false, className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
-  
-  // 💡 NOUVEAU : État pour détecter si l'utilisateur est sur mobile
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -1998,7 +2007,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
     }
   }, []);
 
-  // Fermer si on clique en dehors et reset la recherche
+  // Fermeture au clic extérieur
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -2010,13 +2019,14 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 1. Filtrer les options selon la recherche
   const filteredOptions = options.filter(opt =>
-    opt.l.toLowerCase().includes(searchTerm.toLowerCase())
+    (opt.l || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Trouver le label correspondant à la valeur actuelle
   const currentLabel = options.find(opt => opt.v === value)?.l || value;
+  
+  // 💡 Détecte si c'est un sélecteur de catégorie (qui utilise l'icône Tag)
+  const isCategorySelect = isCategory || Icon === Tag;
 
   return (
     <div className="space-y-1.5 relative" ref={dropdownRef}>
@@ -2026,38 +2036,41 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
         </label>
       )}
       
-      {/* ZONE DE SAISIE / BOUTON */}
+      {/* BOUTON / ZONE DE SAISIE */}
       <div
         className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
           isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
         } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none cursor-pointer`}
         onClick={() => setIsOpen(true)}
       >
-        <div className="flex items-center gap-3 w-full">
-          {Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />}
+        <div className="flex items-center gap-2.5 w-full min-w-0">
+          {/* 💡 AFFICHE L'ICÔNE VECTORIELLE DE LA CATÉGORIE ACTIVE OU L'ICÔNE GÉNÉRIQUE */}
+          {isCategorySelect ? (
+            <CategoryIcon name={currentLabel} size={14} className="shrink-0" />
+          ) : (
+            Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />
+          )}
           
           <input
             type="text"
-            // 💡 CORRECTION TACTILE : Rend le champ non-modifiable sur mobile pour bloquer le clavier
             readOnly={isMobile}
-            className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20 cursor-pointer"
-            // 💡 On affiche la saisie de recherche uniquement sur PC pour garder le label lisible sur mobile
-            value={isOpen && !isMobile ? searchTerm : currentLabel}
+            className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20 cursor-pointer truncate"
+            value={isOpen && !isMobile ? searchTerm : getCleanCategoryName(currentLabel)}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => setIsOpen(true)}
-            placeholder="Rechercher..."
+            placeholder={isOpen ? "Rechercher..." : "Sélectionner..."}
           />
         </div>
         <ChevronDown 
           size={12} 
-          className={`text-[var(--text-main)]/20 transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
+          className={`text-[var(--text-main)]/20 transition-transform duration-300 shrink-0 ml-1.5 ${isOpen ? 'rotate-180' : ''}`} 
         />
       </div>
 
-      {/* MENU DÉROULANT */}
+      {/* MENU DÉROULANT AVEC ICÔNES VECTORIELLES DANS LA LISTE */}
       {isOpen && (
         <div className="absolute top-[110%] left-0 w-full z-[100] bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          <div className="max-h-60 overflow-y-auto custom-scrollbar">
+          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
             {filteredOptions.length > 0 ? (
               filteredOptions.map((opt) => (
                 <div
@@ -2067,13 +2080,17 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, className =
                     setIsOpen(false);
                     setSearchTerm("");
                   }}
-                  className={`px-4 py-3 text-xs font-bold cursor-pointer transition-colors ${
+                  className={`px-3 py-2 text-xs font-bold cursor-pointer transition-colors rounded-xl flex items-center gap-2.5 ${
                     value === opt.v 
-                    ? 'bg-indigo-600 text-[var(--text-main)]' 
-                    : 'text-[var(--text-main)]/60 hover:bg-[var(--glass-bg)] hover:text-[var(--text-main)]'
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'text-[var(--text-main)]/70 hover:bg-[var(--glass-bg)] hover:text-white'
                   }`}
                 >
-                  {opt.l}
+                  {/* 💡 AFFICHE L'ICÔNE DÉDIÉE À GAUCHE DU NOM DE CHAQUE CATÉGORIE */}
+                  {isCategorySelect && (
+                    <CategoryIcon name={opt.l} size={14} className="shrink-0" />
+                  )}
+                  <span className="truncate">{getCleanCategoryName(opt.l)}</span>
                 </div>
               ))
             ) : (
@@ -2139,55 +2156,149 @@ function SortableItem({ id, children, disabled }) {
 
 
 
-const PrevisionsChartView = ({ data, themeColor }) => {
-  if (data.length === 0) return (
-    <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black italic">
+const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsMobile(window.innerWidth < 768);
+      const handleResize = () => setIsMobile(window.innerWidth < 768);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+    }
+  }, []);
+
+  if (!data || data.length === 0) return (
+    <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/20 text-[10px] uppercase font-black italic">
       Aucune dépense prévisionnelle
     </div>
   );
 
+  // 💡 Label personnalisé de l'axe Y : Icône Lucide colorée + Nom de catégorie
+  const CustomYAxisTick = ({ x, y, payload }) => {
+    const name = payload.value;
+    const cleanName = getCleanCategoryName(name);
+    
+    const limit = isMobile ? 8 : 11;
+    const displayName = cleanName.length > limit 
+      ? `${cleanName.substring(0, limit - 2)}..` 
+      : cleanName;
+
+    const iconSize = 15;
+    // Coordonnées calculées pour rester à +10px du bord gauche de l'écran (jamais rogné)
+    const iconOffset = isMobile ? -84 : -96;
+    const textOffset = isMobile ? -64 : -74;
+
+    return (
+      <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
+        {/* Icône de la catégorie */}
+        <foreignObject 
+          x={iconOffset} 
+          y={-iconSize / 2} 
+          width={iconSize} 
+          height={iconSize}
+          style={{ overflow: 'visible' }}
+        >
+          <div className="w-full h-full flex items-center justify-center drop-shadow">
+            <CategoryIcon name={name} size={iconSize} />
+          </div>
+        </foreignObject>
+
+        {/* Nom de la catégorie */}
+        <text 
+          x={textOffset} 
+          y={3.5} 
+          textAnchor="start" 
+          fill="rgba(255,255,255,0.7)" 
+          fontSize={isMobile ? 8 : 9} 
+          fontWeight="bold"
+          className="uppercase tracking-tight"
+        >
+          {displayName}
+        </text>
+      </g>
+    );
+  };
+
+  // 💡 Infobulle personnalisée avec l'icône de la catégorie
+  const CustomTooltip = ({ active, payload }) => {
+    if (active && payload && payload.length) {
+      const p = payload[0].payload;
+      return (
+        <div className="bg-[#0f172a]/95 backdrop-blur-md border border-white/10 p-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2.5">
+          <div className="p-1 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+            <CategoryIcon name={p.name} size={15} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase text-white/50 tracking-wider">
+              {getCleanCategoryName(p.name)}
+            </p>
+            <p className="text-xs font-black text-white font-mono mt-0.5">
+              {Number(p.value).toLocaleString('fr-FR')} €
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
-    <div className="h-full w-full flex flex-row gap-6 p-4">
-      {/* PARTIE GRAPHIQUE */}
-      <div className="flex-[2] min-h-0 relative">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} layout="vertical" margin={{ top: 0, right: 35, left: 10, bottom: 0 }}>
-            <defs>
-              <linearGradient id="colorPrevi" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor={themeColor} stopOpacity={0}/>
-                <stop offset="100%" stopColor={themeColor} stopOpacity={0.9}/>
-              </linearGradient>
-            </defs>
-            <XAxis type="number" hide />
-            <YAxis 
-              dataKey="name" 
-              type="category" 
-              axisLine={false}
-              tickLine={false}
-              width={90}
-             
-              tick={{ fill: 'rgba(255,255,255,0.7)', fontSize: 9, fontWeight: '900', textTransform: 'uppercase' }}
+    <div className="h-full w-full min-h-0 relative select-none">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart 
+          data={data} 
+          layout="vertical" 
+          margin={{ 
+            top: 5, 
+            right: isMobile ? 38 : 45, 
+            left: 8, 
+            bottom: 5 
+          }}
+        >
+          <defs>
+            <linearGradient id="colorPrevi" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={themeColor} stopOpacity={0.15}/>
+              <stop offset="100%" stopColor={themeColor} stopOpacity={0.9}/>
+            </linearGradient>
+          </defs>
+
+          <XAxis type="number" hide />
+          
+          {/* Axe Y avec icônes */}
+          <YAxis 
+            dataKey="name" 
+            type="category" 
+            axisLine={false}
+            tickLine={false}
+            width={isMobile ? 88 : 100}
+            tick={<CustomYAxisTick />}
+          />
+
+          <Tooltip 
+            cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
+            content={<CustomTooltip />} 
+          />
+
+          <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 14}>
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill="url(#colorPrevi)" />
+            ))}
+            <LabelList 
+              dataKey="value" 
+              position="right" 
+              offset={6}
+              formatter={(val) => `${Math.round(val)}€`} 
+              style={{ 
+                fill: 'rgba(255,255,255,0.6)', 
+                fontSize: isMobile ? 8 : 9, 
+                fontWeight: '900', 
+                fontFamily: 'monospace' 
+              }} 
             />
-            <Tooltip 
-              cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
-              contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', fontSize: '10px' }}
-              itemStyle={{ color: '#fff' }}
-              formatter={(val) => [`${val.toLocaleString()} €`, 'Montant']}
-            />
-            <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={14}>
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill="url(#colorPrevi)" />
-              ))}
-              <LabelList 
-                dataKey="value" 
-                position="right" 
-                formatter={(val) => `${Math.round(val)}€`} 
-                style={{ fill: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 'black', fontStyle: 'italic' }} 
-              />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 };
@@ -2393,13 +2504,16 @@ const TransactionCard = ({ t, color, bg }) => {
           </span>
         </div>
         
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mt-0.5">
           <span className="text-[9px] text-[var(--text-main)]/20 font-bold uppercase tracking-widest truncate">
             {t.compte}
           </span>
-          <span className="text-[8px] text-[var(--text-main)]/70 font-medium italic">
-            {t.categorie}
-          </span>
+          <div className="flex items-center gap-1">
+            <CategoryIcon name={t.categorie} size={11} />
+            <span className="text-[8px] text-[var(--text-main)]/70 font-medium">
+              {t.categorie}
+            </span>
+          </div>
         </div>
       </div>
     </div>
@@ -2656,8 +2770,6 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
 
 const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
   const depensesColor = userTheme?.color_depenses || "#fb7185";
-
-  // Détection de l'affichage mobile pour adapter Recharts dynamiquement
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -2669,36 +2781,81 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
     }
   }, []);
 
-  // Total du mois pour le calcul des pourcentages
   const totalMonth = chartData.reduce((acc, curr) => acc + (curr.value || 0), 0);
 
-  // --- TOOLTIP PERSONNALISÉ ---
+  // 💡 Coordonnées calculées pour que l'icône ne sorte JAMAIS du SVG et ne soit jamais rognée
+  const CustomYAxisTick = ({ x, y, payload }) => {
+    const name = payload.value;
+    const cleanName = getCleanCategoryName(name);
+    
+    const maxChars = isMobile ? 8 : 10;
+    const displayName = cleanName.length > maxChars 
+      ? `${cleanName.substring(0, maxChars - 1)}.` 
+      : cleanName;
+
+    // x est la ligne de l'axe (~96px sur PC, ~86px sur mobile)
+    const iconSize = 16;
+    const iconOffset = isMobile ? -80 : -90;  // Placé à +10px du bord gauche
+    const textOffset = isMobile ? -60 : -70;  // Texte calé juste après l'icône
+
+    return (
+      <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
+        {/* Icône de la catégorie (parfaitement dans le cadre SVG) */}
+        <foreignObject 
+          x={iconOffset} 
+          y={-iconSize / 2} 
+          width={iconSize} 
+          height={iconSize}
+          style={{ overflow: 'visible' }}
+        >
+          <div className="w-full h-full flex items-center justify-center">
+            <CategoryIcon name={name} size={iconSize} />
+          </div>
+        </foreignObject>
+
+        {/* Nom de la catégorie */}
+        <text 
+          x={textOffset} 
+          y={3.5} 
+          textAnchor="start" 
+          fill="rgba(255,255,255,0.7)" 
+          fontSize={isMobile ? 8 : 9} 
+          fontWeight="bold"
+          className="uppercase tracking-tight"
+        >
+          {displayName}
+        </text>
+      </g>
+    );
+  };
+
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       const evolution = data.evolution || 0;
 
       return (
-        <div className="bg-slate-900/95 backdrop-blur-sm border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
-          <div className="flex justify-between items-start gap-4 mb-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-white/40">
-              {data.name}
-            </p>
+        <div className="bg-slate-900/95 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
+          <div className="flex justify-between items-start gap-3 mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                <CategoryIcon name={data.name} size={15} />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-white/80 truncate max-w-[130px]">
+                {getCleanCategoryName(data.name)}
+              </p>
+            </div>
             {evolution !== null && evolution !== 0 && (
-              <div className={`flex items-center gap-1.5 text-[9px] font-black px-1.5 py-0.5 rounded-lg ${
+              <div className={`flex items-center gap-1 text-[8.5px] font-black px-1.5 py-0.5 rounded-lg shrink-0 ${
                 evolution > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
               }`}>
                 <span>{evolution > 0 ? '▲' : '▼'} {Math.abs(evolution)}%</span>
-                <span className="opacity-30">({payload[0].payload.diffEuro > 0 ? '+' : ''}{Math.round(payload[0].payload.diffEuro)}€)</span>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: depensesColor }} />
-            <p className="text-xs font-black text-white">
-              {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-            </p>
-          </div>
+          <p className="text-xs font-black text-white">
+            {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+          </p>
         </div>
       );
     }
@@ -2706,26 +2863,26 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
   };
 
   return (
-    <div className="h-full w-full flex flex-col md:flex-row gap-4">
+    <div className="h-full w-full flex flex-col md:flex-row gap-3">
       {statsCategories.length > 0 ? (
         <>
-          {/* PARTIE GRAPHIQUE (Haut sur mobile, Gauche sur PC) */}
-          <div className="flex-[1.5] md:flex-[2] min-h-[170px] md:min-h-0 w-full">
+          {/* PARTIE GRAPHIQUE EN BARRES */}
+          <div className="flex-[2] min-h-[170px] md:min-h-0 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
                 data={chartData} 
                 layout="vertical" 
                 margin={{ 
                   top: 0, 
-                  right: isMobile ? 45 : 65, 
-                  left: 0, 
+                  right: isMobile ? 42 : 48, 
+                  left: 8, 
                   bottom: 0 
                 }}
               >
                 <defs>
                   <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
                     <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
-                    <stop offset="100%" stopColor={depensesColor} stopOpacity={0.8} />
+                    <stop offset="100%" stopColor={depensesColor} stopOpacity={0.85} />
                   </linearGradient>
                 </defs>
                 <XAxis type="number" hide />
@@ -2734,38 +2891,34 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                   type="category" 
                   axisLine={false}
                   tickLine={false}
-                  width={isMobile ? 75 : 110} // Moins large sur mobile pour libérer de l'espace graphique
-                  tickFormatter={(value) => {
-                    const limit = isMobile ? 9 : 12;
-                    return value.length > limit ? `${value.substring(0, limit - 2)}...` : value;
-                  }}
-                  tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: isMobile ? 8 : 9, fontWeight: 'bold' }}
+                  width={isMobile ? 86 : 96} 
+                  tick={<CustomYAxisTick />}
                 />
                 <Tooltip 
                   cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
                   content={<CustomTooltip />} 
                 />
-                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={isMobile ? 12 : 16}>
+                <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 16}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
                   ))}
                   <LabelList 
                     dataKey="value" 
                     position="right" 
-                    offset={isMobile ? 5 : 10} 
+                    offset={isMobile ? 4 : 6} 
                     content={(props) => {
                       const { x, y, width, height, value } = props;
                       const percentage = totalMonth > 0 ? ((value / totalMonth) * 100).toFixed(1) : 0;
                       return (
                         <text 
-                          x={x + width + (isMobile ? 5 : 10)} 
+                          x={x + width + (isMobile ? 4 : 6)} 
                           y={y + height / 2} 
-                          dy={4} 
-                          fontSize={isMobile ? 8 : 10} 
+                          dy={3.5} 
+                          fontSize={isMobile ? 8 : 9} 
                           fontWeight="900"
                         >
-                          <tspan fill="rgba(245, 238, 238, 0.8)">{Math.round(value)}€ </tspan>
-                          <tspan fill="rgba(99, 102, 241, 0.8)">({percentage}%)</tspan>
+                          <tspan fill="rgba(245, 238, 238, 0.9)">{Math.round(value)}€ </tspan>
+                          <tspan fill="rgba(99, 102, 241, 0.9)">({percentage}%)</tspan>
                         </text>
                       );
                     }}
@@ -2775,14 +2928,13 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
             </ResponsiveContainer>
           </div>
 
-          {/* PARTIE LÉGENDE (Bas sur mobile, Droite sur PC) */}
-          <div className="flex-1 md:min-w-[150px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-3 md:pt-0 md:pl-4">
-            <p className="text-[8px] md:text-[9px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-2 md:mb-4">
+          {/* PARTIE LÉGENDE COMPACTÉE (Ne vole plus la place du graphique) */}
+          <div className="flex-1 md:w-36 md:max-w-[140px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-2 md:pt-0 md:pl-2.5 shrink-0">
+            <p className="text-[8px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] mb-2">
               Légende
             </p>
             
-            {/* Grille responsive : 2 colonnes sur mobile, 1 seule colonne verticale sur PC */}
-            <div className="grid grid-cols-2 md:flex md:flex-col gap-1.5 md:gap-2">
+            <div className="grid grid-cols-2 md:flex md:flex-col gap-1.5">
               {statsCategories.map((item, i) => {
                 const isHidden = hiddenCategories.includes(item.name);
 
@@ -2790,45 +2942,29 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                   <button 
                     key={i} 
                     onClick={() => toggleCategory(item.name)} 
-                    className={`flex items-center justify-between p-1.5 md:p-2.5 rounded-xl transition-all group border ${
+                    className={`flex items-center justify-between p-1.5 rounded-xl transition-all group border cursor-pointer ${
                       isHidden 
-                        ? 'bg-transparent border-transparent opacity-40 hover:opacity-60' 
+                        ? 'bg-transparent border-transparent opacity-30 hover:opacity-50' 
                         : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
                     }`}
                   >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <div 
-                        className="w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500" 
-                        style={{ 
-                          backgroundColor: isHidden ? 'rgba(255,255,255,0.1)' : depensesColor,
-                          boxShadow: isHidden ? 'none' : `0 0 10px ${depensesColor}66`
-                        }} 
-                      />
-
-                      <div className="flex flex-col items-start overflow-hidden">
-                        <span className={`text-[8.5px] md:text-[9px] font-black uppercase tracking-tight truncate transition-colors ${
-                          isHidden ? 'text-white/20' : 'text-white/80 group-hover:text-white'
-                        }`}>
-                          {item.name}
-                        </span>
-                        
-                        {!isHidden && item.isNew && (
-                          <span className="text-[6.5px] font-bold text-blue-400/50 mt-0.5 uppercase tracking-tighter">
-                            Nouveau ce mois
-                          </span>
-                        )}
+                    <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
+                      <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
+                        <CategoryIcon name={item.name} size={12} />
                       </div>
+
+                      <span className={`text-[8.5px] font-black uppercase tracking-tight truncate transition-colors ${
+                        isHidden ? 'text-white/20 line-through' : 'text-white/80 group-hover:text-white'
+                      }`}>
+                        {getCleanCategoryName(item.name)}
+                      </span>
                     </div>
 
-                    <div className="shrink-0 ml-2">
+                    <div className="shrink-0 ml-1">
                       {isHidden ? (
-                        <EyeOff size={10} className="text-white/10 transition-colors" />
+                        <EyeOff size={10} className="text-white/20" />
                       ) : (
-                        <Eye 
-                          size={10} 
-                          style={{ color: depensesColor }} 
-                          className="opacity-40 group-hover:opacity-100 transition-all" 
-                        />
+                        <Eye size={10} className="text-white/30 group-hover:text-white transition-colors" />
                       )}
                     </div>
                   </button>
@@ -2845,7 +2981,6 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
     </div>
   );
 };
-
 
 
 
@@ -3448,12 +3583,10 @@ WrappedSection.displayName = 'WrappedSection';
 
 
 export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) => {
-  // On tronque le mois à 3 lettres (ex: "janvier" -> "jan.")
   const shortPrevMonth = prevMonthLabel 
     ? prevMonthLabel.substring(0, 3).toLowerCase() + '.' 
     : 'm-1';
 
-  // 1. Tri et filtrage : On garde tout ce qui a du mouvement ou qui est stable, tant que la catégorie est active
   const Variations = [...statsCategories]
     .filter(item => item.value > 0) 
     .sort((a, b) => {
@@ -3486,7 +3619,7 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
         Variations par rapport à {shortPrevMonth}
       </p>
 
-      {/* Grille responsive : 2 colonnes sur mobile, s'élargit sur tablette/PC */}
+      {/* Grille responsive de cartes */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 overflow-y-auto min-h-0 pr-0.5 custom-scrollbar pb-4">
         {Variations.map((item, i) => {
           const isNewCategory = item.evolution === null || item.isNew;
@@ -3497,7 +3630,7 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
           return (
             <div 
               key={i} 
-              className={`relative flex flex-col justify-between p-2.5 rounded-xl border h-12 transition-all ${
+              className={`relative flex flex-col justify-between p-2 rounded-xl border min-h-[52px] transition-all ${
                 isNewCategory
                   ? 'bg-indigo-500/[0.03] border-indigo-500/20 shadow-[0_0_8px_rgba(99,102,241,0.01)]'
                   : isStable
@@ -3507,12 +3640,16 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
                       : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
               }`}
             >
-              
-              {/* Ligne du haut : Nom de la catégorie + Contexte temporel */}
-              <div className="flex items-center justify-between w-full leading-none gap-2">
-                <span className="text-[9.5px] font-black uppercase tracking-tight text-white/50 truncate flex-1">
-                  {item.name}
-                </span>
+              {/* 💡 Ligne du haut : Icône Lucide + Nom + Contexte temporel */}
+              <div className="flex items-center justify-between w-full leading-none gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
+                    <CategoryIcon name={item.name} size={12} />
+                  </div>
+                  <span className="text-[9.5px] font-black uppercase tracking-tight text-white/70 truncate">
+                    {getCleanCategoryName(item.name)}
+                  </span>
+                </div>
                 
                 <span className="text-[7.5px] font-bold tracking-wider uppercase shrink-0 italic text-white/20">
                   vs {shortPrevMonth}
@@ -3520,9 +3657,7 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
               </div>
 
               {/* Ligne du bas : Flèche/Badge + Montant € */}
-              <div className="flex items-end justify-between w-full mt-auto leading-none gap-1.5">
-                
-                {/* Gauche : Pourcentage OU Badge Stable OU Badge Nouveau */}
+              <div className="flex items-end justify-between w-full mt-1.5 leading-none gap-1.5">
                 <div className="flex items-center gap-0.5 min-w-0">
                   {isNewCategory ? (
                     <div className="flex items-center gap-0.5 text-indigo-400">
@@ -3549,20 +3684,16 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
                   )}
                 </div>
 
-                {/* Droite : Valeur brute (ou différentiel) */}
-                <span className={`text-[12px] font-mono font-black tracking-tight shrink-0 ${
+                <span className={`text-[11px] font-mono font-black tracking-tight shrink-0 ${
                   isNewCategory ? 'text-white' : isStable ? 'text-white/40' : isAugmentation ? 'text-rose-400' : 'text-emerald-400'
                 }`}>
                   {isNewCategory ? '' : isStable ? '=' : isAugmentation ? '+' : '-'}{Math.abs(Math.round(isNewCategory ? item.value : item.diffEuro))}€
                 </span>
               </div>
 
-              {/* Points d'alerte discrets */}
+              {/* Point d'alerte */}
               {isCritique && (
-                <span className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-rose-500 animate-ping" />
-              )}
-              {isNewCategory && (
-                <span className="absolute top-1.5 right-1.5 w-1 h-1 rounded-full bg-indigo-500" />
+                <span className="absolute top-1 right-1 w-1 h-1 rounded-full bg-rose-500 animate-ping" />
               )}
             </div>
           );
@@ -3571,7 +3702,6 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
     </div>
   );
 };
-
 
 
  const MAP_ICONES = {
@@ -5260,7 +5390,7 @@ useEffect(() => {
 
     <div className="pt-2 border-t border-white/5 flex items-center justify-between">
       <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-      <span className="text-[10px] font-black text-white/60">Kleea v.4.0</span>
+      <span className="text-[10px] font-black text-white/60">Kleea v.4.1</span>
     </div>
   </div>
 
@@ -8798,7 +8928,6 @@ const [isApprendreActive, setIsApprendreActive] = useState(false);
 const sorted = (arr) => [...arr].sort((a, b) => a.localeCompare(b));
 
 
-// 💡 ÉTAPE 1 : Déclaration globale de la fonction pour pouvoir la réutiliser
 const fetchCategories = async () => {
   try {
     const [resCats, resMasquees] = await Promise.all([
@@ -8810,9 +8939,17 @@ const fetchCategories = async () => {
     setCategoriesPerso(resCats.data.perso || []);
     setMasquees(resMasquees.data || []);
     
+    // 💡 Transmet les icônes ET les couleurs à l'application
+    setGlobalCustomIconsMap(resCats.data.icons_map || {}, resCats.data.colors_map || {});
+    
+    // 🔍 Ouvre F12 dans ton navigateur pour voir ce log :
+    console.log("🎨 Données catégories reçues :", {
+      icons: resCats.data.icons_map,
+      colors: resCats.data.colors_map
+    });
+    
   } catch (err) {
     console.error("Erreur lors du chargement des catégories:", err);
-    // Fallback sécurité : chargement par défaut si crash API
     setToutesLesCategories(CATEGORIES_DEFAUT_FRONT); 
   }
 };
@@ -8825,23 +8962,39 @@ useEffect(() => {
 }, [user]);
 
 
-const addCategory = async (fullName) => {
-  if (!fullName) return;
+const addCategory = async (name, iconName = 'Tag', colorHex = '#818cf8') => {
+  const cleanName = getCleanCategoryName(name);
+  if (!cleanName) return;
 
   try {
     await api.post(`/api/categories`, {
-      nom: fullName,
+      nom: cleanName,
+      icone: iconName,
+      couleur: colorHex, // 👈 Bien envoyé à l'API
       utilisateur: user
     });
 
-    // On trie par ordre alphabétique instantanément
-    setCategoriesPerso(prev => sorted([...prev, fullName]));
-    setToutesLesCategories(prev => sorted([...prev, fullName]));
-    setNewIcon("🏷️");
-
+    await fetchCategories(); 
   } catch (err) {
     console.error("Erreur ajout catégorie:", err);
     alert("Impossible d'ajouter la catégorie.");
+  }
+};
+
+const handleUpdateCategory = async (name, iconName, colorHex) => {
+  try {
+    await api.put(`/api/categories`, {
+      nom: name,
+      icone: iconName,
+      couleur: colorHex, // 👈 Bien envoyé à l'API
+      utilisateur: user
+    });
+
+    await fetchCategories();
+    setEditingCat(null);
+  } catch (err) {
+    console.error("Erreur modification catégorie:", err);
+    alert("Impossible de modifier la catégorie.");
   }
 };
 
@@ -8906,7 +9059,7 @@ const [selectedDate, setSelectedDate] = useState(new Date());
 
 // 1. On définit l'état initial (vide pour le compte)
 const [newTx, setNewTx] = useState({
-  categorie: '❓ Autre',
+  categorie: 'Autre',
   compte: ''
 });
 
@@ -9011,19 +9164,21 @@ const transactionsFiltrées = useMemo(() => {
 
 const statsFiltrées = useMemo(() => {
   return transactionsFiltrées.reduce((acc, t) => {
-    const cat = String(t.categorie || "");
+    const cat = String(t.categorie || "").toLowerCase().trim();
+    const nom = String(t.nom || "").toLowerCase().trim();
     
-    // Détection des transferts :
-    // 1. On cherche l'emoji 🔄 (peu importe ce qu'il y a après)
-    // 2. On cherche le mot "Virement" ou "Transfert"
-    // 3. On garde ton exception pour le Compte Commun 👫
+    // 💡 Détection universelle des transferts internes (avec ou sans émoji) :
+    // 1. Catégories de virements internes : "Virement : CCP vers Livret A", "vers", "transfert"
+    // 2. Ancien symbole 🔄 au cas où
+    // 3. On ne bloque PAS "Virements Reçus" ni "Virements envoyé" qui sont de vraies entrées/sorties externes
     const estUnTransfert = 
-      cat.includes("🔄") || 
-      cat.toLowerCase().includes("VERS") ||
-      cat.toLowerCase().includes("transfert");
+      cat.includes("vers") || 
+      cat.includes("transfert") || 
+      cat.includes("🔄") ||
+      nom.includes("🔄");
 
     if (estUnTransfert) {
-      return acc; // On ignore cette transaction dans le calcul des revenus/dépenses
+      return acc; // On ignore ce virement interne pour ne pas fausser les totaux
     }
 
     const val = parseFloat(t.montant);
@@ -9230,19 +9385,29 @@ const handleRemoveKeyword = async (catName, keywordToRemove) => {
 const [intelSelectedCat, setIntelSelectedCat] = useState("");
 
 const categoriesPourIntelligence = useMemo(() => {
-  // 1. On part de toutes les catégories de l'app (Défaut + Perso)
-  // 2. On filtre pour ne garder que les VISIBLES
   const visibles = toutesLesCategories.filter(cat => !masquees.includes(cat));
-  
-  // 3. On ajoute les catégories détectées dans l'import CSV actuel
   const fromImports = tempTransactions ? tempTransactions.map(t => t.categorie) : [];
+  const fromConfig = categoriesConfig ? categoriesConfig.map(c => c.categorie) : [];
   
-  // Fusion unique et tri
-  return [...new Set([...visibles, ...fromImports])].sort();
-}, [toutesLesCategories, masquees, tempTransactions]);
+  return [...new Set([...visibles, ...fromConfig, ...fromImports])]
+    .filter(Boolean)
+    .sort((a, b) => getCleanCategoryName(a).localeCompare(getCleanCategoryName(b)));
+}, [toutesLesCategories, masquees, tempTransactions, categoriesConfig]);
 
 // On cherche la data (mots-clés) dans la config SQL
-const activeCategoryData = categoriesConfig.find(c => c.categorie === intelSelectedCat);
+// 💡 Recherche flexible (insensible à la casse et tolérante aux émojis)
+const activeCategoryData = useMemo(() => {
+  if (!intelSelectedCat || !categoriesConfig || categoriesConfig.length === 0) return null;
+
+  const targetClean = getCleanCategoryName(intelSelectedCat).trim().toLowerCase();
+
+  return categoriesConfig.find(c => {
+    if (!c || !c.categorie) return false;
+    if (c.categorie === intelSelectedCat) return true;
+    const cClean = getCleanCategoryName(c.categorie).trim().toLowerCase();
+    return cClean === targetClean || cClean.includes(targetClean) || targetClean.includes(cClean);
+  }) || null;
+}, [categoriesConfig, intelSelectedCat]);
 
 
 
@@ -9612,6 +9777,7 @@ useEffect(() => {
 useEffect(() => {
   if (activeTab === 'importer') {
     fetchPowensConnections();
+    fetchCategoriesConfig();
   }
 }, [activeTab, fetchPowensConnections]);
 
@@ -10686,7 +10852,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "4.0"; 
+const CURRENT_VERSION = "4.1"; 
 
 useEffect(() => {
   if (!user) return;
@@ -10924,16 +11090,36 @@ const scrollToPage = (pageIndex) => {
 
 const [selectedBudgetMonth, setSelectedBudgetMonth] = useState('');
 
-// Récupère dynamiquement la liste unique des mois triés du plus récent au plus ancien
-const listeMoisDisponibles = Array.from(new Set(budgets.map(b => b.mois)))
-  .sort((a, b) => b.localeCompare(a.mois));
+// 💡 Tri chronologique strict des mois (Janvier -> Décembre)
+const listeMoisDisponibles = useMemo(() => {
+  const getMonthIndex = (monthStr) => {
+    if (!monthStr) return 999;
+    const clean = monthStr.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    const order = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
+    const idx = order.indexOf(clean);
+    return idx === -1 ? 999 : idx;
+  };
 
-// Initialise le mois sélectionné si ce n'est pas déjà fait
+  const anneeCible = selectedBudgetYear || new Date().getFullYear();
+  const budgetsDeLAnnee = budgets.filter(b => (b.Année || b.annee || new Date().getFullYear()) === anneeCible);
+  const source = budgetsDeLAnnee.length > 0 ? budgetsDeLAnnee : budgets;
+
+  return Array.from(new Set(source.map(b => b.mois).filter(Boolean)))
+    .sort((a, b) => getMonthIndex(a) - getMonthIndex(b));
+}, [budgets, selectedBudgetYear]);
+
+// Sélectionne automatiquement le mois actif ou le premier mois chronologique
 useEffect(() => {
-  if (listeMoisDisponibles.length > 0 && !selectedBudgetMonth) {
-    setSelectedBudgetMonth(listeMoisDisponibles[0]);
+  if (listeMoisDisponibles.length > 0) {
+    if (!selectedBudgetMonth || !listeMoisDisponibles.includes(selectedBudgetMonth)) {
+      if (filters?.mois && listeMoisDisponibles.includes(filters.mois)) {
+        setSelectedBudgetMonth(filters.mois);
+      } else {
+        setSelectedBudgetMonth(listeMoisDisponibles[0]);
+      }
+    }
   }
-}, [budgets, listeMoisDisponibles, selectedBudgetMonth]);
+}, [listeMoisDisponibles, selectedBudgetMonth, filters?.mois]);
 
 const isPageScrollable = activeTab === 'demenagement' || activeTab === 'Guide'|| activeTab === 'tricount'|| activeTab === 'profile';
 
@@ -11166,6 +11352,18 @@ const previsionsTracking = useMemo(() => {
 
   return map;
 }, [allPrevisionsAnnee, toutesLesTransactions]);
+
+
+// 1. États pour la création
+const [selectedIconName, setSelectedIconName] = useState('Tag');
+const [selectedCatColor, setSelectedCatColor] = useState('#818cf8');
+const [showIconPicker, setShowIconPicker] = useState(false);
+const [showCatColorPicker, setShowCatColorPicker] = useState(false);
+
+// 2. États pour la modification d'une catégorie existante
+const [editingCat, setEditingCat] = useState(null); // { nom: "Courses", icone: "ShoppingCart", couleur: "#818cf8" }
+const [showEditIconPicker, setShowEditIconPicker] = useState(false);
+const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 
 // 🟢 CHARGEMENT SÉCURISÉ AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
@@ -12041,12 +12239,14 @@ if (!user) {
                     strokeDashoffset={strokeDashoffset}
                     strokeLinecap="round"
                     className="transition-all duration-1000 ease-out"
-                    style={{ filter: `drop-shadow(0 0 3px ${bg.depasse ? '#fb7185' : '#34d399'}60)` }}
                   />
                 </svg>
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] font-bold mb-[-2px] tracking-tight truncate w-14 text-center">
-                  {bg.nom.split(' ')[0]}
+
+                {/* 💡 AU CENTRE : Une vraie icône vectorielle moderne au lieu d'un émoji découpé */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center justify-center mb-0.5">
+                  <CategoryIcon name={bg.nom} size={15} />
                 </div>
+
                 <div className="absolute -bottom-4 left-1 right-1 flex justify-between">
                   <span className="text-[7px] font-black text-[var(--text-main)]/90">{Math.round(bg.reel)}€</span>
                   <span className="text-[7px] font-black text-[var(--text-main)]/20">{bg.limite}€</span>
@@ -12054,8 +12254,9 @@ if (!user) {
               </div>
 
               <div className="text-center mt-6 w-full">
-                <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate w-full leading-none">
-                  {bg.nom.split(' ').slice(1).join(' ') || 'Frais'}
+                {/* 💡 EN DESSOUS : Le nom propre de la catégorie */}
+                <p className="text-[8.5px] font-black text-[var(--text-main)]/70 uppercase tracking-tight truncate w-full leading-none">
+                  {bg.nom}
                 </p>
                 <p className={`text-[10px] font-black mt-0.5 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
                   {bg.pourcentage}%
@@ -13798,61 +13999,90 @@ if (!user) {
     </div>
 
     {/* BLOC D'AJOUT (Toujours visible car c'est l'action principale) */}
-    <div className="bg-black/40 border border-white/5 rounded-[1.5rem] p-4">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="relative">
-          <button 
-            type="button"
-            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="w-12 h-12 bg-[var(--glass-bg)] border border-white/10 rounded-2xl text-2xl hover:bg-[var(--glass-bg)] transition-all flex items-center justify-center"
-          >
-            {newIcon}
-          </button>
-          
-          {showEmojiPicker && (
-            <div className="absolute top-14 left-0 z-50">
-              <div className="fixed inset-0" onClick={() => setShowEmojiPicker(false)} />
-              <div className="relative">
-                <EmojiPicker 
-                  onEmojiClick={onEmojiClick}
-                  theme={Theme.DARK}
-                  emojiStyle="native"
-                  width={280}
-                  height={350}
-                  previewConfig={{ showPreview: false }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <input 
-          type="text" 
-          id="catInput"
-          placeholder="Nouvel intitulé..." 
-          className="flex-1 bg-transparent text-[var(--text-main)] text-sm font-medium outline-none placeholder:text-[var(--text-main)]/10"
-          onKeyDown={(e) => {
-            if(e.key === 'Enter' && e.target.value.trim()) {
-              addCategory(`${newIcon} ${e.target.value.trim()}`);
-              e.target.value = '';
-            }
-          }}
-        />
-      </div>
-
+   <div className="bg-black/40 border border-white/5 rounded-[1.5rem] p-4">
+  <div className="flex items-center gap-3 mb-4">
+    
+    {/* 1. Sélecteur d'icône */}
+    <div className="relative">
       <button 
-        onClick={() => {
-          const input = document.getElementById('catInput');
-          if(input.value.trim()) {
-            addCategory(`${newIcon} ${input.value.trim()}`);
-            input.value = '';
-          }
-        }}
-        className="w-full bg-[var(--primary)] hover:bg-indigo-600 text-[var(--text-main)] text-[10px] font-black py-3 rounded-xl transition-all uppercase tracking-widest flex items-center justify-center gap-2"
+        type="button"
+        onClick={() => setShowIconPicker(!showIconPicker)}
+        className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/10 hover:border-indigo-500/40 transition-all cursor-pointer shadow-inner"
+        title="Changer d'icône"
       >
-        <Plus size={14} /> Créer
+        <CategoryIcon name={selectedIconName} size={20} style={{ color: selectedCatColor }} />
       </button>
+
+      {showIconPicker && (
+        <LucideIconPicker 
+          selectedIcon={selectedIconName}
+          onSelectIcon={(iconName) => {
+            setSelectedIconName(iconName);
+            setShowIconPicker(false);
+          }}
+          onClose={() => setShowIconPicker(false)}
+        />
+      )}
     </div>
+
+    {/* 2. Sélecteur de couleur */}
+    <div className="relative">
+      <button 
+        type="button"
+        onClick={() => setShowCatColorPicker(!showCatColorPicker)}
+        className="w-8 h-8 rounded-xl border border-white/20 hover:scale-110 active:scale-95 transition-all cursor-pointer shadow-md"
+        style={{ backgroundColor: selectedCatColor }}
+        title="Changer la couleur"
+      />
+
+      {showCatColorPicker && (
+        <div className="absolute z-[110] top-10 left-0 animate-in zoom-in-95 duration-150">
+          <div className="fixed inset-0" onClick={() => setShowCatColorPicker(false)} />
+          <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+            <SketchPicker 
+              color={selectedCatColor} 
+              onChange={(c) => setSelectedCatColor(c.hex)} 
+              disableAlpha 
+            />
+          </div>
+        </div>
+      )}
+    </div>
+
+    {/* Input du libellé */}
+  <input 
+    type="text" 
+    id="catInput"
+    placeholder="Nouvel intitulé..." 
+    className="flex-1 bg-transparent text-[var(--text-main)] text-sm font-medium outline-none placeholder:text-white/20"
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' && e.target.value.trim()) {
+        // 💡 Transmet bien nom, icone ET couleur sélectionnée
+        addCategory(e.target.value.trim(), selectedIconName, selectedCatColor);
+        e.target.value = '';
+        setSelectedIconName('Tag');
+        setSelectedCatColor('#818cf8');
+      }
+    }}
+  />
+</div>
+
+<button 
+  onClick={() => {
+    const input = document.getElementById('catInput');
+    if (input.value.trim()) {
+      // 💡 Transmet bien nom, icone ET couleur sélectionnée
+      addCategory(input.value.trim(), selectedIconName, selectedCatColor);
+      input.value = '';
+      setSelectedIconName('Tag');
+      setSelectedCatColor('#818cf8');
+    }
+  }}
+  className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-3 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-95 transition-all"
+>
+  <Plus size={14} /> Créer la catégorie
+</button>
+</div>
 
       {/* BARRE D'OUTILS LEXIQUE (Sous le bloc d'ajout) */}
       <div className="mt-4 px-1 flex items-center  justify-between border-t border-white/5 pt-4">
@@ -13900,30 +14130,36 @@ if (!user) {
         </div>
       </div>
 
-      {/* LE POPOVER (Positionné par rapport à cette barre) */}
+      {/* LE POPOVER (Gérer mes catégories) */}
       {showListPopover && (
         <>
-          {/* 1. L'OVERLAY : Placé en "fixed" pour couvrir TOUT l'écran, peu importe les parents */}
+          {/* 1. Overlay pour fermer au clic extérieur */}
           <div 
-            className="fixed inset-0 bg-black/5 z-[1000]" 
+            className="fixed inset-0 z-[1000]" 
             onClick={() => setShowListPopover(false)} 
           />
 
-          {/* 2. LE CONTENEUR DU MENU : Lui aussi en fixed ou absolute très haut en z-index */}
+          {/* 2. Conteneur du menu */}
           <div className="relative">
             <div 
-              className="absolute left-0 right-0 top-2 z-[1000] bg-[#121212] border border-white/10 rounded-[1.5rem] shadow-2xl p-4 animate-in slide-in-from-top-2 duration-200"
-              onClick={(e) => e.stopPropagation()} // Empêche la fermeture quand on clique dedans
+              className="absolute left-0 right-0 top-2 z-[1001] bg-[#121214] border border-white/10 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] p-4 animate-in slide-in-from-top-2 duration-200 backdrop-blur-xl"
+              onClick={(e) => e.stopPropagation()}
             >
               {/* HEADER DU POPOVER */}
-              <div className="flex items-center justify-between mb-4 px-2">
-                <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Configuration</h4>
-                <button onClick={() => setShowListPopover(false)} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)]">
+              <div className="flex items-center justify-between mb-4 px-2 border-b border-white/5 pb-2">
+                <div>
+                  <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Configuration</h4>
+                  <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase">Visibilité des catégories</p>
+                </div>
+                <button 
+                  onClick={() => setShowListPopover(false)} 
+                  className="p-1 rounded-lg text-[var(--text-main)]/30 hover:text-[var(--text-main)] hover:bg-white/5 transition-colors"
+                >
                   <X size={14} />
                 </button>
               </div>
 
-              {/* LISTE TRIÉE */}
+              {/* LISTE DES CATÉGORIES AVEC ICÔNES VECTORIELLES */}
               <div className="space-y-1 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                 {[...toutesLesCategories]
                   .sort((a, b) => {
@@ -13938,27 +14174,75 @@ if (!user) {
                     const estPerso = categoriesPerso.includes(cat);
                     
                     return (
-                      <div key={cat} className={`group flex items-center justify-between p-2 rounded-xl transition-all ${estMasquee ? 'bg-black/20 opacity-40' : 'bg-[var(--glass-bg)] hover:bg-white/[0.06]'}`}>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-[11px] font-bold ${estMasquee ? 'text-[var(--text-main)]/20' : 'text-[var(--text-main)]/60'}`}>
-                            {cat}
+                      <div 
+                        key={cat} 
+                        className={`group flex items-center justify-between p-2 rounded-xl transition-all ${
+                          estMasquee 
+                            ? 'bg-black/20 opacity-35' 
+                            : 'bg-[var(--glass-bg)] hover:bg-white/[0.06]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {/* 💡 AFFICHE LA VRAIE ICÔNE VECTORIELLE DE LA CATÉGORIE */}
+                          <CategoryIcon name={cat} size={14} className="shrink-0" />
+
+                          <span className={`text-[11px] font-bold truncate ${
+                            estMasquee 
+                              ? 'text-[var(--text-main)]/30 line-through' 
+                              : 'text-[var(--text-main)]/80 group-hover:text-white'
+                          }`}>
+                            {getCleanCategoryName(cat)}
                           </span>
+
                           {estPerso ? (
-                              <span className="text-[7px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-[var(--primary)]/20">Perso</span>
+                            <span className="text-[7px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-[var(--primary)]/20 shrink-0">
+                              Perso
+                            </span>
                           ) : (
-                              <span className="text-[7px] bg-[var(--glass-bg)] text-[var(--text-main)]/60 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-white/5">Défaut</span>
+                            <span className="text-[7px] bg-white/5 text-[var(--text-main)]/40 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-white/5 shrink-0">
+                              Défaut
+                            </span>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {/* BOUTONS D'ACTIONS (OEIL & SUPPRESSION) */}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                          {/* Bouton Éditer (Icône & Couleur) */}
+                          <button 
+                            onClick={() => {
+                              const info = getCategoryIconInfo(cat);
+                              setEditingCat({
+                                nom: cat,
+                                icone: info.iconName || 'Tag',
+                                couleur: info.hex || '#818cf8'
+                              });
+                            }}
+                            className="p-1.5 rounded-lg text-white/30 hover:text-indigo-400 hover:bg-white/5 transition-colors cursor-pointer"
+                            title="Modifier l'icône et la couleur"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+
+                          {/* Bouton Oeil (visibilité) */}
                           <button 
                             onClick={() => toggleVisibility(cat)}
-                            className={`p-1.5 rounded-lg ${estMasquee ? 'text-rose-500' : 'text-[var(--text-main)]/20 hover:text-emerald-400'}`}
+                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                              estMasquee 
+                                ? 'text-rose-500 hover:text-rose-400' 
+                                : 'text-[var(--text-main)]/30 hover:text-emerald-400'
+                            }`}
+                            title={estMasquee ? "Afficher" : "Masquer"}
                           >
                             {estMasquee ? <EyeOff size={14} /> : <Eye size={14} />}
                           </button>
+
+                          {/* Bouton Supprimer */}
                           {estPerso && (
-                            <button onClick={() => removeCategory(cat)} className="p-1.5 rounded-lg text-[var(--text-main)]/20 hover:text-rose-500">
+                            <button 
+                              onClick={() => removeCategory(cat)} 
+                              className="p-1.5 rounded-lg text-[var(--text-main)]/30 hover:text-rose-500 transition-colors cursor-pointer"
+                              title="Supprimer"
+                            >
                               <Trash2 size={13} />
                             </button>
                           )}
@@ -13968,14 +14252,11 @@ if (!user) {
                   })}
               </div>
 
-              {/* BOUTON RESET */}
+              {/* BOUTON DE RÉINITIALISATION */}
               {masquees.length > 0 && (
                 <button 
-                  onClick={() => {
-                    setMasquees([]);
-                    // ... ton fetch reset ...
-                  }}
-                  className="w-full mt-4 py-2 text-[9px] font-black uppercase text-[var(--text-main)]/20 hover:text-[var(--text-main)] border-t border-white/5"
+                  onClick={() => setMasquees([])}
+                  className="w-full mt-3 py-2 text-[9px] font-black uppercase tracking-wider text-[var(--text-main)]/30 hover:text-[var(--text-main)] border-t border-white/5 cursor-pointer transition-colors"
                 >
                   Réinitialiser la visibilité
                 </button>
@@ -14201,84 +14482,101 @@ if (!user) {
 
                           return (
                             <div key={uniqueKey} className="group relative">
-                              {isEditing ? (
-                                /* --- VUE ÉDITION --- */
-                                <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
-                                  <div className="flex flex-col gap-2">
-                                    <input 
-                                      className="bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                                      value={editingBudget.nom}
-                                      onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
-                                      autoFocus
-                                    />
-                                    <div className="flex items-center gap-2">
-                                      <input 
-                                        type="number"
-                                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-                                        value={editingBudget.somme}
-                                        onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
-                                      />
-                                      <button 
-                                        onClick={() => handleUpdateBudget(editingBudget, b.nom)}
-                                        className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all"
-                                      >
-                                        <Check size={12} />
-                                      </button>
-                                      <button 
-                                        onClick={() => setEditingBudget(null)}
-                                        className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)]"
-                                      >
-                                        <X size={12} />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                /* --- VUE AFFICHAGE --- */
-                                <div className="group/item py-1">
-                                  <div className="flex justify-between items-start mb-1.5">
-                                    <div className="flex flex-col">
-                                      <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight">{b.nom}</span>
-                                      <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded text-[var(--text-main)]/40 font-bold uppercase tracking-tighter border border-white/5">
-                                          {b.compte}
-                                        </span>
-                                        <span className="text-[7px] text-[var(--primary)]/60 font-black uppercase tracking-tighter">
-                                          {b.mois} {bAnnee}
-                                        </span>
+                              {/* --- VUE ÉDITION --- */}
+                                {isEditing ? (
+                                  <div className="bg-[var(--glass-bg)] p-3 rounded-xl border border-[var(--primary)]/30 animate-in zoom-in-95 duration-200">
+                                    <div className="flex flex-col gap-2">
+                                      <div className="flex items-center gap-2">
+                                        {/* Icône de la catégorie en cours d'édition */}
+                                        <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                                          <CategoryIcon name={editingBudget.nom} size={16} />
+                                        </div>
+                                        <input 
+                                          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-[var(--text-main)] font-bold outline-none focus:border-[var(--primary)]"
+                                          value={editingBudget.nom}
+                                          onChange={e => setEditingBudget({...editingBudget, nom: e.target.value})}
+                                          autoFocus
+                                        />
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <input 
+                                          type="number"
+                                          className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1.5 text-[11px] text-[var(--text-main)] outline-none focus:border-[var(--primary)] font-mono"
+                                          value={editingBudget.somme}
+                                          onChange={e => setEditingBudget({...editingBudget, somme: e.target.value})}
+                                        />
+                                        <button 
+                                          onClick={() => handleUpdateBudget(editingBudget, b.nom)}
+                                          className="p-2 bg-[var(--primary)] text-[var(--text-main)] rounded-lg hover:scale-105 transition-all cursor-pointer"
+                                        >
+                                          <Check size={12} />
+                                        </button>
+                                        <button 
+                                          onClick={() => setEditingBudget(null)}
+                                          className="p-2 bg-[var(--glass-bg)] text-[var(--text-main)]/50 rounded-lg hover:bg-[var(--glass-bg)] cursor-pointer"
+                                        >
+                                          <X size={12} />
+                                        </button>
                                       </div>
                                     </div>
-                                    
-                                    <div className="flex items-center gap-3">
-                                      <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
-                                        {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
-                                      </span>
+                                  </div>
+                                ) : (
+                                  /* --- VUE AFFICHAGE --- */
+                                  <div className="group/item py-1">
+                                    <div className="flex justify-between items-start mb-1.5">
                                       
-                                      <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                        <button 
-                                          onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
-                                          className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors"
-                                        >
-                                          <Edit3 size={12} />
-                                        </button>
-                                        <button 
-                                          onClick={() => confirmDelete2(b)}
-                                          className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors"
-                                        >
-                                          <Trash2 size={12} />
-                                        </button>
+                                      {/* 💡 BLOC AVEC L'ICÔNE ET SA COULEUR */}
+                                      <div className="flex items-center gap-2.5 min-w-0">
+                                        <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0 shadow-sm">
+                                          <CategoryIcon name={b.nom} size={16} />
+                                        </div>
+
+                                        <div className="flex flex-col min-w-0">
+                                          <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight truncate">
+                                            {b.nom}
+                                          </span>
+                                          <div className="flex items-center gap-2 mt-1">
+                                            <span className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded text-[var(--text-main)]/40 font-bold uppercase tracking-tighter border border-white/5 truncate max-w-[120px]">
+                                              {b.compte}
+                                            </span>
+                                            <span className="text-[7px] text-[var(--primary)]/60 font-black uppercase tracking-tighter">
+                                              {b.mois} {bAnnee}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Montants et actions */}
+                                      <div className="flex items-center gap-3 shrink-0">
+                                        <span className={`text-[10px] font-mono font-bold ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                          {depenseReelle.toFixed(0)}€<span className="text-[var(--text-main)]/20 mx-0.5">/</span>{b.somme}€
+                                        </span>
+                                        
+                                        <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                          <button 
+                                            onClick={() => setEditingBudget({...b, id_ref: uniqueKey})}
+                                            className="p-1 text-[var(--text-main)]/20 hover:text-blue-400 transition-colors cursor-pointer"
+                                          >
+                                            <Edit3 size={12} />
+                                          </button>
+                                          <button 
+                                            onClick={() => confirmDelete2(b)}
+                                            className="p-1 text-[var(--text-main)]/20 hover:text-rose-500 transition-colors cursor-pointer"
+                                          >
+                                            <Trash2 size={12} />
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
 
-                                  <div className="relative w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                    <div 
-                                      className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
-                                      style={{ width: `${pourcentage}%` }}
-                                    />
+                                    <div className="relative w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`absolute left-0 top-0 h-full transition-all duration-1000 ${estDepasse ? 'bg-rose-500' : 'bg-[var(--primary)]'}`}
+                                        style={{ width: `${pourcentage}%` }}
+                                      />
+                                    </div>
                                   </div>
-                                </div>
-                              )}
+                                )}
                             </div>
                           );
                         });
@@ -14447,43 +14745,68 @@ if (!user) {
                         </button>
 
                         {/* --- PANNEAU FLOTTANT (OVERLAY) --- */}
-                          {showLearningList && (
-                            <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#16191f] border border-white/10 rounded-2xl shadow-2xl p-2 animate-in fade-in zoom-in-95 duration-200 origin-bottom">
-                              <div className="flex justify-between items-center px-2 py-1 mb-2 border-b border-white/5">
-                                <span className="text-[8px] font-black uppercase text-[var(--text-main)]/40 tracking-widest">Base Mémoire</span>
-                                <button onClick={() => setShowLearningList(false)}>
-                                  <X size={10} className="text-white/20 hover:text-white" />
-                                </button>
-                              </div>
-                              
-                              <div className="space-y-1 max-h-40 overflow-y-auto custom-scrollbar px-1">
-                                {elementsAppris.length > 0 ? (
-                                  elementsAppris.map((item, i) => (
-                                    <div key={i} className="flex justify-between items-center p-2 bg-white/[0.02] rounded-lg border border-white/5 group/item">
-                                      <span className="text-[9px] text-white/80 font-bold uppercase truncate pr-2" title={item.nom}>
-                                        {item.nom}
-                                      </span>
-                                      <div className="flex items-center gap-2 shrink-0">
-                                        <span className="text-[8px] text-[var(--primary)] font-black uppercase bg-[var(--primary)]/10 px-1.5 py-0.5 rounded">
-                                          {item.categorie}
+                          {/* --- PANNEAU FLOTTANT (BASE MÉMOIRE) --- */}
+                            {showLearningList && (
+                              <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#16191f] border border-white/10 rounded-2xl shadow-2xl p-2.5 animate-in fade-in zoom-in-95 duration-200 origin-bottom backdrop-blur-xl">
+                                
+                                {/* En-tête du panneau */}
+                                <div className="flex justify-between items-center px-2 py-1 mb-2 border-b border-white/5">
+                                  <div className="flex items-center gap-1.5">
+                                    <Database size={11} className="text-[var(--primary)]" />
+                                    <span className="text-[8.5px] font-black uppercase text-[var(--text-main)]/50 tracking-widest">
+                                      Base Mémoire ({elementsAppris.length})
+                                    </span>
+                                  </div>
+                                  <button 
+                                    onClick={() => setShowLearningList(false)}
+                                    className="p-0.5 hover:bg-white/5 rounded text-white/30 hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                                
+                                {/* Liste des éléments mémorisés avec icônes */}
+                                <div className="space-y-1.5 max-h-52 overflow-y-auto custom-scrollbar px-0.5">
+                                  {elementsAppris.length > 0 ? (
+                                    elementsAppris.map((item, i) => (
+                                      <div 
+                                        key={i} 
+                                        className="flex justify-between items-center p-2 bg-white/[0.02] hover:bg-white/[0.05] rounded-xl border border-white/5 group/item transition-colors"
+                                      >
+                                        {/* Libellé appris */}
+                                        <span className="text-[9.5px] text-white/85 font-bold uppercase truncate pr-2 flex-1" title={item.nom}>
+                                          {item.nom}
                                         </span>
-                                        {/* BOUTON SUPPRIMER */}
-                                        <button 
-                                          onClick={() => handleDeleteMemory(item.nom)}
-                                          className="opacity-0 group-hover/item:opacity-100 transition-opacity p-0.5 hover:bg-white/10 rounded text-rose-500/70 hover:text-rose-400"
-                                          title="Supprimer cet apprentissage"
-                                        >
-                                          <X size={10} />
-                                        </button>
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          {/* 💡 BADGE AVEC L'ICÔNE ET SA VRAIE COULEUR */}
+                                          <div className="flex items-center gap-1.5 bg-white/[0.04] border border-white/10 px-2 py-1 rounded-lg shadow-sm">
+                                            <CategoryIcon name={item.categorie} size={12} />
+                                            <span className="text-[8.5px] font-black uppercase text-white/80 tracking-tight">
+                                              {getCleanCategoryName(item.categorie)}
+                                            </span>
+                                          </div>
+
+                                          {/* Bouton supprimer la règle */}
+                                          <button 
+                                            onClick={() => handleDeleteMemory(item.nom)}
+                                            className="opacity-0 group-hover/item:opacity-100 transition-opacity p-1 hover:bg-rose-500/20 rounded-md text-rose-400 hover:text-rose-300 cursor-pointer"
+                                            title="Supprimer cet apprentissage"
+                                          >
+                                            <Trash2 size={11} />
+                                          </button>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <p className="text-[8px] text-center py-4 text-white/20 uppercase font-bold">Vide</p>
-                                )}
+                                    ))
+                                  ) : (
+                                    <p className="text-[8.5px] text-center py-4 text-white/20 uppercase font-bold tracking-wider">
+                                      Aucune règle mémorisée
+                                    </p>
+                                  )}
+                                </div>
+
                               </div>
-                            </div>
-                          )}
+                            )}
                       </div>
                     </div>
 
@@ -14663,519 +14986,458 @@ if (!user) {
                 
 {/* Conteneur de scroll interne */}
 <div className="flex-1 overflow-auto custom-scrollbar">
-  <table className="w-full text-left border-separate border-spacing-0">
-    <thead>
-      <tr className="bg-[var(--bg-site)] sticky top-0 z-40 border-b border-white/10 shadow-sm">
-        <th className="p-4 w-12 border-b border-white/10">
-          <div className="flex items-center justify-center">
-            <input 
-              type="checkbox"
-              checked={transactionsAAfficher.length > 0 && selectedIds.length === transactionsAAfficher.length}
-              onChange={toggleAll}
-              ref={(el) => {
-                if (el) {
-                  el.indeterminate = selectedIds.length > 0 && selectedIds.length < transactionsAAfficher.length;
-                }
-              }}
-              className="w-4 h-4 rounded border-white/20 bg-[var(--glass-bg)] text-[var(--primary)] focus:ring-[var(--primary)]/50 cursor-pointer"
-            />
-          </div>
-        </th>
+  {/* 💡 Mois raccourcis pour le CustomSelect (v = valeur BDD complète, l = affichage court et net) */}
+  {(() => {
+    const moisOptionsAbrege = [
+      { v: "Janvier", l: "Janv." },
+      { v: "Février", l: "Févr." },
+      { v: "Mars", l: "Mars" },
+      { v: "Avril", l: "Avr." },
+      { v: "Mai", l: "Mai" },
+      { v: "Juin", l: "Juin" },
+      { v: "Juillet", l: "Juil." },
+      { v: "Aout", l: "Août" },
+      { v: "Septembre", l: "Sept." },
+      { v: "Octobre", l: "Oct." },
+      { v: "Novembre", l: "Nov." },
+      { v: "Décembre", l: "Déc." }
+    ];
 
-        <th className="p-4 w-20 cursor-pointer hover:bg-[var(--glass-bg)]" onClick={() => handleSort('jour')}>
-          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-            Date {sortConfig.key === 'jour' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-          </div>
-        </th>
-        
-        <th className="p-4 w-[300px] cursor-pointer hover:bg-[var(--glass-bg)]" onClick={() => handleSort('nom')}>
-          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-            Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-          </div>
-        </th>
+    return (
+      <table className="w-full text-left border-separate border-spacing-0">
+        <thead>
+          <tr className="bg-[var(--bg-site)]/95 backdrop-blur-md sticky top-0 z-40 border-b border-white/10 shadow-sm">
+            {/* 1. CHECKBOX (Resserré) */}
+            <th className="py-3 px-2 w-10 border-b border-white/10 text-center">
+              <input 
+                type="checkbox"
+                checked={transactionsAAfficher.length > 0 && selectedIds.length === transactionsAAfficher.length}
+                onChange={toggleAll}
+                ref={(el) => {
+                  if (el) {
+                    el.indeterminate = selectedIds.length > 0 && selectedIds.length < transactionsAAfficher.length;
+                  }
+                }}
+                className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-[var(--primary)] focus:ring-[var(--primary)]/40 cursor-pointer"
+              />
+            </th>
 
-        <th className="p-4 w-32 cursor-pointer hover:bg-[var(--glass-bg)] text-right" onClick={() => handleSort('montant')}>
-          <div className="flex items-center justify-end gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-            Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-          </div>
-        </th>
+            {/* 2. DATE */}
+            <th className="py-3 px-2 w-16 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('jour')}>
+              <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+                Date {sortConfig.key === 'jour' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
+              </div>
+            </th>
+            
+            {/* 3. TRANSACTION (Largeur équilibrée) */}
+            <th className="py-3 px-2 min-w-[260px] max-w-[420px] cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('nom')}>
+              <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+                Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
+              </div>
+            </th>
 
-        <th className="p-4 hidden md:table-cell w-44 cursor-pointer hover:bg-[var(--glass-bg)]" onClick={() => handleSort('categorie')}>
-          <div className="flex items-center gap-2 text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-            Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={12} />}
-          </div>
-        </th>
-        
-        <th className="p-4 w-32 text-[10px] font-black text-[var(--text-main)]/40 uppercase">Mois Affecté</th>
+            {/* 4. MONTANT (Rapproché de la transaction) */}
+            <th className="py-3 px-2 w-28 cursor-pointer hover:bg-white/[0.02] text-right" onClick={() => handleSort('montant')}>
+              <div className="flex items-center justify-end gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+                Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
+              </div>
+            </th>
 
-        <th className="p-4 w-28 text-center text-[10px] font-black text-[var(--text-main)]/40 uppercase">
-          Prévision
-        </th>
-        
-        {/* 💡 EN-TÊTE ULTRA DISCRET POUR L'ENVELOPPE */}
-        <th className="p-4 w-24 text-center text-[10px] font-black text-[var(--text-main)]/40 uppercase">Enveloppe</th>
-      </tr>
-    </thead>
+            {/* 5. CATÉGORIE */}
+            <th className="py-3 px-2 hidden md:table-cell w-44 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('categorie')}>
+              <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+                Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
+              </div>
+            </th>
+            
+            {/* 6. 💡 MOIS AFFECTÉ : Largeur garantie pour ne plus tronquer en Se... */}
+            <th className="py-3 px-2 w-36 min-w-[135px] text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+              Mois Affecté
+            </th>
 
-    <tbody 
-      key={`${sortConfig.key}-${sortConfig.direction}`} 
-      className="divide-y divide-white/5"
-    >
-      {transactionsFiltrees.length > 0 ? (
-        transactionsFiltrees.map((t) => {
-          const isSelected = selectedIds.includes(t.id);
-          return (
-            <tr 
-              key={t.id} 
-              className={`group transition-all duration-300 ${
-                isSelected 
-                  ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
-                  : 'hover:bg-[var(--glass-bg)]'
-              }`}
-            >
-              <td className="p-4 w-12 border-b border-white/[0.05]">
-                <div className="flex items-center justify-center">
-                  <input 
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(t.id)}
-                    className={`w-4 h-4 rounded border-white/20 bg-[var(--glass-bg)] text-[var(--primary)] transition-all cursor-pointer ${
-                      isSelected ? 'scale-110 shadow-[0_0_10px_rgba(99,102,241,0.4)]' : 'scale-100'
-                    }`}
-                  />
-                </div>
-              </td>
+            {/* 7. PRÉVISION */}
+            <th className="py-3 px-2 w-28 text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+              Prévision
+            </th>
+            
+            {/* 8. ENVELOPPE */}
+            <th className="py-3 px-2 w-20 text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
+              Enveloppe
+            </th>
+          </tr>
+        </thead>
 
-              <td className="p-4 border-b border-white/[0.05]">
-                <div className="pointer-events-none">
-                  <CustomBadgeDate t={t} />
-                </div>
-              </td>
+        <tbody 
+          key={`${sortConfig.key}-${sortConfig.direction}`} 
+          className="divide-y divide-white/[0.03]"
+        >
+          {transactionsFiltrees.length > 0 ? (
+            transactionsFiltrees.map((t) => {
+              const isSelected = selectedIds.includes(t.id);
+              const isTransfertInterne = Boolean(
+                t.categorie && (
+                  t.categorie.includes(" vers ") || 
+                  t.categorie.startsWith("Virement :") || 
+                  t.categorie.includes("🔄")
+                )
+              );
+              const isRevenu = parseFloat(t.montant) > 0;
 
-              {/* Dans le tableau de l'onglet 'gerer' (Desktop) */}
-                {/* 🟢 CELLULE DU LIBELLÉ : MULTI-LIGNES AUTOMATIQUE ET ÉLARGIE */}
-                <td className="p-4 pr-0 group/name border-b border-white/[0.05] min-w-[300px] max-w-[500px]">
-                  <div className={`flex flex-col border-l-4 transition-all pl-3 py-1 ${
-                    (t.categorie && t.categorie.includes("🔄 Virement")) 
-                      ? "border-[var(--primary)]/50 group-hover/name:border-[var(--primary)]" 
-                      : parseFloat(t.montant) > 0 
-                        ? "border-emerald-500/50 group-hover/name:border-emerald-400" 
-                        : "border-rose-500/50 group-hover/name:border-rose-400"
-                  }`}>
-                    <div className="flex items-start gap-2">
-                      <textarea
-                        rows="1"
-                        defaultValue={t.nom}
-                        onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
-                        onInput={handleInput}
-                        // 🟢 Calcule et ajuste la hauteur dès l'affichage pour afficher tout le texte
-                        ref={(el) => {
-                          if (el) {
-                            el.style.height = "auto";
-                            el.style.height = `${el.scrollHeight}px`;
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            e.target.blur();
-                          }
-                        }}
-                        className="bg-[var(--glass-bg)] border border-white/5 text-[12.5px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1.5 px-2 rounded-lg transition-all hover:bg-white/[0.07] hover:border-white/10 focus:bg-[var(--primary)]/10 focus:border-[var(--primary)]/30 focus:ring-1 focus:ring-[var(--primary)]/20 break-words"
-                        placeholder="Modifier le libellé..."
-                      />
+              return (
+                <tr 
+                  key={t.id} 
+                  className={`group transition-colors duration-150 ${
+                    isSelected 
+                      ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
+                      : 'hover:bg-white/[0.02]'
+                  }`}
+                >
+                  {/* 1. CHECKBOX */}
+                  <td className="py-2.5 px-2 w-10 border-b border-white/[0.04] text-center">
+                    <input 
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleSelect(t.id)}
+                      className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-[var(--primary)] cursor-pointer"
+                    />
+                  </td>
+
+                  {/* 2. DATE */}
+                  <td className="py-2.5 px-2 border-b border-white/[0.04] w-16 whitespace-nowrap">
+                    <div className="pointer-events-none">
+                      <CustomBadgeDate t={t} />
+                    </div>
+                  </td>
+
+                  {/* 3. LIBELLÉ AUTO-ADAPTATIF EN HAUTEUR */}
+                  <td className="py-2.5 px-2 border-b border-white/[0.04] min-w-[260px] max-w-[420px]">
+                    <div className={`flex flex-col border-l-4 pl-2.5 py-0.5 transition-colors ${
+                      isTransfertInterne
+                        ? "border-[var(--primary)]/50 group-hover:border-[var(--primary)]" 
+                        : isRevenu 
+                          ? "border-emerald-500/50 group-hover:border-emerald-400" 
+                          : "border-rose-500/50 group-hover:border-rose-400"
+                    }`}>
+                      <div className="flex items-start gap-2">
+                        {/* Textarea dynamique qui s'étend selon la longueur */}
+                        <textarea
+                          rows="1"
+                          defaultValue={t.nom}
+                          onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
+                          onInput={handleInput}
+                          ref={(el) => {
+                            if (el) {
+                              el.style.height = "auto";
+                              el.style.height = `${el.scrollHeight}px`;
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.target.blur();
+                            }
+                          }}
+                          className="bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/60 text-[12px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1 px-2 rounded-lg transition-all break-words cursor-text"
+                          placeholder="Modifier le libellé..."
+                        />
+                        
+                        {/#\d+$/.test(t.nom) && (
+                          <span 
+                            title="Transaction similaire indexée"
+                            className="shrink-0 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
+                          >
+                            {t.nom.match(/#\d+$/)[0]}
+                          </span>
+                        )}
+
+                        <div className="mt-1 shrink-0 opacity-30 group-hover:opacity-100 transition-opacity" title="Cliquer pour modifier">
+                          <Pencil size={11} className="text-white/40 hover:text-[var(--primary)] transition-colors" />
+                        </div>
+                      </div>
                       
-                      {/* PASTILLE D'AVERTISSEMENT SI LE NOM CONTIENT UN '#' */}
-                      {/#\d+$/.test(t.nom) && (
+                      <div className="flex items-center gap-1.5 mt-0.5 pl-1">
+                        <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase font-mono tracking-wider">{t.compte}</span>
+                        <span className="text-white/10 text-[8px]">•</span>
+                        <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
+                          isTransfertInterne
+                            ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                            : isRevenu 
+                              ? "bg-emerald-500/15 text-emerald-400" 
+                              : "bg-rose-500/15 text-rose-400"
+                        }`}>
+                          {isTransfertInterne ? "Transfert" : isRevenu ? "Revenu" : "Dépense"}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+
+                  {/* 4. MONTANT (€) - POLICE CLASSIQUE ORIGINALE (PAS DE FONT-MONO) */}
+                  <td className="py-2.5 px-2 text-right border-b border-white/[0.04] w-28 whitespace-nowrap">
+                    <span className={`text-[13px] font-black tabular-nums transition-colors ${
+                      isTransfertInterne 
+                        ? 'text-[var(--primary)]' 
+                        : isRevenu 
+                          ? 'text-emerald-400' 
+                          : 'text-rose-400'
+                    }`}>
+                      {isRevenu && !isTransfertInterne ? '+' : ''}
+                      {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                    </span>
+                  </td>
+
+                  {/* 5. CATÉGORIE */}
+                  <td className="py-2.5 px-2 hidden md:table-cell border-b border-white/[0.04] w-44">
+                    <CustomSelect 
+                      value={t.categorie || "Autre"}
+                      icon={Tag} 
+                      options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                      onChange={(val) => updateCell(t.id, 'categorie', val)}
+                      className="px-2 py-1 rounded-xl text-[10px] bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
+                    />
+                  </td>
+
+                  {/* 6. 💡 MOIS AFFECTÉ : CUSTOMSELECT ÉPURÉ & PARFAITEMENT LISIBLE */}
+                  <td className="py-2.5 px-2 border-b border-white/[0.04] w-36 min-w-[135px]">
+                    <CustomSelect 
+                      value={t.mois || "Janvier"}
+                      icon={Calendar} 
+                      options={moisOptionsAbrege}
+                      onChange={(val) => updateCell(t.id, 'mois', val)}
+                      className="px-2.5 py-1 rounded-xl text-[10.5px] font-bold bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
+                    />
+                  </td>
+
+                  {/* 7. PRÉVISION */}
+                  <td className={`py-2.5 px-2 border-b border-white/[0.04] w-28 text-center relative ${activePrevisionDropdownId === t.id ? 'z-[60]' : ''}`}>
+                    {(() => {
+                      const isTxPositive = (parseFloat(t.montant) || 0) >= 0;
+                      const compteTx = (comptes || []).find(c => 
+                        (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase()
+                      );
+                      const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
+
+                      const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
+                      const nomBadge = prevAssociee ? getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '')) : null;
+
+                      const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
+                        const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
+                        const anneeT = parseInt(t.annee || t.année || new Date().getFullYear());
+                        const anneeP = parseInt(p.annee || p.année || new Date().getFullYear());
+                        const matchAnnee = (anneeT === anneeP);
+
+                        let matchGroupe = true;
+                        if (groupeCible) {
+                          const compteP = (comptes || []).find(c => 
+                            (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
+                          );
+                          matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
+                        }
+
+                        const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
+                        const matchSens = (isTxPositive === isPrevPositive);
+
+                        return matchMois && matchAnnee && matchGroupe && matchSens;
+                      });
+
+                      return (
+                        <div className="flex items-center justify-center gap-1.5">
+                          {nomBadge ? (
+                            <span 
+                              title={`Lié à : ${nomBadge}`}
+                              className="text-[8.5px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 uppercase max-w-[85px] truncate flex items-center gap-1"
+                            >
+                              <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
+                              <span className="truncate">{nomBadge}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
+                              Aucune
+                            </span>
+                          )}
+
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (activePrevisionDropdownId === t.id) {
+                                setActivePrevisionDropdownId(null);
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const spaceBelow = window.innerHeight - rect.bottom;
+                                setDropdownPosition(spaceBelow < 280 ? 'top' : 'bottom');
+                                setActivePrevisionDropdownId(t.id);
+                              }
+                            }}
+                            className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+                              activePrevisionDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <MoreHorizontal size={12} />
+                          </button>
+
+                          {/* Popover Prévisions */}
+                          {activePrevisionDropdownId === t.id && (
+                            <>
+                              <div 
+                                className="fixed inset-0 z-50 cursor-default" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActivePrevisionDropdownId(null);
+                                }}
+                              />
+
+                              <div 
+                                onClick={(e) => e.stopPropagation()}
+                                className={`
+                                  absolute right-0 w-60 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-xl
+                                  ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-9'}
+                                `}
+                              >
+                                <div className="px-2 py-1 text-[8px] font-black text-white/40 uppercase tracking-wider border-b border-white/5 flex items-center justify-between mb-1">
+                                  <span>Prévisions ({t.mois})</span>
+                                  <span className={isTxPositive ? 'text-emerald-400' : 'text-rose-400'}>
+                                    {isTxPositive ? '+ Revenu' : '- Dépense'}
+                                  </span>
+                                </div>
+
+                                <button
+                                  onClick={async () => {
+                                    await updateCell(t.id, 'prevision_id', null);
+                                    setActivePrevisionDropdownId(null);
+                                  }}
+                                  className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                    !t.prevision_id ? 'bg-white/10 text-white' : 'text-white/40 hover:bg-white/5 hover:text-white'
+                                  }`}
+                                >
+                                  <span>✕</span> Aucune liaison
+                                </button>
+
+                                <div className="max-h-52 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                                  {previsionsDuMois.map((p) => {
+                                    const isLinked = t.prevision_id === p.id;
+                                    const nomAff = getCleanCategoryName(p.nom.replace(/^\[PRÉVI\]\s*/i, ''));
+                                    const mntPrv = Math.abs(parseFloat(p.montant) || 0);
+
+                                    return (
+                                      <button
+                                        key={p.id}
+                                        onClick={async () => {
+                                          await updateCell(t.id, 'prevision_id', p.id);
+                                          setActivePrevisionDropdownId(null);
+                                        }}
+                                        className={`w-full text-left p-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                          isLinked ? 'bg-emerald-500/15 text-emerald-300' : 'hover:bg-white/5 text-white/70'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-1.5 truncate">
+                                          <CategoryIcon name={p.categorie || p.nom} size={11} />
+                                          <span className="truncate">{nomAff} ({mntPrv.toFixed(0)}€)</span>
+                                        </div>
+                                        {isLinked && <span className="text-emerald-400 text-xs">✓</span>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </td>
+
+                  {/* 8. ENVELOPPE */}
+                  <td className="py-2.5 px-2 border-b border-white/[0.04] w-20 text-center relative">
+                    <div className="flex items-center justify-center gap-1">
+                      {t.enveloppe ? (
                         <span 
-                          title="Transaction similaire identifiée avec un index (#). Vous pouvez la renommer ou la supprimer si nécessaire."
-                          className="shrink-0 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[7px] font-black uppercase cursor-help mt-1.5"
+                          title={`Alloué à : ${t.enveloppe}`}
+                          className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[var(--primary)]/15 border border-[var(--primary)]/20 text-[var(--primary)] uppercase max-w-[65px] truncate"
                         >
-                          {t.nom.match(/#\d+$/)[0]}
+                          {t.enveloppe}
+                        </span>
+                      ) : (
+                        <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
+                          Aucune
                         </span>
                       )}
 
-                      <div className="mt-2 shrink-0">
-                        <Pencil size={12} className="text-[var(--text-main)]/10 group-hover/name:text-[var(--text-main)]/40 transition-colors" />
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 mt-1.5 ml-1">
-                      <span className="text-[9px] text-[var(--text-main)]/20 uppercase font-black tracking-tighter">{t.compte}</span>
-                      <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-widest ${
-                        (t.categorie && t.categorie.includes("🔄 Virement"))
-                          ? "bg-[var(--primary)]/10 text-[var(--primary)]/70"
-                          : parseFloat(t.montant) > 0 ? "bg-emerald-500/10 text-emerald-400/70" : "bg-rose-500/10 text-rose-400/70"
-                      }`}>
-                        {(t.categorie && t.categorie.includes("🔄 Virement")) ? "Transfert" : parseFloat(t.montant) > 0 ? "Revenu" : "Dépense"}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-              <td className="p-4 pl-0 text-right border-b border-white/[0.05] w-32">
-                <span className={`text-[13px] font-black tabular-nums transition-colors ${
-                  (t.categorie && t.categorie.includes("🔄 Virement")) ? 'text-[var(--primary)]' : parseFloat(t.montant) < 0 ? 'text-rose-400' : 'text-emerald-400'
-                }`}>
-                  {parseFloat(t.montant) > 0 && !(t.categorie && t.categorie.includes("🔄 Virement")) ? '+' : ''}
-                  {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                </span>
-              </td>
-
-              <td className="p-4 hidden md:table-cell group/cat border-b border-white/[0.05] w-70">
-                <CustomSelect 
-                  value={t.categorie || "❓ Autre"}
-                  icon={Tag} 
-                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
-                  onChange={(val) => updateCell(t.id, 'categorie', val)}
-                />
-              </td>
-
-              <td className="p-4 group/month border-b border-white/[0.05] w-40">
-                <CustomSelect 
-                  value={t.mois || "À définir"}
-                  icon={Calendar} 
-                  options={moisListe}
-                  onChange={(val) => updateCell(t.id, 'mois', val)}
-                />
-              </td>
-
-
-             {/* 💡 CELLULE PRÉVISION LIÉE : SÉPARATION DÉPENSES/REVENUS + VOCABULAIRE ADAPTÉ */}
-<td className={`p-4 border-b border-white/[0.05] w-28 text-center relative ${activePrevisionDropdownId === t.id ? 'z-[60]' : ''}`}>
-  {(() => {
-    const extractEmoji = (str) => {
-      if (!str) return null;
-      const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
-      const match = str.match(emojiRegex);
-      return match ? match[0] : null;
-    };
-
-    // Sens du flux de la transaction actuelle (+ ou -)
-    const isTxPositive = (parseFloat(t.montant) || 0) >= 0;
-
-    // Groupe/profil cible
-    const compteTx = (comptes || []).find(c => 
-      (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase()
-    );
-    const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
-
-    // Prévision actuellement associée
-    const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
-    let nomBadge = null;
-    let emojiBadge = null;
-
-    if (prevAssociee) {
-      const rawNom = prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '');
-      emojiBadge = extractEmoji(rawNom) || extractEmoji(prevAssociee.categorie) || "📌";
-      nomBadge = rawNom.replace(emojiBadge, '').trim() || rawNom;
-    }
-
-    // 🎯 FILTRAGE STRICT : Mois + Année + Groupe + SENS DU FLUX (Positif avec Positif, Négatif avec Négatif)
-    const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
-      const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
-      const anneeT = parseInt(t.annee || t.année || new Date().getFullYear());
-      const anneeP = parseInt(p.annee || p.année || new Date().getFullYear());
-      const matchAnnee = (anneeT === anneeP);
-
-      let matchGroupe = true;
-      if (groupeCible) {
-        const compteP = (comptes || []).find(c => 
-          (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
-        );
-        matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
-      }
-
-      // 💡 Filtrage Positif / Négatif :
-      const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
-      const matchSens = (isTxPositive === isPrevPositive);
-
-      return matchMois && matchAnnee && matchGroupe && matchSens;
-    });
-
-    return (
-      <div className="flex flex-col items-center justify-center gap-1">
-        
-        {/* BADGE */}
-        {nomBadge ? (
-          <span 
-            title={`Lié à : ${nomBadge}`}
-            className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 uppercase max-w-[95px] truncate flex items-center justify-center gap-1 tracking-tighter"
-          >
-            <span className="shrink-0">{emojiBadge}</span>
-            <span className="truncate">{nomBadge}</span>
-          </span>
-        ) : (
-          <div className="h-[15px]" />
-        )}
-
-        {/* BOUTON 3 POINTS */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (activePrevisionDropdownId === t.id) {
-              setActivePrevisionDropdownId(null);
-            } else {
-              const rect = e.currentTarget.getBoundingClientRect();
-              const spaceBelow = window.innerHeight - rect.bottom;
-              setDropdownPosition(spaceBelow < 280 ? 'top' : 'bottom');
-              setActivePrevisionDropdownId(t.id);
-            }
-          }}
-          className={`w-7 h-7 flex items-center justify-center rounded-full transition-all cursor-pointer ${
-            activePrevisionDropdownId === t.id 
-              ? 'bg-white/10 text-white' 
-              : 'text-[var(--text-main)]/30 hover:bg-white/5 hover:text-[var(--text-main)]'
-          }`}
-          title="Lier à une prévision"
-        >
-          <MoreHorizontal size={14} />
-        </button>
-
-        {/* DROPDOWN POPUP */}
-        {activePrevisionDropdownId === t.id && (
-          <>
-            <div 
-              className="fixed inset-0 z-50 cursor-default" 
-              onClick={(e) => {
-                e.stopPropagation();
-                setActivePrevisionDropdownId(null);
-              }}
-            />
-
-            <div 
-              onClick={(e) => e.stopPropagation()}
-              className={`
-                absolute right-0 w-64 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-xl
-                ${dropdownPosition === 'top' 
-                  ? 'bottom-full mb-2 animate-in fade-in slide-in-from-bottom-2 duration-150' 
-                  : 'top-12 animate-in fade-in slide-in-from-top-2 duration-150'
-                }
-              `}
-            >
-              {/* Header avec indicateur de flux */}
-              <div className="px-2.5 py-1 text-[8px] font-black text-white/40 uppercase tracking-widest border-b border-white/5 flex items-center justify-between mb-1">
-                <span>{isTxPositive ? '🟢 Revenus' : '🔴 Dépenses'} • {t.mois}</span>
-                <span className="text-emerald-400 font-bold shrink-0">{previsionsDuMois.length} dispo</span>
-              </div>
-
-              {/* DÉLIER */}
-              <button
-                onClick={async () => {
-                  await updateCell(t.id, 'prevision_id', null);
-                  setActivePrevisionDropdownId(null);
-                }}
-                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                  !t.prevision_id 
-                    ? 'bg-white/10 text-white' 
-                    : 'text-white/40 hover:bg-white/5 hover:text-white'
-                }`}
-              >
-                <span>✕</span> Aucune prévision
-              </button>
-
-              {/* LISTE DES PRÉVISIONS ADAPTÉE */}
-              <div className="max-h-56 overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-0.5">
-                {previsionsDuMois.length > 0 ? (
-                  previsionsDuMois.map((p) => {
-                    const isSelected = t.prevision_id === p.id;
-                    const rawNom = p.nom.replace(/^\[PRÉVI\]\s*/i, '');
-                    const emojiItem = extractEmoji(rawNom) || extractEmoji(p.categorie) || (isTxPositive ? "💰" : "📌");
-                    const nomAffiche = rawNom.replace(emojiItem, '').trim() || rawNom;
-                    const montantPrev = Math.abs(parseFloat(p.montant) || 0);
-
-                    // Calcul du réalisé
-                    const liees = (toutesLesTransactions || []).filter(tx => tx.prevision_id === p.id);
-                    const consomme = liees.reduce((sum, tx) => sum + Math.abs(parseFloat(tx.montant) || 0), 0);
-                    const restant = montantPrev - consomme;
-
-                    return (
                       <button
-                        key={p.id}
-                        onClick={async () => {
-                          await updateCell(t.id, 'prevision_id', p.id);
-                          setActivePrevisionDropdownId(null);
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
                         }}
-                        className={`w-full text-left p-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                          isSelected 
-                            ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300' 
-                            : 'bg-white/[0.02] hover:bg-white/[0.06] text-white/70 hover:text-white border border-transparent'
+                        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+                          activeDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
                         }`}
                       >
-                        <div className="flex flex-col min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs shrink-0">{emojiItem}</span>
-                            <span className="truncate text-[10.5px] font-black uppercase text-white">
-                              {nomAffiche}
-                            </span>
-                          </div>
-                          
-                          {/* 💡 AFFICHAGE DIFFÉRENCIÉ SELON REVENU OU DÉPENSE */}
-                          <div className="flex items-center gap-1 text-[8px] font-mono mt-0.5">
-                            <span className="text-white/40">Prévu: {montantPrev.toFixed(0)}€</span>
-                            <span className="text-white/20">•</span>
-
-                            {isTxPositive ? (
-                              // Cas d'un Revenu (vert si perçu, bonus vert si surplus, ambre si attente)
-                              <span className={consomme >= montantPrev ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-                                {consomme >= montantPrev 
-                                  ? `100% Reçu (${consomme.toFixed(0)}€)` 
-                                  : `En attente: ${Math.max(0, restant).toFixed(0)}€`}
-                              </span>
-                            ) : (
-                              // Cas d'une Dépense (vert si reste, rouge si dépassé)
-                              <span className={restant < 0 ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
-                                {restant < 0 
-                                  ? `Dépassé (+${Math.abs(restant).toFixed(0)}€)` 
-                                  : `Reste: ${restant.toFixed(0)}€`}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {isSelected && (
-                          <span className="text-emerald-400 text-xs font-black shrink-0">✓</span>
-                        )}
+                        <MoreHorizontal size={12} />
                       </button>
-                    );
-                  })
-                ) : (
-                  <p className="text-[9px] text-center text-white/20 py-3 italic">
-                    Aucun {isTxPositive ? 'revenu prévisionnel' : 'dépense prévisionnelle'} ce mois-ci
-                  </p>
-                )}
-              </div>
 
-            </div>
-          </>
-        )}
+                      {/* Popover Enveloppes */}
+                      {activeDropdownId === t.id && (
+                        <>
+                          <div 
+                            className="fixed inset-0 z-50 cursor-default" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveDropdownId(null);
+                            }}
+                          />
 
-      </div>
+                          <div className="absolute right-1 top-9 w-44 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-md">
+                            <button
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await updateCell(t.id, 'enveloppe', "");
+                                setActiveDropdownId(null);
+                              }}
+                              className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                                !t.enveloppe ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-white/40 hover:bg-white/5 hover:text-white'
+                              }`}
+                            >
+                              📦 Aucune enveloppe
+                            </button>
+
+                            {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => (
+                              <button
+                                key={projetNom}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await updateCell(t.id, 'enveloppe', projetNom);
+                                  setActiveDropdownId(null);
+                                }}
+                                className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between ${
+                                  t.enveloppe === projetNom ? 'bg-emerald-500/15 text-emerald-400' : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                }`}
+                              >
+                                <span className="truncate">💰 {projetNom}</span>
+                                {t.enveloppe === projetNom && <span className="text-[9px]">✓</span>}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td colSpan="8" className="py-16 text-center">
+                <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-3 mx-auto">
+                  <span className="text-xl opacity-30">📂</span>
+                </div>
+                <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">
+                  Aucune transaction trouvée
+                </h3>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     );
   })()}
-</td>
-
-              {/* 💡 CELLULE AVEC FENÊTRE MODALE QUI SE DÉPLIE */}
-{/* 💡 CELLULE MODIFIÉE : BADGE AU-DESSUS DES 3 POINTS */}
-<td className="p-4 border-b border-white/[0.05] w-24 text-center relative">
-  <div className="flex flex-col items-center justify-center gap-1">
-    
-    {/* Petit badge si déjà alloué - Placé en premier pour être au-dessus */}
-    {t.enveloppe ? (
-      <span 
-        title={`Alloué à : ${t.enveloppe}`}
-        className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--primary)]/10 text-[var(--primary)] uppercase max-w-[80px] truncate block tracking-tighter"
-      >
-        {t.enveloppe}
-      </span>
-    ) : (
-      /* Optionnel : Une boîte invisible de la même hauteur que le badge pour éviter 
-         que le bouton 3 points ne remonte verticalement quand il n'y a pas d'enveloppe */
-      <div className="h-[15px]" />
-    )}
-
-    {/* Bouton 3 points épuré */}
-    <button
-      onClick={(e) => {
-        e.stopPropagation(); // Évite de propager le clic à la ligne
-        // Si le menu est déjà ouvert sur cette ligne, on le ferme, sinon on l'ouvre
-        setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
-      }}
-      className={`w-7 h-7 flex items-center justify-center rounded-full transition-all ${
-        activeDropdownId === t.id 
-          ? 'bg-white/10 text-white' 
-          : 'text-[var(--text-main)]/30 hover:bg-white/5 hover:text-[var(--text-main)]'
-      }`}
-    >
-      <MoreHorizontal size={14} />
-    </button>
-
-    {/* (Garde la suite de ton code avec la fenêtre déroulante activeDropdownId === t.id juste ici...) */}
-
-    {/* FENÊTRE QUI SE DÉPLIE (Uniquement si activeDropdownId correspond à cette ligne) */}
-    {activeDropdownId === t.id && (
-      <>
-        {/* Un calque invisible derrière pour fermer la fenêtre si on clique n'importe où ailleurs */}
-        <div 
-          className="fixed inset-0 z-50 cursor-default" 
-          onClick={(e) => {
-            e.stopPropagation();
-            setActiveDropdownId(null);
-          }}
-        />
-
-        {/* La petite fenêtre d'options */}
-        <div className="absolute right-4 top-12 w-48 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 animate-in fade-in slide-in-from-top-2 duration-150 text-left backdrop-blur-md">
-          <div className="px-2.5 py-1 text-[8px] font-black text-white/30 uppercase tracking-widest border-b border-white/5 mb-1">
-            Choisir une enveloppe
-          </div>
-          
-          {/* Option par défaut : Aucune enveloppe */}
-          <button
-            onClick={async (e) => {
-              e.stopPropagation();
-              await updateCell(t.id, 'enveloppe', "");
-              setActiveDropdownId(null);
-            }}
-            className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-2 ${
-              !t.enveloppe 
-                ? 'bg-[var(--primary)]/10 text-[var(--primary)]' 
-                : 'text-white/40 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <span>📦</span> Aucune enveloppe
-          </button>
-
-          {/* Boucle sur tes vraies enveloppes (optionsEnveloppes ou listeAffichage) */}
-         {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => (
-            <button
-              key={projetNom}
-              onClick={async (e) => {
-                e.stopPropagation();
-                await updateCell(t.id, 'enveloppe', projetNom);
-                setActiveDropdownId(null);
-              }}
-              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between ${
-                t.enveloppe === projetNom 
-                  ? 'bg-emerald-500/10 text-emerald-400' 
-                  : 'text-white/60 hover:bg-white/5 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2 truncate">
-                <span>💰</span>
-                <span className="truncate">{projetNom}</span>
-              </div>
-              {t.enveloppe === projetNom && <span className="text-[10px]">✓</span>}
-            </button>
-          ))}
-        </div>
-      </>
-    )}
-
-  </div>
-</td>
-            </tr>
-          );
-        })
-      ) : (
-        /* --- ÉTAT VIDE --- */
-        <tr>
-          <td colSpan="7" className="py-20">
-            <div className="flex flex-col items-center justify-center text-center px-4">
-              <div className="w-16 h-16 rounded-3xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4 shadow-inner">
-                <span className="text-2xl opacity-20">📂</span>
-              </div>
-              <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">
-                Journal vide pour {selectedCompte === 'tous' ? 'Tous les comptes' : selectedCompte}, {filters.mois} {filters.annee} 
-              </h3>
-              <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-widest mt-2 leading-relaxed">
-                Aucune transaction ne correspond à vos filtres actuels.
-              </p>
-            </div>
-          </td>
-        </tr>
-      )}
-    </tbody>
-  </table>
 </div>
                 </div>
               </div>
@@ -15725,15 +15987,18 @@ if (!user) {
                               </td>
 
                               <td className="p-4">
-                                <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
-                                  isImported
-                                    ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
-                                    : isTransfert 
-                                      ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
-                                      : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
-                                }`}>
-                                  {t.categorie}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <CategoryIcon name={t.categorie} size={14} />
+                                  <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
+                                    isImported
+                                      ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
+                                      : isTransfert 
+                                        ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
+                                        : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
+                                  }`}>
+                                    {getCleanCategoryName(t.categorie)}
+                                  </span>
+                                </div>
                               </td>
 
                               <td className={`p-4 text-right font-black text-[11px] ${
@@ -15777,7 +16042,7 @@ if (!user) {
           <CustomSelect 
             label="Cible d'apprentissage"
             value={intelSelectedCat}
-            icon={Search}
+            icon={Tag}
             options={categoriesPourIntelligence.map(cat => ({ v: cat, l: cat }))}
             onChange={(val) => setIntelSelectedCat(val)}
           />
@@ -17232,14 +17497,14 @@ if (!user) {
       {/* En-tête */}
       <div className="flex items-center gap-3 mb-6">
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
-          <span className="text-xl">⚡</span>
+          <span className="text-xl">✨</span>
         </div>
         <div>
           <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
             Mise à jour v{CURRENT_VERSION}
           </span>
           <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-wider mt-1">
-            Arrivée du Mode Automatique
+            Nouveautés & Évolutions
           </h3>
         </div>
       </div>
@@ -17247,8 +17512,38 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* NOUVEAUTÉ 1 : SYNCHRONISATION CONTINUE SANS EFFORT */}
-        <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)] animate-in slide-in-from-top-2 duration-300">
+        {/* NOUVEAUTÉ 1 : ICÔNES VECTORIELLES & COULEURS PERSONNALISABLES */}
+        <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(99,102,241,0.06)] animate-in slide-in-from-top-2 duration-300">
+          <span className="text-base mt-0.5">🎨</span>
+          <div>
+            <h4 className="text-[14px] font-black text-indigo-300 uppercase tracking-wide">
+              Refonte Visuelle : Icônes Vectorielles & Nuancier
+            </h4>
+            <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
+              Fini les anciens émojis pixelisés ! Les catégories adoptent désormais des <strong className="text-indigo-400">icônes vectorielles modernes et nettes</strong> sur l’ensemble de vos graphiques, barres de suivi et historiques. Vous pouvez désormais <strong className="text-indigo-400">personnaliser l'icône et la couleur</strong> de chaque catégorie directement via le sélecteur dédié.
+            </p>
+          </div>
+        </div>
+
+        {/* 💡 NOUVEAUTÉ 2 : LIAISON TRANSACTIONS & PRÉVISIONS (RÉALISÉ VS PRÉVU) */}
+        <div className="p-3 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(16,185,129,0.06)] animate-in slide-in-from-top-2 duration-300">
+          <span className="text-base mt-0.5">🎯</span>
+          <div>
+            <h4 className="text-[14px] font-black text-emerald-300 uppercase tracking-wide">
+              Liaison des Transactions aux Prévisions
+            </h4>
+            <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
+              Associez d'un simple clic vos écritures réelles à vos prévisions budgétaires ! L'application calcule en temps réel votre <strong className="text-emerald-400">avancement (consommé vs prévu)</strong> avec jauge de progression et alertes en cas de dépassement.
+              <br />
+              <span className="text-[11px] text-emerald-400/90 font-semibold mt-1 block">
+                ⚡ Zéro doublon : dès qu'une charge (loyer, assurance) ou un revenu (salaire) est payé et lié, la projection de fin de mois s'ajuste automatiquement sur le reste réel à venir.
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* NOUVEAUTÉ 3 : SYNCHRONISATION CONTINUE SANS EFFORT */}
+        <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
           <span className="text-base mt-0.5">🔌</span>
           <div>
             <h4 className="text-[14px] font-black text-indigo-400 uppercase tracking-wide">
@@ -17260,7 +17555,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 2 : CALCUL AUTOMATIQUE DU SOLDE INITIAL */}
+        {/* NOUVEAUTÉ 4 : CALCUL AUTOMATIQUE DU SOLDE INITIAL */}
         <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(16,185,129,0.03)]">
           <span className="text-base mt-0.5">⚖️</span>
           <div>
@@ -17273,7 +17568,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 3 : DÉTECTION CROISÉE DES VIREMENTS & IBAN */}
+        {/* NOUVEAUTÉ 5 : DÉTECTION CROISÉE DES VIREMENTS & IBAN */}
         <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
           <span className="text-base mt-0.5">🔄</span>
           <div>
@@ -17286,7 +17581,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 4 : GESTION DES DOUBLONS & INDEXATION (#2, #3) */}
+        {/* NOUVEAUTÉ 6 : GESTION DES DOUBLONS & INDEXATION (#2, #3) */}
         <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
           <span className="text-base mt-0.5">🛡️</span>
           <div>
@@ -17299,7 +17594,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 5 : CONTRÔLE TOTAL DANS LE PROFIL */}
+        {/* NOUVEAUTÉ 7 : CONTRÔLE TOTAL DANS LE PROFIL */}
         <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(168,85,247,0.03)]">
           <span className="text-base mt-0.5">⚙️</span>
           <div>
@@ -17319,13 +17614,12 @@ if (!user) {
         onClick={handleClosePatchModal}
         className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 outline-none cursor-pointer"
       >
-        Découvrir le mode automatique !!
+        Découvrir les nouveautés !
       </button>
 
     </div>
   </div>
 )}
-
 
 {/* MODALE SELECTION COMPTE POWENS */}
 {showPowensModal && (
@@ -17449,6 +17743,101 @@ if (!user) {
         >
           <span className="text-[11px] font-black uppercase tracking-widest">📂 Mode Manuel (CSV)</span>
           <span className="text-[8px] opacity-40 uppercase font-medium">Imports de fichiers bancaires manuels</span>
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+
+{/* MODALE DE MODIFICATION D'UNE CATÉGORIE (ICÔNE & COULEUR) */}
+{editingCat && (
+  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+    <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setEditingCat(null)} />
+    
+    <div className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+      <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-5">
+        <div>
+          <h4 className="text-xs font-black uppercase text-indigo-400 tracking-widest">
+            Personnaliser la catégorie
+          </h4>
+          <p className="text-[10px] text-white/60 font-bold uppercase mt-0.5">
+            {editingCat.nom}
+          </p>
+        </div>
+        <button onClick={() => setEditingCat(null)} className="text-white/40 hover:text-white p-1">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        {/* Prévisualisation */}
+        {/* Prévisualisation dans la modale d'édition */}
+          <div className="flex items-center justify-center p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
+            <CategoryIcon 
+              name={editingCat.icone} 
+              size={36} 
+              color={editingCat.couleur} // 👈 Applique immédiatement la couleur choisie dans le SketchPicker
+            />
+          </div>
+
+        {/* Sélection Icône & Couleur */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Bouton Choix d'icône */}
+          <div className="relative">
+            <button 
+              type="button"
+              onClick={() => setShowEditIconPicker(!showEditIconPicker)}
+              className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <Tag size={14} />
+              <span>Changer d'icône</span>
+            </button>
+
+            {showEditIconPicker && (
+              <LucideIconPicker 
+                selectedIcon={editingCat.icone}
+                onSelectIcon={(icon) => {
+                  setEditingCat({ ...editingCat, icone: icon });
+                  setShowEditIconPicker(false);
+                }}
+                onClose={() => setShowEditIconPicker(false)}
+              />
+            )}
+          </div>
+
+          {/* Bouton Choix de couleur */}
+          <div className="relative">
+            <button 
+              type="button"
+              onClick={() => setShowEditColorPicker(!showEditColorPicker)}
+              className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              <div className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: editingCat.couleur }} />
+              <span>Couleur</span>
+            </button>
+
+            {showEditColorPicker && (
+              <div className="absolute z-[120] bottom-full mb-2 right-0 animate-in zoom-in-95 duration-150">
+                <div className="fixed inset-0" onClick={() => setShowEditColorPicker(false)} />
+                <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
+                  <SketchPicker 
+                    color={editingCat.couleur} 
+                    onChange={(c) => setEditingCat({ ...editingCat, couleur: c.hex })} 
+                    disableAlpha 
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bouton Valider */}
+        <button 
+          onClick={() => handleUpdateCategory(editingCat.nom, editingCat.icone, editingCat.couleur)}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer mt-2"
+        >
+          Enregistrer les modifications
         </button>
       </div>
     </div>

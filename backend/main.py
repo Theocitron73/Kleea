@@ -893,109 +893,158 @@ def delete_budget(nom: str, utilisateur: str, mois: str, annee: int):
         conn.commit()
     return {"status": "deleted"}
 
-class CategorieCreate(BaseModel):
-    nom: str
-    utilisateur: str
 
 # Constante globale : une seule source de vérité côté serveur
 # Constante globale : Base des catégories d'origine sans les virements câblés en dur
 CATEGORIES_DEFAUT = [
-    "💰 Salaire", "🏥 Remboursements", "🤝 Virements Reçus", "👫 Compte Commun",
-    "📱 Abonnements", "🛒 Alimentation", "🛍️ Shopping", "👕 Habillement", 
-    "⚖️ Impôts", "🏦 Frais Bancaires", "🏠 Assurance Habitation", "🎮 Jeux vidéos",
-    "🩺 Mutuelle", "💊 Pharmacie", "👨‍⚕️ Médecin/Santé", "🔑 Loyer", 
-    "🔨 Bricolage", "🚌 Transports", "⛽ Carburant", "🚗 Auto", 
-    "💸 Virements envoyé", "🏧 Retraits", "🌐 Internet", 
-    "❓ Autre" # 💡 Les virements dynamiques seront insérés juste avant "Autre"
+    "Salaire", "Remboursements", "Virement Reçu", "Virement Envoyé", "Compte Commun",
+    "Abonnements", "Alimentation", "Shopping", "Habillement", 
+    "Impôts", "Frais Bancaires", "Assurance Habitation", "Jeux vidéos",
+    "Mutuelle", "Pharmacie", "Médecin/Santé", "Loyer", 
+    "Bricolage", "Transports", "Carburant", "Auto", 
+    "Retraits", "Internet", "Autre"
 ]
 
+# 1. Modèles Pydantic avec la couleur
+class CategorieCreate(BaseModel):
+    nom: str
+    icone: Optional[str] = "Tag"
+    couleur: Optional[str] = "#818cf8"
+    utilisateur: str
+
+class CategorieUpdate(BaseModel):
+    nom: str
+    icone: Optional[str] = "Tag"
+    couleur: Optional[str] = "#818cf8"
+    utilisateur: str
+
+# 2. Création : insère bien 'couleur' dans la table
+@app.post("/api/categories")
+def add_category(cat: CategorieCreate):
+    try:
+        clean_name = cat.nom.strip()
+        clean_icon = cat.icone if cat.icone else "Tag"
+        clean_color = cat.couleur if cat.couleur else "#818cf8"
+        clean_user = cat.utilisateur.lower()
+
+        with engine.begin() as conn:
+            conn.execute(
+                text("DELETE FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"), 
+                {"u": clean_user, "n": clean_name}
+            )
+            conn.execute(
+                text("INSERT INTO categories (nom, icone, couleur, utilisateur) VALUES (:n, :i, :c, :u)"),
+                {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
+            )
+        return {"status": "success"}
+    except Exception as e:
+        print(f"❌ Erreur add_category: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 3. Modification : met à jour icone ET couleur
+@app.put("/api/categories")
+def update_category(cat: CategorieUpdate):
+    try:
+        clean_name = cat.nom.strip()
+        clean_user = cat.utilisateur.lower()
+        clean_icon = cat.icone if cat.icone else "Tag"
+        clean_color = cat.couleur if cat.couleur else "#818cf8"
+
+        with engine.begin() as conn:
+            check = conn.execute(
+                text("SELECT 1 FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"),
+                {"u": clean_user, "n": clean_name}
+            ).fetchone()
+            
+            if check:
+                conn.execute(
+                    text("""
+                        UPDATE categories 
+                        SET icone = :i, couleur = :c 
+                        WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)
+                    """),
+                    {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
+                )
+            else:
+                conn.execute(
+                    text("INSERT INTO categories (nom, icone, couleur, utilisateur) VALUES (:n, :i, :c, :u)"),
+                    {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
+                )
+        return {"status": "success"}
+    except Exception as e:
+        print(f"❌ Erreur update_category: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# 4. Lecture : renvoie bien 'colors_map' dans le JSON
 @app.get("/api/categories/{user}")
 def get_categories(user: str):
     try:
         user_clean = user.strip().lower()
         
         with engine.connect() as conn:
-            # 1. Récupération des catégories personnalisées
-            query_perso = text("SELECT nom FROM categories WHERE LOWER(utilisateur) = :u")
-            result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
-            categories_perso = [row[0] for row in result_perso]
-            
-            # 2. Récupération de la liste des comptes pour les virements
+            try:
+                query_perso = text("SELECT nom, icone, couleur FROM categories WHERE LOWER(utilisateur) = :u")
+                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+                categories_perso = [row[0] for row in result_perso]
+                icons_map = {row[0]: row[1] for row in result_perso if row[1] and str(row[1]).strip().lower() != 'tag'}
+                # 💡 Récupère la couleur exacte de chaque catégorie
+                colors_map = {row[0]: row[2] for row in result_perso if len(row) > 2 and row[2]}
+            except Exception as e_sql:
+                print(f"⚠️ Erreur lecture couleur en BDD: {e_sql}")
+                query_perso = text("SELECT nom, icone FROM categories WHERE LOWER(utilisateur) = :u")
+                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+                categories_perso = [row[0] for row in result_perso]
+                icons_map = {row[0]: row[1] for row in result_perso if row[1] and str(row[1]).strip().lower() != 'tag'}
+                colors_map = {}
+
+            # Récupération des comptes
             query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
             result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
             comptes_noms = [row[0] for row in result_comptes]
         
-        # 3. Détecter les types de comptes uniques présents (ex: "CCP", "LIVRET A", etc.)
         types_detectes = set()
         types_possibles = ["CCP", "LIVRET A", "LEP", "LDDS", "PEL", "AUTRE"]
-        
         for nom in comptes_noms:
-            # Extraction du préfixe si le séparateur " - " est présent
-            if " - " in nom:
-                prefix = nom.split(" - ")[0].strip().upper()
-                if prefix in types_possibles:
-                    types_detectes.add(prefix)
-                    continue
-            
-            # Recherche du mot-clé de secours si aucun séparateur n'est présent
             nom_upper = nom.upper()
             for t in types_possibles:
                 if t in nom_upper:
                     types_detectes.add(t)
                     break
 
-        # 4. Générer les permutations de transferts bidirectionnels entre les types détectés
         virements_dynamiques = []
         liste_types = sorted(list(types_detectes))
-        
         for i in range(len(liste_types)):
             for j in range(i + 1, len(liste_types)):
-                t1 = liste_types[i]
-                t2 = liste_types[j]
-                virements_dynamiques.append(f"🔄 Virement : {t1} vers {t2}")
-                virements_dynamiques.append(f"🔄 Virement : {t2} vers {t1}")
+                virements_dynamiques.append(f"Virement : {liste_types[i]} vers {liste_types[j]}")
+                virements_dynamiques.append(f"Virement : {liste_types[j]} vers {liste_types[i]}")
 
-        # 5. On retire les virements statiques si jamais il en reste dans CATEGORIES_DEFAUT
-        base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("🔄 Virement")]
-        
-        # Insérer les virements dynamiques juste avant "❓ Autre"
-        if "❓ Autre" in base_categories:
-            idx = base_categories.index("❓ Autre")
+        base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("Virement :")]
+
+        if "Autre" in base_categories:
+            idx = base_categories.index("Autre")
             defaults_finales = base_categories[:idx] + virements_dynamiques + base_categories[idx:]
         else:
             defaults_finales = base_categories + virements_dynamiques
-        
-        # On renvoie le dictionnaire structuré mis à jour
+
+        toutes_les_categories = sorted(list(set(defaults_finales + categories_perso)))
+
         return {
             "defaults": sorted(defaults_finales),
             "perso": sorted(categories_perso),
-            "all": sorted(list(set(defaults_finales + categories_perso)))
+            "all": toutes_les_categories,
+            "icons_map": icons_map,
+            "colors_map": colors_map  # 👈 OBLIGATOIRE : Transmet la liste des couleurs au frontend
         }
         
     except Exception as e:
-        print(f"Erreur SQL: {e}")
-        # En cas d'erreur, on se replie proprement sur CATEGORIES_DEFAUT sans virement dynamique
-        base_categories_fallback = [c for c in CATEGORIES_DEFAUT if not c.startswith("🔄 Virement")]
+        print(f"Erreur get_categories: {e}")
         return {
-            "defaults": sorted(base_categories_fallback),
+            "defaults": sorted(CATEGORIES_DEFAUT),
             "perso": [],
-            "all": sorted(base_categories_fallback)
+            "all": sorted(CATEGORIES_DEFAUT),
+            "icons_map": {},
+            "colors_map": {}
         }
-    
-
-
-# AJOUTER une catégorie
-@app.post("/api/categories")
-def add_category(cat: CategorieCreate):
-    query = text("INSERT INTO categories (nom, utilisateur) VALUES (:n, :u)")
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {"n": cat.nom, "u": cat.utilisateur})
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
 
 @app.delete("/api/categories/{user}/{nom}")
 def delete_category(user: str, nom: str):
@@ -1205,7 +1254,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 texte_integral_upper = (nom_t + " " + info_t).upper()
 
                 # --- ALGORITHME DE CATÉGORISATION ---
-                cat = "❓ Autre"
+                cat = "Autre"
                 
                 # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
                 if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
@@ -1215,16 +1264,16 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                     
                     if type_cible:
                         if montant_float < 0: # Débit : Argent envoyé du compte courant vers l'épargne
-                            cat = f"🔄 Virement : CCP vers {type_cible}"
+                            cat = f"Virement : CCP vers {type_cible}"
                         else: # Crédit : Argent retiré de l'épargne vers le compte courant
-                            cat = f"🔄 Virement : {type_cible} vers {type_cible if type_cible != 'CCP' else 'LIVRET A'}" # Fallback
-                            cat = f"🔄 Virement : {type_cible} vers CCP"
+                            cat = f"Virement : {type_cible} vers {type_cible if type_cible != 'CCP' else 'LIVRET A'}" # Fallback
+                            cat = f"Virement : {type_cible} vers CCP"
                     else:
                         # Si aucun livret connu n'est identifié
-                        cat = "🔄 Transfert Interne"
+                        cat = "Transfert Interne"
 
                 # B. Priorité 2 : Mémoire Apprise
-                if cat == "❓ Autre":
+                if cat == "Autre":
                     nom_t_normalise = " ".join(nom_t_lower.split())
                     for m in memoire_rules:
                         nom_memoire_clean = " ".join(m["nom"].lower().split())
@@ -1233,7 +1282,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                             break
 
                 # C. Priorité 3 : Intelligence (Mots-clés de la configuration)
-                if cat == "❓ Autre":
+                if cat == "Autre":
                     for rule in mots_cles_rules:
                         matched = False
                         for raw_k in rule["keywords"]:
@@ -1352,21 +1401,90 @@ async def update_category_keywords(data: dict):
         print(f"Erreur Update: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/categories/{user}")
+def get_categories(user: str):
+    try:
+        user_clean = user.strip().lower()
+        
+        with engine.connect() as conn:
+            try:
+                query_perso = text("SELECT nom, icone, couleur FROM categories WHERE LOWER(utilisateur) = :u")
+                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+                categories_perso = [row[0] for row in result_perso]
+                icons_map = {row[0]: row[1] for row in result_perso if row[1] and row[1].strip() and row[1].lower() != 'tag'}
+                colors_map = {row[0]: (row[2] or "#818cf8") for row in result_perso if len(row) > 2 and row[2]}
+            except Exception as e_sql:
+                print(f"⚠️ Fallback SELECT sans couleur: {e_sql}")
+                query_perso = text("SELECT nom, icone FROM categories WHERE LOWER(utilisateur) = :u")
+                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+                categories_perso = [row[0] for row in result_perso]
+                icons_map = {row[0]: row[1] for row in result_perso if row[1] and row[1].strip() and row[1].lower() != 'tag'}
+                colors_map = {}
+
+            # Récupération des comptes et calcul des virements dynamiques (inchangé)
+            query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
+            result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
+            comptes_noms = [row[0] for row in result_comptes]
+        
+        types_detectes = set()
+        types_possibles = ["CCP", "LIVRET A", "LEP", "LDDS", "PEL", "AUTRE"]
+        for nom in comptes_noms:
+            nom_upper = nom.upper()
+            for t in types_possibles:
+                if t in nom_upper:
+                    types_detectes.add(t)
+                    break
+
+        virements_dynamiques = []
+        liste_types = sorted(list(types_detectes))
+        for i in range(len(liste_types)):
+            for j in range(i + 1, len(liste_types)):
+                virements_dynamiques.append(f"Virement : {liste_types[i]} vers {liste_types[j]}")
+                virements_dynamiques.append(f"Virement : {liste_types[j]} vers {liste_types[i]}")
+
+        base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("Virement :")]
+
+        if "Autre" in base_categories:
+            idx = base_categories.index("Autre")
+            defaults_finales = base_categories[:idx] + virements_dynamiques + base_categories[idx:]
+        else:
+            defaults_finales = base_categories + virements_dynamiques
+
+        toutes_les_categories = sorted(list(set(defaults_finales + categories_perso)))
+
+        return {
+            "defaults": sorted(defaults_finales),
+            "perso": sorted(categories_perso),
+            "all": toutes_les_categories,
+            "icons_map": icons_map,
+            "colors_map": colors_map
+        }
+        
+    except Exception as e:
+        print(f"Erreur get_categories: {e}")
+        return {
+            "defaults": sorted(CATEGORIES_DEFAUT),
+            "perso": [],
+            "all": sorted(CATEGORIES_DEFAUT),
+            "icons_map": {},
+            "colors_map": {}
+        }
+
 @app.get("/config-categories")
 def get_categories_config(utilisateur: str = None):
-    # On récupère les deux versions
-    query = text("""
-        SELECT categorie, mots_cles, utilisateur 
-        FROM config_categories 
-        WHERE utilisateur = :u OR utilisateur = 'admin'
-    """)
-    
     try:
+        u_clean = utilisateur.strip().lower() if utilisateur else "admin"
+        
+        # 💡 LOWER() pour ne rater aucun mot-clé quelle que soit la casse (theo, Theo, admin)
+        query = text("""
+            SELECT categorie, mots_cles, utilisateur 
+            FROM config_categories 
+            WHERE LOWER(utilisateur) = :u OR LOWER(utilisateur) = 'admin'
+        """)
+        
         with engine.connect() as conn:
-            result = conn.execute(query, {"u": utilisateur}).fetchall()
+            result = conn.execute(query, {"u": u_clean}).fetchall()
             
-            # Dictionnaire pour stocker le résultat final
-            # Format : { "Nom Cat": {"mots_cles": [], "is_user": False} }
             final_config = {}
             
             for row in result:
@@ -1374,12 +1492,10 @@ def get_categories_config(utilisateur: str = None):
                 kw = row[1] or []
                 if isinstance(kw, str):
                     kw = kw.replace("{", "").replace("}", "").split(",")
-                kw_list = [k for k in kw if k]
-                is_user = (row[2] == utilisateur)
+                kw_list = [k.strip() for k in kw if k and k.strip()]
+                is_user = (str(row[2]).strip().lower() == u_clean)
 
-                # STRATÉGIE : Si on n'a rien pour cette catégorie, on prend ce qui vient.
-                # Si on a déjà une version 'admin' mais que la ligne actuelle est 'utilisateur',
-                # on ÉCRASE la version admin par celle de l'utilisateur.
+                # Priorité aux règles de l'utilisateur sur les règles admin
                 if cat_name not in final_config or is_user:
                     final_config[cat_name] = kw_list
 
@@ -1388,10 +1504,8 @@ def get_categories_config(utilisateur: str = None):
                 for k, v in final_config.items()
             ]
     except Exception as e:
-        print(f"Erreur Fetch: {e}")
+        print(f"❌ Erreur get_categories_config: {e}")
         return []
-
-
 
 @app.get("/previsions/{utilisateur}/{mois}/{annee}")
 def get_previsions_filtrees(utilisateur: str, mois: str, annee: int):
@@ -3175,7 +3289,7 @@ def normalize_powens_transactions(
             "date": dt.strftime('%Y-%m-%d'),
             "nom": libelle.strip(),
             "montant": montant_float,
-            "categorie": "❓ Autre",
+            "categorie": "Autre",
             "utilisateur": utilisateur.lower(),
             "compte": compte_nom,
             "mois": mois_fr[dt.month - 1],
@@ -3246,24 +3360,29 @@ async def import_powens(
             montant_float = t["montant"]
             nom_t_lower = nom_t.lower()
             texte_integral_upper = nom_t.upper()
-            cat = "❓ Autre"
+            cat = "Autre"
 
             # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
+            # 💡 DÉTECTION PROPRE DES VIREMENTS DANS MAIN.PY
             if any(k in texte_integral_upper for k in ["VERS ", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
-                # Détection automatique du livret cible dans le libellé brut de Powens
                 types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
                 type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
                 
                 if type_cible:
-                    if montant_float < 0: # Débit : Argent envoyé du compte courant vers l'épargne
-                        cat = f"🔄 Virement : CCP vers {type_cible}"
-                    else: # Crédit : Argent retiré de l'épargne vers le compte courant
-                        cat = f"🔄 Virement : {type_cible} vers CCP"
+                    # Virement interne entre CCP et Livret d'épargne
+                    if montant_float < 0:
+                        cat = f"Virement : CCP vers {type_cible}"
+                    else:
+                        cat = f"Virement : {type_cible} vers CCP"
+                elif "COMPTE COMMUN" in texte_integral_upper:
+                    # Virement vers/depuis le compte joint
+                    cat = "Compte Commun"
                 else:
-                    cat = "🔄 Transfert Interne"
+                    # Virement externe classique vers/depuis un tiers
+                    cat = "Virements Reçus" if montant_float > 0 else "Virements envoyé"
 
             # B. Priorité 2 : Mémoire Apprise
-            if cat == "❓ Autre":
+            if cat == "Autre":
                 nom_t_normalise = " ".join(nom_t_lower.split())
                 for m in memoire_rules:
                     nom_memoire_clean = " ".join(m["nom"].lower().split())
@@ -3272,7 +3391,7 @@ async def import_powens(
                         break
 
             # C. Priorité 3 : Mots-Clés (Intelligence)
-            if cat == "❓ Autre":
+            if cat == "Autre":
                 for rule in mots_cles_rules:
                     matched = False
                     for raw_k in rule["keywords"]:
@@ -3983,7 +4102,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                     continue
 
                 # Catégorisation
-                cat = "❓ Autre"
+                cat = "Autre"
                 libelle_lower = libelle_brut.lower()
                 libelle_compact = libelle_brut.upper().replace(" ", "")
                 
@@ -4023,16 +4142,16 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
 
                 # Attribution de la catégorie de virement interne
                 if autre_compte_local:
-                    cat = f"🔄 Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"🔄 Virement : {autre_compte_local} vers {local_account_name}"
+                    cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
 
                 # Mémoire & mots-clés
-                if cat == "❓ Autre":
+                if cat == "Autre":
                     for m in memoire_rules:
                         if m["nom"].lower() in libelle_lower:
                             cat = m["categorie"]
                             break
                             
-                if cat == "❓ Autre":
+                if cat == "Autre":
                     for rule in mots_cles_rules:
                         for raw_k in rule["keywords"]:
                             parts = raw_k.split(':')
@@ -4044,10 +4163,10 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                                     break
 
                 # Virements externes
-                if cat == "❓ Autre":
+                if cat == "Autre":
                     is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
                     if is_transfer:
-                        cat = "🤝 Virements Reçus" if montant > 0 else "💸 Virements envoyé"
+                        cat = "Virements Reçus" if montant > 0 else "Virements envoyé"
 
                 # Insertion
                 dt = datetime.strptime(raw_date, "%Y-%m-%d")
@@ -4084,7 +4203,7 @@ def recalculate_initial_balances(username: str):
     et met à jour la colonne 'solde' (Solde Initial) dans la table configuration.
     """
     user_clean = username.lower().strip()
-    print(f"🔄 [BALANCE RECALC] Début du calcul pour l'utilisateur: {user_clean}")
+    print(f"[BALANCE RECALC] Début du calcul pour l'utilisateur: {user_clean}")
 
     # 1. Récupérer le token de l'utilisateur
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")

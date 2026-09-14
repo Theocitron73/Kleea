@@ -5,6 +5,7 @@ import {
   Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
+import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
 
 export default function GererMobile(props) {
   const {
@@ -23,7 +24,7 @@ export default function GererMobile(props) {
     fetchMemoire, elementsAppris, handleDeleteMemory,
     newTx, setNewTx, selectedDate, setSelectedDate, submitQuickTransaction,
     transactionsFiltrees, selectedIds, toggleAll, toggleSelect, updateCell,
-    allocations, searchTerm,
+    allocations, searchTerm, setSearchTerm,
     allPrevisionsAnnee = [], toutesLesTransactions = [],
     CustomSelect
   } = props;
@@ -232,7 +233,7 @@ export default function GererMobile(props) {
       </div>
 
       {/* =========================================================================
-          ONGLET 1 : LES TRANSACTIONS AVEC BADGE PRÉVISION
+          ONGLET 1 : LES TRANSACTIONS
           ========================================================================= */}
       {activeSection === 'transactions' && (
         <div className="space-y-3 flex-1 animate-in fade-in duration-200">
@@ -241,12 +242,12 @@ export default function GererMobile(props) {
             <input
               type="text"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm && setSearchTerm(e.target.value)}
               placeholder="RECHERCHER DANS L'HISTORIQUE..."
               className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-xl py-2.5 pl-9 pr-8 text-xs font-medium text-white outline-none placeholder:text-white/20 tracking-wider"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
+              <button onClick={() => setSearchTerm && setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
                 <X size={12} />
               </button>
             )}
@@ -255,23 +256,30 @@ export default function GererMobile(props) {
           <div className="flex items-center gap-2 px-1 py-1 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl">
             <span className="text-[11px] pl-1">💡</span>
             <span className="text-[9px] font-black text-indigo-300/80 uppercase tracking-wider">
-              Touchez une transaction pour la lier à une prévision
+              Touchez une transaction pour la modifier ou la lier
             </span>
           </div>
 
           <div className="space-y-2 mt-2">
             {transactionsFiltrees.length > 0 ? (
               transactionsFiltrees.map((t) => {
-                const estVirement = t.categorie && t.categorie.includes("🔄 Virement");
-                const estRevenu = parseFloat(t.montant) > 0;
+                // 💡 Distinction précise : virement interne vs externe
+                const isTransfertInterne = Boolean(
+                  t.categorie && (
+                    t.categorie.includes(" vers ") || 
+                    t.categorie.startsWith("Virement :") || 
+                    t.categorie.includes("🔄")
+                  )
+                );
+                const isRevenu = parseFloat(t.montant) > 0;
 
-                // 💡 Recherche de la prévision liée pour afficher son badge
+                // 💡 Prévision liée
                 const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
                 let nomPrevAssociee = null;
                 let emojiPrevAssociee = null;
                 if (prevAssociee) {
                   const rawNom = prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '');
-                  emojiPrevAssociee = extractEmoji(rawNom) || extractEmoji(prevAssociee.categorie) || (estRevenu ? "💰" : "📌");
+                  emojiPrevAssociee = extractEmoji(rawNom) || extractEmoji(prevAssociee.categorie) || (isRevenu ? "💰" : "📌");
                   nomPrevAssociee = rawNom.replace(emojiPrevAssociee, '').trim() || rawNom;
                 }
                 
@@ -283,7 +291,7 @@ export default function GererMobile(props) {
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-2.5 h-10 rounded-full shrink-0 ${
-                        estVirement ? 'bg-[var(--primary)]/40' : estRevenu ? 'bg-emerald-500/40' : 'bg-rose-500/40'
+                        isTransfertInterne ? 'bg-[var(--primary)]/40' : isRevenu ? 'bg-emerald-500/40' : 'bg-rose-500/40'
                       }`} />
                       
                       <div className="min-w-0">
@@ -292,15 +300,18 @@ export default function GererMobile(props) {
                           <span className="text-[8px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
                             {t.compte}
                           </span>
-                          <span className="text-[8px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded font-black max-w-[90px] truncate">
-                            {t.categorie || "❓ Autre"}
-                          </span>
+                          
+                          {/* 💡 Catégorie avec son icône vectorielle */}
+                          <div className="flex items-center gap-1 bg-[var(--primary)]/10 text-[var(--primary)]/90 px-1.5 py-0.5 rounded font-black max-w-[110px] truncate">
+                            <CategoryIcon name={t.categorie} size={11} />
+                            <span className="truncate">{getCleanCategoryName(t.categorie) || "Autre"}</span>
+                          </div>
 
-                          {/* 💡 BADGE DISCRET DE LA PRÉVISION LIÉE */}
-                          {nomPrevAssociee && (
-                            <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[100px] truncate flex items-center gap-0.5">
-                              <span>{emojiPrevAssociee}</span>
-                              <span className="truncate">{nomPrevAssociee}</span>
+                          {/* 💡 Badge Prévision liée avec l'icône de sa catégorie */}
+                          {prevAssociee && (
+                            <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[105px] truncate flex items-center gap-1">
+                              <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
+                              <span className="truncate">{getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, ''))}</span>
                             </span>
                           )}
                         </div>
@@ -310,9 +321,13 @@ export default function GererMobile(props) {
                     <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
                       <div>
                         <span className={`text-xs font-mono font-black ${
-                          estVirement ? 'text-[var(--primary)]' : estRevenu ? 'text-emerald-400' : 'text-rose-400'
+                          isTransfertInterne 
+                            ? 'text-[var(--primary)]' 
+                            : isRevenu 
+                              ? 'text-emerald-400' 
+                              : 'text-rose-400'
                         }`}>
-                          {estRevenu && !estVirement ? '+' : ''}
+                          {isRevenu && !isTransfertInterne ? '+' : ''}
                           {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
                         </span>
                         
@@ -341,7 +356,7 @@ export default function GererMobile(props) {
       {/* =========================================================================
           ONGLET 2 : OUTILS / CATÉGORIES / SAISIE EXPRESS
           ========================================================================= */}
-      {props.activeTab === 'gerer' && activeSection === 'tools' && (
+      {activeSection === 'tools' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
@@ -433,7 +448,7 @@ export default function GererMobile(props) {
                 onClick={() => {
                   const input = document.getElementById('catInputMobile');
                   if(input.value.trim()) {
-                    addCategory(`🏷️ ${input.value.trim()}`);
+                    addCategory(input.value.trim());
                     input.value = '';
                   }
                 }}
@@ -464,9 +479,14 @@ export default function GererMobile(props) {
                   
                   return (
                     <div key={cat} className="flex items-center justify-between p-2 bg-black/20 rounded-xl">
-                      <span className={`text-xs font-bold ${estMasquee ? 'text-white/20 line-through' : 'text-white/70'}`}>
-                        {cat}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                          <CategoryIcon name={cat} size={14} />
+                        </div>
+                        <span className={`text-xs font-bold ${estMasquee ? 'text-white/20 line-through' : 'text-white/80'}`}>
+                          {getCleanCategoryName(cat)}
+                        </span>
+                      </div>
                       
                       <div className="flex items-center gap-1">
                         <button 
@@ -575,11 +595,14 @@ export default function GererMobile(props) {
               return (
                 <div key={b.id} className="p-3 bg-[var(--glass-bg)] border border-white/5 rounded-2xl">
                   <div className="flex items-start justify-between mb-1.5">
-                    <div>
-                      <p className="text-xs font-black text-white">{b.nom}</p>
-                      <span className="text-[8px] uppercase font-bold text-white/30 tracking-tight">
-                        {b.compte} • {b.mois}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <CategoryIcon name={b.nom} size={15} />
+                      <div>
+                        <p className="text-xs font-black text-white">{getCleanCategoryName(b.nom)}</p>
+                        <span className="text-[8px] uppercase font-bold text-white/30 tracking-tight">
+                          {b.compte} • {b.mois}
+                        </span>
+                      </div>
                     </div>
                     <div className="text-right">
                       <span className={`text-xs font-mono font-black ${estDepasse ? 'text-rose-400' : 'text-emerald-400'}`}>
@@ -603,7 +626,7 @@ export default function GererMobile(props) {
       )}
 
       {/* =========================================================================
-          MODALE D'ÉDITION MOBILE DE TRANSACTION AVEC SÉLECTEUR DE PRÉVISION LIÉE
+          MODALE D'ÉDITION MOBILE DE TRANSACTION
           ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -662,7 +685,7 @@ export default function GererMobile(props) {
               <div className="grid grid-cols-2 gap-3 items-end">
                 <CustomSelect 
                   label="Catégorie"
-                  value={editingTransaction.categorie || "❓ Autre"}
+                  value={editingTransaction.categorie || "Autre"}
                   options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
                   onChange={(val) => setEditingTransaction({ ...editingTransaction, categorie: val })}
                   icon={Tag}
@@ -679,7 +702,7 @@ export default function GererMobile(props) {
                 />
               </div>
 
-              {/* 💡 SÉLECTEUR DE PRÉVISION LIÉE (FILTRÉ PAR MOIS, GROUPE ET SENS + OU -) */}
+              {/* SÉLECTEUR DE PRÉVISION LIÉE */}
               {(() => {
                 const isTxPositive = (parseFloat(editingTransaction.montant) || 0) >= 0;
                 const compteTx = (comptes || []).find(c => 

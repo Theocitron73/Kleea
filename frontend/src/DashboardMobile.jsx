@@ -10,6 +10,7 @@ import {
   CalendarDays, Sparkles, TrendingUp, Filter, Wallet, Eye, EyeOff 
 } from 'lucide-react';
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
 
 export default function DashboardMobile(props) {
   const {
@@ -356,60 +357,65 @@ export default function DashboardMobile(props) {
             </div>
           </div>
 
-          {/* OBJECTIFS BUDGÉTAIRES */}
-          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
-            <span className="text-[10px] font-black uppercase text-white/40 tracking-widest block">
-              Suivi des Budgets
-            </span>
+          {/* OBJECTIFS BUDGÉTAIRES AVEC ICÔNES AU CENTRE */}
+            <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
+              <span className="text-[10px] font-black uppercase text-white/40 tracking-widest block">
+                Suivi des Budgets
+              </span>
 
-            {budgetGauges.length > 0 ? (
-              <div className="relative w-full">
-                <div 
-                  ref={carouselRef}
-                  onScroll={handleScroll}
-                  className="flex flex-row gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth"
-                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                >
-                  {budgetGauges.map((bg, i) => {
-                    const radius = 25;
-                    const circumference = Math.PI * radius;
-                    const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
+              {budgetGauges.length > 0 ? (
+                <div className="relative w-full">
+                  <div 
+                    ref={carouselRef}
+                    onScroll={handleScroll}
+                    className="flex flex-row gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
+                    {budgetGauges.map((bg, i) => {
+                      const radius = 25;
+                      const circumference = Math.PI * radius;
+                      const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
 
-                    return (
-                      <div 
-                        key={i} 
-                        className="flex flex-col items-center min-w-[76px] max-w-[76px] shrink-0 snap-start bg-black/20 p-2 rounded-xl border border-white/5"
-                      >
-                        <div className="relative w-16 h-8">
-                          <svg width="64" height="32" viewBox="0 0 64 32" className="absolute top-0 left-1/2 -translate-x-1/2">
-                            <path d="M 8,32 A 24,24 0 0 1 56,32" fill="none" stroke="currentColor" strokeWidth="5" className="text-white/5" />
-                            <path
-                              d="M 8,32 A 24,24 0 0 1 56,32"
-                              fill="none"
-                              stroke={bg.depasse ? '#fb7185' : '#34d399'}
-                              strokeWidth="5"
-                              strokeDasharray={circumference}
-                              strokeDashoffset={strokeDashoffset}
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] font-bold truncate w-12 text-center">
-                            {bg.nom.split(' ')[0]}
+                      return (
+                        <div 
+                          key={i} 
+                          className="flex flex-col items-center min-w-[76px] max-w-[76px] shrink-0 snap-start bg-black/20 p-2 rounded-xl border border-white/5"
+                        >
+                          <div className="relative w-16 h-8">
+                            <svg width="64" height="32" viewBox="0 0 64 32" className="absolute top-0 left-1/2 -translate-x-1/2">
+                              <path d="M 8,32 A 24,24 0 0 1 56,32" fill="none" stroke="currentColor" strokeWidth="5" className="text-white/5" />
+                              <path
+                                d="M 8,32 A 24,24 0 0 1 56,32"
+                                fill="none"
+                                stroke={bg.depasse ? '#fb7185' : '#34d399'}
+                                strokeWidth="5"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={strokeDashoffset}
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                            {/* 💡 Vraie icône vectorielle au centre de la jauge */}
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center justify-center mb-0.5">
+                              <CategoryIcon name={bg.nom} size={14} />
+                            </div>
+                          </div>
+                          <div className="text-center mt-3 w-full">
+                            <p className="text-[7.5px] font-bold text-white/40 uppercase truncate w-full">
+                              {getCleanCategoryName(bg.nom)}
+                            </p>
+                            <p className={`text-[9px] font-black mt-0.5 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
+                              {bg.pourcentage}%
+                            </p>
                           </div>
                         </div>
-                        <div className="text-center mt-3 w-full">
-                          <p className="text-[7px] text-white/30 uppercase truncate w-full">{bg.nom.split(' ').slice(1).join(' ') || 'Frais'}</p>
-                          <p className={`text-[9px] font-black mt-0.5 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>{bg.pourcentage}%</p>
-                        </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <p className="text-[10px] text-white/20 uppercase font-black text-center py-4">Aucun budget défini</p>
-            )}
-          </div>
+              ) : (
+                <p className="text-[10px] text-white/20 uppercase font-black text-center py-4">Aucun budget défini</p>
+              )}
+            </div>
 
         </div>
       )}

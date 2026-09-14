@@ -4,6 +4,7 @@ import {
   Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Search, Tag, CreditCard
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
+import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
 
 export default function ImportMobile(props) {
   const {
@@ -308,25 +309,27 @@ export default function ImportMobile(props) {
                       isImported ? 'opacity-40 bg-white/[0.01]' : 'border-rose-500/10'
                     }`}
                   >
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-bold text-white truncate max-w-[170px]">{t.nom}</p>
-                        
-                        {/* Status badge */}
-                        {isImported ? (
-                          <span className="text-[6px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">Importé</span>
-                        ) : (
-                          <span className="text-[6px] bg-rose-500/15 text-rose-300 px-1.5 py-0.5 rounded font-black uppercase">Nouveau</span>
-                        )}
-                      </div>
-                      
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[8px] text-white/30">{t.date}</span>
-                        <span className="text-[8px] font-black text-[var(--primary)] uppercase">
-                          {t.categorie}
+                   <div className="min-w-0 pr-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs font-bold text-white truncate max-w-[170px]">{t.nom}</p>
+                      {isImported ? (
+                        <span className="text-[6px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">Importé</span>
+                      ) : (
+                        <span className="text-[6px] bg-rose-500/15 text-rose-300 px-1.5 py-0.5 rounded font-black uppercase">Nouveau</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[8px] text-white/30">{t.date}</span>
+                      {/* 💡 Badge catégorie avec son icône vectorielle */}
+                      <div className="flex items-center gap-1 bg-white/[0.04] border border-white/5 px-1.5 py-0.5 rounded">
+                        <CategoryIcon name={t.categorie} size={11} />
+                        <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[110px]">
+                          {getCleanCategoryName(t.categorie)}
                         </span>
                       </div>
                     </div>
+                  </div>
 
                     <div className="text-right shrink-0">
                       <span className={`text-xs font-mono font-black ${
@@ -371,9 +374,19 @@ export default function ImportMobile(props) {
           {/* CADRE INTELLIGENCE / MOTS CLES */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-3xl space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-white/5">
-              <div>
-                <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-widest">Lexique en cours</span>
-                <h4 className="text-xs font-bold text-white mt-0.5 truncate max-w-[180px]">{intelSelectedCat}</h4>
+              <div className="flex items-center gap-2.5 min-w-0">
+                {/* 💡 Icône de la catégorie sélectionnée en tête du lexique */}
+                <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                  <CategoryIcon name={intelSelectedCat} size={16} />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-widest block leading-none">
+                    Lexique en cours
+                  </span>
+                  <h4 className="text-xs font-bold text-white mt-1 truncate max-w-[160px] leading-tight">
+                    {getCleanCategoryName(intelSelectedCat)}
+                  </h4>
+                </div>
               </div>
               <span className="text-[10px] font-black bg-[var(--primary)]/10 text-[var(--primary)] px-2 py-1 rounded-xl">
                 {activeCategoryData?.mots_cles?.length || 0}
