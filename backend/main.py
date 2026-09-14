@@ -33,6 +33,8 @@ from fastapi import APIRouter
 import traceback
 import calendar
 from fastapi import BackgroundTasks
+from cryptography.fernet import Fernet
+#print(Fernet.generate_key().decode())
 
 def get_ascii_hostname():
     return "localhost"
@@ -547,18 +549,19 @@ class CompteConfig(BaseModel):
 def get_config_comptes(username: str):
     u_clean = username.strip().lower()
     query = text("SELECT * FROM configuration WHERE LOWER(utilisateur) = :u")
-    
     with engine.connect() as conn:
         result = conn.execute(query, {"u": u_clean})
-        # Transformation directe en liste de dicts (sans Pandas, pas de NaN !)
         comptes = [dict(row._mapping) for row in result]
-        
+        for c in comptes:
+            if c.get("powens_name"):
+                c["powens_name"] = decrypt_iban(c["powens_name"])
     return comptes
 
 
+# 🟢 CRÉATION : Chiffre l'IBAN avant insertion en base
 @app.post("/config-comptes")
 def add_compte(c: CompteConfig):
-    # 💡 3. AJOUT DE POWENS_NAME DANS L'INSERT
+    encrypted_link = encrypt_iban(c.powens_name) if c.powens_name else None
     query = text("""
         INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux, powens_name) 
         VALUES (:c, :g, :s, :o, :col, :u, :t, :p)
@@ -567,39 +570,29 @@ def add_compte(c: CompteConfig):
         conn.execute(query, {
             "c": c.compte, "g": c.groupe, "s": c.solde, 
             "o": c.objectif, "col": c.couleur, "u": c.utilisateur.lower(),
-            "t": c.taux, "p": c.powens_name
+            "t": c.taux, "p": encrypted_link
         })
         conn.commit()
     return {"status": "success"}
 
 
+# 🟢 MODIFICATION : Chiffre l'IBAN lors de la mise à jour (onBlur dans Kleea)
 @app.put("/config-comptes/{compte_name}")
 def update_compte(compte_name: str, c: CompteConfig):
     name_clean = compte_name.strip()
-    
-    # 💡 4. AJOUT DE POWENS_NAME DANS L'UPDATE
+    encrypted_link = encrypt_iban(c.powens_name) if c.powens_name else None
     query = text("""
         UPDATE configuration 
         SET groupe = :g, solde = :s, objectif = :o, couleur = :col, taux = :t, powens_name = :p
         WHERE compte = :c AND LOWER(utilisateur) = :u
     """)
-    
     with engine.connect() as conn:
         result = conn.execute(query, {
-            "g": c.groupe, 
-            "s": c.solde, 
-            "o": c.objectif, 
-            "col": c.couleur, 
-            "t": c.taux,
-            "p": c.powens_name,
-            "c": name_clean, 
-            "u": c.utilisateur.lower()
+            "g": c.groupe, "s": c.solde, "o": c.objectif, "col": c.couleur, "t": c.taux,
+            "p": encrypted_link,
+            "c": name_clean, "u": c.utilisateur.lower()
         })
         conn.commit()
-        
-        if result.rowcount == 0:
-            print(f"ATTENTION : Aucune ligne mise à jour pour {name_clean}")
-            
     return {"status": "updated", "rows_affected": result.rowcount}
 
 @app.delete("/config-comptes/{compte_name}/{username}")
@@ -3847,7 +3840,44 @@ def check_sync_status(username: str):
     }
 
 
-# 🟢 2. SYNCHRONISATION ALIGNÉE SUR LE MOIS EN COURS
+
+
+# 🟢 INITIALISATION SÉCURISÉE DE FERNET
+IBAN_KEY = os.getenv("IBAN_ENCRYPTION_KEY")
+cipher = None
+
+if IBAN_KEY:
+    try:
+        cipher = Fernet(IBAN_KEY.strip().encode())
+    except Exception as e:
+        print(f"⚠️ Clé IBAN_ENCRYPTION_KEY invalide : {e}")
+else:
+    print("ℹ️ Aucune clé IBAN_ENCRYPTION_KEY trouvée dans le .env. Le chiffrement est inactif.")
+
+def encrypt_iban(val: str) -> str:
+    """Chiffre l'IBAN s'il commence par 'FR' ou ressemble à un IBAN."""
+    if not val or not cipher:
+        return val or ""
+    clean_val = val.strip().upper()
+    # On chiffre uniquement si c'est un IBAN (évite de chiffrer les simples noms de comptes Powens)
+    if clean_val.startswith("FR") and len(clean_val.replace(" ", "")) >= 14:
+        try:
+            return cipher.encrypt(clean_val.encode()).decode()
+        except Exception:
+            return val
+    return val
+
+def decrypt_iban(val: str) -> str:
+    """Déchiffre un IBAN chiffré. Renvoie la chaîne brute si non chiffrée."""
+    if not val or not cipher:
+        return val or ""
+    try:
+        return cipher.decrypt(val.encode()).decode()
+    except Exception:
+        return val
+
+
+# 🟢 SYNCHRONISATION ROBUSTE AVEC DÉCHIFFREMENT ET DÉTECTION D'IBAN
 @app.post("/powens/sync-user/{username}")
 async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
     user_clean = username.lower().strip()
@@ -3861,9 +3891,15 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
             raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
         user_token = res[0]
         
-        # 2. Configurations Kleea
+        # 2. Configurations brutes de Kleea
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+
+    # 🟢 Déchiffrement en mémoire vive de toutes les liaisons
+    decrypted_config_rows = [
+        (row[0], decrypt_iban(row[1]) if row[1] else None)
+        for row in config_rows
+    ]
 
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
@@ -3879,10 +3915,11 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
 
-    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, config_rows)
+    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
     if not acc_id_to_kleea:
         return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
 
+    # Bâtir les tables d'IBANs et numéros des comptes connectés Powens
     iban_to_local_name = {}
     number_to_local_name = {}
     for acc in powens_accounts:
@@ -3900,7 +3937,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
     success_count = 0
     batch_occurrence_tracker = {}
 
-    # 🟢 BORNE DE DATE : Seul le mois en cours est synchronisé
+    # 🟢 NOUVELLE BORNE STRICTE : 1er jour du mois en cours uniquement (ex: 2026-09-01)
     now = datetime.now()
     start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
 
@@ -3909,7 +3946,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
             try:
                 raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
                 
-                # 🟢 Ignore les mois antérieurs
+                # Ignore les écritures trop anciennes (> 60 jours)
                 if raw_date < start_of_current_month:
                     continue
 
@@ -3922,7 +3959,6 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
                 base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
                 
-                # Calcul de l'index d'occurrence (#1, #2, #3...)
                 tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
                 occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
                 batch_occurrence_tracker[tracker_key] = occurrence_in_batch
@@ -3956,25 +3992,44 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 libelle_compact = libelle_brut.upper().replace(" ", "")
                 
                 autre_compte_local = None
+
+                # A. Recherche par IBAN issu de l'API Powens
                 for target_iban, local_name in iban_to_local_name.items():
                     if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
                         autre_compte_local = local_name
                         break
                 
+                # B. Recherche par Numéro de compte issu de l'API Powens
                 if not autre_compte_local:
                     for target_number, local_name in number_to_local_name.items():
                         if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
                             autre_compte_local = local_name
                             break
 
+                # 🟢 C. RECHERCHE PAR IBAN MANUEL DÉCHIFFRÉ (ex: votre LEP)
+                if not autre_compte_local:
+                    for c_name, p_link in decrypted_config_rows:
+                        if not p_link or c_name.upper() == local_account_name.upper():
+                            continue
+                        p_link_compact = p_link.replace(" ", "").upper()
+                        # Vérifie si l'IBAN déchiffré est écrit à l'intérieur du libellé
+                        if p_link_compact and p_link_compact in libelle_compact:
+                            autre_compte_local = c_name
+                            print(f"🎯 [MATCH IBAN] Virement interne détecté vers '{c_name}' via l'IBAN '{p_link_compact}'")
+                            break
+
+                # D. Mots-clés livrets génériques
                 if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
                     types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
                     type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
-                    if type_cible: autre_compte_local = type_cible
+                    if type_cible: 
+                        autre_compte_local = type_cible
 
+                # Attribution de la catégorie de virement interne
                 if autre_compte_local:
                     cat = f"🔄 Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"🔄 Virement : {autre_compte_local} vers {local_account_name}"
 
+                # Mémoire & mots-clés
                 if cat == "❓ Autre":
                     for m in memoire_rules:
                         if m["nom"].lower() in libelle_lower:
@@ -3992,11 +4047,13 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                                     cat = rule["categorie"]
                                     break
 
+                # Virements externes
                 if cat == "❓ Autre":
                     is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
                     if is_transfer:
                         cat = "🤝 Virements Reçus" if montant > 0 else "💸 Virements envoyé"
 
+                # Insertion
                 dt = datetime.strptime(raw_date, "%Y-%m-%d")
                 insert_query = text("""
                     INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte)
@@ -4019,6 +4076,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 print(f"Ligne ignorée : {line_error}")
                 continue
             
+    print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
     return {"status": "success", "added": success_count}
 
 # 🟢 CORRECTIF : ALIGNEMENT DES PARAMÈTRES ET TRACABILITÉ DES RECALCULS
@@ -4191,3 +4249,45 @@ def clean_powens_duplicates(username: str):
         "deleted_connections": deleted_ids,
         "kept_connections": kept_ids
     }
+
+
+# 🟢 SUPPRESSION TOTALE DU COMPTE ET DES CONNEXIONS CHEZ POWENS + NETTOYAGE BDD
+@app.delete("/powens/disconnect/{username}")
+def disconnect_powens(username: str):
+    """
+    Supprime définitivement l'utilisateur et toutes ses connexions chez Powens (DELETE /users/me),
+    efface le token en base locale (users.powens_token = NULL)
+    et délie les comptes dans configuration (powens_name = NULL).
+    """
+    user_clean = username.lower().strip()
+    
+    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+    with engine.connect() as conn:
+        res = conn.execute(query_token, {"u": user_clean}).fetchone()
+        user_token = res[0] if res else None
+
+    # 1. Suppression définitive chez Powens via l'API (DELETE /users/me)
+    if user_token:
+        try:
+            domain = POWENS_DOMAIN.rstrip('/')
+            if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+                domain += '/2.0'
+            elif domain.endswith('/v2'):
+                domain = domain[:-3] + '/2.0'
+                
+            headers = {"Authorization": f"Bearer {user_token}"}
+            # DELETE /users/me efface l'utilisateur, ses connexions, ses comptes et son token
+            del_res = requests.delete(f"{domain}/users/me", headers=headers)
+            print(f"🗑️ [POWENS PURGE USER] Réponse Powens: {del_res.status_code}")
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la suppression chez Powens: {e}")
+            # On poursuit pour nettoyer la base de données locale
+
+    # 2. Nettoyage de la base de données locale Kleea
+    with engine.begin() as conn:
+        # Réinitialise le token utilisateur
+        conn.execute(text("UPDATE users SET powens_token = NULL WHERE LOWER(username) = LOWER(:u)"), {"u": user_clean})
+        # Retire les liaisons powens_name dans la table configuration
+        conn.execute(text("UPDATE configuration SET powens_name = NULL WHERE LOWER(utilisateur) = LOWER(:u)"), {"u": user_clean})
+
+    return {"status": "success", "message": "Accès bancaire Powens et identifiant supprimés avec succès."}

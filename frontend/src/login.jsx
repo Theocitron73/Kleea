@@ -4901,10 +4901,7 @@ export const DemenagementPage = ({ user, toutesLesCategories = [], comptes = [] 
 
 
 
-const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount, setActiveTab,
-  importMode,       // 🟢 Ajout
-  setImportMode     // 🟢 Ajout
-}) => {
+const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handleAssociateAccount, setActiveTab, importMode, setImportMode, onAutoSync, showNotify, fetchPowensConnections, fetchComptes }) => {
   // ==========================================
   // 1. DÉCLARATION DE TOUS LES STATES (useState)
   // ==========================================
@@ -4924,7 +4921,8 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
   const [passwordStatus, setPasswordStatus] = useState({ type: '', msg: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-
+  const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
+  const [disconnectLoading, setDisconnectLoading] = useState(false);
 
   const isAdmin = user?.toLowerCase() === 'theo';
 
@@ -5044,18 +5042,28 @@ useEffect(() => {
 
 
 
-// 🟢 2. Mise à jour de la fonction de bascule pour actualiser le parent FinanceApp
+  // 🟢 2. Déclenchement automatique de l'import lors du basculement
   const handleToggleImportMode = async (mode) => {
     try {
       await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
       
-      // 🟢 Met à jour instantanément la variable globale dans toute l'application
       if (typeof setImportMode === 'function') {
         setImportMode(mode);
       }
       
       setProfileData(prev => prev ? { ...prev, import_mode: mode } : prev);
-      showNotify(`Mode d'import défini sur : ${mode === 'auto' ? 'Automatique' : 'Manuel'} ⚡`, 'success');
+      
+      if (mode === 'auto') {
+        showNotify("Mode automatique activé : synchronisation en cours... ⚡", 'success');
+        
+        // 🟢 Lance la synchronisation et le recalcul des soldes immédiatement
+        if (typeof onAutoSync === 'function') {
+          onAutoSync('auto');
+        }
+      } else {
+        showNotify("Mode d'import défini sur : Manuel (CSV) 📂", 'success');
+      }
+
     } catch (err) {
       console.error("Erreur de mise à jour du mode d'import :", err);
     }
@@ -5063,8 +5071,33 @@ useEffect(() => {
 
 
 
+  const handleDisconnectPowens = async () => {
+  try {
+    setDisconnectLoading(true);
+    await api.delete(`/powens/disconnect/${user}`);
+    
+    // Supprime le token du navigateur
+    localStorage.removeItem("powens_user_token");
+    
+    // Actualise les comptes locaux et la liste des connexions Powens
+    if (typeof fetchComptes === 'function') await fetchComptes();
+    if (typeof fetchPowensConnections === 'function') await fetchPowensConnections();
+    
+    if (typeof showNotify === 'function') {
+      showNotify("Banques déconnectées et identifiant Powens supprimé avec succès.", "success");
+    }
+    setShowDisconnectConfirm(false);
+  } catch (err) {
+    console.error("Erreur lors de la déconnexion Powens :", err);
+    alert("Erreur lors de la déconnexion des banques.");
+  } finally {
+    setDisconnectLoading(false);
+  }
+};
+
+
   return (
-  <div className="max-w-2xl mx-auto space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+  <div className="max-w-2xl mx-auto space-y-4 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
     
     {/* HEADER DU PROFIL */}
     <div 
@@ -5316,7 +5349,7 @@ useEffect(() => {
 {/* SECTION BANCAIRE / POWENS */}
 <div className="relative z-20 overflow-visible bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 p-4 space-y-3">
   
-  {/* En-tête fixe */}
+  {/* En-tête avec bouton de déconnexion totale */}
   <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-[9px] uppercase font-bold text-[var(--text-main)] select-none">
     <span className="flex items-center gap-2 truncate pr-2">
       <Building2 size={14} className="text-[var(--primary)] shrink-0" />
@@ -5324,7 +5357,53 @@ useEffect(() => {
         Association de vos comptes en banque réels & ceux sur Kleea ({powensData?.accounts_count || 0})
       </span>
     </span>
+
+    {/* 🟢 BOUTON DÉCONNECTER (Visible uniquement si au moins une connexion existe) */}
+    {powensData?.connections && powensData.connections.length > 0 && (
+      <button
+        type="button"
+        onClick={() => setShowDisconnectConfirm(true)}
+        className="text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer"
+      >
+        Tout déconnecter
+      </button>
+    )}
   </div>
+
+  {/* 🟢 VOLET DE CONFIRMATION DE SÉCURITÉ */}
+  {showDisconnectConfirm && (
+    <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 space-y-2 animate-in fade-in duration-200">
+      <div className="flex items-start gap-2">
+        <AlertTriangle size={16} className="text-rose-400 shrink-0 mt-0.5" />
+        <div className="flex flex-col">
+          <span className="text-[10px] font-black uppercase text-rose-300 tracking-wider">
+            Supprimer définitivement l'accès Powens ?
+          </span>
+          <p className="text-[9px] text-white/60 leading-relaxed mt-0.5">
+            Cette action va révoquer votre jeton, délier vos comptes Kleea et <strong>effacer définitivement votre identifiant et toutes vos connexions bancaires chez Powens</strong>.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={() => setShowDisconnectConfirm(false)}
+          className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white/60 text-[8px] font-bold uppercase rounded-lg transition-all cursor-pointer"
+        >
+          Annuler
+        </button>
+        <button
+          type="button"
+          onClick={handleDisconnectPowens}
+          disabled={disconnectLoading}
+          className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider rounded-lg transition-all shadow-md shadow-rose-500/20 cursor-pointer disabled:opacity-50"
+        >
+          {disconnectLoading ? "Suppression en cours..." : "Confirmer la suppression"}
+        </button>
+      </div>
+    </div>
+  )}
 
   {/* ÉTAT 1 : AUCUN COMPTE POWENS CONNECTÉ */}
   {(!powensData?.connections || powensData.connections.length === 0) ? (
@@ -7358,7 +7437,6 @@ const showNotify = (msg, type) => {
 };
 
 
-// 🟢 CHARGEMENT DES COMPTES & DÉTECTION SÉCURISÉE DU PREMIER ACCÈS
 const fetchComptes = async () => {
   if (!user) {
     setLoading(false);
@@ -7366,15 +7444,7 @@ const fetchComptes = async () => {
   }
   try {
     const res = await api.get(`/config-comptes/${user}`);
-    const userComptes = res.data || [];
-    setComptes(userComptes);
-
-    // 🟢 L'Onboarding ne s'affiche QUE si la BDD confirme que l'utilisateur a 0 compte
-    if (userComptes.length === 0 && !onboardingDismissed) {
-      setShowOnboarding(true);
-    } else {
-      setShowOnboarding(false); // Ferme ou laisse fermé si l'utilisateur a déjà des comptes
-    }
+    setComptes(res.data || []);
   } catch (err) {
     console.error("Erreur chargement comptes", err);
   } finally {
@@ -7467,11 +7537,21 @@ const handleAddCompte = async (e) => {
 
 
 
+// 🟢 CONTRÔLE STRICT DE LA MODALE PAR LE NOMBRE DE TRANSACTIONS
 const fetchTransactions = async () => {
   try {
     const res = await api.get(`/transactions/${user}`);
-    // Plus besoin de map complexe, on prend directement les données
-    setToutesLesTransactions(res.data);
+    const transactionsList = res.data || [];
+    setToutesLesTransactions(transactionsList);
+
+    // 🟢 RÈGLE ABSOLUE :
+    // S'il y a 0 transaction -> Afficher la modale
+    // Dès qu'il y a au moins 1 transaction -> Ne pas afficher la modale
+    if (transactionsList.length === 0 && !onboardingDismissed) {
+      setShowOnboarding(true);
+    } else {
+      setShowOnboarding(false);
+    }
   } catch (err) {
     console.error("Erreur fetch:", err);
   }
@@ -10801,7 +10881,7 @@ useEffect(() => {
   }
 }, [budgets, listeMoisDisponibles, selectedBudgetMonth]);
 
-const isPageScrollable = activeTab === 'demenagement' || activeTab === 'Guide'|| activeTab === 'tricount';
+const isPageScrollable = activeTab === 'demenagement' || activeTab === 'Guide'|| activeTab === 'tricount'|| activeTab === 'profile';
 
 
 // État pour le premier graphique (Annuel)
@@ -16279,6 +16359,10 @@ if (!user) {
     // 🟢 AJOUT DES PROPS DE SYNCHRONISATION :
     importMode={importMode}
     setImportMode={setImportMode}
+    onAutoSync={performBackgroundSyncIfNeeded}
+    showNotify={showNotify}
+    fetchPowensConnections={fetchPowensConnections}
+    fetchComptes={fetchComptes}
   />
 )}
 
@@ -16947,8 +17031,8 @@ if (!user) {
       )}
 
 
-{showOnboarding && (
-  <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+{showOnboarding && toutesLesTransactions.length === 0 && (
+  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
     <div className="bg-[#111113] border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
       <div className="w-16 h-16 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full flex items-center justify-center mx-auto text-2xl">
         ✨
