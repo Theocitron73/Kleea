@@ -8179,10 +8179,16 @@ const financeData = useMemo(() => {
 }, [toutesLesTransactions, comptesDuProfil, filters.mois, filters.annee, filters.profil]);
 
 
+const cleanMonth = (m) => {
+  if (!m) return "";
+  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+};
 
+const getTxYear = (t) => {
+  return (t?.année || t?.annee || (t?.date ? new Date(t.date).getFullYear() : ""))?.toString().trim();
+};
 
 const soldesParCompte = useMemo(() => {
-  // 1. On prépare la config des comptes pour un accès rapide
   const configMap = {};
   comptes.forEach(c => {
     configMap[c.compte.trim().toUpperCase()] = {
@@ -8193,7 +8199,6 @@ const soldesParCompte = useMemo(() => {
     };
   });
 
-  // 2. Initialisation des soldes courants
   let soldesCourants = {};
   let interetsAccumules = {}; 
   
@@ -8202,8 +8207,7 @@ const soldesParCompte = useMemo(() => {
     interetsAccumules[nom] = 0;
   });
 
-  // 3. On définit l'ordre chronologique pour le calcul
-  const indexMoisSelectionne = moisListe.findIndex(m => m.v.toLowerCase() === filters.mois.toLowerCase());
+  const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
   const anneeFiltre = parseInt(filters.annee);
 
   let derniereQuinzaineTraitee = -1;
@@ -8212,19 +8216,19 @@ const soldesParCompte = useMemo(() => {
     tauxParQuinzaineMap[nom] = (configMap[nom].taux / 100) / 24;
   });
 
-  // Tri temporaire des transactions
   const transactionsTriees = [...(toutesLesTransactions || [])].sort((a, b) => {
-    if (a.année !== b.année) return parseInt(a.année) - parseInt(b.année);
-    const idxA = moisListe.findIndex(m => m.v.toLowerCase() === String(a.mois).toLowerCase().trim());
-    const idxB = moisListe.findIndex(m => m.v.toLowerCase() === String(b.mois).toLowerCase().trim());
+    const yearA = parseInt(getTxYear(a) || 0);
+    const yearB = parseInt(getTxYear(b) || 0);
+    if (yearA !== yearB) return yearA - yearB;
+    const idxA = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(a.mois));
+    const idxB = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(b.mois));
     if (idxA !== idxB) return idxA - idxB;
     return (parseInt(a.jour) || 15) - (parseInt(b.jour) || 15);
   });
 
-  // 4. On parcourt TOUTES les transactions (Historique jusqu'au mois filtré)
   transactionsTriees.forEach(t => {
-    const anneeT = parseInt(t.année);
-    const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === String(t.mois).toLowerCase().trim());
+    const anneeT = parseInt(getTxYear(t) || 0);
+    const indexMoisT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
     
     if (anneeT > anneeFiltre || (anneeT === anneeFiltre && indexMoisT > indexMoisSelectionne)) return;
 
@@ -8276,7 +8280,8 @@ const soldesParCompte = useMemo(() => {
 
       if (meilleurMatch) {
         const dejaPresent = toutesLesTransactions.some(t2 => 
-          t2.année === t.année && t2.mois === t.mois && 
+          getTxYear(t2) === getTxYear(t) && 
+          cleanMonth(t2.mois) === cleanMonth(t.mois) && 
           t2.compte?.trim().toUpperCase() === meilleurMatch && 
           Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
         );
@@ -8288,20 +8293,16 @@ const soldesParCompte = useMemo(() => {
     }
   });
 
-  // 💡 MODIFICATION ICI : PROJECTION JUSQU'À LA FIN DE L'ANNÉE (24ème quinzaine)
-  // Au lieu de s'arrêter au mois sélectionné, on pousse le calcul jusqu'à la fin décembre (24 quinzaines)
   const quinzaineFinAnnee = 24; 
   if (derniereQuinzaineTraitee !== -1 && quinzaineFinAnnee > derniereQuinzaineTraitee) {
     const qProjetees = quinzaineFinAnnee - derniereQuinzaineTraitee;
     Object.keys(configMap).forEach(nom => {
       if (tauxParQuinzaineMap[nom] > 0 && soldesCourants[nom] > 0) {
-        // On calcule les intérêts sur le solde stable actuel pour tout le reste de l'année
         interetsAccumules[nom] += soldesCourants[nom] * tauxParQuinzaineMap[nom] * qProjetees;
       }
     });
   }
 
-  // 5. On retourne les comptes filtrés pour l'affichage des cartes
   return comptes
     .filter(c => filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim())
     .map(c => {
@@ -8313,6 +8314,7 @@ const soldesParCompte = useMemo(() => {
       };
     });
 }, [comptes, toutesLesTransactions, filters]);
+
 
 const soldeGlobal = useMemo(() => 
   soldesParCompte.reduce((acc, c) => acc + c.soldePeriode, 0)
@@ -8416,24 +8418,26 @@ const handleDragEnd2 = (event) => {
   }
 };
 
+
+
+
+
 const recapAnnuelStats = useMemo(() => {
   const anneeFiltre = parseInt(filters.annee);
   
-  // 1. DÉTERMINER LE DERNIER MOIS RÉELLEMENT CONTENU DANS LES DONNÉES
-  // Cela remplace la détection basée sur la date système qui créait les chutes à zéro.
+  // 1. Détection du dernier mois contenant des données réelles
   const dernierMoisDonneesIdx = (() => {
     const transactionsAnnee = (toutesLesTransactions || []).filter(
-      t => t.année?.toString().trim() === filters.annee.toString().trim()
+      t => getTxYear(t) === filters.annee.toString().trim()
     );
     if (transactionsAnnee.length === 0) return -1;
 
     const indices = transactionsAnnee.map(t => 
-      moisListe.findIndex(m => m.v.toLowerCase() === String(t.mois).toLowerCase().trim())
+      moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois))
     );
     return Math.max(...indices);
   })();
 
-  // 2. PRÉPARATION DE LA CONFIGURATION DES COMPTES
   const configMap = {};
   comptes.forEach(c => {
     configMap[c.compte.trim().toUpperCase()] = {
@@ -8447,78 +8451,35 @@ const recapAnnuelStats = useMemo(() => {
   );
   const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
 
-  // 3. CALCUL MOIS PAR MOIS
   return moisListe.map((moisObj, indexMoisCible) => {
-    const nomMoisCible = moisObj.v.toLowerCase().trim();
+    const nomMoisCible = cleanMonth(moisObj.v);
     
-    // Initialisation des soldes avec les valeurs de base
     let soldesCourantsMois = {};
     Object.keys(configMap).forEach(nom => {
       soldesCourantsMois[nom] = configMap[nom].soldeInitial;
     });
 
-    // Parcours de toutes les transactions pour calculer le solde progressif
     (toutesLesTransactions || []).forEach(t => {
-      const anneeT = parseInt(t.année);
-      const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === String(t.mois).toLowerCase().trim());
+      const anneeT = parseInt(getTxYear(t) || 0);
+      const indexMoisT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
       
-      // On ne prend que ce qui est antérieur ou égal au mois cible
       if (anneeT > anneeFiltre || (anneeT === anneeFiltre && indexMoisT > indexMoisCible)) return;
 
       const montant = parseFloat(t.montant) || 0;
       const compteSrc = (t.compte || "").trim().toUpperCase();
-      const cat = (t.categorie || "").toUpperCase();
-      const nomTrans = (t.nom || "").toUpperCase();
-      const texteIntegral = `${nomTrans} ${cat}`;
 
       if (soldesCourantsMois.hasOwnProperty(compteSrc)) {
         soldesCourantsMois[compteSrc] += montant;
       }
-
-      // GESTION DES TRANSFERTS INTERNES (Logique miroir)
-      if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
-        const groupeSource = configMap[compteSrc]?.groupe;
-        if (!groupeSource) return;
-
-        let meilleurMatch = null;
-        const nomsCandidats = Object.keys(configMap)
-          .filter(nom => nom !== compteSrc && configMap[nom].groupe === groupeSource)
-          .sort((a, b) => b.length - a.length);
-
-        for (const nomDest of nomsCandidats) {
-          const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE"];
-          const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
-
-          const matchNomExact = texteIntegral.includes(nomDest);
-          const matchMotCle = motsCompte.length > 0 && motsCompte.every(m => texteIntegral.includes(m));
-
-          if (matchNomExact || matchMotCle) {
-            meilleurMatch = nomDest;
-            break;
-          }
-        }
-
-        if (meilleurMatch) {
-          const dejaPresent = toutesLesTransactions.some(t2 => 
-            t2.année === t.année && t2.mois === t.mois && 
-            t2.compte?.trim().toUpperCase() === meilleurMatch && 
-            Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
-          );
-
-          if (!dejaPresent) {
-            soldesCourantsMois[meilleurMatch] -= montant; 
-          }
-        }
-      }
     });
 
-    // 4. CALCUL DES TOTAUX DU MOIS CIBLE
     const soldeTotalFinMois = nomsComptesProfil.reduce((acc, nom) => acc + (soldesCourantsMois[nom] || 0), 0);
 
+    // 🟢 Filtrage robuste avec getTxYear et cleanMonth
     const transactionsDuMois = (toutesLesTransactions || []).filter(t => 
-      t.année?.toString().trim() === filters.annee.toString().trim() && 
-      t.mois?.toString().toLowerCase().trim() === nomMoisCible &&
-      nomsComptesProfil.includes(t.compte?.trim().toUpperCase())
+      getTxYear(t) === filters.annee.toString().trim() && 
+      cleanMonth(t.mois) === nomMoisCible &&
+      (filters.profil === 'Tous' || nomsComptesProfil.includes(t.compte?.trim().toUpperCase()))
     );
 
     const estUnTransfert = (t) => {
@@ -8533,9 +8494,6 @@ const recapAnnuelStats = useMemo(() => {
       .reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
 
     const epargneCalculée = rev - dep;
-
-    // 5. VALIDATION SI LE MOIS DOIT ÊTRE AFFICHÉ
-    // Si l'index du mois est supérieur au dernier mois où on a trouvé des data, on renvoie null
     const estSansDonnees = indexMoisCible > dernierMoisDonneesIdx;
 
     const detailComptes = {};
@@ -10529,53 +10487,51 @@ const recapPrevisionsStats = useMemo(() => {
     const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
     const estMasque = excludedMonths.includes(nomMoisComplet);
 
-    // 1. Données réelles existantes
     const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0, soldeTotal: 0 };
+    const revReel = statsReelles.revenus !== null && statsReelles.revenus !== undefined ? statsReelles.revenus : 0;
+    const depReel = statsReelles.depenses !== null && statsReelles.depenses !== undefined ? statsReelles.depenses : 0;
 
-    // Si le mois est complètement passé, on affiche uniquement le réel
     if (estPasse) {
       cumulMobile = statsReelles.soldeTotal ?? cumulMobile;
       return { ...statsReelles, type: 'réel' };
     }
 
-    // 2. Prévisions actives du mois
     const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
       const d = new Date(p.date);
       return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
     });
 
-    let revPrevi = 0;
-    let depPrevi = 0;
+    let revReste = 0;
+    let depReste = 0;
+    let totalConsommeDepensesLiees = 0;
+    let totalConsommeRevenusLies = 0;
 
     if (!estMasque) {
       previsionsDuMois.forEach(p => {
         if (estUnTransfertPrevi(p)) return;
 
         const montantPrevuAbs = Math.abs(parseFloat(p.montant) || 0);
+        const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
+        const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
+        
+        // Reste à payer/percevoir sur cette prévision
+        const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
 
-        if (estMoisEnCours) {
-          // 💡 CALCUL DU RESTE À VENIR : On déduit ce qui a déjà été payé/reçu
-          const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
-          const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
-          
-          // Ce qui reste encore attendu pour la fin du mois (0 si déjà payé ou dépassé)
-          const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
-
-          if (p.montant > 0) revPrevi += resteAVenir;
-          else depPrevi += resteAVenir;
+        if (p.montant > 0) {
+          revReste += resteAVenir;
+          totalConsommeRevenusLies += montantConsomme;
         } else {
-          // Pour les mois futurs : 100% de la prévision est encore à venir
-          if (p.montant > 0) revPrevi += montantPrevuAbs;
-          else depPrevi += montantPrevuAbs;
+          depReste += resteAVenir;
+          totalConsommeDepensesLiees += montantConsomme;
         }
       });
     }
 
-    // 3. FUSION SANS DOUBLON :
-    // Mois en cours : Réel déjà débité + Prévisions restantes attendues
-    // Mois futur : 0 réel + 100% des prévisions
-    const totalRev = (statsReelles.revenus || 0) + revPrevi;
-    const totalDep = (statsReelles.depenses || 0) + depPrevi;
+    // 🟢 SÉCURITÉ ABSOLUE :
+    // On prend le maximum entre le réel en banque et le total lié, puis on ajoute le reste non lié.
+    // Ainsi, une transaction liée à 100% ne DISPARAÎT JAMAIS du total !
+    const totalRev = Math.max(revReel, totalConsommeRevenusLies) + revReste;
+    const totalDep = Math.max(depReel, totalConsommeDepensesLiees) + depReste;
     const balanceMois = totalRev - totalDep;
 
     cumulMobile += balanceMois;
@@ -10762,6 +10718,8 @@ const statsEpargnePrevisionnelle = useMemo(() => {
     const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
     const estMasque = excludedMonths.includes(nomMoisComplet);
     const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0 };
+    const revReel = statsReelles.revenus !== null && statsReelles.revenus !== undefined ? statsReelles.revenus : 0;
+    const depReel = statsReelles.depenses !== null && statsReelles.depenses !== undefined ? statsReelles.depenses : 0;
 
     if (estPasse || estMasque) {
       return acc + (parseFloat(statsReelles.epargne) || 0);
@@ -10772,28 +10730,29 @@ const statsEpargnePrevisionnelle = useMemo(() => {
       return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
     });
 
-    let revPrevi = 0;
-    let depPrevi = 0;
+    let revReste = 0;
+    let depReste = 0;
+    let totalConsommeDepensesLiees = 0;
+    let totalConsommeRevenusLies = 0;
 
     previsionsDuMois.forEach(p => {
       if (estUnTransfertPrevi(p)) return;
       const montantPrevuAbs = Math.abs(parseFloat(p.montant) || 0);
+      const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
+      const montantConsomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+      const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
 
-      if (estMoisEnCours) {
-        const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
-        const montantConsomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-        const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
-
-        if (p.montant > 0) revPrevi += resteAVenir;
-        else depPrevi += resteAVenir;
+      if (p.montant > 0) {
+        revReste += resteAVenir;
+        totalConsommeRevenusLies += montantConsomme;
       } else {
-        if (p.montant > 0) revPrevi += montantPrevuAbs;
-        else depPrevi += montantPrevuAbs;
+        depReste += resteAVenir;
+        totalConsommeDepensesLiees += montantConsomme;
       }
     });
 
-    const totalRev = (statsReelles.revenus || 0) + revPrevi;
-    const totalDep = (statsReelles.depenses || 0) + depPrevi;
+    const totalRev = Math.max(revReel, totalConsommeRevenusLies) + revReste;
+    const totalDep = Math.max(depReel, totalConsommeDepensesLiees) + depReste;
     return acc + (totalRev - totalDep);
   }, 0);
 
@@ -13872,9 +13831,9 @@ if (!user) {
                         {tracking.nbTransactions > 0 && (
                           <span 
                             title={`${tracking.nbTransactions} transaction(s) liée(s) : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
-                            className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0 cursor-help"
+                            className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0"
                           >
-                            {tracking.nbTransactions} tx
+                            {tracking.nbTransactions} liées
                           </span>
                         )}
                       </div>
@@ -13968,21 +13927,21 @@ if (!user) {
                                     )}
                                   </div>
                                   
-                                  {/* Barre de progression : Verte éclatante si 100% réglé */}
-                                  <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                    <div 
-                                      className={`h-full rounded-full transition-all duration-500 ${
-                                        estRegle
-                                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                                          : isRevenu
-                                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
+                                  {/* Barre de progression avec couleur dédiée à 100% */}
+                                    <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                      <div 
+                                        className={`h-full rounded-full transition-all duration-500 ${
+                                          estRegle
+                                            ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]' // 🟢 100% ATTEINT (Vert éclatant néon)
                                             : estDepasse 
-                                              ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' 
-                                              : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-                                      }`}
-                                      style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
-                                    />
-                                  </div>
+                                              ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' // 🔴 DÉPASSÉ (> 100%)
+                                              : isRevenu
+                                                ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.3)]' // En cours pour un revenu
+                                                : 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.3)]' // 🔵 EN COURS (< 100% : Indigo moderne)
+                                        }`}
+                                        style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
+                                      />
+                                    </div>
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-end px-1">
