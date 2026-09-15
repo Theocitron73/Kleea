@@ -11663,6 +11663,79 @@ const handleWheelProfil = (e) => {
   }
 };
 
+ const handleWheelNavTabs = (e) => {
+    if (!canWheelTrigger() || !visibleMenuItems || visibleMenuItems.length <= 1) return;
+    e.preventDefault();
+
+    const currentIndex = visibleMenuItems.findIndex(item => item.id === activeTab);
+    if (currentIndex === -1) return;
+
+    if (e.deltaY > 0) {
+      if (currentIndex < visibleMenuItems.length - 1) {
+        setActiveTab(visibleMenuItems[currentIndex + 1].id);
+      }
+    } else if (e.deltaY < 0) {
+      if (currentIndex > 0) {
+        setActiveTab(visibleMenuItems[currentIndex - 1].id);
+      }
+    }
+  };
+
+
+// 🟢 1. Molette sur les onglets du Flux mensuel (Revenus, Dépenses, Transferts, Catégories, Variations, Insights)
+const handleWheelTabActive = (e) => {
+  if (!canWheelTrigger()) return;
+  e.preventDefault();
+
+  const tabKeys = Object.keys(TAB_CONFIG).filter(tab => {
+    if (tab === 'Catégories' && window.innerWidth >= 2000) return false;
+    return true;
+  });
+
+  const currentIndex = tabKeys.indexOf(tabActive);
+  if (currentIndex === -1) return;
+
+  if (e.deltaY > 0 && currentIndex < tabKeys.length - 1) {
+    setTabActive(tabKeys[currentIndex + 1]);
+    setSearchTerm('');
+  } else if (e.deltaY < 0 && currentIndex > 0) {
+    setTabActive(tabKeys[currentIndex - 1]);
+    setSearchTerm('');
+  }
+};
+
+// 🟢 2. Molette sur les onglets du Bilan Annuel (Liste, Graphique, Calendrier, Wrapped)
+const handleWheelAnnualTab = (e) => {
+  if (!canWheelTrigger()) return;
+  e.preventDefault();
+
+  const tabs = ['list', 'chart', 'calendar', 'wrapped'];
+  const currentIndex = tabs.indexOf(annualTab);
+  if (currentIndex === -1) return;
+
+  if (e.deltaY > 0 && currentIndex < tabs.length - 1) {
+    setAnnualTab(tabs[currentIndex + 1]);
+  } else if (e.deltaY < 0 && currentIndex > 0) {
+    setAnnualTab(tabs[currentIndex - 1]);
+  }
+};
+
+// 🟢 3. Molette sur le sélecteur de droite (Analytique vs Épargne & Projets)
+const handleWheelRightTab = (e) => {
+  if (!canWheelTrigger()) return;
+  e.preventDefault();
+
+  const tabs = ['graphs', 'epargneProjets'];
+  const currentIndex = tabs.indexOf(activeRightTab);
+  if (currentIndex === -1) return;
+
+  if (e.deltaY > 0 && currentIndex < tabs.length - 1) {
+    setActiveRightTab(tabs[currentIndex + 1]);
+  } else if (e.deltaY < 0 && currentIndex > 0) {
+    setActiveRightTab(tabs[currentIndex - 1]);
+  }
+};
+
 
 // 🟢 CHARGEMENT SÉCURISÉ AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
@@ -11972,9 +12045,13 @@ if (!user) {
       {/* NAVIGATION GLOBALE */}
           <nav>
             {/* --- VERSION DESKTOP (Haut) --- */}
-            <div className="hidden md:flex sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl mb-8">
+            <div 
+              onWheel={handleWheelNavTabs}
+              className="hidden md:flex sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl mb-8 cursor-ns-resize select-none"
+              title="Molette de la souris : changer de page"
+            >
               
-              {/* --- VERSION DE L'APP (LOGO-STYLE) --- */}
+              {/* LOGO-STYLE VERSION DE L'APP */}
               <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
@@ -11988,7 +12065,7 @@ if (!user) {
 
               <div className="w-px h-4 bg-[var(--glass-bg)] mx-1" />
 
-              {/* Navigation Items */}
+              {/* Navigation Items (Vos onglets) */}
               {visibleMenuItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -11996,7 +12073,7 @@ if (!user) {
                   <button
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 cursor-pointer ${
                       isActive 
                       ? 'bg-white text-slate-900 shadow-lg' 
                       : 'text-[var(--text-main)]/50 hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)]'
@@ -12295,7 +12372,7 @@ if (!user) {
     </div>
 
     {/* SÉLECTEUR DE TABS COMPACT */}
-    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
+    <div   onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
       {Object.keys(TAB_CONFIG).map((tab) => {
         const config = TAB_CONFIG[tab];
         const IconComponent = config.icon;
@@ -12672,7 +12749,7 @@ if (!user) {
                   </div>
 
                   {/* SÉLECTEUR DE TABS MIS À JOUR */}
-                  <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                  <div onWheel={handleWheelAnnualTab} className="flex bg-black/40 p-1 rounded-xl border border-white/5">
                     <button 
                       onClick={() => setAnnualTab('list')}
                       className={`px-3 py-1.5 rounded-lg transition-all duration-300 ${
@@ -12953,7 +13030,7 @@ if (!user) {
                   <div className="col-span-12 lg:col-span-4 flex flex-col h-[700px] lg:h-full min-h-0">
 
                     {/* SWITCHER DE SOUS-ONGLETS */}
-                    <div className="flex bg-slate-900/50 p-1.5 rounded-[24px] mb-2 border border-white/5 backdrop-blur-[var(--glass-blur)] w-fit self-center shadow-inner">
+                    <div onWheel={handleWheelRightTab} className="flex bg-slate-900/50 p-1.5 rounded-[24px] mb-2 border border-white/5 backdrop-blur-[var(--glass-blur)] w-fit self-center shadow-inner">
                       <button 
                         onClick={() => setActiveRightTab('graphs')}
                         className={`px-6 py-2 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 ${
