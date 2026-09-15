@@ -7593,26 +7593,26 @@ const typeOptions = [
   { v: "LEP", l: "LEP" },
   { v: "LDDS", l: "LDDS" },
   { v: "PEL", l: "PEL" },
-  { v: "AUTRE", l: "AUTRE" }
+  { v: "PEA", l: "PEA" }
 ];
 
 const handleAddCompte = async (e) => {
   e.preventDefault();
   
-  let finalCompteName = compteName.trim().toUpperCase();
-  if (selectedType) {
-    const prefix = `${selectedType} - `;
-    if (finalCompteName === prefix.trim()) {
-      alert("Veuillez saisir une désignation après le type de compte !");
-      return;
-    }
+  let nomSaisi = compteName.trim().toUpperCase();
+  if (!nomSaisi) {
+    alert("Veuillez saisir un nom pour votre compte !");
+    return;
   }
+
+  // Si un type est choisi (ex: CCP), on assemble proprement "CCP - NOM"
+  const finalCompteName = selectedType ? `${selectedType} - ${nomSaisi}` : nomSaisi;
 
   const nouveauCompte = {
     compte: finalCompteName,
     groupe: e.target.elements["compteGroupe"].value.trim().toUpperCase(),
-    solde: parseFloat(e.target.elements["compteSolde"].value) || 0,
-    taux: parseFloat(e.target.elements["compteTaux"].value) || 0,
+    solde: parseFloat(e.target.elements["compteSolde"]?.value) || 0,
+    taux: e.target.elements["compteTaux"] ? (parseFloat(e.target.elements["compteTaux"].value) || 0) : 0,
     objectif: 0,
     couleur: newCompteColor,
     utilisateur: user,
@@ -16252,44 +16252,40 @@ if (!user) {
       <span className="text-[7.5px] font-bold text-[var(--text-main)]/30 uppercase tracking-widest leading-none">Compte</span>
     </div>
 
-    {/* 1. TYPE DE COMPTE (Calibré à w-36 au lieu de w-52) */}
+    
+    {/* 1. TYPE DE COMPTE */}
     <div className="w-36 shrink-0">
       <CustomSelect 
         value={selectedType}
         options={typeOptions}
-        onChange={(type) => {
-          setSelectedType(type);
-          if (type) {
-            setCompteName(`${type} `);
-          } else {
-            setCompteName("");
-          }
-        }}
+        onChange={(type) => setSelectedType(type)}
         icon={CreditCard}
         className="h-[38px] p-2 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider cursor-pointer bg-black/30 border-white/10"
       />
     </div>
 
-    {/* 2. NOM DU COMPTE (Largeur prioritaire) */}
-    <div className="flex-[1.4] min-w-[130px]">
-      <input 
-        type="text" 
-        name="compteName"
-        placeholder="NOM DU COMPTE" 
-        value={compteName}
-        onChange={(e) => {
-          let val = e.target.value;
-          if (selectedType) {
-            const prefix = `${selectedType} `;
-            if (!val.startsWith(prefix)) {
-              val = prefix;
-            }
-          }
-          setCompteName(val);
-        }}
-        className="w-full h-[38px] bg-black/30 px-3 rounded-xl border border-white/10 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-wider placeholder:text-[var(--text-main)]/20" 
-        required 
-      />
+    {/* 2. NOM DU COMPTE (Avec préfixe automatique et placeholder bien visible) */}
+    <div className="flex-[1.4] min-w-[160px]">
+      <div className="flex items-center w-full h-[38px] bg-black/30 px-3 rounded-xl border border-white/10 focus-within:border-white/30 transition-colors">
+        
+        {/* Badge automatique si un type est sélectionné (ex: CCP - ) */}
+        {selectedType && (
+          <span className="text-[10px] font-black text-[var(--primary)] uppercase mr-1.5 shrink-0 select-none">
+            {selectedType} -
+          </span>
+        )}
+
+        {/* Champ de saisie avec placeholder toujours visible */}
+        <input 
+          type="text" 
+          name="compteName"
+          placeholder={selectedType ? "EX: VOTRE NOM, COURANT, PRINCIPAL..." : "NOM DU COMPTE..."} 
+          value={compteName}
+          onChange={(e) => setCompteName(e.target.value)}
+          className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-bold uppercase tracking-wider placeholder:text-white/45" 
+          required 
+        />
+      </div>
     </div>
 
     {/* 3. GROUPE (PERSO, COMMUN...) */}
@@ -16297,41 +16293,59 @@ if (!user) {
       <input 
         type="text" 
         name="compteGroupe"
-        placeholder="GROUPE (PERSO...)" 
+        placeholder="GROUPE (PERSO,Compte commum,Entreprise,...)" 
         className="w-full h-[38px] bg-black/30 px-3 rounded-xl border border-white/10 outline-none focus:border-white/20 text-[var(--text-main)] text-[10px] font-bold uppercase tracking-wider placeholder:text-[var(--text-main)]/20" 
         required 
       />
     </div>
 
-    {/* 4. SOLDE INITIAL AVEC SYMBOLE € */}
-    <div className="w-24 shrink-0">
-      <div className="flex items-center bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-white/20">
-        <input 
-          type="number" 
-          step="0.01" 
-          name="compteSolde"
-          placeholder="0.00" 
-          className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-mono font-bold text-right" 
-        />
-        <span className="text-[9px] font-bold text-white/30 ml-1 select-none">€</span>
-      </div>
-    </div>
+    {/* 4. SOLDE INITIAL AVEC SYMBOLE € (Grisé et bloqué si mode auto + CCP) */}
+      {(() => {
+        const isAutoCCP = importMode === 'auto' && selectedType === 'CCP';
 
-    {/* 5. TAUX D'INTÉRÊT AVEC SYMBOLE % */}
-    <div className="w-20 shrink-0">
-      <div className="flex items-center bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-white/20">
-        <input 
-          type="number" 
-          step="0.01" 
-          min="0" 
-          max="100" 
-          name="compteTaux"
-          placeholder="0.0" 
-          className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-mono font-bold text-right placeholder:text-[var(--text-main)]/20" 
-        />
-        <span className="text-[9px] font-bold text-white/30 ml-1 select-none">%</span>
-      </div>
-    </div>
+        return (
+          <div className="w-26 shrink-0">
+            <div 
+              className={`flex items-center rounded-xl border px-2.5 h-[38px] transition-all ${
+                isAutoCCP 
+                  ? 'bg-white/[0.03] border-white/5 opacity-40 cursor-not-allowed select-none' 
+                  : 'bg-black/30 border-white/10 focus-within:border-white/20'
+              }`}
+              title={isAutoCCP ? "En mode auto, le solde de départ d'un CCP est calculé automatiquement via Powens" : ""}
+            >
+              <input 
+                type="number" 
+                step="0.01" 
+                name="compteSolde"
+                disabled={isAutoCCP}
+                placeholder={isAutoCCP ? "Auto" : "Solde Initial"} 
+                className={`w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-mono font-bold text-right ${
+                  isAutoCCP ? 'cursor-not-allowed placeholder:text-white/40' : ''
+                }`} 
+              />
+              <span className="text-[9px] font-bold text-white/30 ml-1 select-none">€</span>
+            </div>
+          </div>
+        );
+      })()}
+
+    {/* 5. TAUX D'INTÉRÊT AVEC SYMBOLE % (Masqué si c'est un CCP) */}
+      {selectedType !== "CCP" && (
+        <div className="w-20 shrink-0 animate-in fade-in zoom-in-95 duration-200">
+          <div className="flex items-center bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-white/20">
+            <input 
+              type="number" 
+              step="0.01" 
+              min="0" 
+              max="100" 
+              name="compteTaux"
+              placeholder="Interets" 
+              className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[10px] font-mono font-bold text-right placeholder:text-[var(--text-main)]/20" 
+            />
+            <span className="text-[9px] font-bold text-white/30 ml-1 select-none">%</span>
+          </div>
+        </div>
+      )}
 
     {/* 6. LIAISON COMPTE RÉEL / IBAN (BLOC UNIQUE FUSIONNÉ) */}
     {importMode === 'auto' && (
