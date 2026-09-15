@@ -17,17 +17,9 @@ export default function PrevisionsMobile(props) {
     SortableAccountCard, CustomSelect, toutesLesTransactions = []
   } = props;
 
-  // États de navigation mobile
-  const [mobileSubTab, setMobileSubTab] = useState('flux'); // 'flux' | 'projections'
-  const [editingTx, setEditingTx] = useState(null); // Gère l'édition tactile d'une prévision
-  const [showAddForm, setShowAddForm] = useState(false); // Permet de plier/déplier le formulaire d'ajout
-
-  const extractEmoji = (str) => {
-    if (!str) return null;
-    const emojiRegex = /(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])/;
-    const match = str.match(emojiRegex);
-    return match ? match[0] : null;
-  };
+  const [mobileSubTab, setMobileSubTab] = useState('flux');
+  const [editingTx, setEditingTx] = useState(null);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const handleOpenEdit = (prev) => {
     setEditingTx({ 
@@ -56,7 +48,6 @@ export default function PrevisionsMobile(props) {
           <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Anticipation budgétaire</p>
         </div>
 
-        {/* Solde final estimé global */}
         <div 
           className="px-3 py-1.5 rounded-xl text-right text-white shadow-md shrink-0"
           style={{ backgroundColor: userTheme.color_patrimoine || '#37b58f' }}
@@ -66,10 +57,9 @@ export default function PrevisionsMobile(props) {
         </div>
       </div>
 
-      {/* 2. FILTRES DE PÉRIODE MOBILES */}
+      {/* 2. FILTRES DE PÉRIODE (Année actuelle incluse et sélection propre) */}
       <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2 shrink-0">
         <div className="flex justify-between items-center gap-2">
-          {/* Groupes */}
           <div className="flex bg-black/30 p-0.5 rounded-lg">
             {['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => (
               <button
@@ -84,23 +74,25 @@ export default function PrevisionsMobile(props) {
             ))}
           </div>
 
-          {/* Années */}
+          {/* 🟢 Années (avec inclusion garantie de l'année en cours) */}
           <div className="flex bg-black/30 p-0.5 rounded-lg">
-            {[...new Set(availablePeriods.map(p => p.annee))].map(year => (
-              <button
-                key={year}
-                onClick={() => setFilters({...filters, annee: year})}
-                className={`px-2.5 py-1 rounded text-[9px] font-black transition-all ${
-                  filters.annee === year ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/40'
-                }`}
-              >
-                {year}
-              </button>
-            ))}
+            {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
+              .sort((a, b) => parseInt(a) - parseInt(b))
+              .map(year => (
+                <button
+                  key={year}
+                  onClick={() => setFilters({...filters, annee: year.toString()})}
+                  className={`px-2.5 py-1 rounded text-[9px] font-black transition-all ${
+                    filters.annee?.toString() === year.toString() ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/40'
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
           </div>
         </div>
 
-        {/* Swipe horizontal des Mois */}
+        {/* Mois */}
         <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 select-none">
           {moisListe.map(m => (
             <button
@@ -134,7 +126,7 @@ export default function PrevisionsMobile(props) {
         ))}
       </div>
 
-      {/* 4. COMMUTATEUR D'ONGLETS */}
+      {/* 4. ONGLETS */}
       <div className="flex border-b border-white/5 mb-4 select-none shrink-0">
         <button 
           onClick={() => setMobileSubTab('flux')}
@@ -158,17 +150,14 @@ export default function PrevisionsMobile(props) {
         </button>
       </div>
 
-      {/* =========================================================================
-          ONGLET 1 : LES FLUX PRÉVUS AVEC SUIVI DU RÉALISÉ & RESTE À DÉPENSER
-          ========================================================================= */}
+      {/* ONGLET 1 : FLUX PRÉVUS */}
       {mobileSubTab === 'flux' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* BOUTON RECONDUIRE RAPIDEMENT */}
           {previsionsFiltrees.length > 0 && (
             <button
               onClick={handleTryDuplicate}
-              className="w-full py-2.5 bg-gradient-to-r from-[var(--primary)] to-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-gradient-to-r from-[var(--primary)] to-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
             >
               <Copy size={12} />
               <span>
@@ -258,7 +247,7 @@ export default function PrevisionsMobile(props) {
                     handleAddPrevision();
                     setShowAddForm(false);
                   }}
-                  className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1"
+                  className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1 cursor-pointer"
                 >
                   Ajouter au calendrier
                 </button>
@@ -266,7 +255,7 @@ export default function PrevisionsMobile(props) {
             )}
           </div>
 
-          {/* LISTE DES TRANSACTIONS PRÉVUES AVEC JAUGE D'AVANCEMENT & SUIVI RÉEL */}
+          {/* LISTE DES PRÉVISIONS AVEC LOGIQUE "100% RÉGLÉ" (FIN DU DÉPASSÉ +0€) */}
           <div className="space-y-2">
             {previsionsFiltrees.length > 0 ? (
               previsionsFiltrees.map((prev) => {
@@ -276,16 +265,18 @@ export default function PrevisionsMobile(props) {
                 const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
                 const montantAbs = Math.abs(parseFloat(prev.montant) || 0);
 
-                // 💡 Calcul dynamique du suivi réel sur mobile
+                // 🟢 Calcul strict du consommé et gestion de l'écart
                 const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
                 const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-                const restant = montantAbs - consomme;
-                const depasse = restant < 0;
-                const pct = montantAbs > 0 ? Math.min(100, Math.round((consomme / montantAbs) * 100)) : 0;
+                
+                const diff = montantAbs - consomme;
+                const diffEuro = Math.round(Math.abs(diff));
+                
+                // Tolérance à 50 centimes pour le 100% réglé
+                const estRegle = Math.abs(diff) < 0.5;
+                const estDepasse = diff <= -0.5;
 
-                const rawNom = prev.nom.replace('[PRÉVI] ', '');
-                const emojiItem = extractEmoji(rawNom) || extractEmoji(prev.categorie) || (isRevenu ? "💰" : "📌");
-                const nomAffiche = rawNom.replace(emojiItem, '').trim() || rawNom;
+                const pct = montantAbs > 0 ? Math.min(100, Math.round((consomme / montantAbs) * 100)) : 0;
 
                 return (
                   <div 
@@ -295,7 +286,6 @@ export default function PrevisionsMobile(props) {
                       !isActif ? 'opacity-35 saturate-50' : ''
                     } ${isSelected ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : ''}`}
                   >
-                    {/* LIGNE 1 : INFOS, MONTANT & DATE AVEC ICÔNE COLORÉE */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <input 
@@ -308,10 +298,7 @@ export default function PrevisionsMobile(props) {
 
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5">
-                            {/* 💡 Remplacement de l'émoji par l'icône de la catégorie */}
-                            <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
-                              <CategoryIcon name={prev.categorie || prev.nom} size={12} />
-                            </div>
+                            <CategoryIcon name={prev.categorie || prev.nom} size={13} />
                             <p className={`text-xs font-black uppercase text-white truncate pr-1 ${!isActif ? 'line-through text-white/50' : ''}`}>
                               {prev.nom.replace('[PRÉVI] ', '')}
                             </p>
@@ -334,7 +321,6 @@ export default function PrevisionsMobile(props) {
                         </div>
                       </div>
 
-                      {/* Montant & Date */}
                       <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
                         <div>
                           <span className="text-xs font-mono font-black" style={{ 
@@ -361,7 +347,7 @@ export default function PrevisionsMobile(props) {
                       </div>
                     </div>
 
-                    {/* LIGNE 2 : JAUGE ET SUIVI DU RÉALISÉ (Affiché si au moins une transaction liée) */}
+                    {/* 🟢 SUIVI DU RÉALISÉ AVEC LE NOUVEAU STATUT 100% RÉGLÉ */}
                     {liees.length > 0 && (
                       <div className="pt-1.5 border-t border-white/5 space-y-1">
                         <div className="flex justify-between items-center text-[7.5px] font-black uppercase tracking-tight">
@@ -369,20 +355,17 @@ export default function PrevisionsMobile(props) {
                             {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{consomme.toFixed(0)}€</strong>
                           </span>
                           
-                          {/* Statut différencié revenus vs dépenses */}
-                          {isRevenu ? (
-                            <span className={depasse ? 'text-emerald-400 font-bold' : restant === 0 ? 'text-emerald-400 font-bold' : 'text-amber-400 font-bold'}>
-                              {depasse 
-                                ? `+${Math.abs(restant).toFixed(0)}€ surplus` 
-                                : restant === 0 
-                                  ? '100% perçu' 
-                                  : `Attendu: ${Math.max(0, restant).toFixed(0)}€`}
+                          {estRegle ? (
+                            <span className="text-emerald-400 font-black flex items-center gap-0.5">
+                              <span>✓</span> {isRevenu ? '100% perçu' : '100% réglé'}
+                            </span>
+                          ) : estDepasse ? (
+                            <span className={isRevenu ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                              {isRevenu ? `+${diffEuro}€ surplus` : `Dépassé (+${diffEuro}€)`}
                             </span>
                           ) : (
-                            <span className={depasse ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
-                              {depasse 
-                                ? `Dépassé (+${Math.abs(restant).toFixed(0)}€)` 
-                                : `Reste: ${restant.toFixed(0)}€`}
+                            <span className={isRevenu ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                              {isRevenu ? `Attendu: ${diffEuro}€` : `Reste: ${diffEuro}€`}
                             </span>
                           )}
                         </div>
@@ -390,11 +373,15 @@ export default function PrevisionsMobile(props) {
                         <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden border border-white/5">
                           <div 
                             className={`h-full rounded-full transition-all duration-500 ${
-                              isRevenu
-                                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
-                                : depasse ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                              estRegle
+                                ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                                : isRevenu
+                                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
+                                  : estDepasse 
+                                    ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' 
+                                    : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
                             }`}
-                            style={{ width: `${Math.min(pct, 100)}%` }}
+                            style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
                           />
                         </div>
                       </div>
@@ -411,7 +398,6 @@ export default function PrevisionsMobile(props) {
             )}
           </div>
 
-          {/* VISUALISATION DE LA TENDANCE */}
           {chartDataPrevisions && chartDataPrevisions.length > 0 && (
             <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
@@ -430,13 +416,10 @@ export default function PrevisionsMobile(props) {
         </div>
       )}
 
-      {/* =========================================================================
-          ONGLET 2 : RECAP PROJECTIONS ANNUELLES
-          ========================================================================= */}
+      {/* ONGLET 2 : RECAP PROJECTIONS */}
       {mobileSubTab === 'projections' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* SÉLECTEUR DE MOIS À EXCLURE */}
           {moisDisponibles.length > 0 && (
             <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl">
               <div className="flex justify-between items-center mb-2 px-1">
@@ -474,7 +457,6 @@ export default function PrevisionsMobile(props) {
             </div>
           )}
 
-          {/* LISTE ANNUELLE PROJETÉE */}
           <div className="space-y-2">
             {recapPrevisionsStats.map((m, i) => {
               const estInteractif = m.type === 'projeté' || m.type === 'mixte';
@@ -530,7 +512,6 @@ export default function PrevisionsMobile(props) {
             })}
           </div>
 
-          {/* OBJECTIF FIN D'ANNÉE */}
           <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl space-y-3">
             <div className="flex justify-between items-center">
               <div>
@@ -580,7 +561,6 @@ export default function PrevisionsMobile(props) {
                 )}
               </div>
 
-              {/* Jauge */}
               {objectifAnnuelGlobal > 0 && (
                 <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden border border-white/5 mt-1">
                   <div 
@@ -598,7 +578,7 @@ export default function PrevisionsMobile(props) {
         </div>
       )}
 
-      {/* MODALE D'ÉDITION MOBILE */}
+      {/* MODALE D'ÉDITION */}
       {editingTx && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setEditingTx(null)} />
@@ -681,7 +661,7 @@ export default function PrevisionsMobile(props) {
               <button 
                 type="button"
                 onClick={() => setEditingTx(null)}
-                className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl"
+                className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer"
               >
                 Annuler
               </button>

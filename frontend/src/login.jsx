@@ -12311,9 +12311,9 @@ if (!user) {
                   />
                 </svg>
 
-                {/* 💡 AU CENTRE : Une vraie icône vectorielle moderne au lieu d'un émoji découpé */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center justify-center mb-0.5">
-                  <CategoryIcon name={bg.nom} size={15} />
+                {/* 🟢 ICÔNE ABAISSÉE : bottom-[-3px] abaisse le carré de 5px au centre optique exact de l'arc */}
+                <div className="absolute bottom-[-3px] left-1/2 -translate-x-1/2 flex items-center justify-center">
+                  <CategoryIcon name={bg.nom} size={13} />
                 </div>
 
                 <div className="absolute -bottom-4 left-1 right-1 flex justify-between">

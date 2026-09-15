@@ -7,7 +7,7 @@ import {
 } from '@dnd-kit/sortable';
 import { 
   ChevronLeft, ChevronRight, Search, X, List, PieChart as PieChartIcon, 
-  CalendarDays, Sparkles, TrendingUp, Filter, Wallet, Eye, EyeOff 
+  CalendarDays, Sparkles, TrendingUp, Filter, Wallet, Eye, EyeOff, Trophy 
 } from 'lucide-react';
 import { AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
@@ -27,15 +27,13 @@ export default function DashboardMobile(props) {
     visibleAnnuel, setVisibleAnnuel, hiddenComptes, setHiddenComptes, GestionEpargneProjet,
     allocations, setAllocations, projets, setProjets, user, api, fetchAllocations,
     categoriesVisibles, updateCell,
-    AnnualCategoriesChart,generateGradientStep
+    AnnualCategoriesChart, generateGradientStep
   } = props;
 
-  // États locaux de navigation mobile
   const [mobileHub, setMobileHub] = useState('flux'); // 'flux' | 'annual' | 'graphs'
-  const [editingTransaction, setEditingTransaction] = useState(null); // Modale d'édition tactile
-  const [isSortingAccounts, setIsSortingAccounts] = useState(false); // Mode réorganisation débrayable
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [isSortingAccounts, setIsSortingAccounts] = useState(false);
 
-  // Gérer la sauvegarde rapide d'une transaction éditée sur mobile
   const handleSaveMobileTx = async () => {
     if (!editingTransaction || !updateCell) return;
     
@@ -54,13 +52,11 @@ export default function DashboardMobile(props) {
       <div className="flex items-center justify-between mb-3 mt-2">
         <div>
           <h1 className="text-xl font-black tracking-tight">Dashboard</h1>
-          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Recaps et graphiques</p>
+          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Récaps et graphiques</p>
         </div>
-        
-        
       </div>
       
-      {/* 1. FILTRES D'AFFICHAGE COMPACTS */}
+      {/* 2. FILTRES D'AFFICHAGE COMPACTS */}
       <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2">
         <div className="flex justify-between items-center gap-2">
           {/* Groupe Profil */}
@@ -83,7 +79,7 @@ export default function DashboardMobile(props) {
 
           {/* Années */}
           <div className="flex bg-black/30 p-0.5 rounded-lg shrink-0">
-            {[...new Set(availablePeriods.map(p => p.annee))]
+            {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
               .sort((a, b) => parseInt(a) - parseInt(b))
               .map(year => (
                 <button
@@ -123,7 +119,7 @@ export default function DashboardMobile(props) {
         </div>
       </div>
 
-      {/* 2. BARRE D'ONGLETS PRINCIPAUX DU DASHBOARD */}
+      {/* 3. BARRE D'ONGLETS PRINCIPAUX */}
       <div className="flex border-b border-white/5 mb-4 select-none shrink-0">
         <button 
           onClick={() => setMobileHub('flux')}
@@ -157,13 +153,11 @@ export default function DashboardMobile(props) {
         </button>
       </div>
 
-      {/* =========================================================================
-          SECTION 1 : FLUX & COMPTES
-          ========================================================================= */}
+      {/* SECTION 1 : FLUX & COMPTES */}
       {mobileHub === 'flux' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* CARTE PATRIMOINE ESTIMÉ */}
+          {/* CARTE PATRIMOINE */}
           <div 
             className="rounded-2xl p-4 text-white shadow-xl flex items-center justify-between transition-all"
             style={{ 
@@ -181,7 +175,7 @@ export default function DashboardMobile(props) {
             </span>
           </div>
 
-          {/* DRAG AND DROP DES COMPTES BANCAIRES AVEC MODE TRIPTIQUE DÉBRAYABLE */}
+          {/* COMPTES BANCAIRES */}
           <div className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">
@@ -200,7 +194,6 @@ export default function DashboardMobile(props) {
             </div>
 
             {isSortingAccounts ? (
-              /* Mode réorganisation : Tri vertical sans interférences de défilement */
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={soldesTries.map(c => c.compte)} strategy={verticalListSortingStrategy}>
                   <div className="flex flex-col gap-2 p-2 bg-black/20 rounded-2xl border border-white/5 animate-in slide-in-from-top-2 duration-200">
@@ -209,7 +202,6 @@ export default function DashboardMobile(props) {
                     </p>
                     {soldesTries.map(c => (
                       <div key={c.compte} className="w-full">
-                        {/* 💡 On force l'interception tactile 'none' */}
                         <SortableAccountCard c={c} isSorting={true} />
                       </div>
                     ))}
@@ -217,11 +209,9 @@ export default function DashboardMobile(props) {
                 </SortableContext>
               </DndContext>
             ) : (
-              /* Mode lecture fluide : Swipe latéral 100% stable */
               <div className="flex gap-3 pb-2 overflow-x-auto no-scrollbar select-none">
                 {soldesTries.map(c => (
                   <div key={c.compte} className="min-w-[155px] shrink-0">
-                    {/* 💡 On libère l'interception tactile 'auto' pour un défilement libre */}
                     <SortableAccountCard c={c} isSorting={false} />
                   </div>
                 ))}
@@ -229,12 +219,11 @@ export default function DashboardMobile(props) {
             )}
           </div>
 
-{/* JOURNAL & RECHERCHE DES FLUX */}
+          {/* JOURNAL DES FLUX */}
           <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <span className="text-[10px] font-black uppercase tracking-wider">Flux mensuel</span>
               
-              {/* TABS JOURNAL MOBILE */}
               <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 gap-0.5">
                 {Object.keys(TAB_CONFIG).map((tab) => {
                   const config = TAB_CONFIG[tab];
@@ -259,7 +248,7 @@ export default function DashboardMobile(props) {
               </div>
             </div>
 
-            {/* BARRE DE RECHERCHE COMPACTE */}
+            {/* RECHERCHE */}
             <div className="relative">
               <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
               <input
@@ -267,7 +256,7 @@ export default function DashboardMobile(props) {
                 placeholder="Filtrer les flux..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-black/30 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-xs text-white placeholder:text-white/20 focus:outline-none"
+                className="w-full bg-black/30 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-xs font-medium text-white placeholder:text-white/20 focus:outline-none"
               />
               {searchTerm && (
                 <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40">
@@ -276,7 +265,6 @@ export default function DashboardMobile(props) {
               )}
             </div>
 
-            {/* RENDU CONTENU DU JOURNAL MOBILE */}
             <div className="space-y-1.5 max-h-110 overflow-y-auto pr-1">
               {(() => {
                 const rawTransactions = [...(financeData.journal[tabActive === 'Catégories' ? 'depenses' : tabActive] || [])];
@@ -291,8 +279,6 @@ export default function DashboardMobile(props) {
 
                 if (tabActive === 'Catégories') {
                   return (
-                    /* 💡 CORRECTION : Ajout d'une hauteur explicite (h-80) et d'un comportement d'affichage 
-                       pour que le graphique en barre horizontal s'initialise et s'affiche correctement */
                     <div className="h-130 w-full pb-4 animate-in fade-in duration-200">
                       <CategoriesView 
                         statsCategories={statsCategories}
@@ -357,75 +343,78 @@ export default function DashboardMobile(props) {
             </div>
           </div>
 
-          {/* OBJECTIFS BUDGÉTAIRES AVEC ICÔNES AU CENTRE */}
-            <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
-              <span className="text-[10px] font-black uppercase text-white/40 tracking-widest block">
-                Suivi des Budgets
-              </span>
+          {/* OBJECTIFS BUDGÉTAIRES */}
+          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
+            <span className="text-[10px] font-black uppercase text-white/40 tracking-widest block">
+              Suivi des Budgets
+            </span>
 
-              {budgetGauges.length > 0 ? (
-                <div className="relative w-full">
-                  <div 
-                    ref={carouselRef}
-                    onScroll={handleScroll}
-                    className="flex flex-row gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth"
-                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-                  >
-                    {budgetGauges.map((bg, i) => {
-                      const radius = 25;
-                      const circumference = Math.PI * radius;
-                      const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
+            {budgetGauges.length > 0 ? (
+              <div className="relative w-full">
+                <div 
+                  ref={carouselRef}
+                  onScroll={handleScroll}
+                  className="flex flex-row gap-3 overflow-x-auto pb-2 scrollbar-hide snap-x snap-mandatory scroll-smooth"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {budgetGauges.map((bg, i) => {
+                    // 🟢 NOUVELLE GÉOMÉTRIE AÉRÉE (Rayon 26 pour laisser respirer l'intérieur)
+                    const radius = 26;
+                    const circumference = Math.PI * radius;
+                    const strokeDashoffset = circumference - (Math.min(bg.pourcentage, 100) / 100) * circumference;
 
-                      return (
-                        <div 
-                          key={i} 
-                          className="flex flex-col items-center min-w-[76px] max-w-[76px] shrink-0 snap-start bg-black/20 p-2 rounded-xl border border-white/5"
-                        >
-                          <div className="relative w-16 h-8">
-                            <svg width="64" height="32" viewBox="0 0 64 32" className="absolute top-0 left-1/2 -translate-x-1/2">
-                              <path d="M 8,32 A 24,24 0 0 1 56,32" fill="none" stroke="currentColor" strokeWidth="5" className="text-white/5" />
-                              <path
-                                d="M 8,32 A 24,24 0 0 1 56,32"
-                                fill="none"
-                                stroke={bg.depasse ? '#fb7185' : '#34d399'}
-                                strokeWidth="5"
-                                strokeDasharray={circumference}
-                                strokeDashoffset={strokeDashoffset}
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                            {/* 💡 Vraie icône vectorielle au centre de la jauge */}
-                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex items-center justify-center mb-0.5">
-                              <CategoryIcon name={bg.nom} size={14} />
-                            </div>
-                          </div>
-                          <div className="text-center mt-3 w-full">
-                            <p className="text-[7.5px] font-bold text-white/40 uppercase truncate w-full">
-                              {getCleanCategoryName(bg.nom)}
-                            </p>
-                            <p className={`text-[9px] font-black mt-0.5 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'}`}>
-                              {bg.pourcentage}%
-                            </p>
+                    return (
+                      <div 
+                        key={i} 
+                        className="flex flex-col items-center min-w-[80px] max-w-[80px] shrink-0 snap-start bg-black/25 p-2.5 rounded-2xl border border-white/5"
+                      >
+                        {/* JAUGE RÉAJUSTÉE : 72px x 36px */}
+                        <div className="relative w-[72px] h-[36px] flex items-center justify-center">
+                          <svg width="72" height="36" viewBox="0 0 72 36" className="absolute top-0 left-0">
+                            <path d="M 10,36 A 26,26 0 0 1 62,36" fill="none" stroke="currentColor" strokeWidth="5" className="text-white/10" />
+                            <path
+                              d="M 10,36 A 26,26 0 0 1 62,36"
+                              fill="none"
+                              stroke={bg.depasse ? '#fb7185' : '#34d399'}
+                              strokeWidth="5"
+                              strokeDasharray={circumference}
+                              strokeDashoffset={strokeDashoffset}
+                              strokeLinecap="round"
+                              className="transition-all duration-700 ease-out"
+                            />
+                          </svg>
+
+                          {/* 🟢 ICÔNE CALIBRÉE : size={10} (carré de 16px) calé au centre sans toucher la voûte */}
+                          <div className="absolute bottom-[2px] left-1/2 -translate-x-1/2 flex items-center justify-center">
+                            <CategoryIcon name={bg.nom} size={10} />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+
+                        {/* 🟢 TEXTE DÉCOLLÉ : mt-2.5 place le texte nettement SOUS les pieds de l'arc */}
+                        <div className="text-center mt-2.5 w-full">
+                          <p className="text-[8px] font-black text-white/70 uppercase tracking-tight truncate w-full leading-none">
+                            {getCleanCategoryName(bg.nom)}
+                          </p>
+                          <p className={`text-[10px] font-black mt-1 ${bg.depasse ? 'text-rose-400' : 'text-[#34d399]'} leading-none`}>
+                            {bg.pourcentage}%
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ) : (
-                <p className="text-[10px] text-white/20 uppercase font-black text-center py-4">Aucun budget défini</p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <p className="text-[10px] text-white/20 uppercase font-black text-center py-4">Aucun budget défini</p>
+            )}
+          </div>
 
         </div>
       )}
 
-      {/* =========================================================================
-          SECTION 2 : BILAN ANNUEL
-          ========================================================================= */}
+      {/* SECTION 2 : BILAN ANNUEL */}
       {mobileHub === 'annual' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          
           <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4 flex flex-col gap-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
@@ -433,7 +422,6 @@ export default function DashboardMobile(props) {
                 <p className="text-xs font-black text-emerald-400 mt-0.5">Janvier à Décembre {filters.annee}</p>
               </div>
 
-              {/* TABS BILAN ANNUEL MOBILE */}
               <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5">
                 <button 
                   onClick={() => setAnnualTab('list')}
@@ -462,7 +450,6 @@ export default function DashboardMobile(props) {
               </div>
             </div>
 
-            {/* RENDU DU CONTENU DU BILAN */}
             <div className="space-y-2">
               {annualTab === 'list' && (
                 <div className="space-y-2 overflow-y-auto max-h-[420px] pr-1">
@@ -541,7 +528,7 @@ export default function DashboardMobile(props) {
             </div>
           </div>
 
-          {/* SYNTHÈSE TOTAUX (PÉRIODE VS ANNUEL) */}
+          {/* SYNTHÈSE TOTAUX */}
           <div className="p-4 bg-[var(--glass-bg)] border border-white/10 rounded-2xl space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <span className="text-[9px] font-black uppercase text-white/30">Analyse de Période</span>
@@ -593,17 +580,13 @@ export default function DashboardMobile(props) {
               </div>
             </div>
           </div>
-
         </div>
       )}
 
-      {/* =========================================================================
-          SECTION 3 : GRAPHES & GESTION D'ÉPARGNE PROJETS
-          ========================================================================= */}
+      {/* SECTION 3 : GRAPHES & PROJETS */}
       {mobileHub === 'graphs' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* SWITCH GRAPHES VS PROJETS */}
           <div className="flex bg-slate-900/50 p-1.5 rounded-2xl border border-white/5 w-fit mx-auto select-none">
             <button 
               onClick={() => setActiveRightTab('graphs')}
@@ -626,12 +609,12 @@ export default function DashboardMobile(props) {
           {activeRightTab === 'graphs' ? (
             <div className="space-y-4">
               
-              {/* JAUGE D'ÉPARGNE ANNUELLE */}
+              {/* 🟢 JAUGE AVEC L'ICÔNE TROPHY */}
               <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                      <span className="text-xs">🏆</span>
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+                      <Trophy size={18} className="text-amber-400" />
                     </div>
                     <div>
                       <h4 className="text-white/40 text-[8px] font-black uppercase">Objectif d'épargne</h4>
@@ -668,7 +651,7 @@ export default function DashboardMobile(props) {
                 )}
               </div>
 
-             {/* GRAPHIQUES RECHARTS : TENDANCE GLOBALE */}
+              {/* TENDANCE GLOBALE */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <h3 className="text-xs font-bold text-white mb-2">Tendance Globale</h3>
                 <div className="h-55 w-full pb-2">
@@ -683,7 +666,6 @@ export default function DashboardMobile(props) {
                           <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.25}/>
                           <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
                         </linearGradient>
-                        {/* 💡 CORRECTION : Ajout du dégradé de couleur pour l'épargne */}
                         <linearGradient id="mobileColorEp" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.2}/>
                           <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
@@ -691,7 +673,6 @@ export default function DashboardMobile(props) {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                       
-                      {/* 💡 interval={0} pour forcer l'affichage de novembre et des 12 mois */}
                       <XAxis 
                         dataKey="nom" 
                         axisLine={false} 
@@ -742,7 +723,6 @@ export default function DashboardMobile(props) {
                         )}
                       />
 
-                      {/* Infobulle interactive (Tooltip) */}
                       <Tooltip 
                         cursor={{ stroke: 'rgba(255,255,255,0.05)', strokeWidth: 1 }}
                         contentStyle={{ 
@@ -769,7 +749,6 @@ export default function DashboardMobile(props) {
                         }}
                       />
 
-                      {/* REVENUS */}
                       <Area 
                         type="monotone" 
                         dataKey="revenus" 
@@ -783,7 +762,6 @@ export default function DashboardMobile(props) {
                         activeDot={{ r: 4.5, strokeWidth: 0 }}
                       />
 
-                      {/* DÉPENSES */}
                       <Area 
                         type="monotone" 
                         dataKey="depenses" 
@@ -797,7 +775,6 @@ export default function DashboardMobile(props) {
                         activeDot={{ r: 4.5, strokeWidth: 0 }}
                       />
 
-                      {/* 💡 CORRECTION : Courbe d'Épargne (Net Épargné) réintégrée */}
                       <Area 
                         type="monotone" 
                         dataKey="epargne" 
@@ -815,14 +792,12 @@ export default function DashboardMobile(props) {
                 </div>
               </div>
 
-              {/* 📈 GRAPHIQUE ÉVOLUTION DÉTAILLÉE DES COMPTES DU PROFIL */}
+              {/* ÉVOLUTION DÉTAILLÉE DES COMPTES */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <h3 className="text-xs font-bold text-white mb-2">Évolution des Comptes</h3>
                 <div className="h-55 w-full pb-2">
                   <ResponsiveContainer width="100%" height="120%">
                     <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      
-                      {/* 💡 CORRECTION : Dégradés HSL intégrés dans le bloc defs pour colorer les aires des comptes */}
                       <defs>
                         {comptesDuProfil?.map((compte, index) => (
                           <linearGradient 
@@ -838,7 +813,6 @@ export default function DashboardMobile(props) {
 
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                       
-                      {/* 💡 CORRECTION : interval={0} rajouté pour forcer l'affichage de novembre et des 12 mois */}
                       <XAxis 
                         dataKey="nom" 
                         axisLine={false} 
@@ -923,15 +897,11 @@ export default function DashboardMobile(props) {
                               name={compte.compte}
                               hide={!!hiddenComptes[compte.compte]}
                               stroke={maCouleurBdd}
-                              
-                              
                               fill={`url(#colorGrad-mobile-${index})`} 
                               fillOpacity={1}
                               strokeWidth={1.5}
                               connectNulls={true}
                               isAnimationActive={false}
-                              
-                              
                               dot={{ r: 2, fill: maCouleurBdd, strokeWidth: 1, stroke: '#ffffff' }}
                               activeDot={{ r: 4, strokeWidth: 0 }}
                             />
@@ -977,16 +947,13 @@ export default function DashboardMobile(props) {
         </div>
       )}
 
-      {/* =========================================================================
-          MODALE DE MODIFICATION RAPIDE DE TRANSACTION
-          ========================================================================= */}
+      {/* MODALE D'ÉDITION MOBILE */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div 
             className="w-full bg-[#121214] border-t border-white/10 rounded-t-[2rem] p-6 max-h-[85vh] overflow-y-auto space-y-4 animate-in slide-in-from-bottom-6 duration-300"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header d'édition */}
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
                 <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la transaction</h4>
@@ -1000,7 +967,6 @@ export default function DashboardMobile(props) {
               </button>
             </div>
 
-            {/* Inputs de modification */}
             <div className="space-y-3.5">
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
@@ -1039,7 +1005,7 @@ export default function DashboardMobile(props) {
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Catégorie</label>
                 <select 
-                  value={editingTransaction.categorie || "❓ Autre"}
+                  value={editingTransaction.categorie || "Autre"}
                   onChange={(e) => setEditingTransaction({ ...editingTransaction, categorie: e.target.value })}
                   className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
                 >
@@ -1052,7 +1018,6 @@ export default function DashboardMobile(props) {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="flex gap-2 pt-3">
               <button 
                 onClick={() => setEditingTransaction(null)}

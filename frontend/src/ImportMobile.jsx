@@ -16,16 +16,23 @@ export default function ImportMobile(props) {
     transactionsCalculees, setTempTransactions, confirmBatchImport,
     categoriesPourIntelligence, intelSelectedCat, setIntelSelectedCat, activeCategoryData,
     handleRemoveKeyword, handleAddKeyword, signType, setSignType,
-    // 💡 Récupération de votre composant CustomSelect et de la liste des catégories
-    CustomSelect, categoriesVisibles
+    CustomSelect, categoriesVisibles,
+    // 🟢 Récupération de la fonction d'actualisation forcée passée depuis le parent
+    handleForceRefreshPowens
   } = props;
 
-  // États locaux de navigation mobile
-  const [mobileSubTab, setMobileSubTab] = useState('sources'); // 'sources' | 'previsu' | 'intel'
+  const [mobileSubTab, setMobileSubTab] = useState('sources');
   const [powensPanelOpen, setPowensPanelOpen] = useState(false);
 
   const isExecutingSync = isManualSyncing || isSyncingData || isCheckingSync;
   const nouvellesLignes = transactionsCalculees ? transactionsCalculees.filter(t => !t.isAlreadyImported) : [];
+
+  // Helper pour reconnaître les virements internes
+  const isInternalTransfer = (cat) => {
+    if (!cat) return false;
+    const c = cat.toLowerCase();
+    return c.includes("vers") || c.includes("transfert") || c.startsWith("🔄") || c.startsWith("virement :");
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
@@ -40,7 +47,7 @@ export default function ImportMobile(props) {
         </p>
       </div>
 
-      {/* 2. BARRE D'ONGLETS COMMUTABLES SUR MOBILE */}
+      {/* 2. ONGLETS MOBILES */}
       <div className="flex border-b border-white/5 mb-4 select-none">
         <button 
           onClick={() => setMobileSubTab('sources')}
@@ -79,13 +86,11 @@ export default function ImportMobile(props) {
         </button>
       </div>
 
-      {/* =========================================================================
-          SECTION 1 : SOURCES & SYNCHRONISATION
-          ========================================================================= */}
+      {/* SECTION 1 : SOURCES */}
       {mobileSubTab === 'sources' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
-          {/* SÉLECTEUR DE COMPTE CIBLE AVEC CUSTOM SELECT */}
+          {/* Sélecteur de compte cible */}
           <CustomSelect 
             label="Compte de destination"
             value={selectedCompte}
@@ -95,20 +100,35 @@ export default function ImportMobile(props) {
             className="p-2.5 rounded-xl text-[10px]"
           />
 
-          {/* ACCORDION DE SYNCHRONISATION DES COMPTES REELS */}
+          {/* ACCORDEON POWENS AVEC BOUTON D'ACTUALISATION RAPIDE */}
           {powensData?.connections && powensData.connections.length > 0 && (
             <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setPowensPanelOpen(!powensPanelOpen)}
-                className="w-full flex items-center justify-between p-4 text-[10px] uppercase font-black text-white/70"
-              >
-                <span className="flex items-center gap-2">
-                  <Building2 size={14} className="text-[var(--primary)]" />
-                  <span>Associer vos comptes bancaires réels</span>
-                </span>
-                <span>{powensPanelOpen ? '▲' : '▼'}</span>
-              </button>
+              <div className="flex items-center justify-between p-2.5 pr-3">
+                <button
+                  type="button"
+                  onClick={() => setPowensPanelOpen(!powensPanelOpen)}
+                  className="flex-1 flex items-center justify-between text-[10px] uppercase font-black text-white/70 pr-2 cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Building2 size={13} className="text-[var(--primary)] shrink-0" />
+                    <span className="truncate">Associer vos comptes ({powensData?.accounts_count || 0})</span>
+                  </span>
+                  <span className="text-[9px]">{powensPanelOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {/* 🟢 Bouton d'actualisation forcée sur mobile */}
+                {handleForceRefreshPowens && (
+                  <button
+                    type="button"
+                    onClick={handleForceRefreshPowens}
+                    disabled={isCheckingSync}
+                    className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-[var(--primary)] border border-white/5 shrink-0 transition-all cursor-pointer"
+                    title="Actualiser les comptes Powens"
+                  >
+                    <RefreshCw size={12} className={isCheckingSync ? 'animate-spin' : ''} />
+                  </button>
+                )}
+              </div>
               
               {powensPanelOpen && (
                 <div className="px-4 pb-4 space-y-3 border-t border-white/5 pt-3 bg-black/25">
@@ -145,7 +165,6 @@ export default function ImportMobile(props) {
                                 <div className="flex flex-col gap-2 pt-1 border-t border-white/5">
                                   <div className="flex items-center justify-between">
                                     <span className="text-[8px] uppercase tracking-wider text-white/40 font-bold shrink-0">Status :</span>
-                                    {/* Badge de liaison */}
                                     {!isAssociated ? (
                                       <span className="text-[7px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-black uppercase">Non lié</span>
                                     ) : isDesynced ? (
@@ -155,7 +174,6 @@ export default function ImportMobile(props) {
                                     )}
                                   </div>
 
-                                  {/* CustomSelect d'association */}
                                   <CustomSelect 
                                     value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
                                     options={[
@@ -179,10 +197,8 @@ export default function ImportMobile(props) {
             </div>
           )}
 
-          {/* ACTIONS RAPIDES : 3 BLOCS DE SAISIE */}
+          {/* ACTIONS D'IMPORT */}
           <div className="space-y-3">
-            
-            {/* ACTION 1 : NOUVEAU COMPTE */}
             <div 
               onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
               className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
@@ -196,7 +212,6 @@ export default function ImportMobile(props) {
               </div>
             </div>
 
-            {/* ACTION 2 : SYNCHRONISATION */}
             <div 
               onClick={isExecutingSync ? undefined : handleSyncPowens}
               className={`p-4 border rounded-2xl flex items-center gap-3 transition-all cursor-pointer ${
@@ -216,7 +231,6 @@ export default function ImportMobile(props) {
               </div>
             </div>
 
-            {/* ACTION 3 : GLISSER/LIRE CSV */}
             <div 
               onClick={() => document.getElementById('csvInputMobile').click()}
               className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
@@ -242,18 +256,13 @@ export default function ImportMobile(props) {
                 <p className="text-[8px] text-white/30 uppercase font-black">Importation et répartition</p>
               </div>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* =========================================================================
-          SECTION 2 : PREVISUALISATION
-          ========================================================================= */}
+      {/* SECTION 2 : PRÉVISUALISATION */}
       {mobileSubTab === 'previsu' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          
-          {/* STATISTIQUES COMPACTES */}
           {transactionsCalculees && transactionsCalculees.length > 0 && (
             <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
               <div className="flex justify-between items-center pb-2 border-b border-white/5">
@@ -265,29 +274,28 @@ export default function ImportMobile(props) {
                 <div className="p-2 bg-black/20 rounded-xl">
                   <p className="text-[8px] font-bold text-white/30 uppercase">Revenus</p>
                   <p className="text-xs font-mono font-black text-emerald-400">
-                    {transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0).toFixed(0)}€
+                    {transactionsCalculees.filter(t => t.montant > 0 && !isInternalTransfer(t.categorie)).reduce((acc, t) => acc + t.montant, 0).toFixed(0)}€
                   </p>
                 </div>
                 <div className="p-2 bg-black/20 rounded-xl">
                   <p className="text-[8px] font-bold text-white/30 uppercase">Dépenses</p>
                   <p className="text-xs font-mono font-black text-rose-400">
-                    {transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0).toFixed(0)}€
+                    {transactionsCalculees.filter(t => t.montant < 0 && !isInternalTransfer(t.categorie)).reduce((acc, t) => acc + t.montant, 0).toFixed(0)}€
                   </p>
                 </div>
               </div>
 
-              {/* Bouton de validation */}
               <div className="flex gap-2 pt-2">
                 <button 
                   onClick={() => { setTempTransactions([]); setFileName(""); }}
-                  className="flex-1 py-2.5 bg-white/5 text-white/50 rounded-xl text-[10px] font-black uppercase tracking-wider"
+                  className="flex-1 py-2.5 bg-white/5 text-white/50 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button 
                   onClick={confirmBatchImport}
                   disabled={nouvellesLignes.length === 0}
-                  className="flex-1 py-2.5 bg-[var(--primary)] text-white rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40"
+                  className="flex-1 py-2.5 bg-[var(--primary)] text-white rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 cursor-pointer"
                 >
                   Valider ({nouvellesLignes.length})
                 </button>
@@ -295,11 +303,10 @@ export default function ImportMobile(props) {
             </div>
           )}
 
-          {/* LISTE DES TRANSACTIONS PRÉVISUALISÉES */}
           <div className="space-y-2">
             {transactionsCalculees && transactionsCalculees.length > 0 ? (
               transactionsCalculees.map((t, idx) => {
-                const isTransfert = t.categorie.startsWith('🔄');
+                const isTransfert = isInternalTransfer(t.categorie);
                 const isImported = t.isAlreadyImported;
 
                 return (
@@ -309,27 +316,26 @@ export default function ImportMobile(props) {
                       isImported ? 'opacity-40 bg-white/[0.01]' : 'border-rose-500/10'
                     }`}
                   >
-                   <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-white truncate max-w-[170px]">{t.nom}</p>
-                      {isImported ? (
-                        <span className="text-[6px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">Importé</span>
-                      ) : (
-                        <span className="text-[6px] bg-rose-500/15 text-rose-300 px-1.5 py-0.5 rounded font-black uppercase">Nouveau</span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="text-[8px] text-white/30">{t.date}</span>
-                      {/* 💡 Badge catégorie avec son icône vectorielle */}
-                      <div className="flex items-center gap-1 bg-white/[0.04] border border-white/5 px-1.5 py-0.5 rounded">
-                        <CategoryIcon name={t.categorie} size={11} />
-                        <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[110px]">
-                          {getCleanCategoryName(t.categorie)}
-                        </span>
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-bold text-white truncate max-w-[170px]">{t.nom}</p>
+                        {isImported ? (
+                          <span className="text-[6px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">Importé</span>
+                        ) : (
+                          <span className="text-[6px] bg-rose-500/15 text-rose-300 px-1.5 py-0.5 rounded font-black uppercase">Nouveau</span>
+                        )}
+                      </div>
+                      
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[8px] text-white/30">{t.date}</span>
+                        <div className="flex items-center gap-1">
+                          <CategoryIcon name={t.categorie} size={11} />
+                          <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[110px]">
+                            {getCleanCategoryName(t.categorie)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
                     <div className="text-right shrink-0">
                       <span className={`text-xs font-mono font-black ${
@@ -345,23 +351,15 @@ export default function ImportMobile(props) {
               <div className="py-16 text-center">
                 <span className="text-2xl opacity-20">📂</span>
                 <p className="text-[10px] text-white/40 uppercase font-black mt-2">Aucune transaction en prévisualisation</p>
-                <p className="text-[9px] text-white/20 uppercase font-black max-w-[200px] mx-auto mt-1 leading-relaxed">
-                  Chargez un fichier de transactions depuis l'onglet "Sources & Synchro".
-                </p>
               </div>
             )}
           </div>
-
         </div>
       )}
 
-      {/* =========================================================================
-          SECTION 3 : INTELLIGENCE (ENTRAÎNER LE LEXIQUE)
-          ========================================================================= */}
+      {/* SECTION 3 : INTELLIGENCE */}
       {mobileSubTab === 'intel' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          
-          {/* CIBLE D'APPRENTISSAGE AVEC CUSTOM SELECT */}
           <CustomSelect 
             label="Cible d'apprentissage"
             value={intelSelectedCat}
@@ -371,14 +369,10 @@ export default function ImportMobile(props) {
             className="p-2.5 rounded-xl text-[10px]"
           />
 
-          {/* CADRE INTELLIGENCE / MOTS CLES */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-3xl space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-white/5">
               <div className="flex items-center gap-2.5 min-w-0">
-                {/* 💡 Icône de la catégorie sélectionnée en tête du lexique */}
-                <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
-                  <CategoryIcon name={intelSelectedCat} size={16} />
-                </div>
+                <CategoryIcon name={intelSelectedCat} size={16} />
                 <div className="min-w-0">
                   <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-widest block leading-none">
                     Lexique en cours
@@ -393,7 +387,6 @@ export default function ImportMobile(props) {
               </span>
             </div>
 
-            {/* MOTS-CLÉS DE LA CATÉGORIE CIBLE */}
             <div className="flex flex-wrap gap-1.5 max-h-150 overflow-y-auto pr-1">
               {activeCategoryData?.mots_cles && activeCategoryData.mots_cles.length > 0 ? (
                 activeCategoryData.mots_cles.map((keyword, kIdx) => {
@@ -426,7 +419,6 @@ export default function ImportMobile(props) {
               )}
             </div>
 
-            {/* SELECTION DU TYPE DE SIGNE */}
             <div className="space-y-2 border-t border-white/5 pt-3">
               <span className="text-[8px] font-black text-white/30 uppercase block">Signe des flux cibles :</span>
               <div className="grid grid-cols-3 gap-1.5">
@@ -466,7 +458,6 @@ export default function ImportMobile(props) {
               </div>
             </div>
 
-            {/* AJOUTER NOUVEL APPRENTISSAGE */}
             <div className="pt-2">
               <input 
                 type="text"
@@ -480,7 +471,6 @@ export default function ImportMobile(props) {
                 }}
               />
             </div>
-
           </div>
         </div>
       )}
