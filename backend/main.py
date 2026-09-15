@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException,Body
 from sqlalchemy import create_engine, text
 import pandas as pd
 import os
@@ -90,6 +90,7 @@ engine = create_engine(
         "connect_timeout": 10 # Donne un peu de temps à Neon pour sortir de veille
     }
 )
+
 
 @app.get("/")
 def read_root():
@@ -975,7 +976,6 @@ def update_category(cat: CategorieUpdate):
         print(f"❌ Erreur update_category: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# 4. Lecture : renvoie bien 'colors_map' dans le JSON
 @app.get("/api/categories/{user}")
 def get_categories(user: str):
     try:
@@ -983,21 +983,23 @@ def get_categories(user: str):
         
         with engine.connect() as conn:
             try:
-                query_perso = text("SELECT nom, icone, couleur FROM categories WHERE LOWER(utilisateur) = :u")
+                # 🟢 On lit aussi la colonne 'groupe'
+                query_perso = text("SELECT nom, icone, couleur, groupe FROM categories WHERE LOWER(utilisateur) = :u")
                 result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
                 categories_perso = [row[0] for row in result_perso]
                 icons_map = {row[0]: row[1] for row in result_perso if row[1] and str(row[1]).strip().lower() != 'tag'}
-                # 💡 Récupère la couleur exacte de chaque catégorie
-                colors_map = {row[0]: row[2] for row in result_perso if len(row) > 2 and row[2]}
+                colors_map = {row[0]: (row[2] or "#818cf8") for row in result_perso if len(row) > 2 and row[2]}
+                groups_map = {row[0]: (row[3] or "Général") for row in result_perso if len(row) > 3}
             except Exception as e_sql:
-                print(f"⚠️ Erreur lecture couleur en BDD: {e_sql}")
+                print(f"⚠️ Fallback SELECT categories: {e_sql}")
                 query_perso = text("SELECT nom, icone FROM categories WHERE LOWER(utilisateur) = :u")
                 result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
                 categories_perso = [row[0] for row in result_perso]
-                icons_map = {row[0]: row[1] for row in result_perso if row[1] and str(row[1]).strip().lower() != 'tag'}
+                icons_map = {}
                 colors_map = {}
+                groups_map = {}
 
-            # Récupération des comptes
+            # Récupération des comptes (inchangé)
             query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
             result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
             comptes_noms = [row[0] for row in result_comptes]
@@ -1033,7 +1035,8 @@ def get_categories(user: str):
             "perso": sorted(categories_perso),
             "all": toutes_les_categories,
             "icons_map": icons_map,
-            "colors_map": colors_map  # 👈 OBLIGATOIRE : Transmet la liste des couleurs au frontend
+            "colors_map": colors_map,
+            "groups_map": groups_map  # 👈 Renvoie la carte des groupes personnalisés
         }
         
     except Exception as e:
@@ -1043,7 +1046,8 @@ def get_categories(user: str):
             "perso": [],
             "all": sorted(CATEGORIES_DEFAUT),
             "icons_map": {},
-            "colors_map": {}
+            "colors_map": {},
+            "groups_map": {}
         }
 
 @app.delete("/api/categories/{user}/{nom}")
@@ -1071,7 +1075,61 @@ def delete_category(user: str, nom: str):
         print(f"🔥 Erreur SQL : {e}")
         return {"status": "error", "message": str(e)}
     
+class CategorieAssignGroup(BaseModel):
+    nom: str
+    groupe: str
+    utilisateur: str
 
+@app.put("/api/categories/assign-group")
+def assign_category_group(req: CategorieAssignGroup):
+    clean_user = req.utilisateur.lower().strip()
+    clean_name = req.nom.strip()
+    clean_group = req.groupe.strip()
+
+    with engine.begin() as conn:
+        check = conn.execute(
+            text("SELECT 1 FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"),
+            {"u": clean_user, "n": clean_name}
+        ).fetchone()
+
+        if check:
+            conn.execute(
+                text("UPDATE categories SET groupe = :g WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"),
+                {"g": clean_group, "u": clean_user, "n": clean_name}
+            )
+        else:
+            # Si c'était une catégorie par défaut, on la persiste avec son groupe
+            conn.execute(
+                text("INSERT INTO categories (nom, icone, couleur, groupe, utilisateur) VALUES (:n, 'Tag', '#818cf8', :g, :u)"),
+                {"n": clean_name, "g": clean_group, "u": clean_user}
+            )
+
+    return {"status": "success", "nom": clean_name, "groupe": clean_group}
+
+
+# 🟢 ROUTE : SUPPRESSION D'UN GROUPE AVEC RÉASSIGNATION AUTOMATIQUE VERS "Général"
+class DeleteGroupRequest(BaseModel):
+    groupe: str
+    utilisateur: str
+    fallback_groupe: Optional[str] = "Général"
+
+@app.put("/api/categories/delete-group")
+def delete_category_group(req: DeleteGroupRequest):
+    clean_user = req.utilisateur.lower().strip()
+    clean_group = req.groupe.strip()
+    clean_fallback = (req.fallback_groupe or "Général").strip()
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE categories 
+                SET groupe = :fallback 
+                WHERE LOWER(utilisateur) = :u AND LOWER(groupe) = LOWER(:g)
+            """),
+            {"fallback": clean_fallback, "u": clean_user, "g": clean_group}
+        )
+
+    return {"status": "success", "deleted_group": clean_group, "fallback": clean_fallback}
 
 class Memoire(BaseModel):
     nom: str
@@ -1120,31 +1178,43 @@ def delete_from_memory(username: str, nom: str):
     return {"status": "success", "message": "Élément supprimé de la mémoire"}
 
 
-# --- Récupérer les catégories masquées ---
+# --- RÉCUPÉRER LES CATÉGORIES MASQUÉES ---
 @app.get("/api/categories_masquees/{user}")
 def get_masked_categories(user: str):
-    query = text("SELECT nom FROM categories_masquees WHERE utilisateur = :u")
-    with engine.connect() as conn:
-        result = conn.execute(query, {"u": user}).fetchall()
-        return [row[0] for row in result]
+    clean_user = user.strip().lower()
+    try:
+        query = text("SELECT nom FROM categories_masquees WHERE LOWER(utilisateur) = :u")
+        with engine.connect() as conn:
+            result = conn.execute(query, {"u": clean_user}).fetchall()
+            return [row[0] for row in result]
+    except Exception as e:
+        print(f"⚠️ Erreur get_masked_categories: {e}")
+        return []
 
-# --- Sauvegarder les préférences ---
+# --- SAUVEGARDER LES PRÉFÉRENCES MASQUÉES ---
 @app.post("/api/categories_masquees/{user}")
-def save_masked_categories(user: str, categories: list[str]):
+def save_masked_categories(user: str, categories: List[str] = Body(default=[])):
+    clean_user = user.strip().lower()
     try:
         with engine.begin() as conn:
-            # On vide l'existant pour cet utilisateur
+            # 1. On nettoie les anciennes préférences de l'utilisateur
             conn.execute(
-                text("DELETE FROM categories_masquees WHERE utilisateur = :u"), {"u": user}
+                text("DELETE FROM categories_masquees WHERE LOWER(utilisateur) = :u"), 
+                {"u": clean_user}
             )
-            # On insère les nouvelles
-            for cat in categories:
-                conn.execute(
-                    text("INSERT INTO categories_masquees (nom, utilisateur) VALUES (:n, :u)"),
-                    {"n": cat, "u": user}
-                )
+            
+            # 2. On réinsère les nouvelles
+            if categories and isinstance(categories, list):
+                for cat in categories:
+                    if cat and str(cat).strip():
+                        conn.execute(
+                            text("INSERT INTO categories_masquees (nom, utilisateur) VALUES (:n, :u)"),
+                            {"n": str(cat).strip(), "u": clean_user}
+                        )
         return {"status": "success"}
     except Exception as e:
+        print("❌ [CRASH SQL save_masked_categories] Détails de l'erreur :")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 

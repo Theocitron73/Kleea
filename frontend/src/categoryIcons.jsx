@@ -43,7 +43,7 @@ export const getLucideIcon = (iconName) => {
 // =========================================================================
 // 1. LES CATÉGORIES THÉMATIQUES DU SÉLECTEUR (ENRICHIES)
 // =========================================================================
-export const ICON_CATEGORIES = [
+const ICON_CATEGORIES = [
   {
     id: 'people',
     label: 'Famille, Couple & Social',
@@ -186,13 +186,19 @@ export const ICON_CATEGORIES = [
   }
 ];
 // =========================================================================
-// 2. STOCKAGE ET RÉSOLUTION DES ICÔNES ET COULEURS DE LA BDD
+// 2. MÉMOIRE GLOBALE RÉSISTANTE AU RECHARGEMENT VITE (HMR)
 // =========================================================================
-let globalCustomIconsMap = {};
-let globalCustomColorsMap = {};
+if (typeof window !== 'undefined') {
+  window.__KLEEA_ICONS_MAP__ = window.__KLEEA_ICONS_MAP__ || {};
+  window.__KLEEA_COLORS_MAP__ = window.__KLEEA_COLORS_MAP__ || {};
+  window.__KLEEA_GROUPS_MAP__ = window.__KLEEA_GROUPS_MAP__ || {};
+}
 
-export const setGlobalCustomIconsMap = (iconsMap = {}, colorsMap = {}) => {
-  // Normalisation des icônes
+let globalCustomIconsMap = (typeof window !== 'undefined' && window.__KLEEA_ICONS_MAP__) || {};
+let globalCustomColorsMap = (typeof window !== 'undefined' && window.__KLEEA_COLORS_MAP__) || {};
+let globalCustomGroupsMap = (typeof window !== 'undefined' && window.__KLEEA_GROUPS_MAP__) || {};
+
+export const setGlobalCustomIconsMap = (iconsMap = {}, colorsMap = {}, groupsMap = {}) => {
   const normalizedIcons = {};
   if (iconsMap && typeof iconsMap === 'object') {
     Object.entries(iconsMap).forEach(([key, iconName]) => {
@@ -205,7 +211,6 @@ export const setGlobalCustomIconsMap = (iconsMap = {}, colorsMap = {}) => {
   }
   globalCustomIconsMap = normalizedIcons;
 
-  // Normalisation des couleurs
   const normalizedColors = {};
   if (colorsMap && typeof colorsMap === 'object') {
     Object.entries(colorsMap).forEach(([key, colorHex]) => {
@@ -217,6 +222,35 @@ export const setGlobalCustomIconsMap = (iconsMap = {}, colorsMap = {}) => {
     });
   }
   globalCustomColorsMap = normalizedColors;
+
+  const normalizedGroups = {};
+  if (groupsMap && typeof groupsMap === 'object') {
+    Object.entries(groupsMap).forEach(([key, grp]) => {
+      if (key) {
+        normalizedGroups[key] = grp;
+        normalizedGroups[key.trim().toLowerCase()] = grp;
+        normalizedGroups[getCleanCategoryName(key).toLowerCase()] = grp;
+      }
+    });
+  }
+  globalCustomGroupsMap = normalizedGroups;
+
+  // 🟢 Sauvegarde persistante dans window pour résister aux modifications de code
+  if (typeof window !== 'undefined') {
+    window.__KLEEA_ICONS_MAP__ = normalizedIcons;
+    window.__KLEEA_COLORS_MAP__ = normalizedColors;
+    window.__KLEEA_GROUPS_MAP__ = normalizedGroups;
+  }
+};
+
+// 🟢 Récupère le groupe sur-mesure défini par l'utilisateur (ou "Général")
+export const getCategoryGroup = (name) => {
+  if (!name) return 'Général';
+  const clean = getCleanCategoryName(name).trim();
+  return globalCustomGroupsMap[clean] || 
+         globalCustomGroupsMap[clean.toLowerCase()] || 
+         globalCustomGroupsMap[name] || 
+         'Général';
 };
 
 // 💡 La couleur de la BDD (customColor) a priorité absolue si elle existe

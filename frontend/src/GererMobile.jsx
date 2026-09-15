@@ -3,11 +3,11 @@ import {
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
   Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet,
-  Edit2, Sparkles
+  Edit2, Sparkles,Layers 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import { SketchPicker } from 'react-color';
-import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo } from './categoryIcons';
+import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo,getCategoryGroup  } from './categoryIcons';
 
 export default function GererMobile(props) {
   const {
@@ -44,6 +44,57 @@ export default function GererMobile(props) {
   const [editingCat, setEditingCat] = useState(null);
   const [showEditIconPicker, setShowEditIconPicker] = useState(false);
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
+
+  // 🟢 1. ÉTATS POUR LA GESTION DES GROUPES SUR MOBILE
+  const [groupFilter, setGroupFilter] = useState('all');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
+  const [userGroups, setUserGroups] = useState([
+    'Logement', 'Vie courante', 'Transports', 'Santé', 'Loisirs', 'Revenus', 'Général'
+  ]);
+
+  // 🟢 2. FONCTIONS DE GESTION DES GROUPES SUR MOBILE
+  const handleAssignCategoryGroup = async (catName, targetGroup) => {
+    if (!targetGroup || !props.api) return;
+    try {
+      await props.api.put('/api/categories/assign-group', {
+        nom: catName,
+        groupe: targetGroup,
+        utilisateur: props.user
+      });
+      if (props.fetchCategories) await props.fetchCategories();
+    } catch (e) {
+      console.error("Erreur assignation groupe mobile:", e);
+    }
+  };
+
+  const handleAddGroupLocal = () => {
+    const clean = newGroupName.trim();
+    if (clean && !userGroups.some(g => g.toLowerCase() === clean.toLowerCase())) {
+      setUserGroups(prev => [...prev, clean]);
+      setGroupFilter(clean);
+      setNewGroupName('');
+      setShowNewGroupInput(false);
+    }
+  };
+
+  const handleDeleteGroupLocal = async (grpName) => {
+    if (!grpName || grpName.toLowerCase() === 'général') return;
+    try {
+      if (props.api) {
+        await props.api.put('/api/categories/delete-group', {
+          groupe: grpName,
+          utilisateur: props.user,
+          fallback_groupe: 'Général'
+        });
+      }
+      setUserGroups(prev => prev.filter(g => g.toLowerCase() !== grpName.toLowerCase()));
+      if (groupFilter.toLowerCase() === grpName.toLowerCase()) setGroupFilter('all');
+      if (props.fetchCategories) await props.fetchCategories();
+    } catch (e) {
+      console.error("Erreur suppression groupe mobile:", e);
+    }
+  };
 
   // 🟢 Gestion propre de la sélection profil avec sélection automatique du CCP ou 1er compte
   const onSelectProfilLocal = (nouveauProfil) => {
@@ -542,89 +593,208 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* LISTE DES CATÉGORIES AVEC MODIFICATION COMPLÈTE */}
-          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
-            <div className="flex items-center justify-between mb-3">
+          {/* =========================================================================
+              🟢 GESTION DES GROUPES & CATÉGORIES (MOBILE : 2 ÉTAGES & ZÉRO EMOJI)
+              ========================================================================= */}
+          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
+            
+            {/* EN-TÊTE & CRÉATION RAPIDE DE GROUPE */}
+            <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-[10px] font-black uppercase text-white/80 tracking-widest">
-                  Liste des Catégories
+                  Mes Groupes & Catégories
                 </h3>
-                <p className="text-[8px] text-white/30 uppercase font-bold">Modifier l'icône, couleur ou visibilité</p>
+                <p className="text-[8px] text-white/30 uppercase font-bold">Rangement personnalisé</p>
               </div>
-              <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-black border border-emerald-500/20">
-                {toutesLesCategories.length - masquees.length} Actives
-              </span>
+
+              {!showNewGroupInput ? (
+                <button
+                  type="button"
+                  onClick={() => setShowNewGroupInput(true)}
+                  className="px-2.5 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-[8px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus size={10} /> Nouveau
+                </button>
+              ) : (
+                <div className="flex items-center gap-1 bg-black/50 border border-indigo-500/30 p-1 rounded-lg">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Nom groupe..."
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddGroupLocal()}
+                    className="bg-transparent text-[10px] text-white px-1.5 py-0.5 outline-none w-24 font-bold"
+                  />
+                  <button onClick={handleAddGroupLocal} className="px-1.5 py-0.5 bg-indigo-600 text-white rounded text-[8px] font-bold cursor-pointer">OK</button>
+                  <button onClick={() => setShowNewGroupInput(false)} className="text-white/40 cursor-pointer"><X size={10} /></button>
+                </div>
+              )}
             </div>
 
-            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-              {[...toutesLesCategories]
-                .sort((a,b) => {
-                  const aEstPerso = categoriesPerso.includes(a);
-                  const bEstPerso = categoriesPerso.includes(b);
-                  if (aEstPerso && !bEstPerso) return -1;
-                  if (!aEstPerso && bEstPerso) return 1;
-                  return a.localeCompare(b);
-                })
-                .map(cat => {
-                  const estMasquee = masquees.includes(cat);
-                  const estPerso = categoriesPerso.includes(cat);
-                  
-                  return (
-                    <div key={cat} className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
-                      estMasquee ? 'bg-black/20 border-white/5 opacity-40' : 'bg-black/30 border-white/5 hover:border-white/15'
-                    }`}>
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <CategoryIcon name={cat} size={14} />
-                        <div className="flex flex-col min-w-0">
-                          <span className={`text-xs font-bold truncate ${estMasquee ? 'text-white/30 line-through' : 'text-white/90'}`}>
-                            {getCleanCategoryName(cat)}
-                          </span>
-                          {estPerso && (
-                            <span className="text-[7px] text-indigo-300 font-bold uppercase tracking-wider">
-                              Personnelle
-                            </span>
+            {/* BANDEAU DES GROUPES (AVEC SUPPRESSION EN 1 CLIC SANS CONFIRMATION) */}
+            {(() => {
+              const allFromCats = toutesLesCategories.map(c => getCategoryGroup(c));
+              const allUnique = [...new Set([...userGroups, ...allFromCats, 'Général'])].filter(Boolean).sort();
+              const groupsOptions = allUnique.map(g => ({ v: g, l: g }));
+
+              return (
+                <>
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 select-none">
+                    {/* Filtre Tous */}
+                    <button
+                      type="button"
+                      onClick={() => setGroupFilter('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-wider shrink-0 border cursor-pointer ${
+                        groupFilter === 'all'
+                          ? 'bg-white text-slate-900 border-white shadow-sm'
+                          : 'bg-black/30 border-white/5 text-white/40'
+                      }`}
+                    >
+                      <Layers size={9} className={groupFilter === 'all' ? 'text-slate-900' : 'opacity-40'} />
+                      <span>Tous</span>
+                      <span className="ml-1 opacity-50 font-mono">({toutesLesCategories.length})</span>
+                    </button>
+
+                    {/* Chaque Groupe */}
+                    {allUnique.map(grp => {
+                      const isActive = groupFilter === grp;
+                      const count = toutesLesCategories.filter(c => getCategoryGroup(c) === grp).length;
+                      const isGeneral = grp.toLowerCase() === 'général' || grp.toLowerCase() === 'general';
+
+                      return (
+                        <div
+                          key={grp}
+                          className={`rounded-lg transition-all flex items-center border shrink-0 ${
+                            isActive
+                              ? 'bg-indigo-600 text-white border-indigo-500 shadow-sm'
+                              : 'bg-black/30 border-white/5 text-white/50'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setGroupFilter(grp)}
+                            className="pl-2 pr-1.5 py-1 text-[8.5px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                          >
+                            <Layers size={9} className={isActive ? 'text-white' : 'text-indigo-400'} />
+                            <span>{grp}</span>
+                            <span className="opacity-60 font-mono text-[7.5px]">({count})</span>
+                          </button>
+
+                          {/* 🟢 Suppression instantanée sans confirmation */}
+                          {!isGeneral && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteGroupLocal(grp);
+                              }}
+                              className="pr-1.5 pl-0.5 text-white/30 hover:text-rose-400 cursor-pointer"
+                              title={`Supprimer le groupe "${grp}"`}
+                            >
+                              <X size={9} />
+                            </button>
                           )}
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button 
-                          onClick={() => {
-                            const info = getCategoryIconInfo(cat);
-                            setEditingCat({
-                              nom: cat,
-                              icone: info.iconName || 'Tag',
-                              couleur: info.hex || '#818cf8'
-                            });
-                          }}
-                          className="p-1.5 rounded-lg text-white/40 hover:text-indigo-400 hover:bg-white/5 transition-colors cursor-pointer"
-                          title="Modifier l'icône et la couleur"
-                        >
-                          <Edit2 size={13} />
-                        </button>
+                      );
+                    })}
+                  </div>
 
-                        <button 
-                          onClick={() => toggleVisibility(cat)}
-                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${estMasquee ? 'text-rose-400 hover:text-rose-300' : 'text-white/40 hover:text-emerald-400'}`}
-                          title={estMasquee ? "Afficher" : "Masquer"}
-                        >
-                          {estMasquee ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
+                  {/* LISTE DES CARTES EN 2 ÉTAGES */}
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar pt-1">
+                    {toutesLesCategories
+                      .filter(cat => {
+                        const currentGrp = getCategoryGroup(cat);
+                        return groupFilter === 'all' || currentGrp === groupFilter;
+                      })
+                      .sort((a, b) => a.localeCompare(b))
+                      .map(cat => {
+                        const estMasquee = masquees.includes(cat);
+                        const estPerso = categoriesPerso.includes(cat);
+                        const currentGrp = getCategoryGroup(cat);
 
-                        {estPerso && (
-                          <button 
-                            onClick={() => removeCategory(cat)} 
-                            className="p-1.5 rounded-lg text-rose-500/60 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                            title="Supprimer la catégorie"
+                        return (
+                          <div 
+                            key={cat} 
+                            className={`p-2.5 rounded-xl border flex flex-col gap-2 transition-all ${
+                              estMasquee ? 'bg-black/20 border-white/5 opacity-40' : 'bg-black/30 border-white/5'
+                            }`}
                           >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
+                            {/* Étage 1 (Haut) : Icône + Titre + Boutons d'actions */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
+                                <CategoryIcon name={cat} size={14} />
+                                <span className={`text-xs font-bold truncate ${estMasquee ? 'text-white/30 line-through' : 'text-white/90'}`}>
+                                  {getCleanCategoryName(cat)}
+                                </span>
+                                {estPerso && (
+                                  <span className="text-[6.5px] bg-[var(--primary)]/10 text-[var(--primary)] px-1 py-0.2 rounded font-black uppercase shrink-0">
+                                    Perso
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button 
+                                  onClick={() => {
+                                    const info = getCategoryIconInfo(cat);
+                                    setEditingCat({
+                                      nom: cat,
+                                      icone: info.iconName || 'Tag',
+                                      couleur: info.hex || '#818cf8',
+                                      groupe: currentGrp
+                                    });
+                                  }}
+                                  className="p-1 rounded-lg text-white/40 hover:text-indigo-400 cursor-pointer"
+                                  title="Modifier icône / couleur"
+                                >
+                                  <Edit2 size={12} />
+                                </button>
+
+                                <button 
+                                  onClick={() => toggleVisibility(cat)}
+                                  className={`p-1 rounded-lg cursor-pointer ${estMasquee ? 'text-rose-400' : 'text-white/40 hover:text-emerald-400'}`}
+                                  title={estMasquee ? "Afficher" : "Masquer"}
+                                >
+                                  {estMasquee ? <EyeOff size={12} /> : <Eye size={12} />}
+                                </button>
+
+                                {estPerso && (
+                                  <button 
+                                    onClick={() => removeCategory(cat)} 
+                                    className="p-1 rounded-lg text-rose-500/60 hover:text-rose-400 cursor-pointer"
+                                    title="Supprimer"
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Étage 2 (Dessous) : CustomSelect du Groupe en pleine largeur */}
+                            <div className="pt-1.5 border-t border-white/5 flex items-center justify-between gap-2">
+                              <span className="text-[7.5px] font-black uppercase text-white/30 tracking-wider flex items-center gap-1 shrink-0">
+                                <Layers size={9} className="text-indigo-400 opacity-60" />
+                                <span>Groupe :</span>
+                              </span>
+                              
+                              <div className="flex-1 min-w-0">
+                                <CustomSelect
+                                  value={currentGrp}
+                                  options={groupsOptions}
+                                  onChange={(newGrp) => handleAssignCategoryGroup(cat, newGrp)}
+                                  icon={Layers}
+                                  className="px-2 py-0.5 rounded-lg text-[9px] font-bold bg-black/40 border-white/10 h-6.5"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
         </div>

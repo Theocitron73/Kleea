@@ -33,7 +33,7 @@ import ComptesMobile from './ComptesMobile';
 import TricountMobile from './TricountMobile';
 import GuideView from './GuideView';
 import { Link as RouterLink } from 'react-router-dom';
-import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap,getCategoryIconInfo  } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
+import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap,getCategoryIconInfo,getCategoryGroup } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
   // 1. Convertir HEX en RGB
@@ -1992,7 +1992,7 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
 
 
 
-const CustomSelect = ({ label, value, options, onChange, icon: Icon, isCategory = false, className = "" }) => {
+const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCategory = false, className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef(null);
@@ -2019,14 +2019,32 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, isCategory 
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt =>
+  const filteredOptions = (options || []).filter(opt =>
     (opt.l || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const currentLabel = options.find(opt => opt.v === value)?.l || value;
-  
-  // 💡 Détecte si c'est un sélecteur de catégorie (qui utilise l'icône Tag)
+  const currentLabel = options?.find(opt => opt.v === value)?.l || value;
   const isCategorySelect = isCategory || Icon === Tag;
+
+  // Organisation des options par groupes
+  const groupedOptions = useMemo(() => {
+    if (!isCategorySelect) return null;
+
+    const groups = {};
+    filteredOptions.forEach(opt => {
+      const grp = (typeof getCategoryGroup === 'function' ? getCategoryGroup(opt.l || opt.v) : null) || "Général";
+      if (!groups[grp]) groups[grp] = [];
+      groups[grp].push(opt);
+    });
+
+    const sortedGroupNames = Object.keys(groups).sort((a, b) => {
+      if (a.toLowerCase() === 'général' || a.toLowerCase() === 'general') return 1;
+      if (b.toLowerCase() === 'général' || b.toLowerCase() === 'general') return -1;
+      return a.localeCompare(b);
+    });
+
+    return { groups, sortedGroupNames };
+  }, [filteredOptions, isCategorySelect]);
 
   return (
     <div className="space-y-1.5 relative" ref={dropdownRef}>
@@ -2036,7 +2054,7 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, isCategory 
         </label>
       )}
       
-      {/* BOUTON / ZONE DE SAISIE */}
+      {/* BOUTON DU SÉLECTEUR */}
       <div
         className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
           isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
@@ -2044,7 +2062,6 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, isCategory 
         onClick={() => setIsOpen(true)}
       >
         <div className="flex items-center gap-2.5 w-full min-w-0">
-          {/* 💡 AFFICHE L'ICÔNE VECTORIELLE DE LA CATÉGORIE ACTIVE OU L'ICÔNE GÉNÉRIQUE */}
           {isCategorySelect ? (
             <CategoryIcon name={currentLabel} size={14} className="shrink-0" />
           ) : (
@@ -2067,32 +2084,69 @@ const CustomSelect = ({ label, value, options, onChange, icon: Icon, isCategory 
         />
       </div>
 
-      {/* MENU DÉROULANT AVEC ICÔNES VECTORIELLES DANS LA LISTE */}
+      {/* MENU DÉROULANT AVEC EN-TÊTES DE GROUPES NON-STICKY */}
       {isOpen && (
-        <div className="absolute top-[110%] left-0 w-full z-[100] bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-          <div className="max-h-60 overflow-y-auto custom-scrollbar p-1">
+        <div className="absolute top-[110%] left-0 w-full min-w-[175px] z-[100] bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5 space-y-1">
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
-                <div
-                  key={opt.v}
-                  onClick={() => {
-                    onChange(opt.v);
-                    setIsOpen(false);
-                    setSearchTerm("");
-                  }}
-                  className={`px-3 py-2 text-xs font-bold cursor-pointer transition-colors rounded-xl flex items-center gap-2.5 ${
-                    value === opt.v 
-                    ? 'bg-indigo-600 text-white shadow-md' 
-                    : 'text-[var(--text-main)]/70 hover:bg-[var(--glass-bg)] hover:text-white'
-                  }`}
-                >
-                  {/* 💡 AFFICHE L'ICÔNE DÉDIÉE À GAUCHE DU NOM DE CHAQUE CATÉGORIE */}
-                  {isCategorySelect && (
-                    <CategoryIcon name={opt.l} size={14} className="shrink-0" />
-                  )}
-                  <span className="truncate">{getCleanCategoryName(opt.l)}</span>
-                </div>
-              ))
+              isCategorySelect && groupedOptions && groupedOptions.sortedGroupNames.length > 0 ? (
+                groupedOptions.sortedGroupNames.map(grpName => (
+                  <div key={grpName} className="space-y-0.5">
+                    
+                    {/* 🟢 EN-TÊTE DÉFILANT NATURELLEMENT (Sans 'sticky') */}
+                    {groupedOptions.sortedGroupNames.length > 1 && (
+                      <div className="px-2.5 pt-2 pb-1 text-[8px] font-black uppercase tracking-wider text-indigo-300/60 flex items-center justify-between border-t first:border-t-0 border-white/5 mt-1 select-none">
+                        <span className="flex items-center gap-1.5">
+                          <Layers size={9} className="text-indigo-400" />
+                          <span>{grpName}</span>
+                        </span>
+                        <span className="text-[7.5px] font-mono opacity-40">
+                          {groupedOptions.groups[grpName].length}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Options du groupe */}
+                    {groupedOptions.groups[grpName].map(opt => (
+                      <div
+                        key={opt.v}
+                        onClick={() => {
+                          onChange(opt.v);
+                          setIsOpen(false);
+                          setSearchTerm("");
+                        }}
+                        className={`px-2.5 py-1.5 text-xs font-bold cursor-pointer transition-colors rounded-xl flex items-center gap-2.5 ${
+                          value === opt.v 
+                          ? 'bg-indigo-600 text-white shadow-md' 
+                          : 'text-[var(--text-main)]/70 hover:bg-[var(--glass-bg)] hover:text-white'
+                        }`}
+                      >
+                        <CategoryIcon name={opt.l} size={14} className="shrink-0" />
+                        <span className="truncate">{getCleanCategoryName(opt.l)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                filteredOptions.map((opt) => (
+                  <div
+                    key={opt.v}
+                    onClick={() => {
+                      onChange(opt.v);
+                      setIsOpen(false);
+                      setSearchTerm("");
+                    }}
+                    className={`px-3 py-2 text-xs font-bold cursor-pointer transition-colors rounded-xl flex items-center gap-2.5 ${
+                      value === opt.v 
+                      ? 'bg-indigo-600 text-white shadow-md' 
+                      : 'text-[var(--text-main)]/70 hover:bg-[var(--glass-bg)] hover:text-white'
+                    }`}
+                  >
+                    {Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />}
+                    <span className="truncate">{opt.l}</span>
+                  </div>
+                ))
+              )
             ) : (
               <div className="px-4 py-3 text-xs text-[var(--text-main)]/20 italic text-center">
                 Aucune option trouvée
@@ -8002,14 +8056,30 @@ const visibleMenuItems = menuItems.filter(item => {
 
 
 
+// 🟢 PARADE : Liste des groupes sans "Tous" avec secours automatique
+const groupesDisponibles = useMemo(() => {
+  const list = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
+  if (list.length > 0) return list;
+  // S'il n'y a encore aucun groupe en base :
+  return [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
+}, [comptes, user]);
+
+// 🟢 Redirection automatique si le cache contenait encore 'Tous'
+useEffect(() => {
+  if (comptes.length > 0 && (filters.profil === 'Tous' || !filters.profil)) {
+    setFilters(f => ({ ...f, profil: groupesDisponibles[0] }));
+  }
+}, [comptes, filters.profil, groupesDisponibles]);
+
+// 🟢 Comptes du profil avec secours si aucun groupe n'est encore configuré
 const comptesDuProfil = useMemo(() => {
-  if (!comptes) return [];
+  if (!comptes || comptes.length === 0) return [];
   
+  const aDesGroupes = comptes.some(c => Boolean(c.groupe?.trim()));
+  // S'il n'y a aucun groupe défini sur aucun compte, on affiche tout pour ne pas bloquer l'écran
+  if (!aDesGroupes) return comptes;
+
   return comptes.filter(c => {
-    // Si "Tous", on garde tout
-    if (filters.profil === 'Tous') return true;
-    
-    // Sinon on compare le groupe (sécurisé)
     const groupeCompte = c.groupe?.toLowerCase().trim() || "";
     const groupeFiltre = filters.profil?.toLowerCase().trim() || "";
     return groupeCompte === groupeFiltre;
@@ -8972,28 +9042,32 @@ const sorted = (arr) => [...arr].sort((a, b) => a.localeCompare(b));
 
 
 const fetchCategories = async () => {
-  try {
-    const [resCats, resMasquees] = await Promise.all([
-      api.get(`/api/categories/${user}`),
-      api.get(`/api/categories_masquees/${user}`)
-    ]);
+  if (!user) return;
 
-    setToutesLesCategories(resCats.data.all || []);
-    setCategoriesPerso(resCats.data.perso || []);
-    setMasquees(resMasquees.data || []);
-    
-    // 💡 Transmet les icônes ET les couleurs à l'application
-    setGlobalCustomIconsMap(resCats.data.icons_map || {}, resCats.data.colors_map || {});
-    
-    // 🔍 Ouvre F12 dans ton navigateur pour voir ce log :
-    console.log("🎨 Données catégories reçues :", {
-      icons: resCats.data.icons_map,
-      colors: resCats.data.colors_map
-    });
-    
+  // 1. Chargement garanti des catégories, icônes, couleurs et groupes
+  try {
+    const resCats = await api.get(`/api/categories/${user}`);
+    if (resCats.data) {
+      setToutesLesCategories(resCats.data.all || []);
+      setCategoriesPerso(resCats.data.perso || []);
+      setGlobalCustomIconsMap(
+        resCats.data.icons_map || {}, 
+        resCats.data.colors_map || {}, 
+        resCats.data.groups_map || {}
+      );
+    }
   } catch (err) {
-    console.error("Erreur lors du chargement des catégories:", err);
-    setToutesLesCategories(CATEGORIES_DEFAUT_FRONT); 
+    console.error("Erreur chargement catégories:", err);
+  }
+
+  // 2. Chargement des masquages isolément
+  try {
+    const resMasquees = await api.get(`/api/categories_masquees/${user}`);
+    if (resMasquees.data) {
+      setMasquees(resMasquees.data || []);
+    }
+  } catch (err) {
+    console.error("Erreur chargement masquées:", err);
   }
 };
 
@@ -9097,9 +9171,85 @@ const onEmojiClick = (emojiData) => {
   setShowEmojiPicker(false);   // Ferme le picker
 };
 
-const [showListPopover, setShowListPopover] = useState(false);
-const [selectedDate, setSelectedDate] = useState(new Date());
 
+const [showListPopover, setShowListPopover] = useState(false);
+const [categorySearch, setCategorySearch] = useState('');
+const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
+const [newGroupName, setNewGroupName] = useState('');
+const [showAddGroupInput, setShowAddGroupInput] = useState(false);
+
+
+// 🟢 Plus de localStorage : les groupes viennent de la BDD et des groupes par défaut
+const DEFAULT_STARTER_GROUPS = [
+  'Logement',
+  'Vie courante',
+  'Transports',
+  'Santé',
+  'Loisirs',
+  'Revenus',
+  'Général'
+];
+
+const [userManagedGroups, setUserManagedGroups] = useState(DEFAULT_STARTER_GROUPS);
+
+// Ajout d'un groupe en mémoire (sera persisté en BDD dès qu'une catégorie y sera assignée)
+const handleAddNewGroup = () => {
+  const clean = newGroupName.trim();
+  if (clean && !userManagedGroups.some(g => g.toLowerCase() === clean.toLowerCase())) {
+    setUserManagedGroups(prev => [...prev, clean]);
+    setSelectedGroupFilter(clean);
+    setNewGroupName('');
+    setShowAddGroupInput(false);
+  }
+};
+
+// 🟢 INDISPENSABLE : Sauvegarde le nouveau groupe de la catégorie dans la BDD
+const handleAssignGroup = async (catName, targetGroup) => {
+  if (!targetGroup) return;
+  try {
+    await api.put('/api/categories/assign-group', {
+      nom: catName,
+      groupe: targetGroup,
+      utilisateur: user
+    });
+    // Rafraîchit immédiatement les catégories depuis PostgreSQL
+    await fetchCategories();
+  } catch (err) {
+    console.error("Erreur lors de l'assignation du groupe :", err);
+  }
+};
+
+// 🟢 Suppression instantanée en 1 clic (sans confirmation)
+const handleDeleteGroup = async (groupName) => {
+  if (!groupName || groupName.toLowerCase() === 'général' || groupName.toLowerCase() === 'general') {
+    return; // Sécurité : protège le groupe par défaut 'Général'
+  }
+
+  try {
+    // 1. Réassigne en BDD les catégories de ce groupe vers "Général"
+    await api.put('/api/categories/delete-group', {
+      groupe: groupName,
+      utilisateur: user,
+      fallback_groupe: 'Général'
+    });
+
+    // 2. Retire le groupe de la liste
+    setUserManagedGroups(prev => prev.filter(g => g.toLowerCase() !== groupName.toLowerCase()));
+    
+    // 3. Si le filtre actif était ce groupe, on repasse sur 'all'
+    if (selectedGroupFilter.toLowerCase() === groupName.toLowerCase()) {
+      setSelectedGroupFilter('all');
+    }
+
+    // 4. Rafraîchit les catégories
+    await fetchCategories();
+  } catch (err) {
+    console.error("Erreur lors de la suppression du groupe :", err);
+  }
+};
+
+
+const [selectedDate, setSelectedDate] = useState(new Date()); // 👈 RAJOUTEZ CETTE LIGNE
 // 1. On définit l'état initial (vide pour le compte)
 const [newTx, setNewTx] = useState({
   categorie: 'Autre',
@@ -11885,27 +12035,27 @@ if (!user) {
         <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(99vh-100px)] lg:overflow-hidden">
           {/* 1. LA BARRE DE FILTRES (On la ferme bien à la fin) */}
           <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
-           {/* SECTION PROFIL */}
-            <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
-              {['Tous', ...new Set(comptes.map(c => c.groupe).filter(Boolean))].map(p => {
-                // On vérifie si c'est sélectionné de manière insensible à la casse pour le test
-                const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
+           
+            {/* SECTION PROFIL (Sans 'Tous' + Parade active) */}
+              <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
+                {groupesDisponibles.map(p => {
+                  const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
 
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setFilters({...filters, profil: p})}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                      isSelected 
-                      ? 'bg-white text-slate-900 shadow-sm' 
-                      : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
-            </div>
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setFilters({...filters, profil: p})}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                        isSelected 
+                        ? 'bg-white text-slate-900 shadow-sm' 
+                        : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+              </div>
 
             <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
@@ -13215,21 +13365,25 @@ if (!user) {
     
     {/* 1. LA BARRE DE FILTRES */}
     <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
-      {/* SECTION PROFIL */}
+      {/* SECTION PROFIL PRÉVISIONNEL (Sans 'Tous' + Parade active) */}
       <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
-        {['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => (
-          <button
-            key={p}
-            onClick={() => setFilters({...filters, profil: p})}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-              filters.profil === p 
-              ? 'bg-white text-slate-900 shadow-sm' 
-              : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
-            }`}
-          >
-            {p}
-          </button>
-        ))}
+        {groupesDisponibles.map(p => {
+          const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
+
+          return (
+            <button
+              key={p}
+              onClick={() => setFilters({...filters, profil: p})}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                isSelected 
+                ? 'bg-white text-slate-900 shadow-sm' 
+                : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+              }`}
+            >
+              {p}
+            </button>
+          );
+        })}
       </div>
 
       <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
@@ -14220,140 +14374,359 @@ if (!user) {
         </div>
       </div>
 
-      {/* LE POPOVER (Gérer mes catégories) */}
-      {showListPopover && (
-        <>
-          {/* 1. Overlay pour fermer au clic extérieur */}
+      
+      {/* =========================================================================
+          🟢 MODALE CENTRÉE HAUTEUR FIXE : GROUPES LISIBLES EN DESSOUS & ZÉRO EMOJI
+          ========================================================================= */}
+      {showListPopover && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          {/* Fond sombre flouté cliquable */}
           <div 
-            className="fixed inset-0 z-[1000]" 
-            onClick={() => setShowListPopover(false)} 
+            className="absolute inset-0 bg-black/80 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+            onClick={() => { setShowListPopover(false); setCategorySearch(''); setSelectedGroupFilter('all'); }} 
           />
 
-          {/* 2. Conteneur du menu */}
-          <div className="relative">
-            <div 
-              className="absolute left-0 right-0 top-2 z-[1001] bg-[#121214] border border-white/10 rounded-[1.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] p-4 animate-in slide-in-from-top-2 duration-200 backdrop-blur-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* HEADER DU POPOVER */}
-              <div className="flex items-center justify-between mb-4 px-2 border-b border-white/5 pb-2">
-                <div>
-                  <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest">Configuration</h4>
-                  <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase">Visibilité des catégories</p>
+          {/* 🟢 HAUTEUR FIXE & LARGEUR CONFORTABLE : h-[720px] max-w-2xl */}
+          <div className="relative w-full max-w-2xl bg-[#121214] border border-white/10 rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.85)] p-6 z-[10000] flex flex-col h-[720px] max-h-[88vh] min-h-[520px] animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+            
+            {/* 1. EN-TÊTE FIXE */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-[var(--primary)]/10 rounded-xl border border-[var(--primary)]/20 text-[var(--primary)]">
+                  <Settings2 size={18} />
                 </div>
-                <button 
-                  onClick={() => setShowListPopover(false)} 
-                  className="p-1 rounded-lg text-[var(--text-main)]/30 hover:text-[var(--text-main)] hover:bg-white/5 transition-colors"
-                >
-                  <X size={14} />
-                </button>
+                <div>
+                  <h3 className="text-xs font-black uppercase text-white tracking-widest leading-none">
+                    Gestion des catégories
+                  </h3>
+                  <p className="text-[9px] text-white/30 font-bold uppercase tracking-wider mt-1">
+                    Rangement par groupe, icônes & visibilité
+                  </p>
+                </div>
               </div>
 
-              {/* LISTE DES CATÉGORIES AVEC ICÔNES VECTORIELLES */}
-              <div className="space-y-1 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-                {[...toutesLesCategories]
-                  .sort((a, b) => {
-                    const aEstPerso = categoriesPerso.includes(a);
-                    const bEstPerso = categoriesPerso.includes(b);
-                    if (aEstPerso && !bEstPerso) return -1;
-                    if (!aEstPerso && bEstPerso) return 1;
-                    return a.localeCompare(b);
-                  })
-                  .map(cat => {
-                    const estMasquee = masquees.includes(cat);
-                    const estPerso = categoriesPerso.includes(cat);
-                    
-                    return (
-                      <div 
-                        key={cat} 
-                        className={`group flex items-center justify-between p-2 rounded-xl transition-all ${
-                          estMasquee 
-                            ? 'bg-black/20 opacity-35' 
-                            : 'bg-[var(--glass-bg)] hover:bg-white/[0.06]'
+              <button 
+                onClick={() => { setShowListPopover(false); setCategorySearch(''); setSelectedGroupFilter('all'); }} 
+                className="p-1.5 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* 2. RECHERCHE & NOUVEAU GROUPE */}
+            <div className="my-3 flex items-center gap-2 shrink-0">
+              <div className="relative flex-1 flex items-center bg-black/40 rounded-xl border border-white/10 px-3 py-2 focus-within:border-[var(--primary)]/50 transition-colors">
+                <Search size={14} className="text-white/30 shrink-0" />
+                <input
+                  type="text"
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  placeholder="Rechercher une catégorie..."
+                  className="bg-transparent border-none outline-none text-xs font-bold text-white placeholder:text-white/20 w-full pl-2.5 pr-6"
+                />
+                {categorySearch && (
+                  <button onClick={() => setCategorySearch('')} className="text-white/30 hover:text-white cursor-pointer">
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+
+              {!showAddGroupInput ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAddGroupInput(true)}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Plus size={13} strokeWidth={3} />
+                  <span>Nouveau Groupe</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-1 bg-black/50 border border-indigo-500/40 p-1 rounded-xl shrink-0 animate-in zoom-in-95">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Nom du groupe..."
+                    value={newGroupName}
+                    onChange={(e) => setNewGroupName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddNewGroup()}
+                    className="bg-transparent text-xs text-white px-2 py-1 outline-none w-32 font-bold placeholder:text-white/20"
+                  />
+                  <button
+                    onClick={handleAddNewGroup}
+                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[9px] font-black uppercase cursor-pointer"
+                  >
+                    OK
+                  </button>
+                  <button
+                    onClick={() => { setShowAddGroupInput(false); setNewGroupName(''); }}
+                    className="p-1 text-white/40 hover:text-white cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* 3. BANDEAU DES GROUPES (AVEC BOUTON DE SUPPRESSION ✕ SUR CHAQUE GROUPE) */}
+              {(() => {
+                const allGroupsFromCats = toutesLesCategories.map(c => getCategoryGroup(c));
+                const combined = [...new Set([...userManagedGroups, ...allGroupsFromCats, 'Général'])].filter(Boolean);
+                const allUniqueGroups = combined;
+                const groupsOptions = allUniqueGroups.map(g => ({ v: g, l: g }));
+
+                return (
+                  <>
+                    <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-2.5 mb-2.5 shrink-0 select-none border-b border-white/[0.04]">
+                      {/* Bouton Tous */}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedGroupFilter('all')}
+                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 shrink-0 border cursor-pointer ${
+                          selectedGroupFilter === 'all'
+                            ? 'bg-white text-slate-950 border-white shadow-md'
+                            : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {/* 💡 AFFICHE LA VRAIE ICÔNE VECTORIELLE DE LA CATÉGORIE */}
-                          <CategoryIcon name={cat} size={14} className="shrink-0" />
+                        <Layers size={11} className={selectedGroupFilter === 'all' ? 'text-slate-950' : 'opacity-50'} />
+                        <span>Tous</span>
+                        <span className="text-[8px] font-mono opacity-60">({toutesLesCategories.length})</span>
+                      </button>
 
-                          <span className={`text-[11px] font-bold truncate ${
-                            estMasquee 
-                              ? 'text-[var(--text-main)]/30 line-through' 
-                              : 'text-[var(--text-main)]/80 group-hover:text-white'
-                          }`}>
-                            {getCleanCategoryName(cat)}
-                          </span>
+                      {/* Bouton pour chaque groupe avec pastille de suppression ✕ */}
+                      {allUniqueGroups.map(grp => {
+                        const isActive = selectedGroupFilter === grp;
+                        const count = toutesLesCategories.filter(c => getCategoryGroup(c) === grp).length;
+                        const isGeneral = grp.toLowerCase() === 'général' || grp.toLowerCase() === 'general';
 
-                          {estPerso ? (
-                            <span className="text-[7px] bg-[var(--primary)]/10 text-[var(--primary)]/80 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-[var(--primary)]/20 shrink-0">
-                              Perso
-                            </span>
-                          ) : (
-                            <span className="text-[7px] bg-white/5 text-[var(--text-main)]/40 px-1.5 py-0.5 rounded-md uppercase font-black tracking-tighter border border-white/5 shrink-0">
-                              Défaut
-                            </span>
-                          )}
-                        </div>
-
-                        {/* BOUTONS D'ACTIONS (OEIL & SUPPRESSION) */}
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                          {/* Bouton Éditer (Icône & Couleur) */}
-                          <button 
-                            onClick={() => {
-                              const info = getCategoryIconInfo(cat);
-                              setEditingCat({
-                                nom: cat,
-                                icone: info.iconName || 'Tag',
-                                couleur: info.hex || '#818cf8'
-                              });
-                            }}
-                            className="p-1.5 rounded-lg text-white/30 hover:text-indigo-400 hover:bg-white/5 transition-colors cursor-pointer"
-                            title="Modifier l'icône et la couleur"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-
-                          {/* Bouton Oeil (visibilité) */}
-                          <button 
-                            onClick={() => toggleVisibility(cat)}
-                            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                              estMasquee 
-                                ? 'text-rose-500 hover:text-rose-400' 
-                                : 'text-[var(--text-main)]/30 hover:text-emerald-400'
+                        return (
+                          <div
+                            key={grp}
+                            className={`group/pill rounded-xl transition-all flex items-center border shrink-0 ${
+                              isActive
+                                ? 'bg-indigo-600 text-white border-indigo-500 shadow-md'
+                                : 'bg-black/30 border-white/5 text-white/50 hover:text-white hover:bg-white/5'
                             }`}
-                            title={estMasquee ? "Afficher" : "Masquer"}
                           >
-                            {estMasquee ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-
-                          {/* Bouton Supprimer */}
-                          {estPerso && (
-                            <button 
-                              onClick={() => removeCategory(cat)} 
-                              className="p-1.5 rounded-lg text-[var(--text-main)]/30 hover:text-rose-500 transition-colors cursor-pointer"
-                              title="Supprimer"
+                            {/* Clic pour filtrer sur ce groupe */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedGroupFilter(grp)}
+                              className="pl-3 pr-2 py-1.5 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                             >
-                              <Trash2 size={13} />
+                              <Layers size={11} className={isActive ? 'text-white' : 'text-indigo-400'} />
+                              <span>{grp}</span>
+                              <span className={`text-[8px] px-1.5 py-0.2 rounded font-mono ${
+                                isActive ? 'bg-indigo-800 text-white' : 'bg-white/10 text-white/40'
+                              }`}>
+                                {count}
+                              </span>
                             </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
 
-              {/* BOUTON DE RÉINITIALISATION */}
-              {masquees.length > 0 && (
+                            {/* 🟢 BOUTON SUPPRIMER LE GROUPE (✕) */}
+                            {!isGeneral && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteGroup(grp);
+                                }}
+                                className={`pr-2 pl-1 py-1.5 text-white/30 hover:text-rose-400 transition-colors cursor-pointer opacity-50 hover:opacity-100 ${
+                                  isActive ? 'hover:text-rose-200' : ''
+                                }`}
+                                title={`Supprimer le groupe "${grp}"`}
+                              >
+                                <X size={11} />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* 4. LISTE DÉROULANTE À HAUTEUR FIXE (2 ÉTAGES) */}
+                    <div className="flex-1 overflow-y-auto pr-1.5 custom-scrollbar space-y-4 min-h-0">
+                      {(() => {
+                        const matchingCats = toutesLesCategories.filter(cat => {
+                          const matchSearch = !categorySearch.trim() || getCleanCategoryName(cat).toLowerCase().includes(categorySearch.toLowerCase().trim());
+                          const currentGrp = getCategoryGroup(cat);
+                          const matchGroup = selectedGroupFilter === 'all' || currentGrp === selectedGroupFilter;
+                          return matchSearch && matchGroup;
+                        });
+
+                        if (matchingCats.length === 0) {
+                          return (
+                            <div className="py-20 text-center text-white/20 text-xs font-bold uppercase">
+                              Aucune catégorie trouvée
+                            </div>
+                          );
+                        }
+
+                        // Vue groupe unique
+                        if (selectedGroupFilter !== 'all') {
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                              {matchingCats.sort((a, b) => a.localeCompare(b)).map(cat => renderCategoryCard(cat, groupsOptions))}
+                            </div>
+                          );
+                        }
+
+                        // Vue "Tous" rangée sous les titres de groupes
+                        const groupsWithContent = allUniqueGroups.filter(grp => 
+                          matchingCats.some(c => getCategoryGroup(c) === grp)
+                        );
+
+                        return groupsWithContent.map(grp => {
+                          const catsInThisGroup = matchingCats
+                            .filter(c => getCategoryGroup(c) === grp)
+                            .sort((a, b) => a.localeCompare(b));
+
+                          return (
+                            <div key={grp} className="space-y-2">
+                              <div className="flex items-center justify-between px-3 py-1.5 bg-white/[0.02] border border-white/5 rounded-xl">
+                                <div className="flex items-center gap-2">
+                                  <Layers size={13} className="text-indigo-400" />
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-200">
+                                    {grp}
+                                  </span>
+                                </div>
+                                <span className="text-[8px] font-mono font-bold text-white/30">
+                                  {catsInThisGroup.length} catégorie(s)
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                {catsInThisGroup.map(cat => renderCategoryCard(cat, groupsOptions))}
+                              </div>
+                            </div>
+                          );
+                        });
+
+                        function renderCategoryCard(cat, optionsGrp) {
+                          const estMasquee = masquees.includes(cat);
+                          const estPerso = categoriesPerso.includes(cat);
+                          const currentGroup = getCategoryGroup(cat);
+
+                          return (
+                            <div 
+                              key={cat}
+                              className={`group flex flex-col justify-between p-3 rounded-2xl border transition-all relative hover:z-20 focus-within:z-30 ${
+                                estMasquee 
+                                  ? 'bg-black/30 border-white/[0.03] opacity-35' 
+                                  : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04] hover:border-white/10'
+                              }`}
+                            >
+                              {/* Étage 1 : Icône + Titre + Boutons */}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0 pr-1 flex-1">
+                                  <CategoryIcon name={cat} size={14} className="shrink-0" />
+                                  <span className={`text-xs font-bold truncate ${
+                                    estMasquee ? 'text-white/30 line-through' : 'text-white/90 group-hover:text-white'
+                                  }`}>
+                                    {getCleanCategoryName(cat)}
+                                  </span>
+
+                                  {estPerso && (
+                                    <span className="text-[7px] bg-[var(--primary)]/10 text-[var(--primary)] px-1.5 py-0.2 rounded font-black uppercase tracking-wider border border-[var(--primary)]/20 shrink-0">
+                                      Perso
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button 
+                                    type="button"
+                                    onClick={() => {
+                                      const info = getCategoryIconInfo(cat);
+                                      setEditingCat({
+                                        nom: cat,
+                                        icone: info.iconName || 'Tag',
+                                        couleur: info.hex || '#818cf8',
+                                        groupe: currentGroup
+                                      });
+                                    }}
+                                    className="p-1.5 rounded-lg text-white/40 hover:text-indigo-400 hover:bg-white/5 transition-colors cursor-pointer"
+                                    title="Modifier l'icône et la couleur"
+                                  >
+                                    <Edit2 size={12} />
+                                  </button>
+
+                                  <button 
+                                    type="button"
+                                    onClick={() => toggleVisibility(cat)}
+                                    className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                                      estMasquee 
+                                        ? 'text-rose-400 hover:text-rose-300 hover:bg-rose-500/10' 
+                                        : 'text-white/40 hover:text-emerald-400 hover:bg-white/5'
+                                    }`}
+                                    title={estMasquee ? "Afficher" : "Masquer"}
+                                  >
+                                    {estMasquee ? <EyeOff size={12} /> : <Eye size={12} />}
+                                  </button>
+
+                                  {estPerso && (
+                                    <button 
+                                      type="button"
+                                      onClick={() => removeCategory(cat)} 
+                                      className="p-1.5 rounded-lg text-white/30 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                                      title="Supprimer la catégorie"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Étage 2 : CustomSelect du groupe */}
+                              <div className="pt-2 mt-2 border-t border-white/5 flex items-center justify-between gap-2">
+                                <span className="text-[8px] font-black uppercase text-white/30 tracking-wider shrink-0 flex items-center gap-1">
+                                  <Layers size={10} className="text-indigo-400 opacity-60" />
+                                  <span>Groupe :</span>
+                                </span>
+
+                                <div className="flex-1 min-w-0">
+                                  <CustomSelect
+                                    value={currentGroup}
+                                    options={optionsGrp}
+                                    onChange={(newGroup) => handleAssignGroup(cat, newGroup)}
+                                    icon={Layers}
+                                    className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-black/40 border-white/10 h-7"
+                                  />
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        }
+                      })()}
+                    </div>
+                  </>
+                );
+              })()}
+
+            {/* 5. PIED DE PAGE FIXE */}
+            <div className="pt-3.5 border-t border-white/5 flex items-center justify-between shrink-0 mt-auto">
+              {masquees.length > 0 ? (
                 <button 
+                  type="button"
                   onClick={() => setMasquees([])}
-                  className="w-full mt-3 py-2 text-[9px] font-black uppercase tracking-wider text-[var(--text-main)]/30 hover:text-[var(--text-main)] border-t border-white/5 cursor-pointer transition-colors"
+                  className="text-[9px] font-black uppercase tracking-wider text-white/40 hover:text-white transition-colors cursor-pointer"
                 >
                   Réinitialiser la visibilité
                 </button>
-              )}
+              ) : <div />}
+
+              <button 
+                type="button"
+                onClick={() => { setShowListPopover(false); setCategorySearch(''); setSelectedGroupFilter('all'); }}
+                className="px-5 py-2.5 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-white/90 transition-all cursor-pointer shadow-lg active:scale-95"
+              >
+                Terminer
+              </button>
             </div>
+
           </div>
-        </>
+        </div>,
+        document.body
       )}
 
         </div>
@@ -15617,6 +15990,9 @@ if (!user) {
         allPrevisionsAnnee={allPrevisionsAnnee}
         toutesLesTransactions={toutesLesTransactions}
         CustomSelect={CustomSelect}
+        user={user}
+        api={api}
+        fetchCategories={fetchCategories}
       />
     </div>
   </>

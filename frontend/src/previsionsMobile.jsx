@@ -60,19 +60,28 @@ export default function PrevisionsMobile(props) {
       {/* 2. FILTRES DE PÉRIODE (Année actuelle incluse et sélection propre) */}
       <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2 shrink-0">
         <div className="flex justify-between items-center gap-2">
-          <div className="flex bg-black/30 p-0.5 rounded-lg">
-            {['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => (
-              <button
-                key={p}
-                onClick={() => setFilters({...filters, profil: p})}
-                className={`px-2.5 py-1 rounded text-[9px] font-black uppercase transition-all ${
-                  filters.profil === p ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
+          {/* Groupe Profil Mobile Prévisionnel (Sans 'Tous') */}
+            <div className="flex bg-black/30 p-0.5 rounded-lg">
+              {(() => {
+                const groupes = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
+                const liste = groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
+
+                return liste.map(p => {
+                  const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setFilters({...filters, profil: p})}
+                      className={`px-2.5 py-1 rounded text-[9px] font-black uppercase transition-all cursor-pointer ${
+                        isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
 
           {/* 🟢 Années (avec inclusion garantie de l'année en cours) */}
           <div className="flex bg-black/30 p-0.5 rounded-lg">
