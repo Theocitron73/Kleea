@@ -2,17 +2,19 @@ import React, { useState } from 'react';
 import { 
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
-  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet 
+  Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet,
+  Edit2, Sparkles
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
-import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
+import { SketchPicker } from 'react-color';
+import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo } from './categoryIcons';
 
 export default function GererMobile(props) {
   const {
     lastLearned, setLastLearned,
-    toutesLesCategories, masquees, setMasquees, categoriesPerso, categoriesVisibles,
-    addCategory, removeCategory, toggleVisibility,
-    budgets, formBudget, setFormBudget, handleAddBudget,
+    toutesLesCategories = [], masquees = [], setMasquees, categoriesPerso = [], categoriesVisibles = [],
+    addCategory, handleUpdateCategory, removeCategory, toggleVisibility,
+    budgets = [], formBudget, setFormBudget, handleAddBudget,
     showBudgetDetails, setShowBudgetDetails,
     selectedBudgetYear, setSelectedBudgetYear, optionsAnnees,
     listeMoisDisponibles, selectedBudgetMonth, setSelectedBudgetMonth,
@@ -21,18 +23,29 @@ export default function GererMobile(props) {
     statsFiltrées,
     isApprendreActive, setIsApprendreActive,
     showLearningList, setShowLearningList,
-    fetchMemoire, elementsAppris, handleDeleteMemory,
+    fetchMemoire, elementsAppris = [], handleDeleteMemory,
     newTx, setNewTx, selectedDate, setSelectedDate, submitQuickTransaction,
-    transactionsFiltrees, selectedIds, toggleAll, toggleSelect, updateCell,
-    allocations, searchTerm, setSearchTerm,
+    transactionsFiltrees = [], selectedIds = [], toggleAll, toggleSelect, updateCell,
+    allocations = [], searchTerm, setSearchTerm,
     allPrevisionsAnnee = [], toutesLesTransactions = [],
     CustomSelect
   } = props;
 
-  // États locaux spécifiques au mobile
+  // --- ÉTATS LOCAUX DU MOBILE ---
   const [activeSection, setActiveSection] = useState('transactions'); // 'transactions' | 'tools' | 'budgets'
   const [showFilters, setShowFilters] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState(null); // Transaction en cours d'édition mobile
+  const [editingTransaction, setEditingTransaction] = useState(null); // Modale transaction
+
+  // --- ÉTATS CRÉATION DE CATÉGORIE ---
+  const [selectedIconName, setSelectedIconName] = useState('Tag');
+  const [selectedCatColor, setSelectedCatColor] = useState('#818cf8');
+  const [showIconPicker, setShowIconPicker] = useState(false);
+  const [showCatColorPicker, setShowCatColorPicker] = useState(false);
+
+  // --- ÉTATS MODIFICATION DE CATÉGORIE ---
+  const [editingCat, setEditingCat] = useState(null); // { nom, icone, couleur }
+  const [showEditIconPicker, setShowEditIconPicker] = useState(false);
+  const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 
   const extractEmoji = (str) => {
     if (!str) return null;
@@ -41,12 +54,35 @@ export default function GererMobile(props) {
     return match ? match[0] : null;
   };
 
+  // Sauvegarder la création d'une catégorie
+  const handleCreateCategory = () => {
+    const input = document.getElementById('catInputMobile');
+    const nom = input?.value?.trim();
+    if (nom) {
+      if (addCategory) {
+        addCategory(nom, selectedIconName, selectedCatColor);
+      }
+      if (input) input.value = '';
+      setSelectedIconName('Tag');
+      setSelectedCatColor('#818cf8');
+    }
+  };
+
+  // Sauvegarder la modification d'une catégorie
+  const handleSaveCategoryEdit = async () => {
+    if (!editingCat) return;
+    if (handleUpdateCategory) {
+      await handleUpdateCategory(editingCat.nom, editingCat.icone, editingCat.couleur);
+    }
+    setEditingCat(null);
+  };
+
   // Gérer l'ouverture du volet d'édition mobile d'une transaction
   const openEditTx = (tx) => {
     setEditingTransaction({ ...tx });
   };
 
-  // Enregistrer les modifications depuis la modale mobile
+  // Enregistrer les modifications depuis la modale mobile de transaction
   const handleSaveMobileTx = async () => {
     if (!editingTransaction) return;
     
@@ -56,7 +92,6 @@ export default function GererMobile(props) {
     await updateCell(editingTransaction.id, 'categorie', editingTransaction.categorie);
     await updateCell(editingTransaction.id, 'mois', editingTransaction.mois);
     await updateCell(editingTransaction.id, 'enveloppe', editingTransaction.enveloppe);
-    // 💡 Mise à jour de la prévision liée
     await updateCell(editingTransaction.id, 'prevision_id', editingTransaction.prevision_id ? parseInt(editingTransaction.prevision_id) : null);
     
     setEditingTransaction(null);
@@ -113,7 +148,7 @@ export default function GererMobile(props) {
         
         <button 
           onClick={() => setShowFilters(!showFilters)}
-          className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${
+          className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
             showFilters || selectedCompte !== 'tous' 
               ? 'bg-[var(--primary)] border-[var(--primary)] text-white' 
               : 'bg-[var(--glass-bg)] border-white/10 text-white/60'
@@ -125,7 +160,7 @@ export default function GererMobile(props) {
       </div>
 
       {/* RECAP MENSUEL RAPIDE */}
-      <div className="grid grid-cols-3 gap-2 mb-4 bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl">
+      <div className="grid grid-cols-3 gap-2 mb-4 bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl select-none">
         <div className="text-center">
           <p className="text-[8px] font-bold text-white/30 uppercase">Entrées</p>
           <p className="text-xs font-mono font-black text-emerald-400 mt-0.5">+{statsFiltrées.revenus.toFixed(0)}€</p>
@@ -202,7 +237,7 @@ export default function GererMobile(props) {
       <div className="flex border-b border-white/5 mb-4 select-none">
         <button 
           onClick={() => setActiveSection('transactions')}
-          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             activeSection === 'transactions' 
               ? 'border-[var(--primary)] text-[var(--primary)]' 
               : 'border-transparent text-white/40'
@@ -212,7 +247,7 @@ export default function GererMobile(props) {
         </button>
         <button 
           onClick={() => setActiveSection('tools')}
-          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             activeSection === 'tools' 
               ? 'border-[var(--primary)] text-[var(--primary)]' 
               : 'border-transparent text-white/40'
@@ -222,7 +257,7 @@ export default function GererMobile(props) {
         </button>
         <button 
           onClick={() => setActiveSection('budgets')}
-          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             activeSection === 'budgets' 
               ? 'border-[var(--primary)] text-[var(--primary)]' 
               : 'border-transparent text-white/40'
@@ -253,8 +288,8 @@ export default function GererMobile(props) {
             )}
           </div>
 
-          <div className="flex items-center gap-2 px-1 py-1 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl">
-            <span className="text-[11px] pl-1">💡</span>
+          <div className="flex items-center gap-2 px-2 py-1.5 bg-[var(--primary)]/5 border border-[var(--primary)]/10 rounded-xl">
+            <span className="text-[11px]">💡</span>
             <span className="text-[9px] font-black text-indigo-300/80 uppercase tracking-wider">
               Touchez une transaction pour la modifier ou la lier
             </span>
@@ -263,7 +298,6 @@ export default function GererMobile(props) {
           <div className="space-y-2 mt-2">
             {transactionsFiltrees.length > 0 ? (
               transactionsFiltrees.map((t) => {
-                // 💡 Distinction précise : virement interne vs externe
                 const isTransfertInterne = Boolean(
                   t.categorie && (
                     t.categorie.includes(" vers ") || 
@@ -273,21 +307,13 @@ export default function GererMobile(props) {
                 );
                 const isRevenu = parseFloat(t.montant) > 0;
 
-                // 💡 Prévision liée
                 const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
-                let nomPrevAssociee = null;
-                let emojiPrevAssociee = null;
-                if (prevAssociee) {
-                  const rawNom = prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '');
-                  emojiPrevAssociee = extractEmoji(rawNom) || extractEmoji(prevAssociee.categorie) || (isRevenu ? "💰" : "📌");
-                  nomPrevAssociee = rawNom.replace(emojiPrevAssociee, '').trim() || rawNom;
-                }
                 
                 return (
                   <div 
                     key={t.id} 
                     onClick={() => openEditTx(t)}
-                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all"
+                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all cursor-pointer"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className={`w-2.5 h-10 rounded-full shrink-0 ${
@@ -301,13 +327,11 @@ export default function GererMobile(props) {
                             {t.compte}
                           </span>
                           
-                          {/* 💡 Catégorie avec son icône vectorielle */}
                           <div className="flex items-center gap-1 bg-[var(--primary)]/10 text-[var(--primary)]/90 px-1.5 py-0.5 rounded font-black max-w-[110px] truncate">
                             <CategoryIcon name={t.categorie} size={11} />
                             <span className="truncate">{getCleanCategoryName(t.categorie) || "Autre"}</span>
                           </div>
 
-                          {/* 💡 Badge Prévision liée avec l'icône de sa catégorie */}
                           {prevAssociee && (
                             <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[105px] truncate flex items-center gap-1">
                               <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
@@ -359,6 +383,7 @@ export default function GererMobile(props) {
       {activeSection === 'tools' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
+          {/* SAISIE EXPRESS DE TRANSACTION */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Plus size={12} /> Nouvelle Transaction Express
@@ -425,78 +450,178 @@ export default function GererMobile(props) {
                     document.getElementById('quick-montant-mobile').value = '';
                   }
                 }}
-                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-2 shadow-lg"
+                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-2 shadow-lg cursor-pointer"
               >
                 Valider et Enregistrer
               </button>
             </div>
           </div>
 
-          {/* CRÉER UNE CATÉGORIE */}
-          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
-            <h3 className="text-[10px] font-black uppercase text-white/60 tracking-widest mb-3">
-              Créer une Catégorie
+          {/* 🟢 CRÉER UNE CATÉGORIE PERSONNALISÉE SUR MOBILE (AVEC ICÔNE ET COULEUR) */}
+          <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl relative">
+            <h3 className="text-[10px] font-black uppercase text-white/80 tracking-widest mb-3 flex items-center gap-2">
+              <Sparkles size={12} className="text-indigo-400" /> Créer une Catégorie
             </h3>
-            <div className="flex gap-2">
-              <input 
-                type="text" 
-                id="catInputMobile"
-                placeholder="Intitulé de la catégorie..." 
-                className="flex-1 bg-black/30 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
-              />
+
+            <div className="bg-black/40 border border-white/5 rounded-2xl p-3 space-y-3">
+              <div className="flex items-center gap-2.5">
+                
+                {/* 1. Choix d'icône */}
+                <div className="relative">
+                  <button 
+                    type="button"
+                    onClick={() => setShowIconPicker(!showIconPicker)}
+                    className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center hover:bg-white/10 transition-all cursor-pointer shadow-inner shrink-0"
+                    title="Changer d'icône"
+                  >
+                    <CategoryIcon name={selectedIconName} size={18} style={{ color: selectedCatColor }} />
+                  </button>
+
+                  {showIconPicker && (
+                    <LucideIconPicker 
+                      selectedIcon={selectedIconName}
+                      onSelectIcon={(iconName) => {
+                        setSelectedIconName(iconName);
+                        setShowIconPicker(false);
+                      }}
+                      onClose={() => setShowIconPicker(false)}
+                    />
+                  )}
+                </div>
+
+                {/* 2. Choix de couleur */}
+                <div className="relative">
+                  <button 
+                    type="button"
+                    onClick={() => setShowCatColorPicker(!showCatColorPicker)}
+                    className="w-7 h-7 rounded-lg border border-white/20 hover:scale-110 active:scale-95 transition-all cursor-pointer shadow-md shrink-0"
+                    style={{ backgroundColor: selectedCatColor }}
+                    title="Changer la couleur"
+                  />
+
+                  {showCatColorPicker && (
+                    <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                      <div className="fixed inset-0" onClick={() => setShowCatColorPicker(false)} />
+                      <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl z-10 animate-in zoom-in-95">
+                        <SketchPicker 
+                          color={selectedCatColor} 
+                          onChange={(c) => setSelectedCatColor(c.hex)} 
+                          disableAlpha 
+                        />
+                        <button
+                          onClick={() => setShowCatColorPicker(false)}
+                          className="w-full py-2 bg-indigo-600 text-white font-black text-xs uppercase tracking-wider cursor-pointer"
+                        >
+                          Confirmer la couleur
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Input du Nom */}
+                <input 
+                  type="text" 
+                  id="catInputMobile"
+                  placeholder="Intitulé (ex: Cinéma)..." 
+                  className="flex-1 bg-transparent border-b border-white/10 text-xs font-bold text-white outline-none px-2 py-1 placeholder:text-white/20 focus:border-indigo-400 transition-colors"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateCategory();
+                  }}
+                />
+              </div>
+
+              {/* Bouton Créer */}
               <button 
-                onClick={() => {
-                  const input = document.getElementById('catInputMobile');
-                  if(input.value.trim()) {
-                    addCategory(input.value.trim());
-                    input.value = '';
-                  }
-                }}
-                className="bg-[var(--primary)] px-4 py-2 rounded-xl text-xs font-black"
+                onClick={handleCreateCategory}
+                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest flex items-center justify-center gap-1.5 shadow-lg active:scale-95 transition-all cursor-pointer"
               >
-                Créer
+                <Plus size={13} strokeWidth={3} /> Créer la catégorie
               </button>
             </div>
           </div>
 
-          {/* VISIBILITÉ DES CATÉGORIES */}
+          {/* 🟢 GÉRER ET MODIFIER LES CATÉGORIES EXISTANTES SUR MOBILE */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-[10px] font-black uppercase text-white/60 tracking-widest">
-                Activer / Masquer les Catégories
-              </h3>
-              <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-black">
+              <div>
+                <h3 className="text-[10px] font-black uppercase text-white/80 tracking-widest">
+                  Liste des Catégories
+                </h3>
+                <p className="text-[8px] text-white/30 uppercase font-bold">Modifier l'icône, couleur ou visibilité</p>
+              </div>
+              <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-black border border-emerald-500/20">
                 {toutesLesCategories.length - masquees.length} Actives
               </span>
             </div>
 
-            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
               {[...toutesLesCategories]
-                .sort((a,b) => a.localeCompare(b))
+                .sort((a,b) => {
+                  const aEstPerso = categoriesPerso.includes(a);
+                  const bEstPerso = categoriesPerso.includes(b);
+                  if (aEstPerso && !bEstPerso) return -1;
+                  if (!aEstPerso && bEstPerso) return 1;
+                  return a.localeCompare(b);
+                })
                 .map(cat => {
                   const estMasquee = masquees.includes(cat);
                   const estPerso = categoriesPerso.includes(cat);
                   
                   return (
-                    <div key={cat} className="flex items-center justify-between p-2 bg-black/20 rounded-xl">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
-                          <CategoryIcon name={cat} size={14} />
+                    <div key={cat} className={`flex items-center justify-between p-2 rounded-xl border transition-all ${
+                      estMasquee ? 'bg-black/20 border-white/5 opacity-40' : 'bg-black/30 border-white/5 hover:border-white/15'
+                    }`}>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-7 h-7 rounded-lg bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0">
+                          <CategoryIcon name={cat} size={15} />
                         </div>
-                        <span className={`text-xs font-bold ${estMasquee ? 'text-white/20 line-through' : 'text-white/80'}`}>
-                          {getCleanCategoryName(cat)}
-                        </span>
+                        <div className="flex flex-col min-w-0">
+                          <span className={`text-xs font-bold truncate ${estMasquee ? 'text-white/30 line-through' : 'text-white/90'}`}>
+                            {getCleanCategoryName(cat)}
+                          </span>
+                          {estPerso && (
+                            <span className="text-[7px] text-indigo-300 font-bold uppercase tracking-wider">
+                              Personnelle
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
-                      <div className="flex items-center gap-1">
+                      {/* BOUTONS D'ACTION SUR LA CATÉGORIE */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* ✏️ Bouton Modifier Icône & Couleur */}
+                        <button 
+                          onClick={() => {
+                            const info = getCategoryIconInfo(cat);
+                            setEditingCat({
+                              nom: cat,
+                              icone: info.iconName || 'Tag',
+                              couleur: info.hex || '#818cf8'
+                            });
+                          }}
+                          className="p-1.5 rounded-lg text-white/40 hover:text-indigo-400 hover:bg-white/5 transition-colors cursor-pointer"
+                          title="Modifier l'icône et la couleur"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+
+                        {/* 👁️ Bouton Masquer / Afficher */}
                         <button 
                           onClick={() => toggleVisibility(cat)}
-                          className={`p-1.5 rounded-lg ${estMasquee ? 'text-rose-400' : 'text-white/40 hover:text-white'}`}
+                          className={`p-1.5 rounded-lg transition-colors cursor-pointer ${estMasquee ? 'text-rose-400 hover:text-rose-300' : 'text-white/40 hover:text-emerald-400'}`}
+                          title={estMasquee ? "Afficher" : "Masquer"}
                         >
-                          {estMasquee ? <EyeOff size={14} /> : <Eye size={14} />}
+                          {estMasquee ? <EyeOff size={13} /> : <Eye size={13} />}
                         </button>
+
+                        {/* 🗑️ Bouton Supprimer (uniquement pour les catégories perso) */}
                         {estPerso && (
-                          <button onClick={() => removeCategory(cat)} className="p-1.5 rounded-lg text-rose-500/70">
+                          <button 
+                            onClick={() => removeCategory(cat)} 
+                            className="p-1.5 rounded-lg text-rose-500/60 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            title="Supprimer la catégorie"
+                          >
                             <Trash2 size={13} />
                           </button>
                         )}
@@ -572,7 +697,7 @@ export default function GererMobile(props) {
 
               <button 
                 onClick={handleAddBudget}
-                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1"
+                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1 cursor-pointer"
               >
                 Fixer Objectif
               </button>
@@ -593,7 +718,7 @@ export default function GererMobile(props) {
               const estDepasse = depenseReelle > b.somme;
 
               return (
-                <div key={b.id} className="p-3 bg-[var(--glass-bg)] border border-white/5 rounded-2xl">
+                <div key={b.id || `${b.nom}-${b.mois}`} className="p-3 bg-[var(--glass-bg)] border border-white/5 rounded-2xl">
                   <div className="flex items-start justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <CategoryIcon name={b.nom} size={15} />
@@ -622,6 +747,112 @@ export default function GererMobile(props) {
             })}
           </div>
 
+        </div>
+      )}
+
+      {/* =========================================================================
+          🟢 MODALE MOBILE D'ÉDITION DE CATÉGORIE (ICÔNE ET COULEUR)
+          ========================================================================= */}
+      {editingCat && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setEditingCat(null)} />
+          
+          <div 
+            className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 space-y-4 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <div>
+                <h4 className="text-xs font-black uppercase text-indigo-400 tracking-widest">
+                  Personnaliser la catégorie
+                </h4>
+                <p className="text-[10px] text-white/60 font-bold uppercase mt-0.5">
+                  {getCleanCategoryName(editingCat.nom)}
+                </p>
+              </div>
+              <button 
+                onClick={() => setEditingCat(null)} 
+                className="text-white/40 hover:text-white p-1 rounded-lg"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Prévisualisation de l'icône colorée */}
+            <div className="flex items-center justify-center p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
+              <CategoryIcon 
+                name={editingCat.icone} 
+                size={38} 
+                color={editingCat.couleur} 
+              />
+            </div>
+
+            {/* Boutons Sélection Icône & Couleur */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* Choix d'icône */}
+              <div className="relative">
+                <button 
+                  type="button"
+                  onClick={() => setShowEditIconPicker(!showEditIconPicker)}
+                  className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Tag size={13} />
+                  <span>Icône</span>
+                </button>
+
+                {showEditIconPicker && (
+                  <LucideIconPicker 
+                    selectedIcon={editingCat.icone}
+                    onSelectIcon={(icon) => {
+                      setEditingCat({ ...editingCat, icone: icon });
+                      setShowEditIconPicker(false);
+                    }}
+                    onClose={() => setShowEditIconPicker(false)}
+                  />
+                )}
+              </div>
+
+              {/* Choix de couleur */}
+              <div className="relative">
+                <button 
+                  type="button"
+                  onClick={() => setShowEditColorPicker(!showEditColorPicker)}
+                  className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <div className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: editingCat.couleur }} />
+                  <span>Couleur</span>
+                </button>
+
+                {showEditColorPicker && (
+                  <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+                    <div className="fixed inset-0" onClick={() => setShowEditColorPicker(false)} />
+                    <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl z-10 animate-in zoom-in-95">
+                      <SketchPicker 
+                        color={editingCat.couleur} 
+                        onChange={(c) => setEditingCat({ ...editingCat, couleur: c.hex })} 
+                        disableAlpha 
+                      />
+                      <button
+                        onClick={() => setShowEditColorPicker(false)}
+                        className="w-full py-2 bg-indigo-600 text-white font-black text-xs uppercase tracking-wider cursor-pointer"
+                      >
+                        Valider la couleur
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bouton de validation */}
+            <button 
+              type="button"
+              onClick={handleSaveCategoryEdit}
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer mt-2"
+            >
+              Enregistrer les modifications
+            </button>
+          </div>
         </div>
       )}
 
@@ -784,7 +1015,7 @@ export default function GererMobile(props) {
               <button 
                 type="button"
                 onClick={() => setEditingTransaction(null)}
-                className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl"
+                className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer"
               >
                 Annuler
               </button>

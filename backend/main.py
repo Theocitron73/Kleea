@@ -4406,3 +4406,99 @@ def disconnect_powens(username: str):
         conn.execute(text("UPDATE configuration SET powens_name = NULL WHERE LOWER(utilisateur) = LOWER(:u)"), {"u": user_clean})
 
     return {"status": "success", "message": "Accès bancaire Powens et identifiant supprimés avec succès."}
+
+@app.post("/powens/reconcile-and-recalculate/{username}")
+def reconcile_and_recalculate_all(username: str):
+    """
+    Déclenché lors de l'ajout ou la modification d'un compte :
+    1. Re-scanne les transactions pour lier les virements miroirs avec le nouveau compte.
+    2. Re-scanne les IBANs des comptes d'épargne.
+    3. Recalcule automatiquement les soldes initiaux de tous les comptes.
+    """
+    user_clean = username.lower().strip()
+
+    with engine.begin() as conn:
+        # 1. Récupérer tous les comptes de l'utilisateur
+        query_config = text("SELECT compte, powens_name, groupe FROM configuration WHERE LOWER(utilisateur) = :u")
+        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+        
+        if not config_rows:
+            return {"status": "success", "message": "Aucun compte configuré."}
+
+        decrypted_config = [
+            (row[0], decrypt_iban(row[1]) if row[1] else None, row[2])
+            for row in config_rows
+        ]
+
+        # 2. Récupérer toutes les transactions de l'utilisateur
+        query_tx = text("""
+            SELECT id, date, montant, nom, compte, categorie 
+            FROM transactions 
+            WHERE LOWER(utilisateur) = :u
+            ORDER BY date ASC, id ASC
+        """)
+        all_txs = [dict(r) for r in conn.execute(query_tx, {"u": user_clean}).mappings().all()]
+
+        updates_to_make = []
+
+        # A. Réconciliation par Paire Miroir Débit/Crédit (+/- montant sous 48h)
+        debits = [t for t in all_txs if float(t["montant"]) < 0]
+        credits = [t for t in all_txs if float(t["montant"]) > 0]
+        matched_credit_ids = set()
+
+        for d in debits:
+            d_montant = abs(float(d["montant"]))
+            d_date = datetime.strptime(str(d["date"]).split(" ")[0], "%Y-%m-%d")
+            d_compte = d["compte"]
+
+            for c in credits:
+                if c["id"] in matched_credit_ids:
+                    continue
+                if c["compte"].strip().upper() == d_compte.strip().upper():
+                    continue
+
+                c_montant = float(c["montant"])
+                if abs(d_montant - c_montant) < 0.01:
+                    c_date = datetime.strptime(str(c["date"]).split(" ")[0], "%Y-%m-%d")
+                    if abs((d_date - c_date).days) <= 2:
+                        matched_credit_ids.add(c["id"])
+                        cat_nom = f"Virement : {d_compte} vers {c['compte']}"
+                        updates_to_make.append((cat_nom, d["id"]))
+                        updates_to_make.append((cat_nom, c["id"]))
+                        break
+
+        # B. Réconciliation par IBAN déchiffré (pour les livrets non connectés à Powens)
+        for (compte_nom, iban_dechiffre, _) in decrypted_config:
+            if not iban_dechiffre:
+                continue
+            iban_clean = iban_dechiffre.replace(" ", "").upper()
+            if len(iban_clean) < 6:
+                continue
+
+            for t in all_txs:
+                if t["compte"].strip().upper() == compte_nom.strip().upper():
+                    continue
+                nom_compact = (t["nom"] or "").upper().replace(" ", "")
+                if iban_clean in nom_compact:
+                    montant = float(t["montant"])
+                    cat_nom = f"Virement : {t['compte']} vers {compte_nom}" if montant < 0 else f"Virement : {compte_nom} vers {t['compte']}"
+                    updates_to_make.append((cat_nom, t["id"]))
+
+        # Application des nouvelles catégories en base
+        for cat_nom, tx_id in updates_to_make:
+            conn.execute(
+                text("UPDATE transactions SET categorie = :cat WHERE id = :id"),
+                {"cat": cat_nom, "id": tx_id}
+            )
+
+    # 3. Recalcul automatique des soldes initiaux
+    try:
+        recalculate_initial_balances(user_clean)
+    except Exception as e:
+        print(f"⚠️ Recalcul des soldes : {e}")
+
+    return {
+        "status": "success",
+        "updated_transfers": len(updates_to_make),
+        "message": "Virements internes et soldes initiaux synchronisés avec succès."
+    }

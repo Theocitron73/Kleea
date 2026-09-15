@@ -7605,7 +7605,6 @@ const handleAddCompte = async (e) => {
     return;
   }
 
-  // Si un type est choisi (ex: CCP), on assemble proprement "CCP - NOM"
   const finalCompteName = selectedType ? `${selectedType} - ${nomSaisi}` : nomSaisi;
 
   const nouveauCompte = {
@@ -7627,33 +7626,31 @@ const handleAddCompte = async (e) => {
     setNewCompteColor("#6366f1"); 
     setCreationPowensName(""); 
     setShowAddPicker(false);
-    await fetchComptes();   
-    await fetchCategories(); 
-
-    // 🟢 IMPORT IMMÉDIAT LORS DE LA CRÉATION
-    if (importMode === 'auto' && creationPowensName) {
+    
+    // 🟢 EN MODE AUTO : Réconciliation immédiate des virements + recalibrage des soldes
+    if (importMode === 'auto') {
       try {
         await api.post(`/powens/sync-user/${user}`);
-        await api.post(`/powens/recalculate-balances/${user}`);
+        await api.post(`/powens/reconcile-and-recalculate/${user}`);
         await fetchTransactions();
         await fetchComptes();
-        
-        // 🟢 DÉCLENCHEMENT DE LA MODALE STYLÉE
+
         setCelebrationModal({
           show: true,
           accountName: finalCompteName,
           count: toutesLesTransactions.length
         });
       } catch (syncErr) {
-        console.error("Échec de l'importation initiale:", syncErr);
-        setNotification({ message: "Erreur lors de l'importation initiale.", type: "error" });
+        console.error("Échec du recalibrage automatique:", syncErr);
       }
+    } else {
+      await fetchComptes();   
+      await fetchCategories(); 
     }
   } catch (err) {
-    alert("Erreur lors de l'ajout");
+    alert("Erreur lors de l'ajout du compte.");
   }
 };
-
 
 
   // Fonction pour mettre à jour un compte au moment où on finit de taper
@@ -9969,7 +9966,6 @@ useEffect(() => {
 const handleAssociateAccount = async (powensAccountName, targetCompte) => {
   try {
     const targetCompteName = targetCompte || "";
-    
     const localCompteObj = targetCompteName
       ? comptes?.find((c) => c.compte === targetCompteName)
       : comptes?.find((c) => (c.powens_name || "").trim().toUpperCase() === powensAccountName.trim().toUpperCase());
@@ -9994,30 +9990,24 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
       updatedCompte
     );
 
-    if (typeof setComptes === "function") {
-      setComptes((prevComptes) =>
-        prevComptes.map((c) =>
-          c.compte === localCompteObj.compte ? { ...c, powens_name: newPowensName } : c
-        )
-      );
-    }
-
-    if (importMode === 'auto' && newPowensName) {
+    // 🟢 EN MODE AUTO : Recalibrage rétroactif complet dès la liaison
+    if (importMode === 'auto') {
       try {
-        const syncRes = await api.post(`/powens/sync-user/${user}`);
-        await api.post(`/powens/recalculate-balances/${user}`);
+        await api.post(`/powens/sync-user/${user}`);
+        await api.post(`/powens/reconcile-and-recalculate/${user}`);
         await fetchTransactions();
         await fetchComptes();
 
-        // 🟢 DÉCLENCHEMENT DE LA MODALE STYLÉE
         setCelebrationModal({
           show: true,
           accountName: localCompteObj.compte,
-          count: syncRes.data?.added || 0
+          count: 0
         });
       } catch (syncErr) {
-        console.error("Échec de la synchronisation:", syncErr);
+        console.error("Échec recalibrage:", syncErr);
       }
+    } else {
+      fetchComptes();
     }
 
     setTimeout(() => {
@@ -10025,7 +10015,7 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
     }, 100);
 
   } catch (err) {
-    console.error("❌ Erreur lors de l'association:", err.response?.data || err);
+    console.error("Erreur lors de l'association:", err);
   }
 };
 
@@ -15468,6 +15458,7 @@ if (!user) {
         categoriesPerso={categoriesPerso}
         categoriesVisibles={categoriesVisibles}
         addCategory={addCategory}
+        handleUpdateCategory={handleUpdateCategory}
         removeCategory={removeCategory}
         toggleVisibility={toggleVisibility}
         budgets={budgets}
