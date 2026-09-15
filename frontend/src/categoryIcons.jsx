@@ -49,10 +49,11 @@ export const ICON_CATEGORIES = [
     label: 'Famille, Couple & Social',
     icon: Users,
     icons: [
-      'Users', 'UsersRound', 'User', 'UserRound', 'UserPlus', 'UserCheck',
-      'Heart', 'HeartHandshake', 'Handshake', 'Baby', 'PersonStanding',
-      'Smile', 'SmilePlus', 'Contact', 'ContactRound', 'PartyPopper',
-      'Sparkles', 'Gift', 'Cake', 'Camera', 'MessagesSquare', 'Share2'
+      'Users', 'UsersRound', 'User', 'UserRound', 'UserPlus', 'UserCheck', 'UserMinus', 'UserX', 'UserCog',
+      'Heart', 'HeartHandshake', 'Handshake', 'HandHeart', 'Baby', 'PersonStanding',
+      'Smile', 'SmilePlus', 'Laugh', 'PartyPopper', 'Sparkles', 'Gift', 'Cake', 'CakeSlice',
+      'Contact', 'ContactRound', 'MessagesSquare', 'MessageCircle', 'MessageSquare', 'Speech',
+      'Camera', 'Share2', 'IdCard', 'BellRing'
     ]
   },
   {
@@ -60,11 +61,12 @@ export const ICON_CATEGORIES = [
     label: 'Transports & Véhicules',
     icon: Car,
     icons: [
-      'Car', 'CarFront', 'CarTaxiFront', 'Bus', 'BusFront', 
+      'Car', 'CarFront', 'CarTaxiFront', 'Truck', 'Bus', 'BusFront', 
       'Train', 'TrainFront', 'TrainTrack', 'TramFront', 'TrainFrontTunnel',
-      'Bike', 'Plane', 'PlaneTakeoff', 'PlaneLanding', 'Ship', 'Sailboat',
-      'Fuel', 'CircleParking', 'Milestone', 'Navigation', 'Compass', 
-      'MapPin', 'Map', 'Truck', 'Rocket', 'CableCar', 'Ticket', 'Footprints'
+      'Bike', 'Plane', 'PlaneTakeoff', 'PlaneLanding', 'Ship', 'Sailboat', 'Anchor',
+      'Fuel', 'Gauge', 'CircleParking', 'CircleParkingOff', 'Milestone', 'Navigation', 'Navigation2', 
+      'Compass', 'MapPin', 'MapPinned', 'Map', 'Route', 'Rocket', 'CableCar', 
+      'Ticket', 'Tickets', 'Footprints', 'Luggage'
     ]
   },
   {
@@ -72,11 +74,12 @@ export const ICON_CATEGORIES = [
     label: 'Alimentation & Sorties',
     icon: Utensils,
     icons: [
-      'Utensils', 'UtensilsCrossed', 'Pizza', 'Coffee', 'Wine', 'Beer', 
-      'CupSoda', 'Cake', 'Cookie', 'Apple', 'Carrot', 'Soup', 'Fish', 
-      'Egg', 'Sandwich', 'Popcorn', 'Candy', 'Cherry', 'Citrus', 'IceCream', 
-      'Croissant', 'Beef', 'Salad', 'Martini', 'Grape', 'ChefHat',
-      'ShoppingBag', 'ShoppingCart', 'ShoppingBasket'
+      'Utensils', 'UtensilsCrossed', 'Pizza', 'Coffee', 'Wine', 'Beer', 'Martini', 'GlassWater',
+      'CupSoda', 'Cake', 'CakeSlice', 'Cookie', 'Donut', 'Croissant', 'Sandwich',
+      'Apple', 'Banana', 'Carrot', 'Citrus', 'Cherry', 'Grape', 'Salad', 'Soup',
+      'Fish', 'Egg', 'EggFried', 'Beef', 'Drumstick', 'Popcorn', 'Candy', 'CandyCane',
+      'IceCream', 'IceCreamCone', 'Milk', 'Nut', 'ChefHat',
+      'ShoppingBag', 'ShoppingCart', 'ShoppingBasket', 'Store'
     ]
   },
   {
@@ -84,11 +87,12 @@ export const ICON_CATEGORIES = [
     label: 'Logement, Maison & Énergie',
     icon: Home,
     icons: [
-      'Home', 'Building', 'Building2', 'Armchair', 'Bed', 'Bath', 'Lamp', 
-      'Tv', 'WashingMachine', 'DoorClosed', 'Key', 'Droplets', 'Flame', 
-      'Zap', 'Plug', 'Wrench', 'Hammer', 'Paintbrush', 'PaintBucket', 
-      'Trash2', 'Fan', 'ShieldCheck', 'ShowerHead', 'Couch', 'Sofa', 
-      'TreePine', 'Heater', 'Boxes', 'Warehouse'
+      'Home', 'Building', 'Building2', 'Castle', 'Warehouse', 'DoorClosed', 'DoorOpen', 'Key', 'KeyRound',
+      'Armchair', 'Bed', 'BedDouble', 'BedSingle', 'Bath', 'ShowerHead', 'Couch', 'Sofa',
+      'Lamp', 'LampDesk', 'LampCeiling', 'LampFloor', 'Tv', 'WashingMachine', 'Refrigerator', 'Fan', 'Heater', 'AirVent', 'Blinds',
+      'Droplets', 'Droplet', 'Flame', 'Zap', 'Plug', 'Plug2', 'PlugZap',
+      'Wrench', 'Hammer', 'Paintbrush', 'PaintBucket', 'Construction',
+      'Boxes', 'Trash2', 'ShieldCheck', 'Fence'
     ]
   },
   {
@@ -96,10 +100,10 @@ export const ICON_CATEGORIES = [
     label: 'Shopping, Mode & Cadeaux',
     icon: ShoppingBag,
     icons: [
-      'ShoppingBag', 'ShoppingCart', 'ShoppingBasket', 'Store', 'Tag', 
-      'Shirt', 'Watch', 'Glasses', 'Gem', 'Crown', 'Gift', 'Package', 
-      'Box', 'Footprints', 'Luggage', 'Sparkles', 'Scissors', 'Barcode', 
-      'Receipt', 'Percent', 'BadgePercent'
+      'ShoppingBag', 'ShoppingCart', 'ShoppingBasket', 'Store', 'Tag', 'Tags',
+      'Shirt', 'Watch', 'Glasses', 'Gem', 'Crown', 'Gift', 'Package', 'PackagePlus', 'PackageCheck', 'PackageOpen', 'Box',
+      'Footprints', 'Luggage', 'Sparkles', 'Scissors', 'Barcode', 
+      'Receipt', 'ReceiptEuro', 'ReceiptText', 'Percent', 'BadgePercent', 'BadgePlus'
     ]
   },
   {
@@ -107,11 +111,12 @@ export const ICON_CATEGORIES = [
     label: 'Finance, Banque & Travail',
     icon: Briefcase,
     icons: [
-      'Briefcase', 'Wallet', 'Landmark', 'Banknote', 'Coins', 'PiggyBank', 
-      'CreditCard', 'Receipt', 'Scale', 'TrendingUp', 'TrendingDown', 
-      'Percent', 'Calculator', 'FileText', 'BadgePercent', 'DollarSign', 
-      'Euro', 'HandCoins', 'ArrowRightLeft', 'ArrowDownLeft', 'Send', 
-      'Vault', 'Shield'
+      'Briefcase', 'BriefcaseBusiness', 'Wallet', 'WalletCards', 'Landmark', 'Banknote', 
+      'Coins', 'PiggyBank', 'CreditCard', 'Receipt', 'ReceiptEuro', 'ReceiptText', 
+      'Scale', 'TrendingUp', 'TrendingDown', 'ChartLine', 'ChartBar', 'ChartPie', 'ChartCandlestick',
+      'Percent', 'BadgePercent', 'Calculator', 'FileText', 'FileSpreadsheet',
+      'DollarSign', 'Euro', 'PoundSterling', 'HandCoins', 
+      'ArrowRightLeft', 'ArrowDownLeft', 'ArrowUpRight', 'Send', 'Vault', 'Shield', 'ShieldCheck', 'CircleDollarSign'
     ]
   },
   {
@@ -119,10 +124,12 @@ export const ICON_CATEGORIES = [
     label: 'Loisirs, Sport & Culture',
     icon: Gamepad2,
     icons: [
-      'Gamepad2', 'Gamepad', 'Film', 'Clapperboard', 'Music', 'Headphones', 
-      'Mic', 'Camera', 'Video', 'Trophy', 'Medal', 'Dumbbell', 'Dice1', 
-      'Dice5', 'Palette', 'PartyPopper', 'Theater', 'Guitar', 'Radio', 
-      'Tv2', 'Ticket', 'Tent', 'Mountain', 'FerrisWheel'
+      'Gamepad2', 'Gamepad', 'Film', 'Clapperboard', 'Video', 'Camera',
+      'Music', 'Music2', 'Music3', 'Music4', 'Headphones', 'Mic', 'Mic2', 'Guitar', 'Piano', 'Radio', 'CassetteTape', 'Disc', 'Disc3',
+      'Trophy', 'Medal', 'Award', 'Dumbbell', 
+      'Dice1', 'Dice2', 'Dice3', 'Dice4', 'Dice5', 'Dice6', 'Dices', 
+      'Palette', 'PartyPopper', 'Theater', 'Tv2', 'Ticket', 'Tickets', 
+      'Tent', 'Mountain', 'MountainSnow', 'FerrisWheel', 'RollerCoaster', 'Crosshair'
     ]
   },
   {
@@ -130,9 +137,10 @@ export const ICON_CATEGORIES = [
     label: 'Tech, Médias & Réseaux',
     icon: Smartphone,
     icons: [
-      'Smartphone', 'Tablet', 'Laptop', 'Monitor', 'Wifi', 'Cpu', 
-      'HardDrive', 'BatteryCharging', 'Server', 'Bluetooth', 'Cloud', 
-      'QrCode', 'Printer', 'Bot', 'Code', 'Terminal', 'Radio', 'Tv'
+      'Smartphone', 'SmartphoneCharging', 'SmartphoneNfc', 'Tablet', 'Laptop', 'Monitor', 'MonitorSmartphone', 'MonitorSpeaker',
+      'Wifi', 'Cpu', 'HardDrive', 'HardDriveDownload', 'HardDriveUpload', 'BatteryCharging', 'Battery', 'BatteryFull', 'BatteryLow',
+      'Server', 'Bluetooth', 'Cloud', 'CloudDownload', 'CloudUpload', 'QrCode', 'Printer', 
+      'Bot', 'Code', 'Terminal', 'Radio', 'Tv', 'Keyboard', 'Mouse', 'Webcam', 'Speaker', 'Headset', 'RadioTower'
     ]
   },
   {
@@ -140,9 +148,9 @@ export const ICON_CATEGORIES = [
     label: 'Santé, Soins & Bien-être',
     icon: HeartPulse,
     icons: [
-      'Stethoscope', 'HeartPulse', 'Heart', 'Pill', 'Activity', 'Eye', 
-      'Glasses', 'ShieldAlert', 'Cross', 'Baby', 'Syringe', 'Bandage', 
-      'Thermometer', 'Accessibility', 'Smile', 'HeartHandshake'
+      'Stethoscope', 'HeartPulse', 'Heart', 'Pill', 'Pills', 'Activity', 'Eye', 'Glasses', 
+      'ShieldAlert', 'Cross', 'Syringe', 'Bandage', 'Thermometer', 'Accessibility', 
+      'Smile', 'HeartHandshake', 'Hospital', 'Ambulance', 'Dna', 'Brain', 'Bone'
     ]
   },
   {
@@ -150,8 +158,8 @@ export const ICON_CATEGORIES = [
     label: 'Études & Enfants',
     icon: BookOpen,
     icons: [
-      'GraduationCap', 'School', 'Book', 'BookOpen', 'BookUser', 
-      'Library', 'Backpack', 'Pencil', 'PenTool', 'Baby'
+      'GraduationCap', 'School', 'Book', 'BookOpen', 'BookOpenText', 'BookUser', 'BookMarked', 'BookCopy',
+      'Library', 'Backpack', 'Pencil', 'PencilLine', 'PencilRuler', 'PenTool', 'Pen', 'Eraser', 'Ruler', 'Compass', 'Atom'
     ]
   },
   {
@@ -159,9 +167,10 @@ export const ICON_CATEGORIES = [
     label: 'Animaux & Nature',
     icon: PawPrint,
     icons: [
-      'PawPrint', 'Dog', 'Cat', 'Bird', 'Fish', 'Bone', 'TreePine', 
-      'Trees', 'Flower2', 'Leaf', 'Sun', 'Moon', 'CloudRain', 'Wind', 
-      'Mountain', 'Tent'
+      'PawPrint', 'Dog', 'Cat', 'Bird', 'Fish', 'Bone', 'Bug', 'Snail',
+      'TreePine', 'Trees', 'TreeDeciduous', 'Flower2', 'Flower', 'Leaf', 'Sprout',
+      'Sun', 'SunMedium', 'Moon', 'CloudRain', 'CloudSun', 'CloudSnow', 'CloudLightning', 'Wind',
+      'Mountain', 'MountainSnow', 'Tent'
     ]
   },
   {
@@ -169,14 +178,13 @@ export const ICON_CATEGORIES = [
     label: 'Général & Symboles',
     icon: Sparkles,
     icons: [
-      'Star', 'CircleDot', 'CheckCircle2', 'AlertCircle', 'HelpCircle', 
-      'Info', 'Lock', 'Unlock', 'Bell', 'Bookmark', 'MessageSquare', 
-      'Send', 'Share2', 'Compass', 'Pin', 'Folder', 'Lightbulb', 'Award',
-      'Clock', 'Calendar', 'History'
+      'Star', 'StarHalf', 'CircleDot', 'CheckCircle2', 'Check', 'AlertCircle', 'AlertTriangle', 'HelpCircle', 
+      'Info', 'Lock', 'Unlock', 'Bell', 'Bookmark', 'MessageSquare', 'Send', 'Share2', 
+      'Compass', 'Pin', 'Folder', 'FolderPlus', 'FolderOpen', 'Lightbulb', 'Award', 'Target',
+      'Clock', 'Calendar', 'CalendarDays', 'CalendarCheck', 'History', 'Search', 'Filter', 'SlidersHorizontal', 'ShieldCheck'
     ]
   }
 ];
-
 // =========================================================================
 // 2. STOCKAGE ET RÉSOLUTION DES ICÔNES ET COULEURS DE LA BDD
 // =========================================================================
@@ -348,20 +356,136 @@ export const getCategoryIconInfo = (categoryName) => {
   };
 };
 
-// 💡 Composant appliquant la couleur directement sur le prop 'color' de Lucide
-export const CategoryIcon = ({ name, size = 14, className = "", color: propColor, style = {} }) => {
+// =========================================================================
+// CALCULATEUR DE FOND DÉSATURÉ (HUE IDENTIQUE, SATURATION RÉDUITE)
+// =========================================================================
+export const getDesaturatedColor = (colorInput, saturationMultiplier = 0.80, alpha = 0.20) => {
+  if (!colorInput || typeof colorInput !== 'string') {
+    return {
+      bg: 'rgba(148, 163, 184, 0.18)',
+      border: 'rgba(148, 163, 184, 0.28)',
+    };
+  }
+
+  let str = colorInput.trim();
+  let r = 0, g = 0, b = 0;
+
+  // 1. Déjà HSL / HSLA
+  if (str.startsWith('hsl')) {
+    const match = str.match(/hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+    if (match) {
+      const h = parseFloat(match[1]);
+      const s = parseFloat(match[2]) * saturationMultiplier;
+      const l = parseFloat(match[3]);
+      return {
+        bg: `hsla(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%, ${alpha})`,
+        border: `hsla(${Math.round(h)}, ${Math.round(s)}%, ${Math.min(Math.round(l) + 12, 85)}%, ${alpha + 0.12})`,
+      };
+    }
+  }
+
+  // 2. Déjà RGB / RGBA
+  if (str.startsWith('rgb')) {
+    const match = str.match(/rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/);
+    if (match) {
+      r = parseFloat(match[1]) / 255;
+      g = parseFloat(match[2]) / 255;
+      b = parseFloat(match[3]) / 255;
+    }
+  } else {
+    // 3. HEX (#fff ou #ffffff)
+    let c = str.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    if (c.length === 6) {
+      r = parseInt(c.substring(0, 2), 16) / 255;
+      g = parseInt(c.substring(2, 4), 16) / 255;
+      b = parseInt(c.substring(4, 6), 16) / 255;
+    } else {
+      return {
+        bg: 'rgba(148, 163, 184, 0.18)',
+        border: 'rgba(148, 163, 184, 0.28)',
+      };
+    }
+  }
+
+  // Conversion RGB -> HSL pour ajuster précisément la saturation
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  const hue = Math.round(h * 360);
+  const desatS = Math.round(s * 100 * saturationMultiplier); // Saturation réduite de ~55%
+  const light = Math.round(l * 100);
+
+  return {
+    bg: `hsla(${hue}, ${desatS}%, ${light}%, ${alpha})`,
+    border: `hsla(${hue}, ${desatS}%, ${Math.min(light + 10, 80)}%, ${alpha + 0.12})`,
+  };
+};
+
+// =========================================================================
+// COMPOSANT CATEGORY ICON AVEC CARRÉ ARRONDI INTÉGRÉ
+// =========================================================================
+export const CategoryIcon = ({ 
+  name, 
+  size = 14, 
+  className = "", 
+  color: propColor, 
+  style = {},
+  showBg = true,
+  bgRadius = "rounded-[28%]" // Courbe iOS / squircle élégante
+}) => {
   const { icon: IconComponent, hex } = getCategoryIconInfo(name);
-  // 💡 Utilise HelpCircle si aucune icône n'est trouvée
   const FinalIcon = IconComponent || HelpCircle;
   const effectiveColor = propColor || style?.color || hex;
 
+  // Si on désactive explicitement le fond (showBg={false})
+  if (!showBg) {
+    return (
+      <FinalIcon 
+        size={size} 
+        color={effectiveColor} 
+        className={`shrink-0 ${className}`} 
+        style={{ ...style, color: effectiveColor }} 
+      />
+    );
+  }
+
+  // Taille proportionnelle du carré en fonction de la taille de l'icône
+  const padding = Math.max(3, Math.round(size * 0.28));
+  const boxSize = size + (padding * 2);
+  const { bg, border } = getDesaturatedColor(effectiveColor);
+
   return (
-    <FinalIcon 
-      size={size} 
-      color={effectiveColor} 
-      className={`shrink-0 ${className}`} 
-      style={{ ...style, color: effectiveColor }} 
-    />
+    <span 
+      className={`inline-flex items-center justify-center shrink-0 ${bgRadius} border transition-all duration-200 select-none ${className}`}
+      style={{
+        width: `${boxSize}px`,
+        height: `${boxSize}px`,
+        minWidth: `${boxSize}px`,
+        minHeight: `${boxSize}px`,
+        backgroundColor: bg,
+        borderColor: border,
+        boxShadow: `0 2px 6px -2px ${bg}`,
+        ...style,
+      }}
+    >
+      <FinalIcon 
+        size={size} 
+        color={effectiveColor} 
+        style={{ color: effectiveColor }} 
+      />
+    </span>
   );
 };
 

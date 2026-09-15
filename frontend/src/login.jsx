@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen,Trophy,WalletCards
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -2226,9 +2226,9 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
       const p = payload[0].payload;
       return (
         <div className="bg-[#0f172a]/95 backdrop-blur-md border border-white/10 p-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2.5">
-          <div className="p-1 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+          
             <CategoryIcon name={p.name} size={15} />
-          </div>
+          
           <div>
             <p className="text-[9px] font-black uppercase text-white/50 tracking-wider">
               {getCleanCategoryName(p.name)}
@@ -2783,29 +2783,32 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
 
   const totalMonth = chartData.reduce((acc, curr) => acc + (curr.value || 0), 0);
 
-  // 💡 Coordonnées calculées pour que l'icône ne sorte JAMAIS du SVG et ne soit jamais rognée
+  // 💡 Label personnalisé de l'axe Y avec espacement corrigé
   const CustomYAxisTick = ({ x, y, payload }) => {
     const name = payload.value;
     const cleanName = getCleanCategoryName(name);
     
-    const maxChars = isMobile ? 8 : 10;
+    const maxChars = isMobile ? 7 : 9;
     const displayName = cleanName.length > maxChars 
       ? `${cleanName.substring(0, maxChars - 1)}.` 
       : cleanName;
 
-    // x est la ligne de l'axe (~96px sur PC, ~86px sur mobile)
-    const iconSize = 16;
-    const iconOffset = isMobile ? -80 : -90;  // Placé à +10px du bord gauche
-    const textOffset = isMobile ? -60 : -70;  // Texte calé juste après l'icône
+    // Taille adaptée : icône 12px -> carré de ~18px
+    const iconSize = isMobile ? 11 : 12;
+    const boxSize = 18;
+
+    // 🟢 DÉCALAGE : On sépare bien le carré du texte
+    const iconOffset = isMobile ? -88 : -98; // Placé bien à gauche
+    const textOffset = isMobile ? -64 : -72; // Texte décalé pour laisser 6 à 8px d'espace libre
 
     return (
       <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
-        {/* Icône de la catégorie (parfaitement dans le cadre SVG) */}
+        {/* Carré + Icône parfaitement centrés verticalement */}
         <foreignObject 
           x={iconOffset} 
-          y={-iconSize / 2} 
-          width={iconSize} 
-          height={iconSize}
+          y={-boxSize / 2} 
+          width={boxSize} 
+          height={boxSize}
           style={{ overflow: 'visible' }}
         >
           <div className="w-full h-full flex items-center justify-center">
@@ -2838,9 +2841,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
         <div className="bg-slate-900/95 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
           <div className="flex justify-between items-start gap-3 mb-2">
             <div className="flex items-center gap-2">
-              <div className="p-1 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                <CategoryIcon name={data.name} size={15} />
-              </div>
+              <CategoryIcon name={data.name} size={13} />
               <p className="text-[10px] font-black uppercase tracking-widest text-white/80 truncate max-w-[130px]">
                 {getCleanCategoryName(data.name)}
               </p>
@@ -2866,7 +2867,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
     <div className="h-full w-full flex flex-col md:flex-row gap-3">
       {statsCategories.length > 0 ? (
         <>
-          {/* PARTIE GRAPHIQUE EN BARRES */}
+          {/* GRAPHIQUE EN BARRES */}
           <div className="flex-[2] min-h-[170px] md:min-h-0 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
@@ -2875,7 +2876,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                 margin={{ 
                   top: 0, 
                   right: isMobile ? 42 : 48, 
-                  left: 8, 
+                  left: 6, 
                   bottom: 0 
                 }}
               >
@@ -2891,7 +2892,7 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                   type="category" 
                   axisLine={false}
                   tickLine={false}
-                  width={isMobile ? 86 : 96} 
+                  width={isMobile ? 92 : 102} /* 🟢 Légèrement élargi pour respirer */
                   tick={<CustomYAxisTick />}
                 />
                 <Tooltip 
@@ -2928,8 +2929,8 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
             </ResponsiveContainer>
           </div>
 
-          {/* PARTIE LÉGENDE COMPACTÉE (Ne vole plus la place du graphique) */}
-          <div className="flex-1 md:w-36 md:max-w-[140px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-2 md:pt-0 md:pl-2.5 shrink-0">
+          {/* LÉGENDE LATÉRALE (ESPACEMENT DÉCOLLÉ) */}
+          <div className="flex-1 md:w-36 md:max-w-[145px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-2 md:pt-0 md:pl-2.5 shrink-0">
             <p className="text-[8px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] mb-2">
               Légende
             </p>
@@ -2948,10 +2949,9 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                         : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 overflow-hidden min-w-0">
-                      <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
-                        <CategoryIcon name={item.name} size={12} />
-                      </div>
+                    {/* 🟢 gap-2.5 pour bien décoller le carré du texte */}
+                    <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+                      <CategoryIcon name={item.name} size={11} />
 
                       <span className={`text-[8.5px] font-black uppercase tracking-tight truncate transition-colors ${
                         isHidden ? 'text-white/20 line-through' : 'text-white/80 group-hover:text-white'
@@ -3643,9 +3643,9 @@ export const VariationsView = ({ statsCategories, userTheme, prevMonthLabel }) =
               {/* 💡 Ligne du haut : Icône Lucide + Nom + Contexte temporel */}
               <div className="flex items-center justify-between w-full leading-none gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <div className="w-5 h-5 rounded-md bg-white/[0.04] border border-white/5 flex items-center justify-center shrink-0">
+                  
                     <CategoryIcon name={item.name} size={12} />
-                  </div>
+                  
                   <span className="text-[9.5px] font-black uppercase tracking-tight text-white/70 truncate">
                     {getCleanCategoryName(item.name)}
                   </span>
@@ -5402,7 +5402,7 @@ useEffect(() => {
         Mode d'importation Global
       </h4>
       <p className="text-[10px] text-white/50 leading-relaxed">
-        Basculez entre l'import automatique Powens et l'import de relevés CSV.
+        Basculez entre l'import automatique Powens et l'import de relevés manuel.
       </p>
     </div>
 
@@ -5431,7 +5431,7 @@ useEffect(() => {
         }`}
       >
         <FileUp size={12} className={importMode === 'manual' ? 'text-white' : 'opacity-60'} />
-        <span>Manuel (CSV)</span>
+        <span>Manuel</span>
       </button>
     </div>
   </div>
@@ -7344,7 +7344,43 @@ const moisListe = [
   const [form2, setForm2] = useState({ nom: '', cout: '', capa: '', date: '2026-06-01' });
   const [user, setUser] = useState(localStorage.getItem('user'))
   const [loginName, setLoginName] = useState('')
-  const [selectedCompte, setSelectedCompte] = useState('tous');
+  const [comptes, setComptes] = useState([]);
+
+  // 🟢 Helper pour trouver le compte par défaut (CCP en priorité, sinon 1er compte)
+  const getCompteDefaut = (nomProfil, listeComptes) => {
+    if (!listeComptes || listeComptes.length === 0) return 'tous';
+
+    // 1. On cible les comptes du profil concerné
+    const comptesCibles = (nomProfil && nomProfil !== 'Tous')
+      ? listeComptes.filter(c => c.groupe?.trim().toLowerCase() === nomProfil?.trim().toLowerCase())
+      : listeComptes;
+
+    const listeAAnalyser = comptesCibles.length > 0 ? comptesCibles : listeComptes;
+
+    // 2. On cherche le CCP en priorité
+    const compteCCP = listeAAnalyser.find(c => c.compte?.trim().toUpperCase().includes('CCP'));
+    if (compteCCP) return compteCCP.compte;
+
+    // 3. Sinon, le premier compte de la liste
+    return listeAAnalyser[0]?.compte || 'tous';
+  };
+
+  const [selectedCompte, setSelectedCompte] = useState(''); // 👈 Ne démarre plus sur 'tous'
+  const [importCompte, setImportCompte] = useState('');
+  const initialCompteDefini = useRef(false);
+
+  // 🟢 Applique le CCP ou le 1er compte par défaut dès que les comptes sont chargés
+  useEffect(() => {
+    if (comptes.length > 0 && !initialCompteDefini.current) {
+      const profilActuel = filtersByPage['gerer']?.profil || filters.profil;
+      const compteInitial = getCompteDefaut(profilActuel, comptes);
+      if (compteInitial) {
+        setSelectedCompte(compteInitial);
+        initialCompteDefini.current = true;
+      }
+    }
+  }, [comptes]);
+
   const [form, setForm] = useState({ nom: '', montant: '', categorie: 'Alimentation' })
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activePicker, setActivePicker] = useState(null); // 'bg', 'primary', 'text' ou null
@@ -7354,61 +7390,79 @@ const moisListe = [
   const [newCompteColor, setNewCompteColor] = useState("#6366f1"); // Couleur par défaut
   const [showAddPicker, setShowAddPicker] = useState(false);
   const [tabActive, setTabActive] = useState('revenus');
-  const [comptes, setComptes] = useState([]);
-  // 💡 Dans la déclaration de ton useState (au tout début)
-const [filtersByPage, setFiltersByPage] = useState(() => {
-  const saved = localStorage.getItem(`filters_v2_${user}`); // ou filters_v3_${user} selon ton correctif Tricount
-  if (saved) {
-    try { return JSON.parse(saved); } catch (e) { console.error(e); }
-  }
-  
-  const defaultPeriod = {
-    profil: '', // 👈 REMPLACÉ 'Tous' par '' pour forcer la détection automatique
-    annee: new Date().getFullYear().toString(),
-    mois: moisListe[new Date().getMonth()]?.v || ''
-  };
 
+  // 💡 Dans la déclaration de ton useState (au tout début)
+// =========================================================================
+// 🟢 GESTIONNAIRE DE FILTRES INDÉPENDANTS PAR PAGE
+// =========================================================================
+const getPageKey = (tab) => {
+  if (tab === 'previsions' || tab === 'previsionnel') return 'previsionnel';
+  if (tab === 'gerer' || tab === 'transactions') return 'gerer';
+  if (tab === 'dashboard') return 'dashboard';
+  return 'default';
+};
+
+const getDefaultPeriod = () => ({
+  profil: 'Tous',
+  annee: new Date().getFullYear().toString(),
+  mois: moisListe[new Date().getMonth()]?.v || 'Janvier'
+});
+
+const [filtersByPage, setFiltersByPage] = useState(() => {
+  const savedUser = localStorage.getItem('user');
+  if (savedUser) {
+    const saved = localStorage.getItem(`filters_v3_${savedUser.toLowerCase()}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          dashboard: parsed.dashboard || getDefaultPeriod(),
+          previsionnel: parsed.previsionnel || parsed.previsions || getDefaultPeriod(),
+          gerer: parsed.gerer || parsed.transactions || getDefaultPeriod(),
+          default: parsed.default || getDefaultPeriod()
+        };
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  const def = getDefaultPeriod();
   return {
-    dashboard: { ...defaultPeriod },
-    previsions: { ...defaultPeriod },
-    transactions: { ...defaultPeriod },
-    default: { ...defaultPeriod }
+    dashboard: { ...def },
+    previsionnel: { ...def },
+    gerer: { ...def },
+    default: { ...def }
   };
 });
 
-// Shortcut pour récupérer les filtres de la page ACTUELLE sans casser ton JSX existant
-const currentKey = activeTab || 'default';
-const filters = filtersByPage[currentKey] || filtersByPage['default'];
+const currentKey = getPageKey(activeTab);
+const filters = filtersByPage[currentKey] || filtersByPage['dashboard'] || getDefaultPeriod();
 
-// Fonction helper pour mettre à jour les filtres de la page actuelle
-// 🟢 VERSION CORRIGÉE ET SÉCURISÉE :
 const setFilters = (newFiltersOrFn) => {
   setFiltersByPage(prev => {
-    // Si l'onglet actif n'a pas de filtres propres (ex: 'importer'), 
-    // on redirige la lecture et l'écriture vers la clé 'default'
-    const keyToUpdate = prev[currentKey] ? currentKey : 'default';
-    const currentPageFilters = prev[keyToUpdate];
-    
-    const updatedFields = typeof newFiltersOrFn === 'function' 
-      ? newFiltersOrFn(currentPageFilters) 
-      : newFiltersOrFn;
+    const targetKey = getPageKey(activeTab);
+    const currentFilters = prev[targetKey] || prev['default'] || getDefaultPeriod();
 
-    const updatedState = {
+    const updated = typeof newFiltersOrFn === 'function' 
+      ? newFiltersOrFn(currentFilters) 
+      : { ...currentFilters, ...newFiltersOrFn };
+
+    const nextState = {
       ...prev,
-      [keyToUpdate]: {
-        ...currentPageFilters,
-        ...updatedFields
-      }
+      [targetKey]: updated
     };
-    
-    // Sauvegarde immédiate dans le localStorage
+
     if (user) {
-      localStorage.setItem(`filters_v2_${user}`, JSON.stringify(updatedState));
+      const u = typeof user === 'string' ? user.toLowerCase() : user?.nom?.toLowerCase();
+      if (u) {
+        localStorage.setItem(`filters_v3_${u}`, JSON.stringify(nextState));
+      }
     }
-    return updatedState;
+
+    return nextState;
   });
 };
-
 
   const [deleteModal, setDeleteModal] = useState({ show: false, accountName: null });
   const [toutesLesTransactions, setToutesLesTransactions] = useState([]);
@@ -7828,37 +7882,66 @@ useEffect(() => {
   }
 }, [user, toutesLesTransactions]);
 
-const initialSelectionDone = useRef({});
-
-// --- 1. RESET UNIQUE AU CHANGEMENT D'UTILISATEUR ---
+// --- 1. CHARGEMENT AU CHANGEMENT D'UTILISATEUR ---
 useEffect(() => {
-  initialSelectionDone.current = {};
-  setAvailablePeriods([]);
-  setComptes([]);
-  
-  const defaultPeriod = {
-    profil: '', 
-    annee: new Date().getFullYear().toString(),
-    mois: moisListe[new Date().getMonth()]?.v || ''
-  };
+  if (!user) return;
+  const u = typeof user === 'string' ? user.toLowerCase() : user?.nom?.toLowerCase();
+  const saved = localStorage.getItem(`filters_v3_${u}`);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      setFiltersByPage({
+        dashboard: parsed.dashboard || getDefaultPeriod(),
+        previsionnel: parsed.previsionnel || parsed.previsions || getDefaultPeriod(),
+        gerer: parsed.gerer || parsed.transactions || getDefaultPeriod(),
+        default: parsed.default || getDefaultPeriod()
+      });
+      return;
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
+  const def = getDefaultPeriod();
   setFiltersByPage({
-    dashboard: { ...defaultPeriod },
-    previsions: { ...defaultPeriod },
-    transactions: { ...defaultPeriod },
-    default: { ...defaultPeriod }
+    dashboard: { ...def },
+    previsionnel: { ...def },
+    gerer: { ...def },
+    default: { ...def }
   });
 }, [user]);
 
-// --- 2. INITIALISATION INTELLIGENTE DE LA PAGE ACTUELLE (CORRIGÉ) ---
+// --- 2. INITIALISATION DOUCE (PRÉVISIONNEL = MOIS/ANNÉE EN COURS) ---
 useEffect(() => {
-  if (availablePeriods.length > 0 && comptes.length > 0 && !initialSelectionDone.current[currentKey]) {
-    
-    // 1. Calcul du profil par défaut (ex: "Aude")
-    const groupesUniques = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
-    const profilInitial = groupesUniques.length > 0 ? groupesUniques[0] : 'Tous';
+  if (comptes.length === 0) return;
 
-    // 2. Tri des périodes
+  const targetKey = getPageKey(activeTab);
+  const currentF = filtersByPage[targetKey];
+
+  // Si la page a déjà ses filtres enregistrés, ON NE TOUCHE À RIEN
+  if (currentF && currentF.profil && currentF.profil !== '' && currentF.annee && currentF.mois) {
+    return;
+  }
+
+  const groupesUniques = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
+  const profilInitial = groupesUniques.length > 0 ? groupesUniques[0] : 'Tous';
+
+  const now = new Date();
+  const moisEnCours = moisListe[now.getMonth()]?.v || 'Janvier';
+  const anneeEnCours = now.getFullYear().toString();
+
+  // 🟢 SPÉCIFIQUE AU PRÉVISIONNEL : Mois et Année actuels par défaut
+  if (targetKey === 'previsionnel') {
+    setFilters({
+      profil: profilInitial,
+      annee: anneeEnCours,
+      mois: moisEnCours
+    });
+    return;
+  }
+
+  // Pour les autres pages (Dashboard, Gérer), on prend la dernière période des transactions
+  if (availablePeriods.length > 0) {
     const periodesTriees = [...availablePeriods].sort((a, b) => {
       const yearA = parseInt(a.annee);
       const yearB = parseInt(b.annee);
@@ -7869,58 +7952,18 @@ useEffect(() => {
     });
     const dernierePeriode = periodesTriees[0];
 
-    // 3. On vérifie le localStorage
-    const saved = localStorage.getItem(`filters_v2_${user}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const cacheDeLaPage = parsed[currentKey];
-
-        // 💡 MODIFICATION ICI : On ne bloque QUE si l'état actuel de l'application a déjà un profil.
-        // Si filters.profil est vide, ça veut dire qu'on vient de se connecter/rafraîchir, donc on FORCE le profilInitial !
-        if (cacheDeLaPage && cacheDeLaPage.profil && cacheDeLaPage.profil !== '' && filters.profil !== '') {
-          initialSelectionDone.current[currentKey] = true;
-          return;
-        }
-      } catch(e) {
-        console.error(e);
-      }
-    }
-
-    // 4. Application forcée du premier profil alphabétique au démarrage
     if (dernierePeriode) {
       setFilters({
-        profil: profilInitial, // Mettra "Aude"
+        profil: profilInitial,
         annee: dernierePeriode.annee.toString(),
-        mois: dernierePeriode.mois // Prendra la période la plus récente disponible
+        mois: dernierePeriode.mois
       });
-      initialSelectionDone.current[currentKey] = true;
     }
   }
-}, [availablePeriods, comptes, user, currentKey, filters.profil]); // 👈 Ajout de filters.profil dans les dépendances
+}, [availablePeriods, comptes, activeTab]);
 
-// --- 3. SÉCURITÉ CHANGEMENT D'ANNÉE POUR LA PAGE ACTUELLE ---
-useEffect(() => {
-  if (availablePeriods.length === 0 || !filters.annee) return;
 
-  const moisDisposPourAnnee = availablePeriods.filter(
-    p => p.annee.toString() === filters.annee.toString()
-  );
 
-  const moisToujoursValide = moisDisposPourAnnee.some(p => p.mois === filters.mois);
-
-  if (!moisToujoursValide && moisDisposPourAnnee.length > 0) {
-    const moisTries = [...moisDisposPourAnnee].sort((a, b) => {
-      const indexA = moisListe.findIndex(m => m.v === a.mois);
-      const indexB = moisListe.findIndex(m => m.v === b.mois);
-      return indexB - indexA;
-    });
-
-    setFilters({
-      mois: moisTries[0].mois
-    });
-  }
-}, [filters.annee, availablePeriods, currentKey]);
 const menuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'previsionnel', label: 'Prévisionnel', icon: ChartCandlestick },
@@ -8714,7 +8757,7 @@ const transactionsAAfficher = useMemo(() => {
   
 
   // Filtre compte (inchangé)
-  if (selectedCompte !== 'tous') {
+  if (selectedCompte && selectedCompte !== 'tous') {
     data = data.filter(t => t.compte?.trim().toUpperCase() === selectedCompte.trim().toUpperCase());
   }
 
@@ -9241,11 +9284,10 @@ const [tempTransactions, setTempTransactions] = useState([]);
 
 
 useEffect(() => {
-  // On ne déclenche le switch automatique QUE si on est sur l'onglet importer
-  if (activeTab === 'importer' && selectedCompte === 'tous' && comptes.length > 0) {
-    setSelectedCompte(comptes[0].compte);
+  if (comptes.length > 0 && !importCompte) {
+    setImportCompte(comptes[0].compte);
   }
-}, [comptes, activeTab]); // On ajoute activeTab ici pour réagir au changement d'onglet
+}, [comptes, importCompte]);
 
 
 const [isDragging, setIsDragging] = useState(false);
@@ -9491,7 +9533,7 @@ const transactionsCalculees = useMemo(() => {
     return t;
   });
   
-  return tx.map(t => ({ ...t, compte: selectedCompte }));
+  return tx.map(t => ({ ...t, compte: importCompte || comptes[0]?.compte }));
 }, [tempTransactions, categoriesConfig, elementsAppris, selectedCompte, user]);
 
 const [fileName, setFileName] = useState("");
@@ -10882,52 +10924,32 @@ const [dropdownPosition, setDropdownPosition] = useState('bottom'); // 'bottom' 
 // Variable de verrouillage
 const isSyncing = useRef(false);
 
-// 🟢 1. SÉCURITÉ : QUAND LE COMPTE CHANGE -> ON ADAPTE LE PROFIL (SANS BOUCLE)
-useEffect(() => {
-  if (isSyncing.current || comptes.length === 0) return;
-  isSyncing.current = true;
+// =========================================================================
+// 🟢 SYNCHRONISATION SAINE AU CLIC (ZÉRO BOUCLE INFINIE)
+// =========================================================================
+const handleProfilChange = (nouveauProfil) => {
+  setFilters(f => ({ ...f, profil: nouveauProfil }));
 
-  if (selectedCompte === 'tous') {
-    setFilters(f => f.profil !== 'Tous' ? { ...f, profil: 'Tous' } : f);
+  if (nouveauProfil === 'Tous') {
+    setSelectedCompte('tous');
   } else {
-    const compteTrouve = comptes.find(c => c.compte === selectedCompte || c.nom === selectedCompte);
+    // Sélectionne automatiquement le CCP ou 1er compte du nouveau profil
+    setSelectedCompte(getCompteDefaut(nouveauProfil, comptes));
+  }
+};
+
+
+const handleCompteChange = (nouveauCompte) => {
+  setSelectedCompte(nouveauCompte);
+
+  // Si on choisit un compte précis, on aligne le profil sur son groupe automatiquement
+  if (nouveauCompte !== 'tous') {
+    const compteTrouve = comptes.find(c => c.compte?.trim().toUpperCase() === nouveauCompte?.trim().toUpperCase());
     if (compteTrouve && compteTrouve.groupe) {
-      setFilters(f => f.profil !== compteTrouve.groupe ? { ...f, profil: compteTrouve.groupe } : f);
+      setFilters(f => ({ ...f, profil: compteTrouve.groupe }));
     }
   }
-
-  isSyncing.current = false;
-}, [selectedCompte]); // 🚨 IMPORTANT : On ne surveille QUE le changement de compte, pas le tableau global !
-
-// 🟢 2. SÉCURITÉ : QUAND LE PROFIL CHANGE (UNIQUEMENT VIA LE CLIC UTILISATEUR)
-// Pour éviter la boucle infinie avec le fetch, on vide ce useEffect des dépendances automatiques.
-useEffect(() => {
-  if (isSyncing.current || comptes.length === 0) return;
-  if (currentKey === 'previsions' || currentKey === 'previsionnel') return;
-
-  isSyncing.current = true;
-
-  if (filters.profil === 'Tous') {
-    if (selectedCompte !== 'tous') setSelectedCompte('tous');
-  } else {
-    // On regarde si le compte actuel match déjà avec le profil
-    const compteActuelValide = comptes.find(
-      c => (c.compte === selectedCompte || c.nom === selectedCompte) && c.groupe === filters.profil
-    );
-
-    // Si et seulement si le compte actuel n'a aucun rapport avec le profil, on prend le premier disponible
-    if (!compteActuelValide) {
-      const premierCompteAssocie = comptes.find(c => c.groupe === filters.profil);
-      if (premierCompteAssocie) {
-        const nomCompte = premierCompteAssocie.compte || premierCompteAssocie.nom;
-        setSelectedCompte(nomCompte);
-      }
-    }
-  }
-
-  isSyncing.current = false;
-// 🚨 RETRAIT DE 'comptes' DES DÉPENDANCES ICI : C'est cela qui créait la boucle infinie lors des requêtes GET !
-}, [filters.profil, currentKey]);
+};
 
 
 
@@ -11337,8 +11359,13 @@ const previsionsTracking = useMemo(() => {
 
   Object.keys(map).forEach(id => {
     const item = map[id];
-    item.restant = item.prevMontant - item.consomme;
-    item.depasse = item.consomme > item.prevMontant;
+    // 🟢 Arrondi strict à 2 décimales pour éliminer les micro-décimales parasites
+    item.consomme = Math.round(item.consomme * 100) / 100;
+    item.restant = Math.round((item.prevMontant - item.consomme) * 100) / 100;
+    
+    // 🟢 Nouveaux états précis
+    item.isComplet = Math.abs(item.restant) < 0.01;      // Exactement 0€ d'écart
+    item.depasse = item.restant < -0.01;                  // Dépassé UNIQUEMENT si strictement supérieur au montant
     item.pct = item.prevMontant > 0 
       ? Math.min(100, Math.round((item.consomme / item.prevMontant) * 100)) 
       : 0;
@@ -11364,6 +11391,34 @@ const [showCatColorPicker, setShowCatColorPicker] = useState(false);
 const [editingCat, setEditingCat] = useState(null); // { nom: "Courses", icone: "ShoppingCart", couleur: "#818cf8" }
 const [showEditIconPicker, setShowEditIconPicker] = useState(false);
 const [showEditColorPicker, setShowEditColorPicker] = useState(false);
+
+
+const [isRefreshingPowens, setIsRefreshingPowens] = useState(false);
+
+const handleForceRefreshPowens = async () => {
+  if (isRefreshingPowens) return;
+  setIsRefreshingPowens(true);
+  try {
+    // 1. Re-récupère les soldes et comptes en direct depuis l'API Powens
+    // 2. Vérifie s'il y a de nouvelles transactions non enregistrées
+    // 3. Rafraîchit les comptes locaux
+    await Promise.all([
+      fetchPowensConnections(),
+      checkNewTransactions(),
+      fetchComptes()
+    ]);
+
+    setNotification({ message: "Comptes Powens et transactions actualisés ! ⚡", type: "success" });
+    setTimeout(() => setNotification(null), 2500);
+  } catch (err) {
+    console.error("Erreur lors de l'actualisation manuelle :", err);
+    setNotification({ message: "Erreur lors de l'actualisation Powens.", type: "error" });
+    setTimeout(() => setNotification(null), 2500);
+  } finally {
+    setIsRefreshingPowens(false);
+  }
+};
+
 
 // 🟢 CHARGEMENT SÉCURISÉ AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
@@ -11714,21 +11769,35 @@ if (!user) {
               {/* --- BADGE UTILISATEUR CONNECTÉ --- */}
               <button
                 onClick={() => setActiveTab('profile')} 
-                className={`flex items-center gap-3 px-3 py-1.5 border rounded-xl ml-1 transition-all duration-300 cursor-pointer ${
+                className={`group flex items-center gap-2.5 px-3 py-1.5 border rounded-xl ml-1 transition-all duration-300 cursor-pointer ${
                   activeTab === 'profile'
                   ? 'bg-white/15 border-[var(--primary)] shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]'
-                  : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/5 hover:border-white/10'
+                  : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/10 hover:border-white/15'
                 }`}
-                title="Mon Profil"
+                title="Accéder à mon profil et aux réglages"
               >
-                <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)]">
+                {/* Avatar initial */}
+                <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)] shrink-0">
                   {user.substring(0, 1).toUpperCase()}
                 </div>
+
+                {/* Pseudo + Indication de la page */}
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[9px] font-black text-[var(--text-main)] uppercase tracking-[0.1em]">
                     {user}
                   </span>
+                  <span className="text-[6.5px] font-black text-[var(--primary)]/70 group-hover:text-[var(--primary)] uppercase tracking-[0.15em] mt-1 transition-colors">
+                    Mon Profil
+                  </span>
                 </div>
+
+                {/* Petit chevron discret qui s'anime au survol */}
+                <ChevronRight 
+                  size={11} 
+                  className={`ml-0.5 text-[var(--text-main)]/20 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--primary)] ${
+                    activeTab === 'profile' ? 'text-[var(--primary)]' : ''
+                  }`} 
+                />
               </button>
 
               <button 
@@ -12668,8 +12737,8 @@ if (!user) {
                       <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0">
                         <div className="flex items-center justify-between gap-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-xl bg-amber-500/20 flex items-center justify-center border border-amber-500/20 shrink-0">
-                              <span className="text-lg">🏆</span>
+                            <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-500/25 shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+                              <Trophy size={16} className="text-amber-400" />
                             </div>
                             <div>
                               <h4 className="text-[var(--text-main)]/40 text-[9px] font-black uppercase tracking-[0.1em] leading-tight">
@@ -13184,22 +13253,24 @@ if (!user) {
 
       <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
-      {/* SECTION ANNÉE */}
-      <div className="flex items-center gap-1">
-        {[...new Set(availablePeriods.map(p => p.annee))].map(year => (
-          <button
-            key={year}
-            onClick={() => setFilters({...filters, annee: year})}
-            className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-              filters.annee === year 
-              ? 'bg-emerald-500 text-[var(--text-main)]' 
-              : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
-            }`}
-          >
-            {year}
-          </button>
-        ))}
-      </div>
+      {/* SECTION ANNÉE (Inclut toujours l'année en cours) */}
+        <div className="flex items-center gap-1">
+          {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
+            .sort((a, b) => parseInt(a) - parseInt(b))
+            .map(year => (
+              <button
+                key={year}
+                onClick={() => setFilters({...filters, annee: year.toString()})}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
+                  filters.annee?.toString() === year.toString() 
+                  ? 'bg-emerald-500 text-[var(--text-main)]' 
+                  : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+        </div>
     </div>
 
       {/* 2. SECTION CARTES ALIGNÉES */}
@@ -13507,80 +13578,99 @@ if (!user) {
                       />
                     </td>
 
-                    {/* MONTANT PRÉVU & DÉTAIL RÉALISÉ (ADAPTÉ REVENUS ET DÉPENSES) */}
-                    <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                      {(() => {
-                        const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
+                    {/* MONTANT PRÉVU & DÉTAIL RÉALISÉ (AVEC GESTION DU 100% RÉGLÉ) */}
+                      <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                        {(() => {
+                          const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
+                          const montantPrevu = Math.abs(parseFloat(prev.montant) || 0);
 
-                        return (
-                          <div className="flex flex-col gap-1">
-                            {/* Input Montant */}
-                            <div className="amount-box flex items-center bg-white/[0.04] border border-white/5 rounded-xl px-2.5 h-[28px] transition-all duration-300">
-                              <input 
-                                type="number"
-                                className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
-                                style={{ 
-                                  color: isTransfert 
-                                    ? '#6d00fc' 
-                                    : isRevenu
-                                      ? `${userTheme.color_revenus}e6` 
-                                      : `${userTheme.color_depenses}e6` 
-                                }}
-                                defaultValue={prev.montant}
-                                onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
-                              />
-                              <span className="ml-1 text-[8px] font-bold opacity-30 leading-none" style={{ color: isTransfert ? '#6d00fc' : isRevenu ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
-                            </div>
+                          // 1. Récupération des transactions liées
+                          const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
+                          const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
+                          
+                          // 2. Calcul de la différence réelle
+                          const diff = montantPrevu - consomme;
+                          const diffArrondie = Math.round(Math.abs(diff));
+                          
+                          // 🟢 RÈGLES STRICTES :
+                          // - Si l'écart est inférieur à 50 centimes (arrondi = 0€) -> C'est 100% RÉGLÉ (Vert)
+                          // - Dépassé UNIQUEMENT s'il y a au moins 1€ de trop réel (diff <= -0.5)
+                          const estRegle = Math.abs(diff) < 0.5;
+                          const estDepasse = diff <= -0.5;
 
-                            {/* Détail Réalisé vs Restant */}
-                            {tracking.nbTransactions > 0 ? (
-                              <div className="flex flex-col gap-0.5 px-1">
-                                <div className="flex items-center justify-between text-[7.5px] font-black uppercase tracking-tight">
-                                  <span className="text-white/40">
-                                    {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{tracking.consomme.toFixed(0)}€</strong>
+                          const pct = montantPrevu > 0 ? Math.min(100, Math.round((consomme / montantPrevu) * 100)) : 0;
+
+                          return (
+                            <div className="flex flex-col gap-1">
+                              {/* Input Montant */}
+                              <div className="amount-box flex items-center bg-white/[0.04] border border-white/5 rounded-xl px-2.5 h-[28px] transition-all duration-300">
+                                <input 
+                                  type="number"
+                                  className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
+                                  style={{ 
+                                    color: isTransfert 
+                                      ? '#6d00fc' 
+                                      : isRevenu
+                                        ? `${userTheme.color_revenus}e6` 
+                                        : `${userTheme.color_depenses}e6` 
+                                  }}
+                                  defaultValue={prev.montant}
+                                  onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
+                                />
+                                <span className="ml-1 text-[8px] font-bold opacity-30 leading-none" style={{ color: isTransfert ? '#6d00fc' : isRevenu ? userTheme.color_revenus : userTheme.color_depenses }}>€</span>
+                              </div>
+
+                              {/* Détail Réalisé vs Restant */}
+                              {liees.length > 0 ? (
+                                <div className="flex flex-col gap-0.5 px-1">
+                                  <div className="flex items-center justify-between text-[7.5px] font-black uppercase tracking-tight">
+                                    <span className="text-white/40">
+                                      {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{consomme.toFixed(0)}€</strong>
+                                    </span>
+
+                                    {/* Statut avec état 100% réglé garanti */}
+                                    {estRegle ? (
+                                      <span className="text-emerald-400 font-black flex items-center gap-0.5">
+                                        <span>✓</span> {isRevenu ? '100% perçu' : '100% réglé'}
+                                      </span>
+                                    ) : estDepasse ? (
+                                      <span className={isRevenu ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+                                        {isRevenu ? `+${diffArrondie}€ surplus` : `Dépassé (+${diffArrondie}€)`}
+                                      </span>
+                                    ) : (
+                                      <span className={isRevenu ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
+                                        {isRevenu ? `Attendu: ${Math.round(diff)}€` : `Reste: ${Math.round(diff)}€`}
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  {/* Barre de progression : Verte éclatante si 100% réglé */}
+                                  <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-500 ${
+                                        estRegle
+                                          ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
+                                          : isRevenu
+                                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
+                                            : estDepasse 
+                                              ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' 
+                                              : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
+                                      }`}
+                                      style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-end px-1">
+                                  <span className="text-[7.5px] font-bold text-white/20 uppercase tracking-widest italic">
+                                    0 liée
                                   </span>
-
-                                  {/* Statut différencié */}
-                                  {isRevenu ? (
-                                    <span className={tracking.depasse ? 'text-emerald-400 font-bold' : tracking.restant === 0 ? 'text-emerald-400' : 'text-amber-400 font-bold'}>
-                                      {tracking.depasse 
-                                        ? `+${Math.abs(tracking.restant).toFixed(0)}€ surplus` 
-                                        : tracking.restant === 0 
-                                          ? '100% perçu' 
-                                          : `Attendu: ${Math.max(0, tracking.restant).toFixed(0)}€`}
-                                    </span>
-                                  ) : (
-                                    <span className={tracking.depasse ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
-                                      {tracking.depasse 
-                                        ? `Dépassé (+${Math.abs(tracking.restant).toFixed(0)}€)` 
-                                        : `Reste: ${tracking.restant.toFixed(0)}€`}
-                                    </span>
-                                  )}
                                 </div>
-                                
-                                {/* Barre de progression */}
-                                <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                  <div 
-                                    className={`h-full rounded-full transition-all duration-500 ${
-                                      isRevenu
-                                        ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
-                                        : tracking.depasse ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.4)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'
-                                    }`}
-                                    style={{ width: `${Math.min(tracking.pct, 100)}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-end px-1">
-                                <span className="text-[7.5px] font-bold text-white/20 uppercase tracking-widest italic">
-                                  0 liée
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </td>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
 
                     {/* DATE */}
                     <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
@@ -14010,7 +14100,7 @@ if (!user) {
         className="w-12 h-12 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center hover:bg-white/10 hover:border-indigo-500/40 transition-all cursor-pointer shadow-inner"
         title="Changer d'icône"
       >
-        <CategoryIcon name={selectedIconName} size={20} style={{ color: selectedCatColor }} />
+        <CategoryIcon name={selectedIconName} showBg={false} size={20} style={{ color: selectedCatColor }} />
       </button>
 
       {showIconPicker && (
@@ -14527,9 +14617,9 @@ if (!user) {
                                       
                                       {/* 💡 BLOC AVEC L'ICÔNE ET SA COULEUR */}
                                       <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0 shadow-sm">
+                                        
                                           <CategoryIcon name={b.nom} size={16} />
-                                        </div>
+                                        
 
                                         <div className="flex flex-col min-w-0">
                                           <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight truncate">
@@ -14606,13 +14696,13 @@ if (!user) {
                     
                     <div className="space-y-3">
 
-                      {/* 1. SÉLECTION DU PROFIL (Nettoyé) */}
+                      {/* 1. SÉLECTION DU PROFIL */}
                       <CustomSelect 
                         label="Profil cible"
                         value={filters.profil}
                         icon={User}
                         options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
-                        onChange={(val) => setFilters(f => ({ ...f, profil: val }))} // 🟢 Uniquement sa propre modification
+                        onChange={handleProfilChange} // 👈 Utilise la fonction propre
                       />
 
                       {/* 2. SÉLECTION DU COMPTE BANCAIRE */}
@@ -14624,7 +14714,7 @@ if (!user) {
                           { v: 'tous', l: 'Tous les comptes' },
                           ...soldesTries.map(s => ({ v: s.compte, l: s.compte }))
                         ]}
-                        onChange={(val) => setSelectedCompte(val)} // 🟢 Uniquement sa propre modification
+                        onChange={handleCompteChange} // 👈 Utilise la fonction propre
                       />
 
                       {/* Mois et Année restent identiques... */}
@@ -15384,36 +15474,52 @@ if (!user) {
                             }}
                           />
 
-                          <div className="absolute right-1 top-9 w-44 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-md">
+                          <div className="absolute right-1 top-9 w-48 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-md">
+                            {/* Option : Aucune enveloppe */}
                             <button
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 await updateCell(t.id, 'enveloppe', "");
                                 setActiveDropdownId(null);
                               }}
-                              className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                                !t.enveloppe ? 'bg-[var(--primary)]/10 text-[var(--primary)]' : 'text-white/40 hover:bg-white/5 hover:text-white'
+                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                                !t.enveloppe 
+                                  ? 'bg-[var(--primary)]/15 text-[var(--primary)]' 
+                                  : 'text-white/40 hover:bg-white/5 hover:text-white'
                               }`}
                             >
-                              📦 Aucune enveloppe
+                              <X size={12} className="shrink-0 opacity-60" />
+                              <span>Aucune enveloppe</span>
                             </button>
 
-                            {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => (
-                              <button
-                                key={projetNom}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await updateCell(t.id, 'enveloppe', projetNom);
-                                  setActiveDropdownId(null);
-                                }}
-                                className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between ${
-                                  t.enveloppe === projetNom ? 'bg-emerald-500/15 text-emerald-400' : 'text-white/70 hover:bg-white/5 hover:text-white'
-                                }`}
-                              >
-                                <span className="truncate">💰 {projetNom}</span>
-                                {t.enveloppe === projetNom && <span className="text-[9px]">✓</span>}
-                              </button>
-                            ))}
+                            {/* Liste des enveloppes existantes */}
+                            {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => {
+                              const isSelected = t.enveloppe === projetNom;
+                              return (
+                                <button
+                                  key={projetNom}
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    await updateCell(t.id, 'enveloppe', projetNom);
+                                    setActiveDropdownId(null);
+                                  }}
+                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                    isSelected 
+                                      ? 'bg-emerald-500/15 text-emerald-400' 
+                                      : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 truncate min-w-0">
+                                    <WalletCards size={12} className={`shrink-0 ${isSelected ? 'text-emerald-400' : 'text-white/40'}`} />
+                                    <span className="truncate">{projetNom}</span>
+                                  </div>
+                                  
+                                  {isSelected && (
+                                    <Check size={12} strokeWidth={3} className="shrink-0 text-emerald-400" />
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
                         </>
                       )}
@@ -15480,8 +15586,8 @@ if (!user) {
         filters={filters}
         comptes={comptes}
         setFilters={setFilters}
-        selectedCompte={selectedCompte}
-        setSelectedCompte={setSelectedCompte}
+        selectedCompte={importCompte || comptes[0]?.compte}
+        setSelectedCompte={setImportCompte}
         availablePeriods={availablePeriods}
         moisListe={moisListe}
         statsFiltrées={statsFiltrées}
@@ -15554,10 +15660,10 @@ if (!user) {
             <div className="flex-1 min-w-[200px]">
               <CustomSelect 
                 label="Compte de destination"
-                value={selectedCompte} 
+                value={importCompte || comptes[0]?.compte} 
                 icon={Wallet} 
                 options={comptes.map(c => ({ v: c.compte, l: c.compte }))} 
-                onChange={(val) => setSelectedCompte(val)} 
+                onChange={(val) => setImportCompte(val)} 
               />
             </div>
             <HelpPopover />
@@ -15566,11 +15672,13 @@ if (!user) {
           {/* LISTE DISCRÈTE ET PLIABLE DES COMPTES BANCAIRES / POWENS */}
             {powensData?.connections && powensData.connections.length > 0 && (
               <div className="relative z-50 space-y-2">
-                {/* BARRE D'ACTIONS : BOUTON DÉCLENCHEUR + BOUTON AUDIT */}
+                {/* BARRE D'ACTIONS : BOUTON DÉCLENCHEUR + BOUTON ACTUALISATION FORCÉE */}
                 <div className="flex items-center gap-2">
+                  {/* 1. Bouton déroulant des comptes */}
                   <button
+                    type="button"
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex-1 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none"
+                    className="flex-1 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none cursor-pointer"
                   >
                     <span className="flex items-center gap-2 truncate pr-2">
                       <Building2 size={12} className="text-[var(--primary)] shrink-0" />
@@ -15580,7 +15688,31 @@ if (!user) {
                     </span>
                     <span className={`text-[8px] opacity-60 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
                   </button>
+
+                  {/* 🟢 2. NOUVEAU BOUTON D'ACTUALISATION FORCÉE */}
+                  <button
+                    type="button"
+                    onClick={handleForceRefreshPowens}
+                    disabled={isRefreshingPowens || isCheckingSync}
+                    className={`p-3 rounded-2xl border flex items-center gap-2 transition-all cursor-pointer select-none shrink-0 ${
+                      isRefreshingPowens || isCheckingSync
+                        ? 'bg-[var(--primary)]/15 border-[var(--primary)]/30 text-[var(--primary)] cursor-wait'
+                        : 'bg-white/[0.02] border-white/5 hover:border-white/15 hover:bg-white/[0.05] text-[var(--text-main)]/60 hover:text-white'
+                    }`}
+                    title="Forcer la vérification et l'actualisation des comptes Powens"
+                  >
+                    <RefreshCw 
+                      size={12} 
+                      className={`shrink-0 text-[var(--primary)] ${
+                        (isRefreshingPowens || isCheckingSync) ? 'animate-spin' : ''
+                      }`} 
+                    />
+                    <span className="text-[10px] font-black uppercase tracking-wider hidden sm:inline">
+                      {isRefreshingPowens || isCheckingSync ? 'Actualisation...' : 'Actualiser'}
+                    </span>
+                  </button>
                 </div>
+
                 {/* POPUP ABSOLU (Ne pousse pas les éléments en dessous) */}
                 {isOpen && (
                   <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
@@ -15703,7 +15835,7 @@ if (!user) {
             </div>
           </div>
 
-          {/* ACTION 2 : SYNCHRONISER */}
+  
 {/* ACTION 2 : SYNCHRONISER (LAYOUT GAUCHE / DROITE) */}
 {(() => {
   // 1. Récupération des comptes ayant au moins 1 transaction en attente
@@ -15784,7 +15916,7 @@ if (!user) {
         </div>
 
         {/* --- SÉPARATEUR VERTICAL & CÔTÉ DROIT : BADGES DU COMPTE / ÉTAT --- */}
-        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 border-l border-white/10 pl-3 flex-1">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 pl-3 flex-1">
           {isExecuting ? (
             <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-wider animate-pulse">
               Actualisation...
@@ -15874,8 +16006,8 @@ if (!user) {
                             <Wallet size={10} className="text-[var(--primary)]" />
                             <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
                             <span className="text-[10px] font-black text-[var(--primary)] uppercase">
-                              {selectedCompte}
-                            </span>
+                            {importCompte || comptes[0]?.compte}
+                          </span>
                           </div>
 
                           <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
@@ -17683,12 +17815,9 @@ if (!user) {
     comptes={comptes} // 👈 1. Ajout de la liste de vos comptes BDD
     onClose={() => setShowPowensModal(false)}
     onSuccess={(importedData, targetAccountName) => {
-      // 👈 2. Mise à jour automatique du Select de destination
       if (targetAccountName) {
-        setSelectedCompte(targetAccountName);
+        setImportCompte(targetAccountName); // 👈 Met à jour importCompte sans toucher au filtre de Gérer
       }
-      
-      // 👈 3. Appel de votre fonction d'import habituelle
       handlePowensImportSuccess(importedData, targetAccountName);
     }}
   />
@@ -17770,39 +17899,49 @@ if (!user) {
 {showOnboarding && toutesLesTransactions.length === 0 && (
   <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
     <div className="bg-[#111113] border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
-      <div className="w-16 h-16 bg-[var(--primary)]/10 text-[var(--primary)] rounded-full flex items-center justify-center mx-auto text-2xl">
-        ✨
+      
+      {/* Icône d'en-tête (remplace ✨) */}
+      <div className="w-16 h-16 bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 rounded-full flex items-center justify-center mx-auto shadow-[0_0_25px_rgba(99,102,241,0.15)]">
+        <Sparkles size={28} className="animate-pulse" />
       </div>
+
       <div>
         <h2 className="text-xl font-black uppercase tracking-wider text-white">Bienvenue sur Kleea</h2>
         <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">Configurez votre espace de gestion</p>
       </div>
       
       <p className="text-xs text-white/60 leading-relaxed">
-        Comment souhaitez-vous importer vos Transactions financières sur l'application ? Vous pourrez changer d'avis à tout moment dans votre profil.
+        Comment souhaitez-vous importer vos transactions financières sur l'application ? Vous pourrez changer d'avis à tout moment dans votre profil.
       </p>
 
       <div className="grid grid-cols-1 gap-3 pt-2">
+        {/* Option 1 : Synchronisation Automatique (remplace 🔌) */}
         <button
           onClick={() => handleChooseMode('auto')}
-          className="p-4 bg-[var(--primary)] hover:opacity-90 text-white rounded-2xl flex flex-col items-center gap-1 transition-all group cursor-pointer"
+          className="p-4 bg-[var(--primary)] hover:opacity-90 text-white rounded-2xl flex flex-col items-center gap-1 transition-all group cursor-pointer shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
         >
-          <span className="text-[11px] font-black uppercase tracking-widest">🔌 Synchronisation Automatique</span>
-          <span className="text-[8px] opacity-60 uppercase font-medium">Relevés en temps réel (recommandé)</span>
+          <span className="text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+            <Zap size={14} className="shrink-0 fill-current text-amber-300" />
+            <span>Synchronisation Automatique</span>
+          </span>
+          <span className="text-[8px] opacity-70 uppercase font-medium">Relevés en temps réel (recommandé)</span>
         </button>
 
+        {/* Option 2 : Mode Manuel (remplace 📂) */}
         <button
           onClick={() => handleChooseMode('manual')}
-          className="p-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl flex flex-col items-center gap-1 transition-all cursor-pointer"
+          className="p-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl flex flex-col items-center gap-1 transition-all cursor-pointer active:scale-[0.98]"
         >
-          <span className="text-[11px] font-black uppercase tracking-widest">📂 Mode Manuel (CSV)</span>
+          <span className="text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-white/90">
+            <FileUp size={14} className="shrink-0 text-white/60 group-hover:text-white transition-colors" />
+            <span>Mode Manuel (CSV)</span>
+          </span>
           <span className="text-[8px] opacity-40 uppercase font-medium">Imports de fichiers bancaires manuels</span>
         </button>
       </div>
     </div>
   </div>
 )}
-
 
 {/* MODALE DE MODIFICATION D'UNE CATÉGORIE (ICÔNE & COULEUR) */}
 {editingCat && (
