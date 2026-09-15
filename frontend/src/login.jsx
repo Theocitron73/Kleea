@@ -7632,18 +7632,21 @@ const handleAddCompte = async (e) => {
 
     // 🟢 IMPORT IMMÉDIAT LORS DE LA CRÉATION
     if (importMode === 'auto' && creationPowensName) {
-      setNotification({ message: "Liaison établie. Importation initiale en cours... ⚡", type: "success" });
       try {
         await api.post(`/powens/sync-user/${user}`);
         await api.post(`/powens/recalculate-balances/${user}`);
         await fetchTransactions();
         await fetchComptes();
-        setNotification({ message: "Transactions importées et solde calculé avec succès !", type: "success" });
+        
+        // 🟢 DÉCLENCHEMENT DE LA MODALE STYLÉE
+        setCelebrationModal({
+          show: true,
+          accountName: finalCompteName,
+          count: toutesLesTransactions.length
+        });
       } catch (syncErr) {
         console.error("Échec de l'importation initiale:", syncErr);
         setNotification({ message: "Erreur lors de l'importation initiale.", type: "error" });
-      } finally {
-        setTimeout(() => setNotification(null), 3000);
       }
     }
   } catch (err) {
@@ -9999,20 +10002,21 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
       );
     }
 
-    // 🟢 IMPORT IMMÉDIAT LORS DE LA LIAISON MANUELLE :
     if (importMode === 'auto' && newPowensName) {
-      setNotification({ message: "Liaison établie. Synchronisation du compte... ⚡", type: "success" });
       try {
-        await api.post(`/powens/sync-user/${user}`);
+        const syncRes = await api.post(`/powens/sync-user/${user}`);
         await api.post(`/powens/recalculate-balances/${user}`);
         await fetchTransactions();
         await fetchComptes();
-        setNotification({ message: "Synchronisation et calcul du solde réussis !", type: "success" });
+
+        // 🟢 DÉCLENCHEMENT DE LA MODALE STYLÉE
+        setCelebrationModal({
+          show: true,
+          accountName: localCompteObj.compte,
+          count: syncRes.data?.added || 0
+        });
       } catch (syncErr) {
         console.error("Échec de la synchronisation:", syncErr);
-        setNotification({ message: "Erreur lors de la synchronisation.", type: "error" });
-      } finally {
-        setTimeout(() => setNotification(null), 3000);
       }
     }
 
@@ -11353,6 +11357,12 @@ const previsionsTracking = useMemo(() => {
   return map;
 }, [allPrevisionsAnnee, toutesLesTransactions]);
 
+
+const [celebrationModal, setCelebrationModal] = useState({
+  show: false,
+  accountName: '',
+  count: 0
+});
 
 // 1. États pour la création
 const [selectedIconName, setSelectedIconName] = useState('Tag');
@@ -15703,112 +15713,125 @@ if (!user) {
           </div>
 
           {/* ACTION 2 : SYNCHRONISER */}
-          {(() => {
-            const unsyncedAccounts = Object.entries(syncCountByAccount || {}); 
-            // Vérifie si l'utilisateur a au moins un compte/connexion Powens
-            const hasConnectedPowens = powensData?.connections && powensData.connections.length > 0;
+{/* ACTION 2 : SYNCHRONISER (LAYOUT GAUCHE / DROITE) */}
+{(() => {
+  // 1. Récupération des comptes ayant au moins 1 transaction en attente
+  const unsyncedAccounts = Object.entries(syncCountByAccount || {}).filter(
+    ([_, data]) => {
+      const count = typeof data === 'object' ? data?.count : Number(data);
+      return count > 0;
+    }
+  );
 
-            const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
+  const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
 
-            const handleClick = async (e) => {
-              if (isExecuting) return;
-              setIsManualSyncing(true);
-              try {
-                if (handleSyncPowens) {
-                  await handleSyncPowens(e);
-                }
-              } finally {
-                setIsManualSyncing(false);
-              }
-            };
+  const handleClick = async (e) => {
+    if (isExecuting) return;
+    setIsManualSyncing(true);
+    try {
+      if (handleSyncPowens) {
+        await handleSyncPowens(e);
+      }
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
 
-            return (
-              <div 
-                onClick={handleClick}
-                className={`
-                  relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
-                  ${hasPendingSync 
-                    ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-                    : isExecuting 
-                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
-                      : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
-                `}
-              >
-                {/* Pastille clignotante en haut à droite (masquée pendant le chargement) */}
-                {hasPendingSync && !isExecuting && (
-                  <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
+  return (
+    <div 
+      onClick={handleClick}
+      className={`
+        relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[85px]
+        ${hasPendingSync 
+          ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+          : isExecuting 
+            ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
+            : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
+      `}
+    >
+      {/* Pastille clignotante en haut à droite en cas de nouvelles écritures */}
+      {hasPendingSync && !isExecuting && (
+        <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg"></span>
+        </span>
+      )}
+
+      {/* Icône animée */}
+      <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
+        isExecuting 
+          ? 'bg-[var(--primary)] text-black animate-spin' 
+          : hasPendingSync 
+            ? 'bg-[var(--primary)] text-black' 
+            : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+      }`}>
+        {isExecuting ? <RefreshCw size={18} /> : <Download size={18} />}
+      </div>
+
+      {/* CONTENEUR PRINCIPAL GAUCHE / DROITE */}
+      <div className="flex items-center justify-between gap-3 min-w-0 flex-1 pr-1">
+        
+        {/* --- CÔTÉ GAUCHE : TITRE & STATUT --- */}
+        <div className="flex flex-col shrink-0">
+          <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)] leading-tight">
+            Synchroniser
+          </h3>
+          
+          <p className={`text-[8px] font-bold uppercase tracking-widest mt-0.5 ${
+            isExecuting 
+              ? 'text-[var(--primary)] font-black animate-pulse'
+              : hasPendingSync 
+                ? 'text-rose-400 font-black animate-pulse' 
+                : 'text-emerald-400/80 font-bold'
+          }`}>
+            {isExecuting 
+              ? 'En cours...' 
+              : hasPendingSync 
+                ? 'Nouvelles Transactions' 
+                : 'Données Powens'}
+          </p>
+        </div>
+
+        {/* --- SÉPARATEUR VERTICAL & CÔTÉ DROIT : BADGES DU COMPTE / ÉTAT --- */}
+        <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 border-l border-white/10 pl-3 flex-1">
+          {isExecuting ? (
+            <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-wider animate-pulse">
+              Actualisation...
+            </span>
+          ) : hasPendingSync && unsyncedAccounts.length > 0 ? (
+            /* AFFICHAGE DES BADGES AVEC LE NOM DU COMPTE */
+            unsyncedAccounts.map(([accName, data]) => {
+              const count = typeof data === 'object' ? data.count : data;
+              return (
+                <span 
+                  key={accName} 
+                  className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-200 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 shadow-sm"
+                  title={`${accName} : ${count} nouvelle(s) transaction(s) en attente`}
+                >
+                  <span className="text-white font-black">{accName}</span>
+                  <span className="text-rose-200 font-black bg-rose-500/30 px-1 py-0.2 rounded text-[7px]">
+                    +{count} Nouvelles
                   </span>
-                )}
+                </span>
+              );
+            })
+          ) : hasPendingSync ? (
+            <span className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-black uppercase tracking-wider">
+              Nouvelles Transactions
+            </span>
+          ) : (
+            /* ÉTAT PAR DÉFAUT : TOUT EST SYNCHRONISÉ */
+            <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              <span className="whitespace-nowrap">À jour</span>
+            </span>
+          )}
+        </div>
 
-                {/* Icône avec animation de rotation (animate-spin) pendant le chargement */}
-                <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
-                  isExecuting 
-                    ? 'bg-[var(--primary)] text-black animate-spin' 
-                    : hasPendingSync 
-                      ? 'bg-[var(--primary)] text-black' 
-                      : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
-                }`}>
-                  {isExecuting ? <RefreshCw size={18} /> : <Download size={18} />}
-                </div>
-
-                {/* Bloc principal : Titre + Sous-texte à gauche */}
-                <div className="flex items-center gap-4 min-w-0 pr-6 w-full">
-                  
-                  {/* Titre + Sous-texte */}
-                  <div className="flex flex-col shrink-0">
-                    <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)]">
-                      Synchroniser
-                    </h3>
-                    
-                    <p className={`text-[8px] font-bold uppercase tracking-widest ${
-                      isExecuting 
-                        ? 'text-[var(--primary)] font-black animate-pulse'
-                        : hasPendingSync 
-                          ? 'text-rose-400 font-black animate-pulse' 
-                          : 'text-emerald-400/80 font-bold'
-                    }`}>
-                      {isExecuting 
-                        ? 'Synchronisation...' 
-                        : hasPendingSync 
-                          ? 'Nouvelles transactions' 
-                          : 'Données Powens'}
-                    </p>
-                  </div>
-
-                  {/* Séparateur vertical + Contenu à droite */}
-                    {hasConnectedPowens && (
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 border-l border-white/10 pl-3">
-                        {hasPendingSync && unsyncedAccounts.length > 0 ? (
-                          unsyncedAccounts.map(([name, data]) => {
-                            const count = typeof data === 'object' ? data.count : data;
-
-                            return (
-                              <span 
-                                key={name} 
-                                className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1 truncate"
-                                title={`${name} : ${count} nouvelle(s) transaction(s) en attente`}
-                              >
-                                <span className="truncate">{name}</span>
-                                <span className="text-rose-200 font-black bg-rose-500/30 px-1 rounded">
-                                  {count} {count > 1 ? 'nouvelles' : 'nouvelle'}
-                                </span>
-                              </span>
-                            );
-                          })
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            Tout est synchronisé pour le moment
-                          </span>
-                        )}
-                      </div>
-                    )}
-                </div>
-              </div>
-            );
-          })()}
+      </div>
+    </div>
+  );
+})()}
 
           {/* ACTION 3 : CSV */}
           <div 
@@ -15839,189 +15862,186 @@ if (!user) {
         </div>
 
           {/* 3. RÉCAPITULATIF & TABLEAU DE PRÉVISUALISATION */}
-          {transactionsCalculees && transactionsCalculees.length > 0 && (
-            <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
-              <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
+            {transactionsCalculees && transactionsCalculees.length > 0 && (
+              <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
+                <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
 
-              <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
-                <div className="flex items-center gap-2">
-                  <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                    <Wallet size={10} className="text-[var(--primary)]" />
-                    <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
-                    <span className="text-[10px] font-black text-[var(--primary)] uppercase">
-                      {selectedCompte}
-                    </span>
-                  </div>
+                {/* Fonction helper pour détecter tous les types de transferts internes */}
+                {(() => {
+                  const isInternalTransfer = (cat) => {
+                    if (!cat) return false;
+                    const c = cat.toLowerCase();
+                    return c.includes("vers") || c.includes("transfert") || c.startsWith("🔄") || c.startsWith("virement :");
+                  };
 
-                  <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
+                  return (
+                    <>
+                      {/* CARTES DE RÉSUMÉ */}
+                      <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
+                        <div className="flex items-center gap-2">
+                          <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
+                            <Wallet size={10} className="text-[var(--primary)]" />
+                            <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
+                            <span className="text-[10px] font-black text-[var(--primary)] uppercase">
+                              {selectedCompte}
+                            </span>
+                          </div>
 
-                  {[
-                    { label: "Revenus", val: transactionsCalculees.filter(t => t.montant > 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-emerald-400" },
-                    { label: "Dépenses", val: transactionsCalculees.filter(t => t.montant < 0 && !t.categorie.startsWith('🔄')).reduce((acc, t) => acc + t.montant, 0), color: "text-rose-400" },
-                    { label: "Transferts", val: transactionsCalculees.filter(t => t.categorie.startsWith('🔄')).reduce((acc, t) => acc + Math.abs(t.montant), 0), color: "text-violet-400" }
-                  ].map((stat, idx) => (
-                    <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                      <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
-                      <span className={`text-[10px] font-black ${stat.color}`}>
-                        {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                          <div className="w-[1px] h-6 bg-[var(--glass-bg)] mx-1" />
 
-                <div className="flex items-center gap-3">
-                  <button 
-                    onClick={() => { setTempTransactions([]); setFileName(""); }} 
-                    className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
-                  >
-                    Annuler
-                  </button>
-                  
-                  {/* On ne compte et n'importe que les nouvelles transactions */}
-                  {(() => {
-                    const nouvellesLignes = transactionsCalculees.filter(t => !t.isAlreadyImported);
-                    return (
-                      <button 
-                        onClick={confirmBatchImport}
-                        disabled={nouvellesLignes.length === 0}
-                        className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed"
-                      >
-                        <Check size={12} strokeWidth={4} /> Importer {nouvellesLignes.length} nouvelles lignes
-                      </button>
-                    );
-                  })()}
-                </div>
-              </div>
+                          {[
+                            { 
+                              label: "Revenus", 
+                              val: transactionsCalculees.filter(t => t.montant > 0 && !isInternalTransfer(t.categorie)).reduce((acc, t) => acc + t.montant, 0), 
+                              color: "text-emerald-400" 
+                            },
+                            { 
+                              label: "Dépenses", 
+                              val: transactionsCalculees.filter(t => t.montant < 0 && !isInternalTransfer(t.categorie)).reduce((acc, t) => acc + t.montant, 0), 
+                              color: "text-rose-400" 
+                            },
+                            { 
+                              label: "Transferts", 
+                              val: transactionsCalculees.filter(t => isInternalTransfer(t.categorie)).reduce((acc, t) => acc + Math.abs(t.montant), 0), 
+                              color: "text-violet-400" 
+                            }
+                          ].map((stat, idx) => (
+                            <div key={idx} className="bg-[var(--glass-bg)] border border-white/5 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
+                              <span className="text-[7px] font-black uppercase text-[var(--text-main)]/20 tracking-tighter">{stat.label}</span>
+                              <span className={`text-[10px] font-black ${stat.color}`}>
+                                {stat.val.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+                              </span>
+                            </div>
+                          ))}
+                        </div>
 
-              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
-                {/* Ajustement ici avec min-[2000px]:max-h-[750px] (ou la hauteur souhaitée) */}
-                <div className="max-h-[420px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
-                      <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
-                        <th className="p-4">Date</th>
-                        <th className="p-4">Désignation</th>
-                        <th className="p-4">Catégorie</th>
-                        <th className="p-4 text-right">Montant</th>
-                      </tr>
-                    </thead>
-                   <tbody className="divide-y divide-white/[0.02]">
-                      {transactionsCalculees.map((t, i) => {
-                        const isTransfert = t.categorie.startsWith('🔄');
-                        const isImported = t.isAlreadyImported;
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => { setTempTransactions([]); setFileName(""); }} 
+                            className="px-4 py-2.5 text-[9px] font-black text-[var(--text-main)]/20 hover:text-rose-500 transition-all uppercase tracking-widest"
+                          >
+                            Annuler
+                          </button>
+                          
+                          {(() => {
+                            const nouvellesLignes = transactionsCalculees.filter(t => !t.isAlreadyImported);
+                            return (
+                              <button 
+                                onClick={confirmBatchImport}
+                                disabled={nouvellesLignes.length === 0}
+                                className="flex items-center gap-2 px-6 py-2.5 bg-[var(--primary)] text-[var(--text-main)] font-black uppercase text-[9px] rounded-xl hover:scale-105 transition-all shadow-xl shadow-[var(--primary)]/20 disabled:opacity-40 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                              >
+                                <Check size={12} strokeWidth={4} /> Importer {nouvellesLignes.length} nouvelles lignes
+                              </button>
+                            );
+                          })()}
+                        </div>
+                      </div>
 
-                        // Détecter si la ligne précédente avait un statut 'isAlreadyImported' différent
-                        const prevTransaction = i > 0 ? transactionsCalculees[i - 1] : null;
-                        const isFirstDelimiter = i > 0 && prevTransaction.isAlreadyImported !== isImported;
-
-                        return (
-                          <React.Fragment key={i}>
-                            {/* 🟢 LIGNE DE SÉPARATION ET DÉLIMITATION */}
-                            {isFirstDelimiter && (
-                              <tr className="bg-white/[0.02]">
-                                <td colSpan={4} className="py-2 px-4 border-y border-[var(--primary)]/30 bg-[var(--primary)]/5">
-                                  <div className="flex items-center justify-center gap-3">
-                                    <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-transparent" />
-                                    <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--primary)] px-2 py-0.5 rounded-full bg-black/40 border border-[var(--primary)]/30">
-                                      {isImported ? '▲ Nouvelles transactions ci-dessus / Déjà importées ci-dessous ▼' : '▲ Déjà importées ci-dessus / Nouvelles transactions ci-dessous ▼'}
-                                    </span>
-                                    <div className="h-[1px] flex-1 bg-gradient-to-r from-transparent via-[var(--primary)]/40 to-transparent" />
-                                  </div>
-                                </td>
+                      {/* TABLEAU DE PRÉVISUALISATION */}
+                      <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+                        <div className="max-h-[420px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
+                          <table className="w-full text-left border-collapse">
+                            <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
+                              <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
+                                <th className="p-4">Date</th>
+                                <th className="p-4">Désignation</th>
+                                <th className="p-4">Catégorie</th>
+                                <th className="p-4 text-right">Montant</th>
                               </tr>
-                            )}
+                            </thead>
+                            <tbody className="divide-y divide-white/[0.02]">
+                              {transactionsCalculees.map((t, i) => {
+                                const isTransfert = isInternalTransfer(t.categorie);
+                                const isImported = t.isAlreadyImported;
 
-                            {/* Ligne standard de transaction */}
-                            <tr 
-                              className={`transition-all group ${
-                                isImported 
-                                  ? 'bg-[var(--primary)]/[0.3] hover:bg-[var(--primary)]/[0.2] opacity-40 select-none' 
-                                  : 'bg-rose-500/[0.15] hover:bg-rose-500/[0.1]'
-                              }`}
-                            >
-                              <td className="p-4 text-[10px] text-[var(--text-main)] font-bold">
-                                {t.date}
-                              </td>
-                              
-                              <td className="p-4">
-                                <div className="flex items-center gap-2">
-                                  {/* Nom de la transaction */}
-                                  <div className="text-[10px] text-[var(--text-main)] font-black uppercase truncate max-w-[240px]">
-                                    {t.nom}
-                                  </div>
-
-                                  {/* 🟢 BADGE DOUBLON / OCCURRENCE INDEXÉE (#2, #3...) */}
-                                  {(() => {
-                                    // 1. Détection si le nom contient déjà un index (ex: "PEAGE AUTOROUT #2")
-                                    const matchIndex = t.nom?.match(/#(\d+)/);
-                                    const indexOccurrence = matchIndex ? parseInt(matchIndex[1], 10) : (t.duplicateIndex || 1);
+                                return (
+                                  <tr 
+                                    key={i} 
+                                    className={`transition-all group ${
+                                      isImported 
+                                        ? 'bg-[var(--primary)]/[0.15] opacity-40 select-none' 
+                                        : isTransfert
+                                          ? 'bg-violet-500/[0.08] hover:bg-violet-500/[0.15]' 
+                                          : 'bg-rose-500/[0.08] hover:bg-rose-500/[0.15]'
+                                    }`}
+                                  >
+                                    {/* 1. DATE : Texte en violet si transfert */}
+                                    <td className={`p-4 text-[10px] font-bold ${
+                                      isTransfert ? 'text-violet-300' : 'text-[var(--text-main)]'
+                                    }`}>
+                                      {t.date}
+                                    </td>
                                     
-                                    // 2. Vérification si c'est un doublon (soit par le tag, soit par le numéro #2+, soit par le nom)
-                                    const estUnDoublon = t.isPotentialDuplicate || Boolean(matchIndex) || indexOccurrence > 1;
+                                    {/* 2. NOM / LIBELLÉ : Texte en violet si transfert */}
+                                    <td className="p-4">
+                                      <div className="flex items-center gap-2">
+                                        <div className={`text-[10px] font-black uppercase truncate max-w-[260px] ${
+                                          isTransfert ? 'text-violet-200' : 'text-[var(--text-main)]'
+                                        }`}>
+                                          {t.nom}
+                                        </div>
 
-                                    if (!estUnDoublon) return null;
+                                        {/* Badge Doublon indexé */}
+                                        {t.isPotentialDuplicate && (
+                                          <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                            Doublon #{t.duplicateIndex || 2}
+                                          </span>
+                                        )}
 
-                                    return (
-                                      <span 
-                                        title="Transaction similaire détectée le même jour avec le même montant"
-                                        className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0 flex items-center gap-1 shadow-sm"
-                                      >
-                                        <span>⚠️</span>
-                                        <span>{indexOccurrence > 1 ? `Doublon #${indexOccurrence}` : 'Doublon potentiel'}</span>
-                                      </span>
-                                    );
-                                  })()}
+                                        {isImported ? (
+                                          <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
+                                            Déjà importé
+                                          </span>
+                                        ) : (
+                                          <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-300 border border-rose-500/20 shrink-0 flex items-center gap-1">
+                                            <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                                            Nouveau
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
 
-                                  {/* Badge indicateur de statut (Déjà importé VS Nouveau) */}
-                                  {isImported ? (
-                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                                      Déjà importé
-                                    </span>
-                                  ) : (
-                                    <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-300 border border-rose-500/20 shrink-0 flex items-center gap-1">
-                                      <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
-                                      Nouveau
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
+                                    {/* 3. CATÉGORIE : Badge violet */}
+                                    <td className="p-4">
+                                      <div className="flex items-center gap-2">
+                                        <CategoryIcon name={t.categorie} size={14} />
+                                        <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
+                                          isImported
+                                            ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
+                                            : isTransfert 
+                                              ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 shadow-[0_0_12px_rgba(139,92,246,0.25)]' 
+                                              : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
+                                        }`}>
+                                          {getCleanCategoryName(t.categorie)}
+                                        </span>
+                                      </div>
+                                    </td>
 
-                              <td className="p-4">
-                                <div className="flex items-center gap-2">
-                                  <CategoryIcon name={t.categorie} size={14} />
-                                  <span className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase border transition-all ${
-                                    isImported
-                                      ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
-                                      : isTransfert 
-                                        ? 'bg-violet-500/10 text-violet-400 border-violet-500/20 shadow-[0_0_10px_rgba(139,92,246,0.1)]' 
-                                        : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
-                                  }`}>
-                                    {getCleanCategoryName(t.categorie)}
-                                  </span>
-                                </div>
-                              </td>
-
-                              <td className={`p-4 text-right font-black text-[11px] ${
-                                isImported
-                                  ? 'text-[var(--text-main)]/20'
-                                  : isTransfert 
-                                    ? 'text-violet-400' 
-                                    : t.montant < 0 
-                                      ? 'text-rose-400' 
-                                      : 'text-emerald-400'
-                              }`}>
-                                {t.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
-                              </td>
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                                    {/* 4. MONTANT : Montant en violet si transfert */}
+                                    <td className={`p-4 text-right font-black text-[11px] ${
+                                      isImported
+                                        ? 'text-[var(--text-main)]/20'
+                                        : isTransfert 
+                                          ? 'text-violet-300 font-extrabold' 
+                                          : t.montant < 0 
+                                            ? 'text-rose-400' 
+                                            : 'text-emerald-400'
+                                    }`}>
+                                      {t.montant.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}€
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
-            </div>
-          )}
+            )}
       </div>
 
       {/* COLONNE DROITE : INTELLIGENCE (SEULE) */}
@@ -16671,42 +16691,71 @@ if (!user) {
   ) : (
          /* --- ÉTAT VIDE AMÉLIORÉ --- */
           importMode === 'auto' ? (
-            // 🟢 bulle d'information explicative pour le mode automatique
-            <div className="max-w-xl mx-auto flex flex-col items-center justify-center text-center p-8 bg-indigo-500/[0.02] border-2 border-dashed border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-md relative overflow-hidden group">
-              <div className="absolute inset-0 bg-gradient-to-tr from-indigo-500/0 via-indigo-500/5 to-transparent pointer-events-none" />
-              
-              <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center mb-6 shadow-[0_0_15px_rgba(99,102,241,0.1)]">
-                <HelpCircle size={28} className="text-indigo-400" />
-              </div>
-              
-              <h3 className="text-white font-black text-sm uppercase tracking-widest mb-3">
-                Pourquoi créer un compte Virtuel Kleea ?
+          <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-8 bg-indigo-500/[0.03] border border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-6">
+            {/* Fond lumineux */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
+
+            {/* Icône principale */}
+            <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+              <Sparkles size={28} className="text-indigo-400 animate-pulse" />
+            </div>
+
+            {/* Titre */}
+            <div>
+              <h3 className="text-white font-black text-base uppercase tracking-widest">
+                Créez vos comptes miroirs Kleea
               </h3>
-              
-              <p className="text-[11px] text-white/60 leading-relaxed max-w-sm mb-6 uppercase tracking-tight">
-                Bien que votre banque réelle soit connectée via Powens, Kleea a besoin d'un <strong className="text-indigo-400">compte miroir local</strong> pour y stocker vos écritures synchronisées, projeter vos soldes futurs et héberger vos objectifs d'épargne.
-                <br /><br />
-                Saisissez simplement un nom dans le formulaire ci-dessus (ex: <i>"Compte Courant"</i>) et <strong className="text-indigo-400">associez-le à votre compte réel</strong>. L'application synchronisera le tout automatiquement !
+              <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider mt-1">
+                Indispensable pour synchroniser vos Transactions et projeter votre épargne
+              </p>
+            </div>
+
+            {/* Explication 1 : Le rôle du compte miroir */}
+            <p className="text-[11px] text-white/70 leading-relaxed max-w-lg text-left bg-black/30 p-4 rounded-xl border border-white/5">
+              Même si votre banque réelle est connectée via Powens, Kleea a besoin d’un <strong className="text-white">compte miroir local</strong> (ex: <i>"Compte Courant"</i>) pour stocker vos transactions, calculer vos bilans et simuler vos objectifs d'épargne.
+            </p>
+
+            {/* 🟢 Explication 2 : Pourquoi renseigner l'IBAN de son Livret A / Épargne + Confidentialité */}
+            <div className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/25 space-y-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
+                <h4 className="text-[11px] font-black uppercase text-emerald-300 tracking-wider">
+                  Pourquoi renseigner l'IBAN ou connecter votre Livret A ou Livret Épargne ?
+                </h4>
+              </div>
+
+              <p className="text-[11px] text-white/80 leading-relaxed">
+                Renseigner l'IBAN ou le numéro de compte de vos livrets (même s'ils ne sont pas directement synchronisés) permet à Kleea de <strong className="text-emerald-300">reconnaître automatiquement les virements émis depuis votre compte courant</strong> et de les classer en <i>transferts internes</i> à 100% sans aucun mot-clé.
               </p>
 
-              <div className="flex items-center gap-1.5 text-[9px] font-black text-indigo-400 uppercase tracking-wider bg-indigo-500/10 border border-indigo-500/20 px-3 py-1.5 rounded-xl">
-                <Sparkles size={11} className="animate-pulse" /> Saisissez les informations ci-dessus pour commencer
+              {/* Garantie de confidentialité */}
+              <div className="flex items-start gap-2 pt-2 border-t border-emerald-500/15">
+                <Lock size={13} className="text-emerald-400 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-emerald-200/70 font-medium leading-normal">
+                  <strong className="text-emerald-300">Confidentialité totale :</strong> Vos IBANs sont chiffrés de bout en bout (clé cryptographique <i>Fernet</i>). Ils sont illisibles en base de données : <strong className="text-white">personne, pas même le créateur du site, ne peut les voir en clair</strong>.
+                </p>
               </div>
             </div>
-          ) : (
-            /* --- ÉTAT VIDE MANUEL CLASSIQUE --- */
-            <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
-                <div className="relative w-20 h-20 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center shadow-2xl">
-                  <Wallet size={32} className="text-[var(--primary)]/80" />
-                </div>
-              </div>
-              <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">Aucun compte configuré</h3>
-              <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
-                Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
-              </p>
+
+            {/* CTA bas */}
+            <div className="flex items-center gap-2 text-[9px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/10 border border-indigo-500/20 px-4 py-2 rounded-xl">
+              <Plus size={12} strokeWidth={3} /> Utilisez le formulaire ci-dessus pour ajouter votre premier compte
             </div>
+          </div>
+        ) : (
+          /* --- ÉTAT VIDE MANUEL CLASSIQUE --- */
+          <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
+              <div className="relative w-20 h-20 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center shadow-2xl">
+                <Wallet size={32} className="text-[var(--primary)]/80" />
+              </div>
+            </div>
+            <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">Aucun compte configuré</h3>
+            <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
+              Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
+            </p>
+          </div>
           )
         )}
       </div>
@@ -17060,7 +17109,7 @@ if (!user) {
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
               </span>
               <span className="text-[8px] font-bold text-white/50 uppercase tracking-widest leading-none mt-1">
-                Actualisation des comptes et écritures...
+                Actualisation des comptes et Transactions...
               </span>
             </div>
           </div>
@@ -17533,7 +17582,7 @@ if (!user) {
               Liaison des Transactions aux Prévisions
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
-              Associez d'un simple clic vos écritures réelles à vos prévisions budgétaires ! L'application calcule en temps réel votre <strong className="text-emerald-400">avancement (consommé vs prévu)</strong> avec jauge de progression et alertes en cas de dépassement.
+              Associez d'un simple clic vos Transactions réelles à vos prévisions budgétaires ! L'application calcule en temps réel votre <strong className="text-emerald-400">avancement (consommé vs prévu)</strong> avec jauge de progression et alertes en cas de dépassement.
               <br />
               <span className="text-[11px] text-emerald-400/90 font-semibold mt-1 block">
                 ⚡ Zéro doublon : dès qu'une charge (loyer, assurance) ou un revenu (salaire) est payé et lié, la projection de fin de mois s'ajuste automatiquement sur le reste réel à venir.
@@ -17586,7 +17635,7 @@ if (!user) {
           <span className="text-base mt-0.5">🛡️</span>
           <div>
             <h4 className="text-[14px] font-black text-amber-400 uppercase tracking-wide">
-              Indexation Transparente des Écritures Identiques
+              Indexation Transparente des Transactions Identiques
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
               Plus aucun blocage lors de l'import : si plusieurs transactions identiques ont lieu le même jour (ex: plusieurs péages ou micro-achats), elles sont indexées avec <strong className="text-amber-400">#2, #3...</strong> et signalées visuellement pour vous permettre de les vérifier, renommer ou supprimer à tout moment.
@@ -17725,7 +17774,7 @@ if (!user) {
       </div>
       
       <p className="text-xs text-white/60 leading-relaxed">
-        Comment souhaitez-vous importer vos écritures financières sur l'application ? Vous pourrez changer d'avis à tout moment dans votre profil.
+        Comment souhaitez-vous importer vos Transactions financières sur l'application ? Vous pourrez changer d'avis à tout moment dans votre profil.
       </p>
 
       <div className="grid grid-cols-1 gap-3 pt-2">
@@ -17844,6 +17893,70 @@ if (!user) {
   </div>
 )}
 
+{/* =========================================================================
+    🎉 MODALE DE CÉLÉBRATION : PREMIER IMPORT AUTOMATIQUE RÉUSSI
+    ========================================================================= */}
+{celebrationModal.show && (
+  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
+    <div 
+      className="absolute inset-0" 
+      onClick={() => setCelebrationModal({ show: false, accountName: '', count: 0 })} 
+    />
+
+    <div className="relative w-full max-w-md bg-[#0e131f] border border-emerald-500/30 rounded-3xl p-8 shadow-[0_20px_70px_rgba(16,185,129,0.25)] z-10 animate-in zoom-in-95 duration-300 text-center overflow-hidden">
+      
+      {/* Effets de halo néon */}
+      <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/20 blur-[50px] rounded-full pointer-events-none" />
+      <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-indigo-500/20 blur-[50px] rounded-full pointer-events-none" />
+
+      {/* Icône festive */}
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto mb-5 shadow-[0_0_25px_rgba(52,211,153,0.3)]">
+        <span className="text-3xl animate-bounce">⚡</span>
+      </div>
+
+      {/* Titres */}
+      <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 inline-block mb-3">
+        Synchronisation Réussie
+      </span>
+      
+      <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
+        Compte lié avec succès !
+      </h3>
+
+      <p className="text-xs text-white/70 leading-relaxed mb-6">
+        Votre compte <strong className="text-emerald-400">"{celebrationModal.accountName}"</strong> est désormais Connecté. Toutes vos Transactions sont importées et votre solde initial est automatiquement calibré !
+      </p>
+
+      {/* 3 points forts clés */}
+      <div className="grid grid-cols-3 gap-2 p-3 bg-black/40 rounded-2xl border border-white/5 mb-6 text-left">
+        <div className="flex flex-col">
+          <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Statut</span>
+          <span className="text-[10px] font-black text-emerald-400 uppercase mt-0.5">En direct</span>
+        </div>
+        <div className="flex flex-col border-x border-white/5 px-2">
+          <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Solde initial</span>
+          <span className="text-[10px] font-black text-white uppercase mt-0.5">Calibré ⚖️</span>
+        </div>
+        <div className="flex flex-col pl-1">
+          <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Virements</span>
+          <span className="text-[10px] font-black text-indigo-300 uppercase mt-0.5">Auto-classés</span>
+        </div>
+      </div>
+
+      {/* Bouton d'action */}
+      <button
+        onClick={() => {
+          setCelebrationModal({ show: false, accountName: '', count: 0 });
+          setActiveTab('dashboard'); // Redirige directement vers le tableau de bord pour admirer le résultat
+        }}
+        className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
+      >
+        Voir mon tableau de bord 🚀
+      </button>
+
+    </div>
+  </div>
+)}
 
 <style dangerouslySetInnerHTML={{__html: `
   @keyframes progress {
