@@ -2026,7 +2026,28 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
   const currentLabel = options?.find(opt => opt.v === value)?.l || value;
   const isCategorySelect = isCategory || Icon === Tag;
 
-  // Organisation des options par groupes
+  // 🟢 NAVIGATION À LA MOLETTE DE LA SOURIS SUR LE SELECT (Quand fermé)
+  const handleWheelSelect = (e) => {
+    if (isOpen || !options || options.length <= 1) return;
+    e.preventDefault(); // Empêche la page de scroller verticalement pendant le changement de filtre
+
+    const currentIndex = options.findIndex(opt => String(opt.v) === String(value));
+    if (currentIndex === -1) return;
+
+    if (e.deltaY > 0) {
+      // Molette vers le bas -> Option suivante
+      if (currentIndex < options.length - 1) {
+        onChange(options[currentIndex + 1].v);
+      }
+    } else if (e.deltaY < 0) {
+      // Molette vers le haut -> Option précédente
+      if (currentIndex > 0) {
+        onChange(options[currentIndex - 1].v);
+      }
+    }
+  };
+
+  // Organisation par groupes si catégories
   const groupedOptions = useMemo(() => {
     if (!isCategorySelect) return null;
 
@@ -2054,12 +2075,14 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
         </label>
       )}
       
-      {/* BOUTON DU SÉLECTEUR */}
+      {/* BOUTON DU SÉLECTEUR (Avec l'écouteur onWheel) */}
       <div
-        className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
+        onWheel={handleWheelSelect}
+        className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border cursor-ns-resize ${
           isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
-        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none cursor-pointer`}
+        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none`}
         onClick={() => setIsOpen(true)}
+        title="Molette de la souris : changer d'option"
       >
         <div className="flex items-center gap-2.5 w-full min-w-0">
           {isCategorySelect ? (
@@ -2084,7 +2107,7 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
         />
       </div>
 
-      {/* MENU DÉROULANT AVEC EN-TÊTES DE GROUPES NON-STICKY */}
+      {/* MENU DÉROULANT */}
       {isOpen && (
         <div className="absolute top-[110%] left-0 w-full min-w-[175px] z-[100] bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5 space-y-1">
@@ -2092,8 +2115,6 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
               isCategorySelect && groupedOptions && groupedOptions.sortedGroupNames.length > 0 ? (
                 groupedOptions.sortedGroupNames.map(grpName => (
                   <div key={grpName} className="space-y-0.5">
-                    
-                    {/* 🟢 EN-TÊTE DÉFILANT NATURELLEMENT (Sans 'sticky') */}
                     {groupedOptions.sortedGroupNames.length > 1 && (
                       <div className="px-2.5 pt-2 pb-1 text-[8px] font-black uppercase tracking-wider text-indigo-300/60 flex items-center justify-between border-t first:border-t-0 border-white/5 mt-1 select-none">
                         <span className="flex items-center gap-1.5">
@@ -2106,7 +2127,6 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
                       </div>
                     )}
 
-                    {/* Options du groupe */}
                     {groupedOptions.groups[grpName].map(opt => (
                       <div
                         key={opt.v}
@@ -11569,6 +11589,80 @@ const handleForceRefreshPowens = async () => {
   }
 };
 
+// =========================================================================
+// 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
+// =========================================================================
+const lastWheelTime = useRef(0);
+
+// Anti-rebond (160ms) pour garantir un défilement précis de 1 par 1
+const canWheelTrigger = () => {
+  const now = Date.now();
+  if (now - lastWheelTime.current < 160) return false;
+  lastWheelTime.current = now;
+  return true;
+};
+
+// 1. Défilement des Mois
+const handleWheelMois = (e, isPrevi = false) => {
+  if (!canWheelTrigger()) return;
+
+  const liste = isPrevi 
+    ? moisListe 
+    : moisListe.filter(m => availablePeriods.some(p => p.mois === m.v && p.annee.toString() === filters.annee?.toString()));
+
+  if (liste.length <= 1) return;
+
+  const currentIndex = liste.findIndex(m => m.v.toLowerCase() === filters.mois?.toLowerCase());
+  if (currentIndex === -1) return;
+
+  if (e.deltaY > 0) {
+    // Molette vers le bas -> Mois suivant
+    if (currentIndex < liste.length - 1) {
+      setFilters({ mois: liste[currentIndex + 1].v });
+    }
+  } else if (e.deltaY < 0) {
+    // Molette vers le haut -> Mois précédent
+    if (currentIndex > 0) {
+      setFilters({ mois: liste[currentIndex - 1].v });
+    }
+  }
+};
+
+// 2. Défilement des Années
+const handleWheelAnnee = (e, isPrevi = false) => {
+  if (!canWheelTrigger()) return;
+
+  const rawYears = isPrevi
+    ? [...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
+    : [...new Set(availablePeriods.map(p => p.annee.toString()))];
+
+  const sortedYears = rawYears.sort((a, b) => parseInt(a) - parseInt(b));
+  if (sortedYears.length <= 1) return;
+
+  const currentIndex = sortedYears.findIndex(y => y === filters.annee?.toString());
+  if (currentIndex === -1) return;
+
+  if (e.deltaY > 0 && currentIndex < sortedYears.length - 1) {
+    setFilters({ annee: sortedYears[currentIndex + 1] });
+  } else if (e.deltaY < 0 && currentIndex > 0) {
+    setFilters({ annee: sortedYears[currentIndex - 1] });
+  }
+};
+
+// 3. Défilement des Profils
+const handleWheelProfil = (e) => {
+  if (!canWheelTrigger() || groupesDisponibles.length <= 1) return;
+
+  const currentIndex = groupesDisponibles.findIndex(p => p.toLowerCase() === filters.profil?.toLowerCase());
+  if (currentIndex === -1) return;
+
+  if (e.deltaY > 0 && currentIndex < groupesDisponibles.length - 1) {
+    setFilters({ profil: groupesDisponibles[currentIndex + 1] });
+  } else if (e.deltaY < 0 && currentIndex > 0) {
+    setFilters({ profil: groupesDisponibles[currentIndex - 1] });
+  }
+};
+
 
 // 🟢 CHARGEMENT SÉCURISÉ AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
@@ -12033,34 +12127,39 @@ if (!user) {
         {activeTab === 'dashboard' && (
           <>
         <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(99vh-100px)] lg:overflow-hidden">
-          {/* 1. LA BARRE DE FILTRES (On la ferme bien à la fin) */}
-          <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
-           
-            {/* SECTION PROFIL (Sans 'Tous' + Parade active) */}
-              <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
-                {groupesDisponibles.map(p => {
-                  const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
-
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => setFilters({...filters, profil: p})}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                        isSelected 
-                        ? 'bg-white text-slate-900 shadow-sm' 
-                        : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* 1. BARRE DE FILTRES DU DASHBOARD */}
+          <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10 select-none">
+            
+            {/* SECTION PROFIL (Molette active) */}
+            <div 
+              onWheel={handleWheelProfil}
+              className="flex items-center gap-1 bg-black/20 p-1 rounded-xl cursor-ns-resize"
+              title="Molette de la souris : changer de profil"
+            >
+              {groupesDisponibles.map(p => {
+                const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setFilters({...filters, profil: p})}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                      isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+            </div>
 
             <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
-            {/* SECTION MOIS */}
-            <div className="flex items-center gap-1 no-scrollbar">
+            {/* SECTION MOIS (Molette active) */}
+            <div 
+              onWheel={(e) => handleWheelMois(e, false)}
+              className="flex items-center gap-1 no-scrollbar cursor-ns-resize"
+              title="Molette de la souris : changer de mois"
+            >
               {moisListe.map(m => {
                 const hasData = availablePeriods.some(p => 
                   p.mois === m.v && p.annee.toString() === filters.annee?.toString()
@@ -12070,10 +12169,10 @@ if (!user) {
                   <button
                     key={m.v}
                     onClick={() => setFilters({...filters, mois: m.v})}
-                    className={`min-w-[38px] py-1.5 rounded-lg text-[10px] font-black transition-all border ${
+                    className={`min-w-[38px] py-1.5 rounded-lg text-[10px] font-black transition-all border cursor-pointer ${
                       filters.mois === m.v 
-                      ? 'bg-[var(--primary)] border-[var(--primary)] text-[var(--text-main)]' 
-                      : 'bg-transparent border-transparent text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
+                        ? 'bg-[var(--primary)] border-[var(--primary)] text-[var(--text-main)]' 
+                        : 'bg-transparent border-transparent text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
                     }`}
                   >
                     {m.l.substring(0, 3).toUpperCase()}
@@ -12084,17 +12183,19 @@ if (!user) {
 
             <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
-            {/* SECTION ANNÉE */}
-            <div className="flex items-center gap-1">
+            {/* SECTION ANNÉE (Molette active) */}
+            <div 
+              onWheel={(e) => handleWheelAnnee(e, false)}
+              className="flex items-center gap-1 cursor-ns-resize"
+              title="Molette de la souris : changer d'année"
+            >
               {[...new Set(availablePeriods.map(p => p.annee))]
-                .sort((a, b) => parseInt(a) - parseInt(b)) // Garde le tri croissant pour l'affichage (gauche à droite)
+                .sort((a, b) => parseInt(a) - parseInt(b))
                 .map(year => (
                   <button
                     key={year}
-                    // On enregistre en string ici aussi
                     onClick={() => setFilters({...filters, annee: year.toString()})}
-                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                      // Comparaison sécurisée : on transforme les deux en String pour le test
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                       filters.annee?.toString() === year.toString() 
                       ? 'bg-emerald-500 text-[var(--text-main)] shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
                       : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
@@ -12102,9 +12203,9 @@ if (!user) {
                   >
                     {year}
                   </button>
-              ))}
+                ))}
             </div>
-          </div> {/* <--- ON FERME LA BARRE DE FILTRES ICI */}
+          </div>
 
 
 
@@ -13363,21 +13464,23 @@ if (!user) {
     <>
    <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(98vh-100px)] lg:overflow-hidden">
     
-    {/* 1. LA BARRE DE FILTRES */}
-    <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">
-      {/* SECTION PROFIL PRÉVISIONNEL (Sans 'Tous' + Parade active) */}
-      <div className="flex items-center gap-1 bg-black/20 p-1 rounded-xl">
+    {/* 1. BARRE DE FILTRES DU PRÉVISIONNEL */}
+    <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10 select-none">
+      
+      {/* SECTION PROFIL (Molette active) */}
+      <div 
+        onWheel={handleWheelProfil}
+        className="flex items-center gap-1 bg-black/20 p-1 rounded-xl cursor-ns-resize"
+        title="Molette de la souris : changer de profil"
+      >
         {groupesDisponibles.map(p => {
           const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
-
           return (
             <button
               key={p}
               onClick={() => setFilters({...filters, profil: p})}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                isSelected 
-                ? 'bg-white text-slate-900 shadow-sm' 
-                : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]'
               }`}
             >
               {p}
@@ -13388,16 +13491,20 @@ if (!user) {
 
       <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
-      {/* SECTION MOIS */}
-      <div className="flex items-center gap-1 no-scrollbar">
+      {/* SECTION MOIS (Molette active sur les 12 mois) */}
+      <div 
+        onWheel={(e) => handleWheelMois(e, true)}
+        className="flex items-center gap-1 no-scrollbar cursor-ns-resize"
+        title="Molette de la souris : changer de mois"
+      >
         {moisListe.map(m => (
           <button
             key={m.v}
-            onClick={() => setFilters({...filters, mois: m.v})} // <--- Déclenche le useMemo de previsionsFiltrees
-            className={`min-w-[38px] py-1.5 rounded-lg text-[10px] font-black transition-all border ${
+            onClick={() => setFilters({...filters, mois: m.v})}
+            className={`min-w-[38px] py-1.5 rounded-lg text-[10px] font-black transition-all border cursor-pointer ${
               filters.mois === m.v 
-              ? 'bg-[var(--primary)] border-[var(--primary)] text-[var(--text-main)]' 
-              : 'bg-transparent border-transparent text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
+                ? 'bg-[var(--primary)] border-[var(--primary)] text-[var(--text-main)]' 
+                : 'bg-transparent border-transparent text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
             }`}
           >
             {m.l.substring(0, 3).toUpperCase()}
@@ -13407,24 +13514,28 @@ if (!user) {
 
       <div className="hidden md:block w-px h-6 bg-[var(--glass-bg)]" />
 
-      {/* SECTION ANNÉE (Inclut toujours l'année en cours) */}
-        <div className="flex items-center gap-1">
-          {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
-            .sort((a, b) => parseInt(a) - parseInt(b))
-            .map(year => (
-              <button
-                key={year}
-                onClick={() => setFilters({...filters, annee: year.toString()})}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all ${
-                  filters.annee?.toString() === year.toString() 
-                  ? 'bg-emerald-500 text-[var(--text-main)]' 
-                  : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
-                }`}
-              >
-                {year}
-              </button>
-            ))}
-        </div>
+      {/* SECTION ANNÉE (Molette active) */}
+      <div 
+        onWheel={(e) => handleWheelAnnee(e, true)}
+        className="flex items-center gap-1 cursor-ns-resize"
+        title="Molette de la souris : changer d'année"
+      >
+        {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
+          .sort((a, b) => parseInt(a) - parseInt(b))
+          .map(year => (
+            <button
+              key={year}
+              onClick={() => setFilters({...filters, annee: year.toString()})}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
+                filters.annee?.toString() === year.toString() 
+                ? 'bg-emerald-500 text-[var(--text-main)] shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+                : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]'
+              }`}
+            >
+              {year}
+            </button>
+          ))}
+      </div>
     </div>
 
       {/* 2. SECTION CARTES ALIGNÉES */}
@@ -17019,7 +17130,7 @@ if (!user) {
 
             {/* 2. OBJECTIF D'ÉPARGNE */}
             <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner flex flex-col justify-between">
-              <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif</p>
+              <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
               <div className="flex items-center gap-0.5">
                 <input 
                   type="number"
