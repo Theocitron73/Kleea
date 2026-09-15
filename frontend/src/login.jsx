@@ -2026,28 +2026,7 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
   const currentLabel = options?.find(opt => opt.v === value)?.l || value;
   const isCategorySelect = isCategory || Icon === Tag;
 
-  // 🟢 NAVIGATION À LA MOLETTE DE LA SOURIS SUR LE SELECT (Quand fermé)
-  const handleWheelSelect = (e) => {
-    if (isOpen || !options || options.length <= 1) return;
-    e.preventDefault(); // Empêche la page de scroller verticalement pendant le changement de filtre
-
-    const currentIndex = options.findIndex(opt => String(opt.v) === String(value));
-    if (currentIndex === -1) return;
-
-    if (e.deltaY > 0) {
-      // Molette vers le bas -> Option suivante
-      if (currentIndex < options.length - 1) {
-        onChange(options[currentIndex + 1].v);
-      }
-    } else if (e.deltaY < 0) {
-      // Molette vers le haut -> Option précédente
-      if (currentIndex > 0) {
-        onChange(options[currentIndex - 1].v);
-      }
-    }
-  };
-
-  // Organisation par groupes si catégories
+  // Organisation des options par groupes si catégories
   const groupedOptions = useMemo(() => {
     if (!isCategorySelect) return null;
 
@@ -2075,14 +2054,12 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
         </label>
       )}
       
-      {/* BOUTON DU SÉLECTEUR (Avec l'écouteur onWheel) */}
+      {/* BOUTON DU SÉLECTEUR (La molette a été retirée) */}
       <div
-        onWheel={handleWheelSelect}
-        className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border cursor-ns-resize ${
+        className={`w-full flex items-center justify-between bg-[var(--glass-bg)] border ${
           isOpen ? 'border-[var(--primary)]/50 bg-[var(--glass-bg)]' : 'border-white/10'
-        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none`}
+        } ${className || 'p-3.5 rounded-2xl'} transition-all outline-none cursor-pointer`}
         onClick={() => setIsOpen(true)}
-        title="Molette de la souris : changer d'option"
       >
         <div className="flex items-center gap-2.5 w-full min-w-0">
           {isCategorySelect ? (
@@ -2115,6 +2092,7 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
               isCategorySelect && groupedOptions && groupedOptions.sortedGroupNames.length > 0 ? (
                 groupedOptions.sortedGroupNames.map(grpName => (
                   <div key={grpName} className="space-y-0.5">
+                    {/* En-tête du groupe */}
                     {groupedOptions.sortedGroupNames.length > 1 && (
                       <div className="px-2.5 pt-2 pb-1 text-[8px] font-black uppercase tracking-wider text-indigo-300/60 flex items-center justify-between border-t first:border-t-0 border-white/5 mt-1 select-none">
                         <span className="flex items-center gap-1.5">
@@ -2127,6 +2105,7 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
                       </div>
                     )}
 
+                    {/* Options */}
                     {groupedOptions.groups[grpName].map(opt => (
                       <div
                         key={opt.v}
@@ -9812,6 +9791,7 @@ const confirmBatchImport = async () => {
 
        await fetchTransactions(); 
        await fetchComptes();
+       await checkNewTransactions(); 
     }
   } catch (error) {
     console.error("Erreur import:", error);
@@ -10027,6 +10007,7 @@ const handleSyncPowens = async (overrideMode = null) => {
         await api.post(`/powens/recalculate-balances/${nomUtilisateur}`);
         await fetchTransactions();
         await fetchComptes();
+        await checkNewTransactions();
         setNotification({ message: "Comptes synchronisés avec succès ! ⚡", type: "success" });
         setTimeout(() => setNotification(null), 2500);
       } catch (err) {
@@ -10105,6 +10086,7 @@ const handlePowensImportSuccess = (transactions, accountName) => {
   setTimeout(() => setNotification(null), 3500);
 
   fetchPowensConnections();
+  checkNewTransactions()
 };
 
 
