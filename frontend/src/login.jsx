@@ -124,46 +124,47 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
     });
   };
 
-  // 💡 Label personnalisé : Affiche la VRAIE icône vectorielle bien nette + le %
+  // 💡 Label personnalisé du camembert : Icône fine et proportionnée
   const renderCustomizedLabel = (props) => {
     const { cx, cy, midAngle, outerRadius, value, name } = props;
     const realPercent = totalVisible > 0 ? (value / totalVisible) * 100 : 0;
     
     // N'affiche pas le label si la part est trop fine pour éviter les superpositions
-    if (realPercent < (isMobile ? 4 : 3)) return null;
+    if (realPercent < (isMobile ? 4.5 : 3)) return null;
 
     const RADIAN = Math.PI / 180;
-    // Rayon ajusté pour laisser de l'espace à l'icône
-    const radius = outerRadius * (isMobile ? 1.15 : 1.18); 
+    const radius = outerRadius * (isMobile ? 1.14 : 1.16); 
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
-    const iconSize = isMobile ? 18 : 22;
+    // 🟢 Taille d'icône discrète : 11px sur mobile, 13px sur desktop (au lieu de 18/22)
+    const iconSize = isMobile ? 11 : 13;
+    const boxDim = iconSize + 10;
 
     return (
       <g className="animate-in fade-in duration-500 pointer-events-none select-none">
-        {/* Vraie icône vectorielle colorée */}
+        {/* Icône avec carré arrondi propre */}
         <foreignObject 
-          x={x - iconSize / 2} 
-          y={y - iconSize - 2} 
-          width={iconSize} 
-          height={iconSize}
+          x={x - boxDim / 2} 
+          y={y - boxDim + 2} 
+          width={boxDim} 
+          height={boxDim}
           style={{ overflow: 'visible' }}
         >
-          <div className="w-full h-full flex items-center justify-center drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+          <div className="w-full h-full flex items-center justify-center drop-shadow-md">
             <CategoryIcon name={name} size={iconSize} />
           </div>
         </foreignObject>
 
-        {/* Pourcentage lisible avec ombre portée */}
+        {/* Pourcentage sous l'icône */}
         <text 
           x={x} 
-          y={y + 8} 
+          y={y + 10} 
           fill="white" 
           textAnchor="middle" 
           dominantBaseline="central" 
-          className="text-[9px] md:text-[11px] font-black tracking-tighter"
-          style={{ textShadow: '0 2px 5px rgba(0,0,0,0.9)' }}
+          className="text-[8.5px] md:text-[10px] font-black tracking-tighter"
+          style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}
         >
           {`${realPercent.toFixed(0)}%`}
         </text>
@@ -186,7 +187,6 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
               <Pie
                 data={visibleData}
                 cx="50%" cy="50%"
-                /* Rayons réajustés pour laisser respirer les icônes autour */
                 innerRadius={isMobile ? "50%" : "48%"} 
                 outerRadius={isMobile ? "70%" : "68%"}
                 paddingAngle={visibleData.length > 1 ? 3 : 0}
@@ -206,7 +206,6 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
                 ))}
               </Pie>
 
-              {/* Tooltip enrichi avec l'icône de la catégorie */}
               <Tooltip
                 isAnimationActive={false}
                 animationDuration={0}
@@ -216,8 +215,8 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
                     const p = payload[0].payload;
                     return (
                       <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-md z-50 flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                          <CategoryIcon name={p.name} size={18} />
+                        <div className="p-1.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
+                          <CategoryIcon name={p.name} size={15} />
                         </div>
                         <div>
                           <p className="text-[10px] font-black uppercase text-white/40 mb-0.5 tracking-widest">{p.name}</p>
@@ -232,7 +231,7 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
             </PieChart>
           </ResponsiveContainer>
 
-          {/* CENTRE DU DONUT : MONTANT TOTAL */}
+          {/* CENTRE DU DONUT */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             <span className="text-[8px] md:text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-0.5">Total</span>
             <span className="text-lg md:text-2xl font-black text-white tracking-tighter leading-none">
@@ -241,11 +240,11 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
           </div>
         </div>
 
-        {/* 💡 LÉGENDE LATÉRALE : ICÔNES AGRANDIES & BOUTONS PLUS LARGES */}
-        <div className={`${isMobile ? 'w-12 gap-2' : 'w-16 gap-2.5'} h-full flex flex-col py-2 border-l border-white/5 items-center overflow-y-auto custom-scrollbar shrink-0 bg-white/[0.01]`}>
-          <div className="mb-1 flex flex-col items-center gap-1 opacity-25">
-            {hiddenCategories.size > 0 ? <EyeOff size={11} strokeWidth={2.5} /> : <Eye size={11} strokeWidth={2.5} />}
-            <span className="text-[7px] font-black uppercase tracking-tighter">Filtre</span>
+        {/* 🟢 LÉGENDE LATÉRALE : BOUTONS ET ICÔNES AFFINÉS */}
+        <div className={`${isMobile ? 'w-10 gap-1.5' : 'w-12 gap-2'} h-full flex flex-col py-2 border-l border-white/5 items-center overflow-y-auto custom-scrollbar shrink-0 bg-white/[0.01]`}>
+          <div className="mb-1 flex flex-col items-center gap-0.5 opacity-25">
+            {hiddenCategories.size > 0 ? <EyeOff size={10} strokeWidth={2.5} /> : <Eye size={10} strokeWidth={2.5} />}
+            <span className="text-[6.5px] font-black uppercase tracking-tighter">Filtre</span>
           </div>
           
           {data.map((entry) => {
@@ -255,22 +254,22 @@ const AnnualCategoriesChart = ({ data, userTheme, currentYear, generateGradientS
                 key={entry.name}
                 onClick={() => toggleCategory(entry.name)}
                 title={getCleanCategoryName(entry.name)}
-                className={`group relative flex items-center justify-center rounded-2xl border transition-all duration-300 shrink-0 cursor-pointer ${
-                  isMobile ? 'w-9 h-9' : 'w-11 h-11'
+                className={`group relative flex items-center justify-center rounded-xl border transition-all duration-200 shrink-0 cursor-pointer ${
+                  isMobile ? 'w-7.5 h-7.5' : 'w-9 h-9'
                 } ${
                   isHidden 
                     ? 'bg-transparent border-transparent opacity-20 scale-90' 
-                    : 'bg-white/5 border-white/10 shadow-lg scale-100 hover:border-white/30 hover:bg-white/10 hover:scale-105'
+                    : 'bg-white/5 border-white/10 shadow-md scale-100 hover:border-white/30 hover:bg-white/10 hover:scale-105'
                 }`}
               >
-                {/* 💡 Icônes agrandies de 16px à 22px sur desktop et 18px sur mobile */}
-                <CategoryIcon name={entry.name} size={isMobile ? 18 : 22} />
+                {/* 🟢 Icône réduite de 22px à 12-14px */}
+                <CategoryIcon name={entry.name} size={isMobile ? 12 : 14} />
                 
                 {/* Pastille masqué */}
-                <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0a0a0b] border border-white/15 flex items-center justify-center transition-opacity ${
+                <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#0a0a0b] border border-white/15 flex items-center justify-center transition-opacity ${
                   isHidden ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}>
-                  {isHidden ? <EyeOff size={8} color="white" /> : <Eye size={8} color="white" />}
+                  {isHidden ? <EyeOff size={7} color="white" /> : <Eye size={7} color="white" />}
                 </div>
               </button>
             );
@@ -11569,28 +11568,38 @@ const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 const [isRefreshingPowens, setIsRefreshingPowens] = useState(false);
 
 const handleForceRefreshPowens = async () => {
-  if (isRefreshingPowens) return;
-  setIsRefreshingPowens(true);
-  try {
-    // 1. Re-récupère les soldes et comptes en direct depuis l'API Powens
-    // 2. Vérifie s'il y a de nouvelles transactions non enregistrées
-    // 3. Rafraîchit les comptes locaux
-    await Promise.all([
-      fetchPowensConnections(),
-      checkNewTransactions(),
-      fetchComptes()
-    ]);
+    if (isRefreshingPowens) return;
+    setIsRefreshingPowens(true);
+    try {
+      setNotification({ message: "Interrogation de votre banque en direct... ⏳", type: "success" });
 
-    setNotification({ message: "Comptes Powens et transactions actualisés ! ⚡", type: "success" });
-    setTimeout(() => setNotification(null), 2500);
-  } catch (err) {
-    console.error("Erreur lors de l'actualisation manuelle :", err);
-    setNotification({ message: "Erreur lors de l'actualisation Powens.", type: "error" });
-    setTimeout(() => setNotification(null), 2500);
-  } finally {
-    setIsRefreshingPowens(false);
-  }
-};
+      // 🟢 1. Déclenche la connexion réelle de Powens auprès de vos serveurs bancaires
+      await api.post(`/powens/refresh-bank-sync/${user}`);
+
+      // 🟢 2. Si vous êtes en mode automatique, on importe les nouvelles transactions immédiatement
+      if (importMode === 'auto') {
+        await api.post(`/powens/sync-user/${user}`);
+        await api.post(`/powens/recalculate-balances/${user}`);
+        await fetchTransactions();
+      }
+
+      // 🟢 3. Rafraîchissement des soldes et du détecteur de nouvelles écritures
+      await Promise.all([
+        fetchPowensConnections(),
+        checkNewTransactions(),
+        fetchComptes()
+      ]);
+
+      setNotification({ message: "Banque interrogée et données synchronisées ! ⚡", type: "success" });
+      setTimeout(() => setNotification(null), 3000);
+    } catch (err) {
+      console.error("Erreur lors de l'actualisation manuelle :", err);
+      setNotification({ message: "Impossible d'interroger la banque pour le moment.", type: "error" });
+      setTimeout(() => setNotification(null), 3000);
+    } finally {
+      setIsRefreshingPowens(false);
+    }
+  };
 
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
@@ -14520,50 +14529,38 @@ if (!user) {
 </div>
 
       {/* BARRE D'OUTILS LEXIQUE (Sous le bloc d'ajout) */}
-      <div className="mt-4 px-1 flex items-center  justify-between border-t border-white/5 pt-4">
-        <div className="flex items-center gap-4">
-          {/* INDICATEUR ET BOUTON GESTION - STYLE AMÉLIORÉ */}
+      
+        {/* 🟢 NOUVEAU BOUTON PLEINE LARGEUR (Sans les compteurs empilés) */}
+        <div className="mt-4">
           <button 
+            type="button"
             onClick={() => setShowListPopover(!showListPopover)}
-            className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-[var(--glass-bg)] border border-white/5 hover:bg-white/[0.08] hover:border-[var(--primary)]/30 hover:shadow-[0_0_15px_rgba(99,102,241,0.1)] transition-all group"
+            className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-white/[0.05] transition-all group cursor-pointer"
           >
-            {/* Icône principale avec effet de focus */}
-            <div className="w-6 h-6 rounded-full bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex items-center justify-center group-hover:bg-[var(--primary)] group-hover:border-transparent transition-all duration-300">
-              <Settings2 
-                size={11} 
-                className="text-[var(--primary)] group-hover:text-white transition-colors" 
-              />
-            </div>
-            
-            {/* Texte avec changement de contraste */}
-            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40 group-hover:text-[var(--text-main)] transition-colors">
-              Gérer mes catégories
-            </span>
+            <div className="flex items-center gap-3">
+              {/* Carré d'icône */}
+              <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
+                <Settings2 size={14} className="text-[var(--primary)]" />
+              </div>
 
-            {/* Petite flèche pour indiquer l'ouverture/action */}
+              {/* Titres */}
+              <div className="text-left">
+                <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest leading-tight">
+                  Gérer mes catégories
+                </p>
+                <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase tracking-wider mt-0.5">
+                  {toutesLesCategories.length} catégories • {masquees.length} masquées
+                </p>
+              </div>
+            </div>
+
+            {/* Chevron fléché à droite */}
             <ChevronRight 
-              size={12} 
-              className={`text-[var(--text-main)]/20 group-hover:text-[var(--primary)] transition-all transform ${showListPopover ? 'rotate-90' : 'group-hover:translate-x-0.5'}`} 
+              size={14} 
+              className="text-[var(--text-main)]/20 group-hover:translate-x-0.5 group-hover:text-[var(--text-main)] transition-all shrink-0" 
             />
           </button>
         </div>
-
-        {/* COMPTEURS EMPILÉS */}
-        <div className="flex flex-col items-end gap-0.5">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-black text-[var(--text-main)]/40 uppercase ">Visibles</span>
-            <span className="text-[10px] font-bold text-emerald-500/60 leading-none">
-              {toutesLesCategories.length - masquees.length}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] font-black text-[var(--text-main)]/40 uppercase">Personnelles</span>
-            <span className="text-[10px] font-bold text-[var(--primary)]/60 leading-none">
-              {categoriesPerso.length}
-            </span>
-          </div>
-        </div>
-      </div>
 
       
       {/* =========================================================================
@@ -15010,7 +15007,7 @@ if (!user) {
           <div className="mt-2">
             <button 
               onClick={() => setShowBudgetDetails(true)}
-              className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)]/80 transition-all group"
+              className="w-full flex items-center justify-between p-3 bg-[var(--glass-bg)] border border-white/10 rounded-xl hover:bg-[var(--glass-bg)]/80 transition-all group cursor-pointer"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">

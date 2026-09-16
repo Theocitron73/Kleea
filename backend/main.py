@@ -4572,3 +4572,56 @@ def reconcile_and_recalculate_all(username: str):
         "updated_transfers": len(updates_to_make),
         "message": "Virements internes et soldes initiaux synchronisés avec succès."
     }
+
+# 🟢 ROUTE POUR FORCER POWENS À SE CONNECTER EN DIRECT À LA VRAIE BANQUE
+@app.post("/powens/refresh-bank-sync/{username}")
+def refresh_bank_sync(username: str):
+    user_clean = username.lower().strip()
+    
+    # 1. Récupérer le token de l'utilisateur
+    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+    with engine.connect() as conn:
+        res = conn.execute(query_token, {"u": user_clean}).fetchone()
+        if not res or not res[0]:
+            raise HTTPException(status_code=400, detail="Aucun jeton bancaire Powens trouvé.")
+        user_token = res[0]
+
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+
+    headers = {"Authorization": f"Bearer {user_token}"}
+
+    # 2. Récupérer toutes les connexions bancaires
+    try:
+        res_conn = requests.get(f"{domain}/users/me/connections", headers=headers)
+        connections = res_conn.json().get("connections", []) if res_conn.status_code == 200 else []
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur contact Powens: {str(e)}")
+
+    if not connections:
+        return {"status": "no_connections", "message": "Aucune banque connectée."}
+
+    # 3. Forcer chaque banque connectée à se synchroniser en direct (psu_requested=true)
+    synced = []
+    for c in connections:
+        conn_id = c.get("id")
+        if not conn_id or c.get("deleted"):
+            continue
+        try:
+            # 🟢 C'est cet appel PUT qui déclenche la connexion réelle à la banque !
+            r = requests.put(
+                f"{domain}/users/me/connections/{conn_id}",
+                headers=headers,
+                params={"psu_requested": "true"}
+            )
+            synced.append({"id": conn_id, "status": r.status_code})
+        except Exception as e_sync:
+            print(f"⚠️ Erreur sync connexion {conn_id}: {e_sync}")
+
+    return {
+        "status": "success",
+        "synced_connections": synced
+    }
