@@ -2067,15 +2067,16 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
             Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />
           )}
           
-          <input
-            type="text"
-            readOnly={isMobile}
-            className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20 cursor-pointer truncate"
-            value={isOpen && !isMobile ? searchTerm : getCleanCategoryName(currentLabel)}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onFocus={() => setIsOpen(true)}
-            placeholder={isOpen ? "Rechercher..." : "Sélectionner..."}
-          />
+         <input
+          type="text"
+          readOnly={isMobile}
+          className="bg-transparent border-none outline-none text-xs font-bold w-full placeholder:text-[var(--text-main)]/20 cursor-pointer truncate"
+          value={isOpen && !isMobile ? searchTerm : getCleanCategoryName(currentLabel)}
+          title={getCleanCategoryName(currentLabel)} /* 👈 AJOUTEZ CETTE LIGNE */
+          onChange={(e) => setSearchTerm(e.target.value)}
+          onFocus={() => setIsOpen(true)}
+          placeholder={isOpen ? "Rechercher..." : "Sélectionner..."}
+        />
         </div>
         <ChevronDown 
           size={12} 
@@ -15696,7 +15697,7 @@ if (!user) {
             </th>
 
             {/* 5. CATÉGORIE */}
-            <th className="py-3 px-2 hidden md:table-cell w-44 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('categorie')}>
+            <th className="py-3 px-2 hidden md:table-cell w-56 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('categorie')}>
               <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
                 Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
               </div>
