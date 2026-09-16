@@ -14577,7 +14577,7 @@ if (!user) {
           />
 
           {/* 🟢 HAUTEUR FIXE & LARGEUR CONFORTABLE : h-[720px] max-w-2xl */}
-          <div className="relative w-full max-w-2xl bg-[#121214] border border-white/10 rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.85)] p-6 z-[10000] flex flex-col h-[720px] max-h-[88vh] min-h-[520px] animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+          <div className="relative w-full max-w-4xl bg-[#121214] border border-white/10 rounded-3xl shadow-[0_25px_70px_rgba(0,0,0,0.85)] p-6 z-[10000] flex flex-col h-[720px] max-h-[88vh] min-h-[520px] animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
             
             {/* 1. EN-TÊTE FIXE */}
             <div className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0">
