@@ -2047,7 +2047,7 @@ const CustomSelect = ({ label, value, options = [], onChange, icon: Icon, isCate
   }, [filteredOptions, isCategorySelect]);
 
   return (
-    <div className="space-y-1.5 relative" ref={dropdownRef}>
+    <div className={`space-y-1.5 relative ${isOpen ? 'z-[70]' : 'z-10'}`} ref={dropdownRef}>
       {label && (
         <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] ml-1">
           {label}
@@ -2222,29 +2222,101 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
   }, []);
 
   if (!data || data.length === 0) return (
-    <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/20 text-[10px] uppercase font-black italic">
+    <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/20 text-[10px] uppercase font-black italic py-8">
       Aucune dépense prévisionnelle
     </div>
   );
 
-  // 💡 Label personnalisé de l'axe Y : Icône Lucide colorée + Nom de catégorie
+  const total = data.reduce((acc, curr) => acc + (curr.value || 0), 0);
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+
+  // =========================================================================
+  // 📱 VERSION MOBILE : BLOC AGRANDI & CONFORTABLE (min-h-[420px])
+  // =========================================================================
+  if (isMobile) {
+    return (
+      <div className="w-full flex flex-col min-h-[420px] select-none animate-in fade-in duration-200">
+        {/* Résumé compact du montant total prévu */}
+        <div className="flex items-center justify-between px-1 pb-3 mb-3 border-b border-white/10 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
+              Répartition des dépenses
+            </span>
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/5 text-white/40 font-mono">
+              {data.length}
+            </span>
+          </div>
+          <span className="text-xs font-bold text-white/70">
+            Total : <strong className="font-black text-sm ml-1" style={{ color: themeColor }}>{Math.round(total).toLocaleString('fr-FR')} €</strong>
+          </span>
+        </div>
+
+        {/* Liste scrollable agrandie : de 360px max à 520px max */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pr-1 min-h-[340px] max-h-[520px]">
+          {data.map((entry, idx) => {
+            const percentOfTotal = total > 0 ? ((entry.value / total) * 100).toFixed(0) : 0;
+            const percentOfMax = Math.min(100, Math.round((entry.value / maxVal) * 100));
+
+            return (
+              <div 
+                key={`mob-previ-${idx}`} 
+                className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-2 hover:bg-white/[0.06] transition-all"
+              >
+                {/* Ligne 1 : Icône + Nom complet + Montant + % */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <CategoryIcon name={entry.name} size={15} />
+                    <span className="text-xs font-bold text-white truncate uppercase tracking-tight">
+                      {getCleanCategoryName(entry.name)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-mono font-black text-white">
+                      {Math.round(entry.value).toLocaleString('fr-FR')} €
+                    </span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/60 font-mono">
+                      {percentOfTotal}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Ligne 2 : Jauge de proportion en dégradé plus visible (h-2) */}
+                <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden border border-white/5">
+                  <div 
+                    className="h-full rounded-full transition-all duration-700 ease-out"
+                    style={{ 
+                      width: `${percentOfMax}%`,
+                      background: `linear-gradient(90deg, ${themeColor}99, ${themeColor})`,
+                      boxShadow: `0 0 8px ${themeColor}44`
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // 💻 VERSION ORDINATEUR : GRAPHIQUE EN BARRES RECHARTS STABILISÉ
+  // =========================================================================
   const CustomYAxisTick = ({ x, y, payload }) => {
     const name = payload.value;
     const cleanName = getCleanCategoryName(name);
-    
-    const limit = isMobile ? 8 : 11;
+    const limit = 13;
     const displayName = cleanName.length > limit 
-      ? `${cleanName.substring(0, limit - 2)}..` 
+      ? `${cleanName.substring(0, limit - 1)}.` 
       : cleanName;
 
-    const iconSize = 15;
-    // Coordonnées calculées pour rester à +10px du bord gauche de l'écran (jamais rogné)
-    const iconOffset = isMobile ? -84 : -96;
-    const textOffset = isMobile ? -64 : -74;
+    const iconSize = 14;
+    const iconOffset = -112;
+    const textOffset = -90;
 
     return (
       <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
-        {/* Icône de la catégorie */}
         <foreignObject 
           x={iconOffset} 
           y={-iconSize / 2} 
@@ -2252,18 +2324,17 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
           height={iconSize}
           style={{ overflow: 'visible' }}
         >
-          <div className="w-full h-full flex items-center justify-center drop-shadow">
+          <div className="w-full h-full flex items-center justify-center">
             <CategoryIcon name={name} size={iconSize} />
           </div>
         </foreignObject>
 
-        {/* Nom de la catégorie */}
         <text 
           x={textOffset} 
           y={3.5} 
           textAnchor="start" 
-          fill="rgba(255,255,255,0.7)" 
-          fontSize={isMobile ? 8 : 9} 
+          fill="rgba(255,255,255,0.75)" 
+          fontSize={9} 
           fontWeight="bold"
           className="uppercase tracking-tight"
         >
@@ -2273,15 +2344,12 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
     );
   };
 
-  // 💡 Infobulle personnalisée avec l'icône de la catégorie
   const CustomTooltip = ({ active, payload }) => {
     if (active && payload && payload.length) {
       const p = payload[0].payload;
       return (
         <div className="bg-[#0f172a]/95 backdrop-blur-md border border-white/10 p-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2.5">
-          
-            <CategoryIcon name={p.name} size={15} />
-          
+          <CategoryIcon name={p.name} size={15} />
           <div>
             <p className="text-[9px] font-black uppercase text-white/50 tracking-wider">
               {getCleanCategoryName(p.name)}
@@ -2302,12 +2370,7 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
         <BarChart 
           data={data} 
           layout="vertical" 
-          margin={{ 
-            top: 5, 
-            right: isMobile ? 38 : 45, 
-            left: 8, 
-            bottom: 5 
-          }}
+          margin={{ top: 5, right: 48, left: 8, bottom: 5 }}
         >
           <defs>
             <linearGradient id="colorPrevi" x1="0" y1="0" x2="1" y2="0">
@@ -2318,13 +2381,13 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
 
           <XAxis type="number" hide />
           
-          {/* Axe Y avec icônes */}
           <YAxis 
             dataKey="name" 
             type="category" 
             axisLine={false}
             tickLine={false}
-            width={isMobile ? 88 : 100}
+            interval={0}
+            width={118}
             tick={<CustomYAxisTick />}
           />
 
@@ -2333,7 +2396,7 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
             content={<CustomTooltip />} 
           />
 
-          <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 14}>
+          <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={14}>
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill="url(#colorPrevi)" />
             ))}
@@ -2343,8 +2406,8 @@ const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
               offset={6}
               formatter={(val) => `${Math.round(val)}€`} 
               style={{ 
-                fill: 'rgba(255,255,255,0.6)', 
-                fontSize: isMobile ? 8 : 9, 
+                fill: 'rgba(255,255,255,0.65)', 
+                fontSize: 9, 
                 fontWeight: '900', 
                 fontFamily: 'monospace' 
               }} 
@@ -2836,27 +2899,26 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
 
   const totalMonth = chartData.reduce((acc, curr) => acc + (curr.value || 0), 0);
 
-  // 💡 Label personnalisé de l'axe Y avec espacement corrigé
+  // 💡 Label personnalisé de l'axe Y : libellés plus longs et lisibles
   const CustomYAxisTick = ({ x, y, payload }) => {
     const name = payload.value;
     const cleanName = getCleanCategoryName(name);
     
-    const maxChars = isMobile ? 7 : 9;
+    // 🟢 Autorise jusqu'à 14 caractères (10 sur mobile) pour ne plus couper "Alimentation", "Abonnements", etc.
+    const maxChars = isMobile ? 10 : 14;
     const displayName = cleanName.length > maxChars 
       ? `${cleanName.substring(0, maxChars - 1)}.` 
       : cleanName;
 
-    // Taille adaptée : icône 12px -> carré de ~18px
     const iconSize = isMobile ? 11 : 12;
     const boxSize = 18;
 
-    // 🟢 DÉCALAGE : On sépare bien le carré du texte
-    const iconOffset = isMobile ? -88 : -98; // Placé bien à gauche
-    const textOffset = isMobile ? -64 : -72; // Texte décalé pour laisser 6 à 8px d'espace libre
+    // Décalages adaptés à la largeur agrandie de l'axe
+    const iconOffset = isMobile ? -104 : -124; 
+    const textOffset = isMobile ? -82 : -98; 
 
     return (
       <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
-        {/* Carré + Icône parfaitement centrés verticalement */}
         <foreignObject 
           x={iconOffset} 
           y={-boxSize / 2} 
@@ -2869,12 +2931,11 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
           </div>
         </foreignObject>
 
-        {/* Nom de la catégorie */}
         <text 
           x={textOffset} 
           y={3.5} 
           textAnchor="start" 
-          fill="rgba(255,255,255,0.7)" 
+          fill="rgba(255,255,255,0.8)" 
           fontSize={isMobile ? 8 : 9} 
           fontWeight="bold"
           className="uppercase tracking-tight"
@@ -2916,73 +2977,81 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
     return null;
   };
 
+  // 🟢 Hauteur dynamique : assure au moins ~30px par barre pour que tout le monde ait de la place
+  const rowHeight = isMobile ? 26 : 30;
+  const needsScroll = chartData.length > 7;
+  const chartHeight = needsScroll ? chartData.length * rowHeight : '100%';
+
   return (
-    <div className="h-full w-full flex flex-col md:flex-row gap-3">
+    <div className="h-full w-full flex flex-col md:flex-row gap-3 min-h-0">
       {statsCategories.length > 0 ? (
         <>
-          {/* GRAPHIQUE EN BARRES */}
-          <div className="flex-[2] min-h-[170px] md:min-h-0 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={chartData} 
-                layout="vertical" 
-                margin={{ 
-                  top: 0, 
-                  right: isMobile ? 42 : 48, 
-                  left: 6, 
-                  bottom: 0 
-                }}
-              >
-                <defs>
-                  <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
-                    <stop offset="100%" stopColor={depensesColor} stopOpacity={0.85} />
-                  </linearGradient>
-                </defs>
-                <XAxis type="number" hide />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  axisLine={false}
-                  tickLine={false}
-                  width={isMobile ? 92 : 102} /* 🟢 Légèrement élargi pour respirer */
-                  tick={<CustomYAxisTick />}
-                />
-                <Tooltip 
-                  cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
-                  content={<CustomTooltip />} 
-                />
-                <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 16}>
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
-                  ))}
-                  <LabelList 
-                    dataKey="value" 
-                    position="right" 
-                    offset={isMobile ? 4 : 6} 
-                    content={(props) => {
-                      const { x, y, width, height, value } = props;
-                      const percentage = totalMonth > 0 ? ((value / totalMonth) * 100).toFixed(1) : 0;
-                      return (
-                        <text 
-                          x={x + width + (isMobile ? 4 : 6)} 
-                          y={y + height / 2} 
-                          dy={3.5} 
-                          fontSize={isMobile ? 8 : 9} 
-                          fontWeight="900"
-                        >
-                          <tspan fill="rgba(245, 238, 238, 0.9)">{Math.round(value)}€ </tspan>
-                          <tspan fill="rgba(99, 102, 241, 0.9)">({percentage}%)</tspan>
-                        </text>
-                      );
-                    }}
+          {/* GRAPHIQUE EN BARRES AVEC SCROLL FLUIDE QUAND IL Y A BEAUCOUP DE CATÉGORIES */}
+          <div className="flex-[2] min-h-0 w-full overflow-y-auto overflow-x-hidden custom-scrollbar pr-1">
+            <div style={{ height: chartHeight, minHeight: needsScroll ? `${chartData.length * rowHeight}px` : '180px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={chartData} 
+                  layout="vertical" 
+                  margin={{ 
+                    top: 4, 
+                    right: isMobile ? 48 : 56, 
+                    left: 4, 
+                    bottom: 4 
+                  }}
+                >
+                  <defs>
+                    <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
+                      <stop offset="100%" stopColor={depensesColor} stopOpacity={0.85} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis type="number" hide />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    axisLine={false}
+                    tickLine={false}
+                    interval={0} /* 🟢 CRUCIAL : Force l'affichage de TOUTES les catégories sans en sauter une seule */
+                    width={isMobile ? 108 : 128} /* 🟢 Élargi pour accueillir les noms complets */
+                    tick={<CustomYAxisTick />}
                   />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                  <Tooltip 
+                    cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
+                    content={<CustomTooltip />} 
+                  />
+                  <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 15}>
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
+                    ))}
+                    <LabelList 
+                      dataKey="value" 
+                      position="right" 
+                      offset={isMobile ? 4 : 6} 
+                      content={(props) => {
+                        const { x, y, width, height, value } = props;
+                        const percentage = totalMonth > 0 ? ((value / totalMonth) * 100).toFixed(1) : 0;
+                        return (
+                          <text 
+                            x={x + width + (isMobile ? 4 : 6)} 
+                            y={y + height / 2} 
+                            dy={3.5} 
+                            fontSize={isMobile ? 8 : 9} 
+                            fontWeight="900"
+                          >
+                            <tspan fill="rgba(245, 238, 238, 0.9)">{Math.round(value)}€ </tspan>
+                            <tspan fill="rgba(99, 102, 241, 0.9)">({percentage}%)</tspan>
+                          </text>
+                        );
+                      }}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
-          {/* LÉGENDE LATÉRALE (ESPACEMENT DÉCOLLÉ) */}
+          {/* LÉGENDE LATÉRALE AVEC FILTRES */}
           <div className="flex-1 md:w-36 md:max-w-[145px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-2 md:pt-0 md:pl-2.5 shrink-0">
             <p className="text-[8px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] mb-2">
               Légende
@@ -3002,7 +3071,6 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
                         : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
                     }`}
                   >
-                    {/* 🟢 gap-2.5 pour bien décoller le carré du texte */}
                     <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
                       <CategoryIcon name={item.name} size={11} />
 
@@ -3034,7 +3102,6 @@ const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCa
     </div>
   );
 };
-
 
 
 
@@ -8088,7 +8155,14 @@ const comptesDuProfil = useMemo(() => {
 
 
 
+const cleanMonth = (m) => {
+  if (!m) return "";
+  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+};
 
+const getTxYear = (t) => {
+  return (t?.année || t?.annee || (t?.date ? new Date(t.date).getFullYear() : ""))?.toString().trim();
+};
 
 const financeData = useMemo(() => {
   // 1. Préparation des constantes de filtrage
@@ -8123,20 +8197,20 @@ const financeData = useMemo(() => {
     return cat.includes('vers') || cat.includes('transfert') || lib.includes('🔄');
   };
 
+
   const filtrerParPeriode = (mois, annee) => {
     return transactionsSecurisees.filter(t => {
       const nomCompteTransac = (t.compte || "").trim().toUpperCase();
       const categorie = (t.categorie || "").toLowerCase();
       
-      // Match Profil (Source ou Cible de virement interne)
       const matchSource = filters.profil === 'Tous' || nomsComptesProfilMaj.includes(nomCompteTransac);
       const matchCible = filters.profil !== 'Tous' && 
                         categorie.includes("vers") && 
                         nomsComptesProfilMaj.some(nomC => categorie.toUpperCase().includes(nomC));
 
-      // Match Période
-      const matchMois = t.mois?.toString().toLowerCase().trim() === mois.toLowerCase().trim();
-      const matchAnnee = t.année?.toString().trim() === annee.toString().trim();
+      // 🟢 Normalisation des dates et mois
+      const matchMois = cleanMonth(t.mois) === cleanMonth(mois);
+      const matchAnnee = getTxYear(t) === annee.toString().trim();
 
       return (matchSource || matchCible) && matchMois && matchAnnee;
     });
@@ -8179,14 +8253,7 @@ const financeData = useMemo(() => {
 }, [toutesLesTransactions, comptesDuProfil, filters.mois, filters.annee, filters.profil]);
 
 
-const cleanMonth = (m) => {
-  if (!m) return "";
-  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-};
 
-const getTxYear = (t) => {
-  return (t?.année || t?.annee || (t?.date ? new Date(t.date).getFullYear() : ""))?.toString().trim();
-};
 
 const soldesParCompte = useMemo(() => {
   const configMap = {};
@@ -9282,34 +9349,29 @@ const submitQuickTransaction = async () => {
 
 
 const transactionsFiltrées = useMemo(() => {
-  return toutesLesTransactions.filter(t => {
-    
-    // 1. On trouve à quel groupe appartient le compte de cette transaction
-    // On cherche dans ta liste 'comptes' l'objet qui a le même nom que t.compte
-    const compteInfo = comptes.find(c => c.compte === t.compte);
+  return (toutesLesTransactions || []).filter(t => {
+    const compteInfo = comptes.find(c => (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase());
     const groupeTransaction = compteInfo ? compteInfo.groupe : null;
 
-    // 2. FILTRE PROFIL
-    // Maintenant on compare le groupe trouvé avec le filtre sélectionné
+    // 1. FILTRE PROFIL
     const matchProfil = filters.profil === 'Tous' || 
-                        groupeTransaction === filters.profil;
+      (groupeTransaction && groupeTransaction.toLowerCase().trim() === filters.profil.toLowerCase().trim());
     
-    // 3. FILTRE COMPTE
-    const matchCompte = selectedCompte === 'tous' || 
-                        t.compte === selectedCompte;
+    // 2. FILTRE COMPTE
+    const matchCompte = !selectedCompte || selectedCompte === 'tous' || 
+      (t.compte && t.compte.trim().toUpperCase() === selectedCompte.trim().toUpperCase());
     
-    // 4. FILTRE MOIS
+    // 3. FILTRE MOIS (insensible à la casse et aux accents : Février == Fevrier)
     const matchMois = filters.mois === 'Tous' || 
-                      t.mois === filters.mois;
+      cleanMonth(t.mois) === cleanMonth(filters.mois);
     
-    // 5. FILTRE ANNÉE (Note: ton log dit 'annee' sans accent, vérifie bien l'orthographe)
+    // 4. FILTRE ANNÉE (accepte année et annee)
     const matchAnnee = filters.annee === 'Tous' || 
-                       t.année?.toString() === filters.annee.toString() ||
-                       t.annee?.toString() === filters.annee.toString();
+      getTxYear(t) === filters.annee.toString().trim();
 
     return matchProfil && matchCompte && matchMois && matchAnnee;
   });
-}, [toutesLesTransactions, filters, selectedCompte, comptes]); 
+}, [toutesLesTransactions, filters, selectedCompte, comptes]);
 // Ajoute bien 'comptes' dans les dépendances ici !
 
 const statsFiltrées = useMemo(() => {
@@ -16088,8 +16150,10 @@ if (!user) {
         filters={filters}
         comptes={comptes}
         setFilters={setFilters}
-        selectedCompte={importCompte || comptes[0]?.compte}
-        setSelectedCompte={setImportCompte}
+        selectedCompte={selectedCompte} // 🟢 CORRIGÉ : utilise le vrai compte sélectionné
+        setSelectedCompte={setSelectedCompte} // 🟢 CORRIGÉ : met à jour le bon state
+        handleProfilChange={handleProfilChange} // 🟢 AJOUTÉ : synchronise le profil et le compte par défaut
+        handleCompteChange={handleCompteChange} // 🟢 AJOUTÉ : synchronise le compte et le profil
         availablePeriods={availablePeriods}
         moisListe={moisListe}
         statsFiltrées={statsFiltrées}

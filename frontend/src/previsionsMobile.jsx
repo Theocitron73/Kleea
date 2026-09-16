@@ -411,9 +411,13 @@ export default function PrevisionsMobile(props) {
             <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
               <div className="flex items-center gap-2 mb-3">
                 <PieChartIcon size={14} className="text-white/40" />
-                <h3 className="text-[10px] font-black text-white/40 uppercase tracking-widest">Analyse Mensuelle Prévue</h3>
+                <h3 className="text-[10px] font-black text-white/40 uppercase tracking-widest">
+                  Analyse Mensuelle Prévue
+                </h3>
               </div>
-              <div className="h-44 w-full">
+
+              {/* 🟢 Remplacer h-64 par min-h-[420px] (ou h-[420px]) */}
+              <div className="min-h-[420px] w-full">
                 <PrevisionsChartView 
                   data={chartDataPrevisions} 
                   themeColor={userTheme.color_depenses} 

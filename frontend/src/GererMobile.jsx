@@ -3,11 +3,11 @@ import {
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
   Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet,
-  Edit2, Sparkles,Layers 
+  Edit2, Sparkles, Layers 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import { SketchPicker } from 'react-color';
-import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo,getCategoryGroup  } from './categoryIcons';
+import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo, getCategoryGroup } from './categoryIcons';
 
 export default function GererMobile(props) {
   const {
@@ -19,8 +19,8 @@ export default function GererMobile(props) {
     selectedBudgetYear, setSelectedBudgetYear, optionsAnnees,
     listeMoisDisponibles, selectedBudgetMonth, setSelectedBudgetMonth,
     editingBudget, setEditingBudget, handleUpdateBudget, confirmDelete2,
-    filters, comptes, setFilters, selectedCompte, setSelectedCompte, availablePeriods, moisListe,
-    statsFiltrées,
+    filters, comptes = [], setFilters, selectedCompte, setSelectedCompte, availablePeriods = [], moisListe = [],
+    statsFiltrées = { revenus: 0, depenses: 0, solde: 0 },
     isApprendreActive, setIsApprendreActive,
     showLearningList, setShowLearningList,
     fetchMemoire, elementsAppris = [], handleDeleteMemory,
@@ -29,7 +29,7 @@ export default function GererMobile(props) {
     allocations = [], searchTerm, setSearchTerm,
     allPrevisionsAnnee = [], toutesLesTransactions = [],
     CustomSelect,
-    handleProfilChange, handleCompteChange // 👈 Fonctions de synchronisation sans boucle
+    handleProfilChange, handleCompteChange
   } = props;
 
   const [activeSection, setActiveSection] = useState('transactions');
@@ -45,7 +45,7 @@ export default function GererMobile(props) {
   const [showEditIconPicker, setShowEditIconPicker] = useState(false);
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 
-  // 🟢 1. ÉTATS POUR LA GESTION DES GROUPES SUR MOBILE
+  // Groupes
   const [groupFilter, setGroupFilter] = useState('all');
   const [newGroupName, setNewGroupName] = useState('');
   const [showNewGroupInput, setShowNewGroupInput] = useState(false);
@@ -53,7 +53,38 @@ export default function GererMobile(props) {
     'Logement', 'Vie courante', 'Transports', 'Santé', 'Loisirs', 'Revenus', 'Général'
   ]);
 
-  // 🟢 2. FONCTIONS DE GESTION DES GROUPES SUR MOBILE
+  // 🟢 1. Gestion synchronisée du changement de profil
+  const onSelectProfilLocal = (nouveauProfil) => {
+    if (typeof handleProfilChange === 'function') {
+      handleProfilChange(nouveauProfil);
+    } else {
+      setFilters(f => ({ ...f, profil: nouveauProfil }));
+      if (nouveauProfil === 'Tous') {
+        if (typeof setSelectedCompte === 'function') setSelectedCompte('tous');
+      } else {
+        const duProfil = comptes.filter(c => c.groupe?.trim().toLowerCase() === nouveauProfil?.trim().toLowerCase());
+        const ccp = duProfil.find(c => c.compte?.trim().toUpperCase().includes('CCP'));
+        const cible = ccp ? ccp.compte : (duProfil[0]?.compte || 'tous');
+        if (typeof setSelectedCompte === 'function') setSelectedCompte(cible);
+      }
+    }
+  };
+
+  // 🟢 2. Gestion synchronisée du changement de compte
+  const onSelectCompteLocal = (nouveauCompte) => {
+    if (typeof handleCompteChange === 'function') {
+      handleCompteChange(nouveauCompte);
+    } else {
+      if (typeof setSelectedCompte === 'function') setSelectedCompte(nouveauCompte);
+      if (nouveauCompte !== 'tous') {
+        const cFound = comptes.find(c => c.compte?.trim().toUpperCase() === nouveauCompte?.trim().toUpperCase());
+        if (cFound?.groupe) {
+          setFilters(f => ({ ...f, profil: cFound.groupe }));
+        }
+      }
+    }
+  };
+
   const handleAssignCategoryGroup = async (catName, targetGroup) => {
     if (!targetGroup || !props.api) return;
     try {
@@ -93,36 +124,6 @@ export default function GererMobile(props) {
       if (props.fetchCategories) await props.fetchCategories();
     } catch (e) {
       console.error("Erreur suppression groupe mobile:", e);
-    }
-  };
-
-  // 🟢 Gestion propre de la sélection profil avec sélection automatique du CCP ou 1er compte
-  const onSelectProfilLocal = (nouveauProfil) => {
-    if (handleProfilChange) {
-      handleProfilChange(nouveauProfil);
-    } else {
-      setFilters(f => ({ ...f, profil: nouveauProfil }));
-      if (nouveauProfil === 'Tous') {
-        setSelectedCompte('tous');
-      } else {
-        const duProfil = comptes.filter(c => c.groupe?.trim().toLowerCase() === nouveauProfil?.trim().toLowerCase());
-        const ccp = duProfil.find(c => c.compte?.trim().toUpperCase().includes('CCP'));
-        if (ccp) setSelectedCompte(ccp.compte);
-        else if (duProfil.length > 0) setSelectedCompte(duProfil[0].compte);
-        else setSelectedCompte('tous');
-      }
-    }
-  };
-
-  const onSelectCompteLocal = (nouveauCompte) => {
-    if (handleCompteChange) {
-      handleCompteChange(nouveauCompte);
-    } else {
-      setSelectedCompte(nouveauCompte);
-      if (nouveauCompte !== 'tous') {
-        const cFound = comptes.find(c => c.compte?.trim().toUpperCase() === nouveauCompte?.trim().toUpperCase());
-        if (cFound && cFound.groupe) setFilters(f => ({ ...f, profil: cFound.groupe }));
-      }
     }
   };
 
@@ -177,6 +178,11 @@ export default function GererMobile(props) {
     return (t.mois || 'À DÉFINIR').toUpperCase();
   };
 
+  // Liste des comptes filtrée selon le profil actif (ou tous si 'Tous')
+  const comptesDisponiblesMobile = (comptes || []).filter(c => 
+    !filters?.profil || filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
+  );
+
   return (
     <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
       
@@ -205,19 +211,23 @@ export default function GererMobile(props) {
       <div className="flex items-center justify-between mb-4 mt-2">
         <div>
           <h1 className="text-xl font-black tracking-tight">Historique</h1>
-          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Gestion des flux</p>
+          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">
+            {filters?.profil || 'Tous'} • {filters?.mois} {filters?.annee}
+          </p>
         </div>
         
         <button 
           onClick={() => setShowFilters(!showFilters)}
           className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all cursor-pointer ${
             showFilters || (selectedCompte && selectedCompte !== 'tous')
-              ? 'bg-[var(--primary)] border-[var(--primary)] text-white' 
+              ? 'bg-[var(--primary)] border-[var(--primary)] text-white shadow-lg' 
               : 'bg-[var(--glass-bg)] border-white/10 text-white/60'
           }`}
         >
           <Filter size={14} />
-          <span className="text-[10px] font-bold uppercase">Filtres</span>
+          <span className="text-[10px] font-bold uppercase">
+            {selectedCompte && selectedCompte !== 'tous' ? selectedCompte : 'Filtres'}
+          </span>
         </button>
       </div>
 
@@ -239,37 +249,46 @@ export default function GererMobile(props) {
         </div>
       </div>
 
-      {/* FILTRES DÉROULANTS AVEC SÉLECTION AUTOMATIQUE CCP */}
+      {/* 🟢 VOLET DE FILTRES CORRIGÉ (Z-INDEX SÉCURISÉ POUR ÉVITER LES CLICS BLOQUÉS) */}
       {showFilters && (
-        <div className="mb-4 bg-[#121214] border border-[var(--primary)]/30 rounded-2xl p-4 space-y-3.5 animate-in slide-in-from-top-4 duration-200">
+        <div className="mb-4 bg-[#121214] border border-[var(--primary)]/40 rounded-2xl p-4 space-y-4 animate-in slide-in-from-top-4 duration-200 relative z-30 shadow-2xl">
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
-            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--primary)]">Ajuster la vue</span>
-            <button onClick={() => setShowFilters(false)} className="text-white/40"><X size={14} /></button>
+            <span className="text-[10px] font-black uppercase tracking-wider text-[var(--primary)]">Filtres Actifs</span>
+            <button onClick={() => setShowFilters(false)} className="text-white/40 hover:text-white p-1">
+              <X size={14} />
+            </button>
           </div>
           
-          <div className="space-y-4">
-            <CustomSelect 
-              label="Profil cible"
-              value={filters.profil}
-              icon={User}
-              options={['Tous', ...new Set(comptes.map(c => c.groupe))].map(p => ({ v: p, l: p }))}
-              onChange={onSelectProfilLocal}
-              className="p-2.5 rounded-xl text-[10px]"
-            />
+          <div className="flex flex-col gap-3">
+            {/* Profil cible */}
+            <div className="relative z-40">
+              <CustomSelect 
+                label="Profil cible"
+                value={filters.profil || 'Tous'}
+                icon={User}
+                options={['Tous', ...new Set(comptes.map(c => c.groupe).filter(Boolean))].map(p => ({ v: p, l: p }))}
+                onChange={onSelectProfilLocal}
+                className="p-2.5 rounded-xl text-[10px]"
+              />
+            </div>
 
-            <CustomSelect 
-              label="Compte bancaire"
-              value={selectedCompte}
-              icon={Search}
-              options={[
-                { v: 'tous', l: 'Tous les comptes' },
-                ...props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))
-              ]}
-              onChange={onSelectCompteLocal}
-              className="p-2.5 rounded-xl text-[10px]"
-            />
+            {/* Compte bancaire */}
+            <div className="relative z-30">
+              <CustomSelect 
+                label="Compte bancaire"
+                value={selectedCompte || 'tous'}
+                icon={Search}
+                options={[
+                  { v: 'tous', l: 'Tous les comptes' },
+                  ...comptesDisponiblesMobile.map(s => ({ v: s.compte, l: s.compte }))
+                ]}
+                onChange={onSelectCompteLocal}
+                className="p-2.5 rounded-xl text-[10px]"
+              />
+            </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Mois & Année */}
+            <div className="grid grid-cols-2 gap-3 relative z-20">
               <CustomSelect 
                 label="Mois"
                 value={filters.mois}
@@ -292,6 +311,13 @@ export default function GererMobile(props) {
               />
             </div>
           </div>
+
+          <button
+            onClick={() => setShowFilters(false)}
+            className="w-full py-2 bg-white/10 hover:bg-white/15 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-colors mt-2"
+          >
+            Fermer les filtres
+          </button>
         </div>
       )}
 
@@ -379,7 +405,6 @@ export default function GererMobile(props) {
                             {t.compte}
                           </span>
                           
-                          {/* 🟢 Affichage direct avec carré arrondi coloré */}
                           <div className="flex items-center gap-1">
                             <CategoryIcon name={t.categorie} size={11} />
                             <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[110px]">
@@ -435,8 +460,7 @@ export default function GererMobile(props) {
       {/* ONGLET 2 : OUTILS & GESTION CATÉGORIES */}
       {activeSection === 'tools' && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          
-          {/* SAISIE EXPRESS */}
+          {/* Saisie express */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
             <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
               <Plus size={12} /> Nouvelle Transaction Express
@@ -464,7 +488,7 @@ export default function GererMobile(props) {
                 
                 <CustomSelect 
                   value={newTx.compte}
-                  options={props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))}
+                  options={(comptesDisponiblesMobile.length > 0 ? comptesDisponiblesMobile : comptes).map(s => ({ v: s.compte, l: s.compte }))}
                   onChange={(val) => setNewTx({...newTx, compte: val})}
                   icon={CreditCard}
                   className="p-2.5 rounded-xl text-[10px]"
@@ -493,14 +517,18 @@ export default function GererMobile(props) {
 
               <button 
                 onClick={() => {
-                  const label = document.getElementById('quick-nom-mobile').value;
-                  const amt = document.getElementById('quick-montant-mobile').value;
+                  const label = document.getElementById('quick-nom-mobile')?.value;
+                  const amt = document.getElementById('quick-montant-mobile')?.value;
                   if (label && amt) {
-                    document.getElementById('quick-nom').value = label;
-                    document.getElementById('quick-montant').value = amt;
+                    const elN = document.getElementById('quick-nom');
+                    const elM = document.getElementById('quick-montant');
+                    if (elN) elN.value = label;
+                    if (elM) elM.value = amt;
                     submitQuickTransaction();
-                    document.getElementById('quick-nom-mobile').value = '';
-                    document.getElementById('quick-montant-mobile').value = '';
+                    const qnm = document.getElementById('quick-nom-mobile');
+                    const qmm = document.getElementById('quick-montant-mobile');
+                    if (qnm) qnm.value = '';
+                    if (qmm) qmm.value = '';
                   }
                 }}
                 className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-2 shadow-lg cursor-pointer"
@@ -510,7 +538,7 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* CRÉER UNE CATÉGORIE AVEC ICÔNE ET COULEUR */}
+          {/* Créer une catégorie */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl relative">
             <h3 className="text-[10px] font-black uppercase text-white/80 tracking-widest mb-3 flex items-center gap-2">
               <Sparkles size={12} className="text-indigo-400" /> Créer une Catégorie
@@ -518,8 +546,6 @@ export default function GererMobile(props) {
 
             <div className="bg-black/40 border border-white/5 rounded-2xl p-3 space-y-3">
               <div className="flex items-center gap-2.5">
-                
-                {/* 1. Choix d'icône */}
                 <div className="relative">
                   <button 
                     type="button"
@@ -542,7 +568,6 @@ export default function GererMobile(props) {
                   )}
                 </div>
 
-                {/* 2. Choix de couleur */}
                 <div className="relative">
                   <button 
                     type="button"
@@ -572,7 +597,6 @@ export default function GererMobile(props) {
                   )}
                 </div>
 
-                {/* 3. Input du Nom */}
                 <input 
                   type="text" 
                   id="catInputMobile"
@@ -593,12 +617,8 @@ export default function GererMobile(props) {
             </div>
           </div>
 
-          {/* =========================================================================
-              🟢 GESTION DES GROUPES & CATÉGORIES (MOBILE : 2 ÉTAGES & ZÉRO EMOJI)
-              ========================================================================= */}
+          {/* Groupes & Catégories */}
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl space-y-3">
-            
-            {/* EN-TÊTE & CRÉATION RAPIDE DE GROUPE */}
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-[10px] font-black uppercase text-white/80 tracking-widest">
@@ -632,7 +652,6 @@ export default function GererMobile(props) {
               )}
             </div>
 
-            {/* BANDEAU DES GROUPES (AVEC SUPPRESSION EN 1 CLIC SANS CONFIRMATION) */}
             {(() => {
               const allFromCats = toutesLesCategories.map(c => getCategoryGroup(c));
               const allUnique = [...new Set([...userGroups, ...allFromCats, 'Général'])].filter(Boolean).sort();
@@ -641,7 +660,6 @@ export default function GererMobile(props) {
               return (
                 <>
                   <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 select-none">
-                    {/* Filtre Tous */}
                     <button
                       type="button"
                       onClick={() => setGroupFilter('all')}
@@ -656,7 +674,6 @@ export default function GererMobile(props) {
                       <span className="ml-1 opacity-50 font-mono">({toutesLesCategories.length})</span>
                     </button>
 
-                    {/* Chaque Groupe */}
                     {allUnique.map(grp => {
                       const isActive = groupFilter === grp;
                       const count = toutesLesCategories.filter(c => getCategoryGroup(c) === grp).length;
@@ -681,7 +698,6 @@ export default function GererMobile(props) {
                             <span className="opacity-60 font-mono text-[7.5px]">({count})</span>
                           </button>
 
-                          {/* 🟢 Suppression instantanée sans confirmation */}
                           {!isGeneral && (
                             <button
                               type="button"
@@ -700,7 +716,6 @@ export default function GererMobile(props) {
                     })}
                   </div>
 
-                  {/* LISTE DES CARTES EN 2 ÉTAGES */}
                   <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar pt-1">
                     {toutesLesCategories
                       .filter(cat => {
@@ -720,7 +735,6 @@ export default function GererMobile(props) {
                               estMasquee ? 'bg-black/20 border-white/5 opacity-40' : 'bg-black/30 border-white/5'
                             }`}
                           >
-                            {/* Étage 1 (Haut) : Icône + Titre + Boutons d'actions */}
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
                                 <CategoryIcon name={cat} size={14} />
@@ -771,7 +785,6 @@ export default function GererMobile(props) {
                               </div>
                             </div>
 
-                            {/* Étage 2 (Dessous) : CustomSelect du Groupe en pleine largeur */}
                             <div className="pt-1.5 border-t border-white/5 flex items-center justify-between gap-2">
                               <span className="text-[7.5px] font-black uppercase text-white/30 tracking-wider flex items-center gap-1 shrink-0">
                                 <Layers size={9} className="text-indigo-400 opacity-60" />
@@ -796,7 +809,6 @@ export default function GererMobile(props) {
               );
             })()}
           </div>
-
         </div>
       )}
 
@@ -814,7 +826,7 @@ export default function GererMobile(props) {
                   value={formBudget.compte || 'tous'}
                   options={[
                     { v: 'tous', l: 'Tous les comptes' },
-                    ...props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))
+                    ...comptesDisponiblesMobile.map(s => ({ v: s.compte, l: s.compte }))
                   ]}
                   onChange={(val) => setFormBudget({...formBudget, compte: val})}
                   icon={Search}
@@ -959,7 +971,7 @@ export default function GererMobile(props) {
                 <CustomSelect 
                   label="Compte associé"
                   value={editingTransaction.compte}
-                  options={props.soldesTries.map(s => ({ v: s.compte, l: s.compte }))}
+                  options={(comptesDisponiblesMobile.length > 0 ? comptesDisponiblesMobile : comptes).map(s => ({ v: s.compte, l: s.compte }))}
                   onChange={(val) => setEditingTransaction({ ...editingTransaction, compte: val })}
                   icon={CreditCard}
                   className="p-2.5 rounded-xl text-[10px]"
@@ -986,7 +998,7 @@ export default function GererMobile(props) {
                 />
               </div>
 
-              {/* SÉLECTION PRÉVISION LIÉE */}
+              {/* Prévision liée */}
               {(() => {
                 const isTxPositive = (parseFloat(editingTransaction.montant) || 0) >= 0;
                 const compteTx = (comptes || []).find(c => 
@@ -995,8 +1007,8 @@ export default function GererMobile(props) {
                 const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
 
                 const previsionsDispos = (allPrevisionsAnnee || []).filter(p => {
-                  const matchMois = String(p.mois || "").toLowerCase().trim() === String(editingTransaction.mois || "").toLowerCase().trim();
-                  const anneeT = parseInt(editingTransaction.annee || editingTransaction.année || filters.annee || new Date().getFullYear());
+                  const matchMois = cleanMonth(p.mois) === cleanMonth(editingTransaction.mois);
+                  const anneeT = parseInt(editingTransaction.annee || editingTransaction.année || filters?.annee || new Date().getFullYear());
                   const anneeP = parseInt(p.annee || p.année || new Date().getFullYear());
                   const matchAnnee = (anneeT === anneeP);
 
@@ -1009,9 +1021,7 @@ export default function GererMobile(props) {
                   }
 
                   const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
-                  const matchSens = (isTxPositive === isPrevPositive);
-
-                  return matchMois && matchAnnee && matchGroupe && matchSens;
+                  return matchMois && matchAnnee && matchGroupe && (isTxPositive === isPrevPositive);
                 }).map(p => {
                   const rawNom = p.nom.replace(/^\[PRÉVI\]\s*/i, '');
                   const montantPrev = Math.abs(parseFloat(p.montant) || 0);
@@ -1048,7 +1058,7 @@ export default function GererMobile(props) {
                 );
               })()}
 
-              {/* 🟢 SÉLECTION ENVELOPPE SANS EMOJIS */}
+              {/* Enveloppe */}
               <CustomSelect 
                 label="Enveloppe d'épargne"
                 value={editingTransaction.enveloppe || ""}

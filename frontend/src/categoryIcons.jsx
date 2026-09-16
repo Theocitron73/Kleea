@@ -66,7 +66,7 @@ const ICON_CATEGORIES = [
       'Bike', 'Plane', 'PlaneTakeoff', 'PlaneLanding', 'Ship', 'Sailboat', 'Anchor',
       'Fuel', 'Gauge', 'CircleParking', 'CircleParkingOff', 'Milestone', 'Navigation', 'Navigation2', 
       'Compass', 'MapPin', 'MapPinned', 'Map', 'Route', 'Rocket', 'CableCar', 
-      'Ticket', 'Tickets', 'Footprints', 'Luggage'
+      'Ticket', 'Tickets', 'Footprints', 'Luggage', 'Road'
     ]
   },
   {
