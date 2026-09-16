@@ -96,6 +96,20 @@ engine = create_engine(
 def read_root():
     return {"status": "L'API de finances est en ligne"}
 
+def matches_keyword_boundary(keyword: str, text: str) -> bool:
+    """
+    Vérifie si 'keyword' est présent dans 'text' en tant que mot entier isolé.
+    Empêche par exemple 'station' de matcher 'stationnement'.
+    Gère correctement les tirets, espaces, virgules et les caractères accentués.
+    """
+    if not keyword or not text:
+        return False
+    escaped = re.escape(keyword.strip().lower())
+    # (?<!\w) et (?!\w) garantissent qu'il n'y a pas de lettre collée avant ou après
+    pattern = rf"(?<!\w){escaped}(?!\w)"
+    return bool(re.search(pattern, text.lower()))
+
+
 @app.get("/transactions/{username}")
 def get_transactions(username: str):
     u_lower = username.lower()
@@ -1363,7 +1377,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                             if not keyword_clean:
                                 continue
 
-                            if keyword_clean in nom_t_lower:
+                            if matches_keyword_boundary(keyword_clean, nom_t_lower):
                                 match_positif = (filtre_signe == "positive" and montant_float > 0)
                                 match_negatif = (filtre_signe == "negative" and montant_float < 0)
                                 match_deux = (filtre_signe in ["both", "all"])
@@ -3472,7 +3486,7 @@ async def import_powens(
                         if not keyword_clean:
                             continue
 
-                        if keyword_clean in nom_t_lower:
+                        if matches_keyword_boundary(keyword_clean, nom_t_lower):
                             match_positif = (filtre_signe == "positive" and montant_float > 0)
                             match_negatif = (filtre_signe == "negative" and montant_float < 0)
                             match_deux = (filtre_signe in ["both", "all"])
@@ -4227,7 +4241,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                             parts = raw_k.split(':')
                             keyword = parts[0].strip().lower()
                             signe = parts[1].strip().lower() if len(parts) > 1 else "both"
-                            if keyword in libelle_lower:
+                            if matches_keyword_boundary(keyword, libelle_lower):
                                 if (signe == "positive" and montant > 0) or (signe == "negative" and montant < 0) or (signe in ["both", "all"]):
                                     cat = rule["categorie"]
                                     break

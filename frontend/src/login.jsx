@@ -9634,6 +9634,15 @@ useEffect(() => {
 
 
 
+// Fonction de matching avec frontière de mots (compatible avec les accents français)
+const matchesKeywordBoundary = (keyword, text) => {
+  if (!keyword || !text) return false;
+  const escaped = keyword.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Utilise les classes Unicode pour ne pas couper au milieu d'un mot accentué
+  const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'iu');
+  return regex.test(text.toLowerCase());
+};
+
 const appliquerIntelligence = (transactions, config, utilisateurActuel) => {
   return transactions.map(t => {
     let nouvelleCategorie = t.categorie; 
@@ -9646,17 +9655,21 @@ const appliquerIntelligence = (transactions, config, utilisateurActuel) => {
 
     let matchTrouve = false;
 
+    // Trier les règles du mot-clé le plus long au plus court
+    // (ex: "station essence" ou "stationnement" sera testé avant "station")
     for (const cat of configPertinente) {
-      for (const rawKeyword of cat.mots_cles) {
-        // On sépare le mot-clé du filtre de signe (par défaut "both" s'il n'y a pas de ':')
+      // On trie les mots-clés de la catégorie par longueur décroissante
+      const motsClesTries = [...(cat.mots_cles || [])].sort((a, b) => b.split(':')[0].length - a.split(':')[0].length);
+
+      for (const rawKeyword of motsClesTries) {
         const parts = rawKeyword.split(':');
         const keywordNettoye = parts[0].toLowerCase().replace(/\s+/g, ' ').trim();
         const filtreSigne = parts[1] || "both"; 
 
         if (!keywordNettoye) continue;
 
-        if (nomNettoye.includes(keywordNettoye)) {
-          // Validation de la condition sur le montant
+        // 🟢 VÉRIFICATION PAR MOT ENTIER (Au lieu de nomNettoye.includes(keywordNettoye))
+        if (matchesKeywordBoundary(keywordNettoye, nomNettoye)) {
           const matchPositif = (filtreSigne === "positive" && montant > 0);
           const matchNegatif = (filtreSigne === "negative" && montant < 0);
           const matchDeux = (filtreSigne === "both" || filtreSigne === "all");
@@ -16667,7 +16680,7 @@ if (!user) {
                                     {/* 2. NOM / LIBELLÉ : Texte en violet si transfert */}
                                     <td className="p-4">
                                       <div className="flex items-center gap-2">
-                                        <div className={`text-[10px] font-black uppercase truncate max-w-[260px] ${
+                                        <div className={`text-[10px] font-black uppercase max-w-[460px] ${
                                           isTransfert ? 'text-violet-200' : 'text-[var(--text-main)]'
                                         }`}>
                                           {t.nom}
