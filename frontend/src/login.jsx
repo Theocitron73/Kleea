@@ -13822,25 +13822,25 @@ if (!user) {
 
         <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl shadow-2xl overflow-hidden w-full">
           
-{/* ZONE DE SCROLL INTERNE */}
-<div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar p-3.5 w-full">
-  {/* 💡 border-spacing-y-1.5 pour rapprocher verticalement les lignes */}
+{/* ZONE DE SCROLL INTERNE (Collée en haut et de bord à bord) */}
+<div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar w-full">
   <table className="w-full text-left border-separate border-spacing-y-1.5 relative z-10 table-fixed min-w-[650px]">
-    <thead className="sticky top-0 z-20 bg-[var(--bg-site)]">
-      <tr className="text-[8.5px] text-[var(--text-main)]/30 uppercase font-black italic">
-        <th className="px-3 py-2 w-20 text-center backdrop-blur-[var(--glass-blur)] bg-black/20 rounded-l-lg">
+    {/* 🟢 Header 100% opaque avec priorité d'affichage z-40 sur chaque colonne */}
+    <thead className="sticky top-0 z-40 bg-[#0f172a]">
+      <tr className="bg-[#0f172a] text-[9px] text-[var(--text-main)]/50 uppercase font-black tracking-wider">
+        <th className="sticky top-0 z-40 py-3 px-3 w-14 text-center border-b border-white/10 bg-[#0f172a]">
           <input 
             type="checkbox"
             checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
             onChange={toggleAll2}
-            className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer"
+            className="w-4 h-4 rounded border-white/20 bg-black/60 text-emerald-500 cursor-pointer"
           />
         </th>
-        <th className="px-3 py-2 w-[25%] backdrop-blur-[var(--glass-blur)] bg-black/20">Libellé</th>
-        <th className="px-3 py-2 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Catégorie</th>
-        <th className="px-3 py-2 w-[18%] backdrop-blur-[var(--glass-blur)] bg-black/20">Compte</th>
-        <th className="px-3 py-2 w-[18%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20">Montant</th>
-        <th className="px-3 py-2 w-[21%] text-right backdrop-blur-[var(--glass-blur)] bg-black/20 rounded-r-lg">Date</th>
+        <th className="sticky top-0 z-40 py-3 px-3 w-[26%] border-b border-white/10 bg-[#0f172a]">Libellé</th>
+        <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[#0f172a]">Catégorie</th>
+        <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[#0f172a]">Compte</th>
+        <th className="sticky top-0 z-40 py-3 px-3 w-[18%] text-right border-b border-white/10 bg-[#0f172a]">Montant</th>
+        <th className="sticky top-0 z-40 py-3 px-3 w-[20%] text-right border-b border-white/10 pr-4 bg-[#0f172a]">Date</th>
       </tr>
     </thead>
 
@@ -13892,23 +13892,24 @@ if (!user) {
                     </td>
                     
                     {/* LIBELLÉ (avec badge du nombre de transactions rattachées) */}
-                    <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                      <div className="flex items-center gap-1.5 w-full">
-                        <input 
-                          className={`input-libelle bg-white/[0.04] border border-white/5 focus:border-emerald-500/40 rounded-lg px-2.5 py-1 text-[10.5px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
-                          defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                          onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                        />
-                        {tracking.nbTransactions > 0 && (
-                          <span 
-                            title={`${tracking.nbTransactions} transaction(s) liée(s) : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
-                            className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0"
-                          >
-                            {tracking.nbTransactions} liées
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                      <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                        <div className="flex items-center gap-1.5 w-full">
+                          <input 
+                            className={`input-libelle bg-white/[0.04] border border-white/5 focus:border-emerald-500/40 rounded-lg px-2.5 py-1 text-[10.5px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
+                            defaultValue={prev.nom.replace('[PRÉVI] ', '')}
+                            onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
+                          />
+                          {tracking.nbTransactions > 0 && (
+                            <span 
+                              title={`${tracking.nbTransactions} transaction${tracking.nbTransactions > 1 ? 's liées' : ' liée'} : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
+                              className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0"
+                            >
+                              {/* 🟢 Accord automatique : 1 liée / 2+ liées */}
+                              {tracking.nbTransactions} {tracking.nbTransactions > 1 ? 'liées' : 'liée'}
+                            </span>
+                          )}
+                        </div>
+                      </td>
 
                     {/* CATÉGORIE */}
                     <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
@@ -14027,7 +14028,7 @@ if (!user) {
                       </td>
 
                     {/* DATE */}
-                    <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right relative overflow-visible group-focus-within:z-50 rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
+                   <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
                       <div className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/5 rounded-xl px-2 h-[28px] focus-within:border-emerald-500/50 transition-all">
                         <Calendar size={11} className="text-[var(--text-main)]/30" />
                         <DatePicker
