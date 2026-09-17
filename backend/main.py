@@ -4079,204 +4079,189 @@ def decrypt_iban(val: str) -> str:
 # 🟢 SYNCHRONISATION ROBUSTE AVEC DÉCHIFFREMENT ET DÉTECTION D'IBAN
 @app.post("/powens/sync-user/{username}")
 async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
-    user_clean = username.lower().strip()
-    is_test_user = (user_clean == "test")
-
-    # 1. Token utilisateur
-    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
-    with engine.connect() as conn:
-        res = conn.execute(query_token, {"u": user_clean}).fetchone()
-        if not res or not res[0]:
-            raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
-        user_token = res[0]
-        
-        # 2. Configurations brutes de Kleea
-        query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
-        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
-
-    # 🟢 Déchiffrement en mémoire vive de toutes les liaisons
-    decrypted_config_rows = [
-        (row[0], decrypt_iban(row[1]) if row[1] else None)
-        for row in config_rows
-    ]
-
-    domain = POWENS_DOMAIN.rstrip('/')
-    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
-        domain += '/2.0'
-    elif domain.endswith('/v2'):
-        domain = domain[:-3] + '/2.0'
-        
-    headers = {"Authorization": f"Bearer {user_token}"}
     try:
+        user_clean = username.lower().strip()
+        is_test_user = (user_clean == "test")
+
+        # 1. Token utilisateur
+        query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+        with engine.connect() as conn:
+            res = conn.execute(query_token, {"u": user_clean}).fetchone()
+            if not res or not res[0]:
+                raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
+            user_token = res[0]
+            
+            query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
+            config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+
+        decrypted_config_rows = [
+            (row[0], decrypt_iban(row[1]) if row[1] else None)
+            for row in config_rows
+        ]
+
+        domain = POWENS_DOMAIN.rstrip('/')
+        if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+            domain += '/2.0'
+        elif domain.endswith('/v2'):
+            domain = domain[:-3] + '/2.0'
+            
+        headers = {"Authorization": f"Bearer {user_token}"}
+        
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
-        powens_accounts = res_acc.json().get("accounts", [])
+        powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
         powens_raw = get_powens_transactions(user_token)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
 
-    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
-    if not acc_id_to_kleea:
-        return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
+        acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
+        if not acc_id_to_kleea:
+            return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
 
-    # Bâtir les tables d'IBANs et numéros des comptes connectés Powens
-    iban_to_local_name = {}
-    number_to_local_name = {}
-    for acc in powens_accounts:
-        acc_id = str(acc.get("id"))
-        local_name = acc_id_to_kleea.get(acc_id)
-        if local_name:
-            iban = acc.get("iban", "").strip().upper().replace(" ", "")
-            number = acc.get("number", "").strip().upper().replace(" ", "")
-            if iban: iban_to_local_name[iban] = local_name
-            if number: number_to_local_name[number] = local_name
+        # Bâtir les tables d'IBANs et numéros (SÉCURISÉ CONTRE LES VALEURS NULL)
+        iban_to_local_name = {}
+        number_to_local_name = {}
+        for acc in powens_accounts:
+            acc_id = str(acc.get("id"))
+            local_name = acc_id_to_kleea.get(acc_id)
+            if local_name:
+                iban = str(acc.get("iban") or "").strip().upper().replace(" ", "")
+                number = str(acc.get("number") or "").strip().upper().replace(" ", "")
+                if iban: iban_to_local_name[iban] = local_name
+                if number: number_to_local_name[number] = local_name
 
-    mots_cles_rules = get_mots_cles_rules(user_clean)
-    memoire_rules = get_memoire(user_clean)
-    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
-    success_count = 0
-    batch_occurrence_tracker = {}
+        mots_cles_rules = get_mots_cles_rules(user_clean)
+        memoire_rules = get_memoire(user_clean)
+        mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
+        success_count = 0
+        batch_occurrence_tracker = {}
 
-    # 🟢 NOUVELLE BORNE STRICTE : 1er jour du mois en cours uniquement (ex: 2026-09-01)
-    now = datetime.now()
-    start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
+        now = datetime.now()
+        start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
 
-    with engine.connect() as conn:
-        for tx in powens_raw:
-            try:
-                raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
-                
-                # Ignore les écritures trop anciennes (> 60 jours)
-                if raw_date < start_of_current_month:
-                    continue
+        with engine.connect() as conn:
+            for tx in powens_raw:
+                try:
+                    raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+                    if raw_date < start_of_current_month:
+                        continue
 
-                tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
-                local_account_name = acc_id_to_kleea.get(tx_account_id)
-                if not local_account_name:
-                    continue
+                    tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
+                    local_account_name = acc_id_to_kleea.get(tx_account_id)
+                    if not local_account_name:
+                        continue
+                        
+                    montant = float(tx.get("value", 0.0))
+                    libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
+                    base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
                     
-                montant = float(tx.get("value", 0.0))
-                libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
-                base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
-                
-                tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
-                occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
-                batch_occurrence_tracker[tracker_key] = occurrence_in_batch
-                
-                nom_final = base_nom if occurrence_in_batch == 1 else f"{base_nom} #{occurrence_in_batch}"
+                    tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
+                    occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
+                    batch_occurrence_tracker[tracker_key] = occurrence_in_batch
+                    
+                    nom_final = base_nom if occurrence_in_batch == 1 else f"{base_nom} #{occurrence_in_batch}"
 
-                # Vérification d'existence en BDD
-                check_existing_query = text("""
-                    SELECT 1 FROM transactions 
-                    WHERE LOWER(utilisateur) = LOWER(:u) 
-                      AND date = :d 
-                      AND ABS(montant - :m) < 0.001 
-                      AND nom = :n 
-                      AND compte = :co 
-                    LIMIT 1
-                """)
-                already_in_db = conn.execute(check_existing_query, {
-                    "u": user_clean,
-                    "d": raw_date,
-                    "m": montant,
-                    "n": nom_final,
-                    "co": local_account_name
-                }).fetchone()
+                    check_existing_query = text("""
+                        SELECT 1 FROM transactions 
+                        WHERE LOWER(utilisateur) = LOWER(:u) 
+                          AND date = :d 
+                          AND ABS(montant - :m) < 0.001 
+                          AND nom = :n 
+                          AND compte = :co 
+                        LIMIT 1
+                    """)
+                    already_in_db = conn.execute(check_existing_query, {
+                        "u": user_clean, "d": raw_date, "m": montant,
+                        "n": nom_final, "co": local_account_name
+                    }).fetchone()
 
-                if already_in_db:
-                    continue
+                    if already_in_db:
+                        continue
 
-                # Catégorisation
-                cat = "Autre"
-                libelle_lower = libelle_brut.lower()
-                libelle_compact = libelle_brut.upper().replace(" ", "")
-                
-                autre_compte_local = None
+                    # Catégorisation
+                    cat = "Autre"
+                    libelle_lower = libelle_brut.lower()
+                    libelle_compact = libelle_brut.upper().replace(" ", "")
+                    autre_compte_local = None
 
-                # A. Recherche par IBAN issu de l'API Powens
-                for target_iban, local_name in iban_to_local_name.items():
-                    if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
-                        autre_compte_local = local_name
-                        break
-                
-                # B. Recherche par Numéro de compte issu de l'API Powens
-                if not autre_compte_local:
-                    for target_number, local_name in number_to_local_name.items():
-                        if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
+                    for target_iban, local_name in iban_to_local_name.items():
+                        if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
                             autre_compte_local = local_name
                             break
+                    
+                    if not autre_compte_local:
+                        for target_number, local_name in number_to_local_name.items():
+                            if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
+                                autre_compte_local = local_name
+                                break
 
-                # 🟢 C. RECHERCHE PAR IBAN MANUEL DÉCHIFFRÉ (ex: votre LEP)
-                if not autre_compte_local:
-                    for c_name, p_link in decrypted_config_rows:
-                        if not p_link or c_name.upper() == local_account_name.upper():
-                            continue
-                        p_link_compact = p_link.replace(" ", "").upper()
-                        # Vérifie si l'IBAN déchiffré est écrit à l'intérieur du libellé
-                        if p_link_compact and p_link_compact in libelle_compact:
-                            autre_compte_local = c_name
-                            print(f"🎯 [MATCH IBAN] Virement interne détecté vers '{c_name}' via l'IBAN '{p_link_compact}'")
-                            break
+                    if not autre_compte_local:
+                        for c_name, p_link in decrypted_config_rows:
+                            if not p_link or c_name.upper() == local_account_name.upper():
+                                continue
+                            p_link_compact = p_link.replace(" ", "").upper()
+                            if p_link_compact and p_link_compact in libelle_compact:
+                                autre_compte_local = c_name
+                                break
 
-                # D. Mots-clés livrets génériques
-                if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
-                    types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
-                    type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
-                    if type_cible: 
-                        autre_compte_local = type_cible
+                    if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
+                        types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
+                        type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
+                        if type_cible: 
+                            autre_compte_local = type_cible
 
-                # Attribution de la catégorie de virement interne
-                if autre_compte_local:
-                    cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
+                    if autre_compte_local:
+                        cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
 
-                # Mémoire & mots-clés
-                if cat == "Autre":
-                    for m in memoire_rules:
-                        if m["nom"].lower() in libelle_lower:
-                            cat = m["categorie"]
-                            break
-                            
-                if cat == "Autre":
-                    for rule in mots_cles_rules:
-                        for raw_k in rule["keywords"]:
-                            parts = raw_k.split(':')
-                            keyword = parts[0].strip().lower()
-                            signe = parts[1].strip().lower() if len(parts) > 1 else "both"
-                            if matches_keyword_boundary(keyword, libelle_lower):
-                                if (signe == "positive" and montant > 0) or (signe == "negative" and montant < 0) or (signe in ["both", "all"]):
-                                    cat = rule["categorie"]
-                                    break
+                    if cat == "Autre":
+                        for m in memoire_rules:
+                            if m["nom"].lower() in libelle_lower:
+                                cat = m["categorie"]
+                                break
+                                
+                    if cat == "Autre":
+                        for rule in mots_cles_rules:
+                            for raw_k in rule["keywords"]:
+                                parts = raw_k.split(':')
+                                keyword = parts[0].strip().lower()
+                                signe = parts[1].strip().lower() if len(parts) > 1 else "both"
+                                if matches_keyword_boundary(keyword, libelle_lower):
+                                    if (signe == "positive" and montant > 0) or (signe == "negative" and montant < 0) or (signe in ["both", "all"]):
+                                        cat = rule["categorie"]
+                                        break
 
-                # Virements externes
-                if cat == "Autre":
-                    is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
-                    if is_transfer:
-                        cat = "Virements Reçus" if montant > 0 else "Virements envoyé"
+                    if cat == "Autre":
+                        is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
+                        if is_transfer:
+                            cat = "Virements Reçus" if montant > 0 else "Virements envoyé"
 
-                # Insertion
-                dt = datetime.strptime(raw_date, "%Y-%m-%d")
-                insert_query = text("""
-                    INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte)
-                    VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
-                    ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
-                    RETURNING id
-                """)
-                res_insert = conn.execute(insert_query, {
-                    "d": raw_date, "n": nom_final, "m": montant, "c": cat,
-                    "u": user_clean, "mo": mois_fr[dt.month - 1], "a": dt.year,
-                    "co": local_account_name
-                })
-                conn.commit()
+                    dt = datetime.strptime(raw_date, "%Y-%m-%d")
+                    insert_query = text("""
+                        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte)
+                        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
+                        ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
+                        RETURNING id
+                    """)
+                    res_insert = conn.execute(insert_query, {
+                        "d": raw_date, "n": nom_final, "m": montant, "c": cat,
+                        "u": user_clean, "mo": mois_fr[dt.month - 1], "a": dt.year,
+                        "co": local_account_name
+                    })
+                    conn.commit()
 
-                if res_insert.fetchone():
-                    success_count += 1
+                    if res_insert.fetchone():
+                        success_count += 1
 
-            except Exception as line_error:
-                conn.rollback()
-                print(f"Ligne ignorée : {line_error}")
-                continue
-            
-    print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
-    return {"status": "success", "added": success_count}
+                except Exception as line_error:
+                    conn.rollback()
+                    print(f"Ligne ignorée : {line_error}")
+                    continue
+                
+        print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
+        return {"status": "success", "added": success_count}
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Erreur interne synchronisation : {str(e)}")
 
 # 🟢 CORRECTIF : ALIGNEMENT DES PARAMÈTRES ET TRACABILITÉ DES RECALCULS
 @app.post("/powens/recalculate-balances/{username}")
