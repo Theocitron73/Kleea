@@ -5176,7 +5176,36 @@ const ProfileTab = ({ user, powensData, comptes, syncCountByAccount = {}, handle
 
   const isAdmin = user?.toLowerCase() === 'theo';
 
+  const [connectLoading, setConnectLoading] = useState(false);
 
+  const onConnectBank = async () => {
+    if (typeof handleConnectNewBank === 'function') {
+      handleConnectNewBank();
+      return;
+    }
+    try {
+      setConnectLoading(true);
+      const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
+      const redirectUri = window.location.origin + window.location.pathname;
+      const existingToken = localStorage.getItem('powens_user_token') || '';
+
+      const resUrl = await api.get(
+        `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`
+      );
+
+      const url = resUrl.data?.url || resUrl.data?.redirect_url;
+      if (url) {
+        window.location.href = url;
+      } else {
+        alert("Impossible de générer le lien de connexion.");
+      }
+    } catch (err) {
+      console.error("Erreur connexion banque :", err);
+      alert("Erreur lors de la redirection bancaire.");
+    } finally {
+      setConnectLoading(false);
+    }
+  };
   
 
   const fetchProfileAndStats = async () => {
@@ -5599,7 +5628,7 @@ useEffect(() => {
 {/* SECTION BANCAIRE / POWENS */}
 <div className="relative z-20 overflow-visible bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 p-4 space-y-3">
   
-  {/* En-tête avec bouton de déconnexion totale */}
+  {/* En-tête avec boutons Connecter et Déconnexion totale */}
   <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-[9px] uppercase font-bold text-[var(--text-main)] select-none">
     <span className="flex items-center gap-2 truncate pr-2">
       <Building2 size={14} className="text-[var(--primary)] shrink-0" />
@@ -5608,16 +5637,32 @@ useEffect(() => {
       </span>
     </span>
 
-    {/* 🟢 BOUTON DÉCONNECTER (Visible uniquement si au moins une connexion existe) */}
-    {powensData?.connections && powensData.connections.length > 0 && (
+    {/* 🟢 GROUPE DE BOUTONS : CONNECTER + TOUT DÉCONNECTER */}
+    <div className="flex items-center gap-2 shrink-0">
+      
+      {/* BOUTON AJOUTER / CONNECTER UNE BANQUE */}
       <button
         type="button"
-        onClick={() => setShowDisconnectConfirm(true)}
-        className="text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer"
+        onClick={onConnectBank}
+        disabled={connectLoading}
+        className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+        title="Connecter une nouvelle banque via Powens"
       >
-        Tout déconnecter
+        <Plus size={10} strokeWidth={3} />
+        <span>{connectLoading ? "Redirection..." : "Connecter une banque"}</span>
       </button>
-    )}
+
+      {/* BOUTON TOUT DÉCONNECTER */}
+      {powensData?.connections && powensData.connections.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowDisconnectConfirm(true)}
+          className="text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer active:scale-95"
+        >
+          Tout déconnecter
+        </button>
+      )}
+    </div>
   </div>
 
   {/* 🟢 VOLET DE CONFIRMATION DE SÉCURITÉ */}
@@ -17796,6 +17841,7 @@ if (!user) {
     showNotify={showNotify}
     fetchPowensConnections={fetchPowensConnections}
     fetchComptes={fetchComptes}
+    handleConnectNewBank={handleConnectNewBank}
   />
 )}
 
