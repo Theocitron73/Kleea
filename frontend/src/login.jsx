@@ -5684,7 +5684,7 @@ useEffect(() => {
   ) : (
     /* ÉTAT 2 : LISTE DES CONNEXIONS ET COMPTES CONNECTÉS */
     <div className="space-y-3 overflow-visible">
-      {powensData.connections.map((conn) => {
+      {powensData.connections.map((conn,connIndex) => {
         const connAccounts = powensData.accounts?.filter(
           (acc) => acc.connection_id === conn.id || acc.bank_name === conn.connector_name
         ) || [];
@@ -5692,7 +5692,11 @@ useEffect(() => {
         if (connAccounts.length === 0) return null;
 
         return (
-          <div key={conn.id} className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5 overflow-visible">
+          <div 
+            key={conn.id} 
+            style={{ zIndex: 40 - (connIndex * 10) }} 
+            className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5 overflow-visible relative focus-within:z-[100]"
+          >
             <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1.5">
               <span>{conn.connector_name}</span>
               <span className="text-[8px] text-[var(--text-main)]/30 font-mono">ID: {conn.id}</span>
@@ -17122,289 +17126,299 @@ if (!user) {
 
     {/* GRILLE DE CARTES COMPTES */}
 <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar pb-6">
-  {comptes.length > 0 ? (
+{comptes.length > 0 ? (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => (
-        <div 
-          key={c.compte} 
-          className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col justify-between gap-3 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
-          style={{ 
-            backgroundColor: `${c.couleur}80`,
-            backdropFilter: 'blur(12px)',
-          }}
-        >
-          {/* LIGNE 1 : INFOS ET ACTIONS */}
-          <div className="flex justify-between items-start relative">
-            <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
-              <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1.5 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
-                <Pencil size={10} className="text-[var(--primary)]" />
-                <input 
-                  className="bg-transparent text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-28"
-                  value={c.groupe}
-                  onChange={(e) => {
-                    const newComptes = [...comptes];
-                    newComptes[i].groupe = e.target.value;
-                    setComptes(newComptes);
-                  }}
-                  onBlur={() => handleBlurUpdate(c)}
-                />
-              </div>
-            </div>
+      {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => {
+        // 🟢 Détection du compte courant (CCP)
+        const isCCP = (c.compte || "").toUpperCase().includes("CCP");
 
-            <div className="flex gap-4 items-start">
-              <div className="flex flex-col items-center gap-1.5">
-                <button 
-                  onClick={() => setShowPicker(showPicker === i ? null : i)}
-                  className="w-7 h-7 rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90 cursor-pointer"
-                  style={{ backgroundColor: c.couleur }}
-                />
-                <span className="text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
+        return (
+          <div 
+            key={c.compte} 
+            className={`relative group p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col justify-between gap-3 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
+            style={{ 
+              backgroundColor: `${c.couleur}80`,
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            {/* LIGNE 1 : INFOS ET ACTIONS */}
+            <div className="flex justify-between items-start relative">
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
+                <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1.5 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
+                  <Pencil size={10} className="text-[var(--primary)]" />
+                  <input 
+                    className="bg-transparent text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-28"
+                    value={c.groupe}
+                    onChange={(e) => {
+                      const newComptes = [...comptes];
+                      newComptes[i].groupe = e.target.value;
+                      setComptes(newComptes);
+                    }}
+                    onBlur={() => handleBlurUpdate(c)}
+                  />
+                </div>
               </div>
 
-              <button 
-                onClick={() => openDeleteModal(c.compte)} 
-                className="p-2.5 rounded-[var(--radius)] bg-rose-500/20 text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-[var(--text-main)] transition-all duration-300 shadow-xl border border-rose-500/40 cursor-pointer"
-                title="Supprimer le compte"
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
-          </div>
+              <div className="flex gap-4 items-start">
+                <div className="flex flex-col items-center gap-1.5">
+                  <button 
+                    onClick={() => setShowPicker(showPicker === i ? null : i)}
+                    className="w-7 h-7 rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90 cursor-pointer"
+                    style={{ backgroundColor: c.couleur }}
+                  />
+                  <span className="text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
+                </div>
 
-          {/* LIGNE 2 : LES 3 METRIQUES SUR UNE SEULE LIGNE NETTE */}
-          <div className="grid grid-cols-3 gap-2">
-            
-            {/* 1. SOLDE INITIAL */}
-            <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner relative flex flex-col justify-between">
-              <div className="flex justify-between items-center mb-1">
-                <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
                 <button 
-                  onClick={() => openCalculateurAssistant(c)} 
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--primary)]/40 border border-[var(--primary)] text-[var(--text-main)] hover:scale-105 active:scale-95 transition-all text-[8px] font-black uppercase tracking-wider cursor-pointer"
-                  title="Ajuster le solde de départ"
+                  onClick={() => openDeleteModal(c.compte)} 
+                  className="p-2.5 rounded-[var(--radius)] bg-rose-500/20 text-rose-500 opacity-0 group-hover:opacity-100 hover:bg-rose-500 hover:text-[var(--text-main)] transition-all duration-300 shadow-xl border border-rose-500/40 cursor-pointer"
+                  title="Supprimer le compte"
                 >
-                  <Wand2 size={10} strokeWidth={3} />
-                  <span>Ajuster</span>
+                  <Trash2 size={18} />
                 </button>
               </div>
-              <div className="flex items-center gap-0.5">
-                <input 
-                  type="text"
-                  className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
-                  value={c.solde}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (/^[0-9.,-]*$/.test(val) || val === "") {
+            </div>
+
+            {/* LIGNE 2 : LES MÉTRIQUES (1 SEULE COLONNE POUR LES CCP, 3 COLONNES POUR LES AUTRES) */}
+            <div className={`grid gap-2 ${isCCP ? "grid-cols-1" : "grid-cols-3"}`}>
+              
+              {/* 1. SOLDE INITIAL */}
+              <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner relative flex flex-col justify-between">
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter">Solde initial</p>
+                  <button 
+                    onClick={() => openCalculateurAssistant(c)} 
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--primary)]/40 border border-[var(--primary)] text-[var(--text-main)] hover:scale-105 active:scale-95 transition-all text-[8px] font-black uppercase tracking-wider cursor-pointer"
+                    title="Ajuster le solde de départ"
+                  >
+                    <Wand2 size={10} strokeWidth={3} />
+                    <span>Ajuster</span>
+                  </button>
+                </div>
+                <div className="flex items-center gap-0.5">
+                  <input 
+                    type="text"
+                    className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
+                    value={c.solde}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (/^[0-9.,-]*$/.test(val) || val === "") {
+                        const newComptes = [...comptes];
+                        newComptes[i].solde = val;
+                        setComptes(newComptes);
+                      }
+                    }}
+                    onBlur={() => {
+                      let finalValue = c.solde;
+                      if (typeof finalValue === 'string') finalValue = finalValue.replace(',', '.').trim();
+                      const numericValue = parseFloat(finalValue);
                       const newComptes = [...comptes];
-                      newComptes[i].solde = val;
-                      setComptes(newComptes);
-                    }
-                  }}
-                  onBlur={() => {
-                    let finalValue = c.solde;
-                    if (typeof finalValue === 'string') finalValue = finalValue.replace(',', '.').trim();
-                    const numericValue = parseFloat(finalValue);
-                    const newComptes = [...comptes];
-                    if (!isNaN(numericValue)) {
-                      const roundedValue = Math.round(numericValue * 100) / 100;
-                      newComptes[i].solde = roundedValue;
-                      setComptes(newComptes);
-                      handleBlurUpdate({ ...c, solde: roundedValue });
-                    } else {
-                      newComptes[i].solde = 0;
-                      setComptes(newComptes);
-                      handleBlurUpdate({ ...c, solde: 0 });
-                    }
-                  }}
-                />
-                <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+                      if (!isNaN(numericValue)) {
+                        const roundedValue = Math.round(numericValue * 100) / 100;
+                        newComptes[i].solde = roundedValue;
+                        setComptes(newComptes);
+                        handleBlurUpdate({ ...c, solde: roundedValue });
+                      } else {
+                        newComptes[i].solde = 0;
+                        setComptes(newComptes);
+                        handleBlurUpdate({ ...c, solde: 0 });
+                      }
+                    }}
+                  />
+                  <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+                </div>
               </div>
+
+              {/* 2. OBJECTIF D'ÉPARGNE & 3. TAUX D'INTÉRÊT (MASQUÉS POUR LES CCP) */}
+              {!isCCP && (
+                <>
+                  {/* 2. OBJECTIF D'ÉPARGNE */}
+                  <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner flex flex-col justify-between">
+                    <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
+                    <div className="flex items-center gap-0.5">
+                      <input 
+                        type="number"
+                        className="bg-transparent text-xs font-black text-[var(--text-main)]/70 outline-none w-full"
+                        value={c.objectif}
+                        onChange={(e) => {
+                          const newComptes = [...comptes];
+                          newComptes[i].objectif = parseFloat(e.target.value) || 0;
+                          setComptes(newComptes);
+                        }}
+                        onBlur={() => handleBlurUpdate(c)}
+                      />
+                      <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+                    </div>
+                  </div>
+
+                  {/* 3. TAUX D'INTÉRÊT */}
+                  <div className="bg-black/20 p-2 rounded-[var(--radius)] border border-emerald-500/10 shadow-inner flex flex-col justify-between">
+                    <p className="text-[8px] font-black text-[var(--text-main)]/50 uppercase mb-1 tracking-tighter">Taux intérêts</p>
+                    <div className="flex items-center gap-0.5">
+                      <input 
+                        type="number"
+                        step="0.05"
+                        min="0"
+                        max="100"
+                        placeholder="0.00"
+                        className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
+                        value={c.taux || ""}
+                        onChange={(e) => {
+                          const newComptes = [...comptes];
+                          newComptes[i].taux = parseFloat(e.target.value) || 0;
+                          setComptes(newComptes);
+                        }}
+                        onBlur={() => handleBlurUpdate(c)}
+                      />
+                      <span className="text-[10px] font-black text-[var(--text-main)]/40">%</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
             </div>
 
-            {/* 2. OBJECTIF D'ÉPARGNE */}
-            <div className="bg-[var(--glass-bg)] p-2 rounded-[var(--radius)] border border-white/5 shadow-inner flex flex-col justify-between">
-              <p className="text-[8px] font-black text-[var(--text-main)]/40 uppercase mb-1 tracking-tighter">Objectif d'épargne</p>
-              <div className="flex items-center gap-0.5">
-                <input 
-                  type="number"
-                  className="bg-transparent text-xs font-black text-[var(--text-main)]/70 outline-none w-full"
-                  value={c.objectif}
-                  onChange={(e) => {
-                    const newComptes = [...comptes];
-                    newComptes[i].objectif = parseFloat(e.target.value) || 0;
-                    setComptes(newComptes);
-                  }}
-                  onBlur={() => handleBlurUpdate(c)}
-                />
-                <span className="text-[10px] font-bold text-[var(--text-main)]/20">€</span>
+            {/* LIGNE 3 : LIAISON COMPTE RÉEL / IBAN (CLARTÉ : CHOIX POWENS OU IBAN) */}
+            {importMode === 'auto' && (
+              <div className="pt-2.5 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
+                <div className="flex justify-between items-center px-1">
+                  <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
+                    <Building2 size={10} className="text-[var(--primary)]" /> Liaison pour synchronisation
+                  </span>
+                </div>
+
+                {(() => {
+                  // 1. Est-il lié à un compte Powens connecté ?
+                  const isLinkedToPowens = (powensData?.accounts || []).some(
+                    acc => acc.name.trim().toUpperCase() === (c.powens_name || "").trim().toUpperCase()
+                  );
+
+                  // 2. Est-il lié via un IBAN manuel (ex: LEP non connecté) ?
+                  const isManualIban = !isLinkedToPowens && Boolean(c.powens_name);
+
+                  // CAS 1 : Compte connecté via Powens
+                  if (isLinkedToPowens) {
+                    return (
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_#34d399]" />
+                          <div className="flex flex-col truncate">
+                            <span className="text-[10px] font-black text-emerald-300 uppercase truncate">
+                              {c.powens_name}
+                            </span>
+                            <span className="text-[7px] text-emerald-400/60 font-bold uppercase tracking-wider">
+                              Banque connectée
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleAssociateAccount("", c.compte)}
+                          className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
+                          title="Dissocier ce compte"
+                        >
+                          Délier
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // CAS 2 : Compte avec IBAN manuel enregistré
+                  if (isManualIban) {
+                    return (
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_#818cf8]" />
+                          <div className="flex flex-col truncate">
+                            <span className="text-[9.5px] font-mono font-bold text-indigo-200 truncate uppercase">
+                              {c.powens_name}
+                            </span>
+                            <span className="text-[7px] text-indigo-400/60 font-bold uppercase tracking-wider">
+                              IBAN manuel enregistré
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = { ...c, powens_name: null };
+                            handleBlurUpdate(updated);
+                          }}
+                          className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
+                          title="Supprimer cet IBAN"
+                        >
+                          Retirer
+                        </button>
+                      </div>
+                    );
+                  }
+
+                  // CAS 3 : Non lié -> Choix explicite (Soit Powens, SOIT IBAN)
+                  return (
+                    <div className="flex flex-col gap-1.5 pt-0.5">
+                      {/* OPTION A : Sélection depuis la banque connectée */}
+                      {powensData?.accounts?.length > 0 && (
+                        <CustomSelect
+                          value=""
+                          options={[
+                            { v: "", l: "🏦 Lier un compte Powens connecté..." },
+                            ...powensData.accounts.map(acc => ({
+                              v: acc.name,
+                              l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
+                            }))
+                          ]}
+                          onChange={(selectedValue) => {
+                            if (selectedValue) handleAssociateAccount(selectedValue, c.compte);
+                          }}
+                          icon={Building2}
+                          className="p-1.5 px-2.5 rounded-lg text-[8.5px] bg-black/40 border-white/5 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
+                        />
+                      )}
+
+                      {/* Séparateur visuel OU */}
+                      {powensData?.accounts?.length > 0 && (
+                        <div className="flex items-center gap-2 px-1 my-0.5">
+                          <div className="h-px flex-1 bg-white/5" />
+                          <span className="text-[7px] font-black uppercase text-white/20 tracking-widest">OU</span>
+                          <div className="h-px flex-1 bg-white/5" />
+                        </div>
+                      )}
+
+                      {/* OPTION B : Saisie d'un IBAN manuel (pour les comptes non connectés) */}
+                      <input
+                        type="text"
+                        placeholder="Coller l'IBAN si compte non connecté (ex: FR49...)"
+                        defaultValue=""
+                        onBlur={(e) => {
+                          const val = e.target.value.trim().toUpperCase();
+                          if (val) {
+                            const updated = { ...c, powens_name: val };
+                            handleBlurUpdate(updated);
+                          }
+                        }}
+                        className="w-full bg-black/40 border border-white/5 focus:border-[var(--primary)]/50 rounded-lg px-2.5 py-1.5 text-[8.5px] font-mono text-white placeholder:text-white/20 outline-none transition-all uppercase"
+                      />
+                    </div>
+                  );
+                })()}
               </div>
-            </div>
+            )}
 
-            {/* 3. TAUX D'INTÉRÊT */}
-            <div className="bg-black/20 p-2 rounded-[var(--radius)] border border-emerald-500/10 shadow-inner flex flex-col justify-between">
-              <p className="text-[8px] font-black text-[var(--text-main)]/50 uppercase mb-1 tracking-tighter">Taux intérêts</p>
-              <div className="flex items-center gap-0.5">
-                <input 
-                  type="number"
-                  step="0.05"
-                  min="0"
-                  max="100"
-                  placeholder="0.00"
-                  className="bg-transparent text-xs font-black text-[var(--text-main)] outline-none w-full"
-                  value={c.taux || ""}
-                  onChange={(e) => {
-                    const newComptes = [...comptes];
-                    newComptes[i].taux = parseFloat(e.target.value) || 0;
-                    setComptes(newComptes);
-                  }}
-                  onBlur={() => handleBlurUpdate(c)}
-                />
-                <span className="text-[10px] font-black text-[var(--text-main)]/40">%</span>
+            {/* COLOR PICKER (POPOVER) */}
+            {showPicker === i && (
+              <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
+                <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
+                <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
+                  <SketchPicker color={c.couleur} onChange={(color) => handleColorChange(i, color)} disableAlpha />
+                </div>
               </div>
-            </div>
-
-          </div>
-
-{/* LIGNE 3 : LIAISON COMPTE RÉEL / IBAN (CLARTÉ : CHOIX POWENS OU IBAN) */}
-{importMode === 'auto' && (
-  <div className="pt-2.5 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
-    <div className="flex justify-between items-center px-1">
-      <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
-        <Building2 size={10} className="text-[var(--primary)]" /> Liaison pour synchronisation
-      </span>
-    </div>
-
-    {(() => {
-      // 1. Est-il lié à un compte Powens connecté ?
-      const isLinkedToPowens = (powensData?.accounts || []).some(
-        acc => acc.name.trim().toUpperCase() === (c.powens_name || "").trim().toUpperCase()
-      );
-
-      // 2. Est-il lié via un IBAN manuel (ex: LEP non connecté) ?
-      const isManualIban = !isLinkedToPowens && Boolean(c.powens_name);
-
-      // CAS 1 : Compte connecté via Powens
-      if (isLinkedToPowens) {
-        return (
-          <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-            <div className="flex items-center gap-2 truncate pr-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_#34d399]" />
-              <div className="flex flex-col truncate">
-                <span className="text-[10px] font-black text-emerald-300 uppercase truncate">
-                  {c.powens_name}
-                </span>
-                <span className="text-[7px] text-emerald-400/60 font-bold uppercase tracking-wider">
-                  Banque connectée
-                </span>
-              </div>
-            </div>
-            
-            <button
-              type="button"
-              onClick={() => handleAssociateAccount("", c.compte)}
-              className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
-              title="Dissocier ce compte"
-            >
-              Délier
-            </button>
+            )}
           </div>
         );
-      }
-
-      // CAS 2 : Compte avec IBAN manuel enregistré
-      if (isManualIban) {
-        return (
-          <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-            <div className="flex items-center gap-2 truncate pr-2">
-              <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_#818cf8]" />
-              <div className="flex flex-col truncate">
-                <span className="text-[9.5px] font-mono font-bold text-indigo-200 truncate uppercase">
-                  {c.powens_name}
-                </span>
-                <span className="text-[7px] text-indigo-400/60 font-bold uppercase tracking-wider">
-                  IBAN manuel enregistré
-                </span>
-              </div>
-            </div>
-            
-            <button
-              type="button"
-              onClick={() => {
-                const updated = { ...c, powens_name: null };
-                handleBlurUpdate(updated);
-              }}
-              className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
-              title="Supprimer cet IBAN"
-            >
-              Retirer
-            </button>
-          </div>
-        );
-      }
-
-      // CAS 3 : Non lié -> Choix explicite (Soit Powens, SOIT IBAN)
-      return (
-        <div className="flex flex-col gap-1.5 pt-0.5">
-          {/* OPTION A : Sélection depuis la banque connectée */}
-          {powensData?.accounts?.length > 0 && (
-            <CustomSelect
-              value=""
-              options={[
-                { v: "", l: "🏦 Lier un compte Powens connecté..." },
-                ...powensData.accounts.map(acc => ({
-                  v: acc.name,
-                  l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
-                }))
-              ]}
-              onChange={(selectedValue) => {
-                if (selectedValue) handleAssociateAccount(selectedValue, c.compte);
-              }}
-              icon={Building2}
-              className="p-1.5 px-2.5 rounded-lg text-[8.5px] bg-black/40 border-white/5 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
-            />
-          )}
-
-          {/* Séparateur visuel OU */}
-          {powensData?.accounts?.length > 0 && (
-            <div className="flex items-center gap-2 px-1 my-0.5">
-              <div className="h-px flex-1 bg-white/5" />
-              <span className="text-[7px] font-black uppercase text-white/20 tracking-widest">OU</span>
-              <div className="h-px flex-1 bg-white/5" />
-            </div>
-          )}
-
-          {/* OPTION B : Saisie d'un IBAN manuel (pour les comptes non connectés) */}
-          <input
-            type="text"
-            placeholder="Coller l'IBAN si compte non connecté (ex: FR49...)"
-            defaultValue=""
-            onBlur={(e) => {
-              const val = e.target.value.trim().toUpperCase();
-              if (val) {
-                const updated = { ...c, powens_name: val };
-                handleBlurUpdate(updated);
-              }
-            }}
-            className="w-full bg-black/40 border border-white/5 focus:border-[var(--primary)]/50 rounded-lg px-2.5 py-1.5 text-[8.5px] font-mono text-white placeholder:text-white/20 outline-none transition-all uppercase"
-          />
-        </div>
-      );
-    })()}
-  </div>
-)}
-
-          {/* COLOR PICKER (POPOVER) */}
-          {showPicker === i && (
-            <div className="absolute z-[1000] top-12 right-0 animate-in zoom-in-95 fade-in duration-200">
-              <div className="fixed inset-0 cursor-default" onClick={() => setShowPicker(null)} />
-              <div className="relative border border-white/20 rounded-[var(--radius)] overflow-hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)]">
-                <SketchPicker color={c.couleur} onChange={(color) => handleColorChange(i, color)} disableAlpha />
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
+      })}
     </div>
   ) : (
          /* --- ÉTAT VIDE AMÉLIORÉ --- */
