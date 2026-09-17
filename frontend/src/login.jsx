@@ -2625,8 +2625,8 @@ const TransactionCard = ({ t, color, bg }) => {
             {t.compte}
           </span>
           <div className="flex items-center gap-1">
-            <CategoryIcon name={t.categorie} size={11} />
-            <span className="text-[8px] text-[var(--text-main)]/70 font-medium">
+            <CategoryIcon name={t.categorie} size={12} />
+            <span className="text-[12px] text-[var(--text-main)]/70 font-medium">
               {t.categorie}
             </span>
           </div>
@@ -16709,7 +16709,6 @@ if (!user) {
                                         )}
                                       </div>
                                     </td>
-
                                     {/* 3. CATÉGORIE : Badge violet */}
                                     <td className="p-4">
                                       <div className="flex items-center gap-2">
@@ -16719,7 +16718,7 @@ if (!user) {
                                             ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
                                             : isTransfert 
                                               ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 shadow-[0_0_12px_rgba(139,92,246,0.25)]' 
-                                              : 'bg-[var(--glass-bg)] text-[var(--primary)] border-white/5 group-hover:border-[var(--primary)]/20'
+                                              : 'bg-[var(--glass-bg)] text-white border-white/10 group-hover:border-white/20'
                                         }`}>
                                           {getCleanCategoryName(t.categorie)}
                                         </span>
