@@ -17107,7 +17107,7 @@ if (!user) {
           <input 
             type="text" 
             name="creationPowensInput"
-            placeholder="IBAN OU POWENS..." 
+            placeholder="IBAN/N° Compte OU POWENS..." 
             value={creationPowensName}
             onChange={(e) => setCreationPowensName(e.target.value.toUpperCase())}
             className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[9.5px] font-mono font-bold uppercase placeholder:text-[var(--text-main)]/20 truncate" 
@@ -17434,7 +17434,7 @@ if (!user) {
                       {/* OPTION B : Saisie d'un IBAN manuel (pour les comptes non connectés) */}
                       <input
                         type="text"
-                        placeholder="Coller l'IBAN si compte non connecté (ex: FR49...)"
+                        placeholder="Coller l'IBAN/N° compte si non connecté (ex: FR49...)"
                         defaultValue=""
                         onBlur={(e) => {
                           const val = e.target.value.trim().toUpperCase();
@@ -17496,7 +17496,7 @@ if (!user) {
               <div className="flex items-center gap-2">
                 <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
                 <h4 className="text-[11px] font-black uppercase text-emerald-300 tracking-wider">
-                  Pourquoi renseigner l'IBAN ou connecter votre Livret A ou Livret Épargne ?
+                  Pourquoi renseigner l'IBAN/Numéro de compte ou connecter vos Livrets Épargne ?
                 </h4>
               </div>
 
