@@ -4037,97 +4037,316 @@ const handleDragEnd2 = (event) => {
 
 
 
+// On stocke TOUTES les prévisions de l'année ici
+const [allPrevisionsAnnee, setallPrevisionsAnnee] = useState([]);
 
 
 const recapAnnuelStats = useMemo(() => {
   const anneeFiltre = parseInt(filters.annee);
-  
-  // 1. Détection du dernier mois contenant des données réelles
-  const dernierMoisDonneesIdx = (() => {
-    const transactionsAnnee = (toutesLesTransactions || []).filter(
-      t => getTxYear(t) === filters.annee.toString().trim()
-    );
-    if (transactionsAnnee.length === 0) return -1;
+  const maintenant = new Date();
+  const moisActuelIdx = maintenant.getMonth();
+  const anneeActuelle = maintenant.getFullYear();
 
-    const indices = transactionsAnnee.map(t => 
-      moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois))
-    );
-    return Math.max(...indices);
-  })();
+  let dernierMoisClotureIdx = -1;
+  if (anneeFiltre < anneeActuelle) dernierMoisClotureIdx = 11;
+  else if (anneeFiltre === anneeActuelle) dernierMoisClotureIdx = moisActuelIdx - 1; // Août (M-1)
 
   const configMap = {};
-  comptes.forEach(c => {
+  (comptes || []).forEach(c => {
     configMap[c.compte.trim().toUpperCase()] = {
       soldeInitial: parseFloat(c.solde) || 0,
-      groupe: c.groupe?.trim().toUpperCase()
+      groupe: c.groupe?.trim().toUpperCase(),
+      taux: parseFloat(c.taux) || 0
     };
   });
 
-  const comptesDuProfil = comptes.filter(c => 
+  const comptesDuProfil = (comptes || []).filter(c => 
     filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
   );
   const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
 
-  return moisListe.map((moisObj, indexMoisCible) => {
-    const nomMoisCible = cleanMonth(moisObj.v);
-    
-    let soldesCourantsMois = {};
-    Object.keys(configMap).forEach(nom => {
-      soldesCourantsMois[nom] = configMap[nom].soldeInitial;
-    });
+  const estTransfertInterne = (nom, cat) => {
+    const txt = `${nom} ${cat}`.toUpperCase();
+    return txt.includes('🔄') || /\bVERS\b/.test(txt) || txt.includes('TRANSFERT');
+  };
+
+  const identifierCompteCible = (texte, compteSource) => {
+    const groupeSource = configMap[compteSource]?.groupe;
+    if (!groupeSource) return null;
+    for (const [nomDest, cfgDest] of Object.entries(configMap)) {
+      if (nomDest === compteSource) continue;
+      if (cfgDest.groupe !== groupeSource) continue;
+      const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
+      const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
+      if (texte.includes(nomDest) || (motsCompte.length > 0 && motsCompte.some(m => texte.includes(m)))) {
+        return nomDest;
+      }
+    }
+    return null;
+  };
+
+  // --- 1. DÉTECTION DES PRÉVISIONS ACTIVES ---
+  let premierMoisAvecPreviIdx = 999;
+  let dernierMoisAvecPreviIdx = -1;
+
+  (allPrevisionsAnnee || []).forEach(p => {
+    if (p.actif === false || p.actif === 0 || p.actif === "0") return;
+
+    let pMonthIdx = -1;
+    let pYear = 0;
+    if (p.date) {
+      const parts = String(p.date).split('T')[0].split('-');
+      pYear = parseInt(parts[0], 10);
+      pMonthIdx = parseInt(parts[1], 10) - 1;
+    } else {
+      pYear = parseInt(p.annee || 0, 10);
+      pMonthIdx = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(p.mois));
+    }
+
+    if (pYear === anneeFiltre && pMonthIdx >= 0) {
+      if (filters.profil !== 'Tous') {
+        const compteAssocie = (comptes || []).find(c => c.compte?.trim().toUpperCase() === p.compte?.trim().toUpperCase());
+        if (compteAssocie?.groupe?.toLowerCase().trim() !== filters.profil.toLowerCase().trim()) return;
+      }
+      if (pMonthIdx < premierMoisAvecPreviIdx) premierMoisAvecPreviIdx = pMonthIdx;
+      if (pMonthIdx > dernierMoisAvecPreviIdx) dernierMoisAvecPreviIdx = pMonthIdx;
+    }
+  });
+
+  const hasAnyPrevisionInYear = dernierMoisAvecPreviIdx >= 0;
+
+  // --- 2. HISTORIQUE RÉEL ---
+  let soldesCourantsMois = {};
+  Object.keys(configMap).forEach(nom => {
+    soldesCourantsMois[nom] = configMap[nom].soldeInitial;
+  });
+
+  const reelParMois = [];
+  moisListe.forEach((moisObj, idx) => {
+    const nomMois = cleanMonth(moisObj.v);
+
+    const txDuMois = (toutesLesTransactions || []).filter(t => 
+      getTxYear(t) === filters.annee.toString().trim() && 
+      cleanMonth(t.mois) === nomMois &&
+      (filters.profil === 'Tous' || nomsComptesProfil.includes(t.compte?.trim().toUpperCase()))
+    );
 
     (toutesLesTransactions || []).forEach(t => {
       const anneeT = parseInt(getTxYear(t) || 0);
       const indexMoisT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
-      
-      if (anneeT > anneeFiltre || (anneeT === anneeFiltre && indexMoisT > indexMoisCible)) return;
+      if (anneeT === anneeFiltre && indexMoisT === idx) {
+        const montant = parseFloat(t.montant) || 0;
+        const compteSrc = (t.compte || "").trim().toUpperCase();
+        const cat = (t.categorie || "").toUpperCase();
+        const nomTrans = (t.nom || "").toUpperCase();
 
-      const montant = parseFloat(t.montant) || 0;
-      const compteSrc = (t.compte || "").trim().toUpperCase();
-
-      if (soldesCourantsMois.hasOwnProperty(compteSrc)) {
-        soldesCourantsMois[compteSrc] += montant;
+        if (soldesCourantsMois.hasOwnProperty(compteSrc)) {
+          soldesCourantsMois[compteSrc] += montant;
+        }
+        if (estTransfertInterne(nomTrans, cat)) {
+          const cible = identifierCompteCible(`${nomTrans} ${cat}`, compteSrc);
+          if (cible && soldesCourantsMois.hasOwnProperty(cible)) {
+            const dejaEnBase = (toutesLesTransactions || []).some(t2 => 
+              getTxYear(t2) === getTxYear(t) && 
+              cleanMonth(t2.mois) === cleanMonth(t.mois) && 
+              t2.compte?.trim().toUpperCase() === cible && 
+              Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
+            );
+            if (!dejaEnBase) soldesCourantsMois[cible] -= montant;
+          }
+        }
       }
     });
 
-    const soldeTotalFinMois = nomsComptesProfil.reduce((acc, nom) => acc + (soldesCourantsMois[nom] || 0), 0);
-
-    // 🟢 Filtrage robuste avec getTxYear et cleanMonth
-    const transactionsDuMois = (toutesLesTransactions || []).filter(t => 
-      getTxYear(t) === filters.annee.toString().trim() && 
-      cleanMonth(t.mois) === nomMoisCible &&
-      (filters.profil === 'Tous' || nomsComptesProfil.includes(t.compte?.trim().toUpperCase()))
-    );
-
-    const estUnTransfert = (t) => {
-      const c = (t.categorie || "").toLowerCase();
-      const l = (t.nom || "").toLowerCase();
-      return c.includes('vers') || c.includes('transfert') || l.includes('🔄');
-    };
-
-    const rev = transactionsDuMois.filter(t => parseFloat(t.montant) > 0 && !estUnTransfert(t))
+    const rev = txDuMois.filter(t => parseFloat(t.montant) > 0 && !estTransfertInterne(t.nom || "", t.categorie || ""))
       .reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0);
-    const dep = transactionsDuMois.filter(t => parseFloat(t.montant) < 0 && !estUnTransfert(t))
+    const dep = txDuMois.filter(t => parseFloat(t.montant) < 0 && !estTransfertInterne(t.nom || "", t.categorie || ""))
       .reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
 
-    const epargneCalculée = rev - dep;
-    const estSansDonnees = indexMoisCible > dernierMoisDonneesIdx;
+    const soldeTotal = nomsComptesProfil.reduce((acc, nom) => acc + (soldesCourantsMois[nom] || 0), 0);
 
-    const detailComptes = {};
+    reelParMois.push({
+      hasRealData: txDuMois.length > 0,
+      rev,
+      dep,
+      epargne: rev - dep,
+      soldeTotal,
+      soldesComptes: { ...soldesCourantsMois }
+    });
+  });
+
+  // --- 3. PROJECTIONS CONTINUES ---
+  let soldesProjetesParCompte = {};
+  let soldeTotalProjete = 0;
+
+  const pointDeJonctionIdx = hasAnyPrevisionInYear 
+    ? Math.max(0, Math.min(premierMoisAvecPreviIdx - 1, dernierMoisClotureIdx))
+    : -1;
+
+  return moisListe.map((moisObj, indexMoisCible) => {
+    const isPasseCloture = (anneeFiltre < anneeActuelle) || (anneeFiltre === anneeActuelle && indexMoisCible < moisActuelIdx);
+    const isMoisEnCours = (anneeFiltre === anneeActuelle && indexMoisCible === moisActuelIdx);
+    const isFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMoisCible > moisActuelIdx);
+
+    const reel = reelParMois[indexMoisCible];
+
+    const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
+      if (p.actif === false || p.actif === 0 || p.actif === "0") return false;
+      const dateParts = String(p.date).split('T')[0].split('-');
+      const pMonthIdx = parseInt(dateParts[1], 10) - 1;
+      const pYear = parseInt(dateParts[0], 10);
+      if (pMonthIdx !== indexMoisCible || pYear !== anneeFiltre) return false;
+
+      if (filters.profil !== 'Tous') {
+        const compteAssocie = (comptes || []).find(c => c.compte?.trim().toUpperCase() === p.compte?.trim().toUpperCase());
+        return compteAssocie?.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim();
+      }
+      return true;
+    });
+
+    const hasPrevisionsCeMois = previsionsDuMois.length > 0;
+
+    let revPrevu = 0;
+    let depPrevu = 0;
+    let revResteAVenir = 0;
+    let depResteAVenir = 0;
+    const impactResteParCompte = {};
+    const impactFuturParCompte = {};
     nomsComptesProfil.forEach(nom => {
-      detailComptes[nom] = estSansDonnees ? null : soldesCourantsMois[nom];
+      impactResteParCompte[nom] = 0;
+      impactFuturParCompte[nom] = 0;
+    });
+
+    previsionsDuMois.forEach(p => {
+      const cat = (p.categorie || "").toLowerCase();
+      const nom = (p.nom || "").toLowerCase();
+      const compteSrc = (p.compte || "").trim().toUpperCase();
+      const montantBrut = parseFloat(p.montant) || 0;
+      const montantAbs = Math.abs(montantBrut);
+      const isTransfert = estTransfertInterne(nom, cat);
+
+      if (!isTransfert) {
+        if (montantBrut > 0) revPrevu += montantBrut;
+        else depPrevu += montantAbs;
+      }
+
+      if (isMoisEnCours) {
+        const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
+        const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
+        const reste = Math.max(0, montantAbs - montantConsomme);
+
+        if (!isTransfert) {
+          if (montantBrut > 0) revResteAVenir += reste;
+          else depResteAVenir += reste;
+        }
+
+        const impactReste = montantBrut >= 0 ? reste : -reste;
+        if (impactResteParCompte.hasOwnProperty(compteSrc)) {
+          impactResteParCompte[compteSrc] += impactReste;
+        }
+        if (isTransfert) {
+          const cible = identifierCompteCible(`${nom} ${cat}`, compteSrc);
+          if (cible && impactResteParCompte.hasOwnProperty(cible)) {
+            impactResteParCompte[cible] -= impactReste;
+          }
+        }
+      }
+
+      if (isFutur) {
+        if (impactFuturParCompte.hasOwnProperty(compteSrc)) {
+          impactFuturParCompte[compteSrc] += montantBrut;
+        }
+        if (isTransfert) {
+          const cible = identifierCompteCible(`${nom} ${cat}`, compteSrc);
+          if (cible && impactFuturParCompte.hasOwnProperty(cible)) {
+            impactFuturParCompte[cible] -= montantBrut;
+          }
+        }
+      }
+    });
+
+    if (isPasseCloture) {
+      nomsComptesProfil.forEach(nom => {
+        soldesProjetesParCompte[nom] = reel.soldesComptes[nom];
+      });
+      soldeTotalProjete = reel.soldeTotal;
+    } else if (isMoisEnCours) {
+      nomsComptesProfil.forEach(nom => {
+        soldesProjetesParCompte[nom] = (reel.soldesComptes[nom] || 0) + impactResteParCompte[nom];
+      });
+      soldeTotalProjete = reel.soldeTotal + (revResteAVenir - depResteAVenir);
+    } else if (isFutur && hasPrevisionsCeMois) {
+      nomsComptesProfil.forEach(nom => {
+        soldesProjetesParCompte[nom] = (soldesProjetesParCompte[nom] || 0) + impactFuturParCompte[nom];
+      });
+      soldeTotalProjete += (revPrevu - depPrevu);
+    }
+
+    const estDansLaPlagePrevisions = hasAnyPrevisionInYear && 
+      (indexMoisCible >= premierMoisAvecPreviIdx && indexMoisCible <= dernierMoisAvecPreviIdx);
+    
+    const estPointDeJonction = hasAnyPrevisionInYear && (indexMoisCible === pointDeJonctionIdx);
+    const afficherPointilles = estDansLaPlagePrevisions || estPointDeJonction;
+
+    // 🌟 SÉPARATION STRICTE RÉEL / PRÉVISION POUR ÉVITER LA DOUBLE COURBE :
+    // - Si des prévisions existent : la ligne pleine réelle s'arrête STRICTEMENT aux mois clôturés (Août).
+    // - Si aucune prévision n'existe dans l'année : la ligne réelle continue sur les mois ayant des transactions.
+    const tracerLignePleine = isPasseCloture || (!hasAnyPrevisionInYear && reel.hasRealData);
+
+    const revMoisEnCoursEstime = reel.rev + revResteAVenir;
+    const depMoisEnCoursEstime = reel.dep + depResteAVenir;
+    const epargneMoisEnCoursEstime = revMoisEnCoursEstime - depMoisEnCoursEstime;
+
+    const detailComptesReel = {};
+    const detailComptesProjete = {};
+    nomsComptesProfil.forEach(nom => {
+      // 🌟 Ligne pleine = null dès Septembre quand des prévisions existent
+      detailComptesReel[nom] = tracerLignePleine ? reel.soldesComptes[nom] : null;
+      // 🌟 Ligne pointillée = prend le relais à partir de Septembre (et démarre à la jonction d'Août)
+      detailComptesProjete[`PROJ_${nom}`] = afficherPointilles ? soldesProjetesParCompte[nom] : null;
     });
 
     return {
       nom: moisObj.l,
-      revenus: estSansDonnees ? null : rev,
-      depenses: estSansDonnees ? null : dep,
-      epargne: estSansDonnees ? null : epargneCalculée,
-      soldeTotal: estSansDonnees ? null : soldeTotalFinMois,
-      ...detailComptes 
+      isMoisEnCours,
+      isPasseCloture,
+      isFutur,
+      hasPrevisions: hasPrevisionsCeMois,
+      hasRealData: reel.hasRealData,
+
+      // Données pour le tableau récapitulatif
+      revReel: reel.rev,
+      depReel: reel.dep,
+      epargneReel: reel.epargne,
+      soldeTotalReel: reel.soldeTotal,
+
+      revPrevu: isMoisEnCours ? revMoisEnCoursEstime : (hasPrevisionsCeMois ? revPrevu : null),
+      depPrevu: isMoisEnCours ? depMoisEnCoursEstime : (hasPrevisionsCeMois ? depPrevu : null),
+      epargnePrevu: isMoisEnCours ? epargneMoisEnCoursEstime : (hasPrevisionsCeMois ? (revPrevu - depPrevu) : null),
+      soldeProjete: afficherPointilles ? soldeTotalProjete : null,
+
+      // Données pour les graphiques (ligne pleine stoppée à M-1 dès qu'il y a des prévisions)
+      revenus: tracerLignePleine ? reel.rev : null,
+      depenses: tracerLignePleine ? reel.dep : null,
+      epargne: tracerLignePleine ? reel.epargne : null,
+
+      revenusProjete: afficherPointilles 
+        ? (estPointDeJonction ? reel.rev : (isMoisEnCours ? revMoisEnCoursEstime : (hasPrevisionsCeMois ? revPrevu : null))) 
+        : null,
+      depensesProjete: afficherPointilles 
+        ? (estPointDeJonction ? reel.dep : (isMoisEnCours ? depMoisEnCoursEstime : (hasPrevisionsCeMois ? depPrevu : null))) 
+        : null,
+      epargneProjete: afficherPointilles 
+        ? (estPointDeJonction ? reel.epargne : (isMoisEnCours ? epargneMoisEnCoursEstime : (hasPrevisionsCeMois ? (revPrevu - depPrevu) : null))) 
+        : null,
+
+      soldeTotal: tracerLignePleine ? reel.soldeTotal : null,
+
+      ...detailComptesReel,
+      ...detailComptesProjete
     };
   });
-}, [toutesLesTransactions, comptes, filters.annee, filters.profil, moisListe]);
+}, [toutesLesTransactions, comptes, filters.annee, filters.profil, moisListe, allPrevisionsAnnee]);
 
 
 // CALCUL DU SOLDE AU 1ER JANVIER DE L'ANNÉE SÉLECTIONNÉE
@@ -5795,8 +6014,6 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
 
 const [allPrevisions, setallPrevisions] = useState([]);
 
-// On stocke TOUTES les prévisions de l'année ici
-const [allPrevisionsAnnee, setallPrevisionsAnnee] = useState([]);
 
 const loadPrevisions = async () => {
   if (!user) return;
@@ -5828,46 +6045,33 @@ useEffect(() => {
 
 
 const previsionsFiltrees = useMemo(() => {
-  // 1. Si on n'a pas encore de données, on renvoie un tableau vide
   if (!allPrevisionsAnnee || allPrevisionsAnnee.length === 0) return [];
 
-  // 2. Filtrage par MOIS
+  // Normalisation insensible aux accents pour éviter le bug Février / Fevrier
+  const moisSelectionneClean = cleanMonth(filters.mois);
+
   const dataDuMois = allPrevisionsAnnee.filter(p => {
-    // On compare en mettant tout en minuscule pour éviter les erreurs "Janvier" vs "janvier"
-    const moisPrevision = String(p.mois || "").toLowerCase().trim();
-    const moisSelectionne = String(filters.mois || "").toLowerCase().trim();
-    return moisPrevision === moisSelectionne;
+    const moisPrevisionClean = cleanMonth(p.mois);
+    return moisPrevisionClean === moisSelectionneClean;
   });
 
-  // 3. Filtrage par PROFIL (Perso / Pro / Tous)
-  let resultatFinal = [];
-  
-  if (filters.profil === 'Tous') {
-    resultatFinal = dataDuMois;
-  } else {
+  let resultatFinal = dataDuMois;
+  if (filters.profil !== 'Tous') {
     resultatFinal = dataDuMois.filter(prev => {
-      // On cherche à quel groupe appartient le compte de cette prévision
       const nomCompte = String(prev.compte || "").trim().toUpperCase();
       const infoCompte = comptes?.find(c => 
         String(c?.compte || "").trim().toUpperCase() === nomCompte
       );
-      return infoCompte?.groupe === filters.profil;
+      return infoCompte?.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim();
     });
   }
 
-  // 4. 🔥 TRI STABLE : On trie par date chronologique, puis par ID unique
-  // Cela empêche la ligne de bouger lorsqu'on modifie un montant au onBlur
   return [...resultatFinal].sort((a, b) => {
     const dateA = new Date(a.date).getTime();
     const dateB = new Date(b.date).getTime();
-    
-    // Si les dates sont différentes, on classe par ordre chronologique
     if (dateA !== dateB) return dateA - dateB;
-    
-    // Si les dates sont identiques, on utilise l'ID pour garantir un ordre immuable
     return String(a.id).localeCompare(String(b.id));
   });
-
 }, [allPrevisionsAnnee, filters.mois, filters.profil, comptes]);
 
 
@@ -5900,34 +6104,40 @@ const previsionsActivesPourRecap = useMemo(() => {
 }, [allPrevisionsAnnee, filters.profil, excludedMonths, comptes]);
 
 const soldesPrevisionnels = useMemo(() => {
-  const impactPrevisions = {};
-  soldesTries.forEach(c => { impactPrevisions[c.compte.trim().toUpperCase()] = 0; });
-
+  const anneeFiltre = parseInt(filters.annee);
   const maintenant = new Date();
   const moisActuelIdx = maintenant.getMonth();
   const anneeActuelle = maintenant.getFullYear();
-  const anneeFiltre = parseInt(filters.annee);
+  const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
 
-  previsionsActivesPourRecap.forEach(p => {
+  const estTransfertInterne = (nom, cat) => {
+    const txt = `${nom} ${cat}`.toUpperCase();
+    return txt.includes("🔄") || /\bVERS\b/.test(txt) || txt.includes("TRANSFERT");
+  };
+
+  const impactPrevisions = {};
+  soldesTries.forEach(c => { impactPrevisions[c.compte.trim().toUpperCase()] = 0; });
+
+  (allPrevisionsAnnee || []).forEach(p => {
+    if (p.actif === false || p.actif === 0 || p.actif === "0") return;
+
+    const dateParts = String(p.date).split('T')[0].split('-');
+    const pMonthIdx = parseInt(dateParts[1], 10) - 1;
+    const pYear = parseInt(dateParts[0], 10);
+
+    if (pYear !== anneeFiltre || pMonthIdx !== indexMoisSelectionne) return;
+
     const compteSrc = (p.compte || "").trim().toUpperCase();
-    const cat = (p.categorie || "").toUpperCase();
-    const nomTrans = (p.nom || "").toUpperCase();
-    const texteIntegral = `${nomTrans} ${cat}`;
-
-    const d = new Date(p.date);
-    const estMoisEnCours = (anneeFiltre === anneeActuelle && d.getMonth() === moisActuelIdx);
-
     const montantBrut = parseFloat(p.montant) || 0;
     const montantAbs = Math.abs(montantBrut);
 
     let montantImpact = montantBrut;
 
-    // 💡 Mois en cours : On ne prend en compte QUE LE RESTE À VENIR (plus de doublon de salaire !)
-    if (estMoisEnCours) {
+    // 🌟 MOIS EN COURS : On ajoute UNIQUEMENT le reste non encore débité/crédité
+    if (anneeFiltre === anneeActuelle && pMonthIdx === moisActuelIdx) {
       const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
       const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
       const resteAVenir = Math.max(0, montantAbs - montantConsomme);
-
       montantImpact = montantBrut >= 0 ? resteAVenir : -resteAVenir;
     }
 
@@ -5935,19 +6145,14 @@ const soldesPrevisionnels = useMemo(() => {
       impactPrevisions[compteSrc] += montantImpact;
     }
 
-    // Gestion des transferts internes
-    if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
+    if (estTransfertInterne(p.nom || "", p.categorie || "")) {
       const groupeSource = comptes.find(c => c.compte.trim().toUpperCase() === compteSrc)?.groupe;
       let meilleurMatch = null;
       for (const c of comptes) {
         const nomDest = c.compte.trim().toUpperCase();
         if (nomDest === compteSrc) continue;
         if (c.groupe !== groupeSource) continue;
-
-        const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
-        const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
-
-        if (texteIntegral.includes(nomDest) || (motsCompte.length > 0 && motsCompte.some(m => texteIntegral.includes(m)))) {
+        if (p.nom.toUpperCase().includes(nomDest) || p.categorie.toUpperCase().includes(nomDest)) {
           meilleurMatch = nomDest;
           break;
         }
@@ -5962,7 +6167,7 @@ const soldesPrevisionnels = useMemo(() => {
     ...c,
     soldeFinalEstime: c.soldePeriode + (impactPrevisions[c.compte.trim().toUpperCase()] || 0)
   }));
-}, [soldesTries, previsionsActivesPourRecap, comptes, toutesLesTransactions, filters.annee]);
+}, [soldesTries, allPrevisionsAnnee, comptes, toutesLesTransactions, filters.annee, filters.mois]);
 
 const soldeGlobalProjete = useMemo(() => 
   soldesPrevisionnels.reduce((acc, c) => acc + c.soldeFinalEstime, 0)
@@ -6095,10 +6300,9 @@ const recapPrevisionsStats = useMemo(() => {
 
   let cumulMobile = 0;
 
-  const estUnTransfertPrevi = (p) => {
-    const cat = (p.categorie || "").toLowerCase();
-    const nom = (p.nom || "").toLowerCase();
-    return cat.includes('🔄') || cat.includes('vers') || cat.includes('transfert') || nom.includes('vers');
+  const estTransfertInterne = (nom, cat) => {
+    const txt = `${nom} ${cat}`.toUpperCase();
+    return txt.includes('🔄') || /\bVERS\b/.test(txt) || txt.includes('TRANSFERT');
   };
 
   return moisListe.map((moisObj, indexMois) => {
@@ -6109,18 +6313,45 @@ const recapPrevisionsStats = useMemo(() => {
     const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
     const estMasque = excludedMonths.includes(nomMoisComplet);
 
+    // Données réelles du mois
     const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0, soldeTotal: 0 };
-    const revReel = statsReelles.revenus !== null && statsReelles.revenus !== undefined ? statsReelles.revenus : 0;
-    const depReel = statsReelles.depenses !== null && statsReelles.depenses !== undefined ? statsReelles.depenses : 0;
+    const revReel = statsReelles.revReel !== undefined ? statsReelles.revReel : (statsReelles.revenus || 0);
+    const depReel = statsReelles.depReel !== undefined ? statsReelles.depReel : (statsReelles.depenses || 0);
 
     if (estPasse) {
-      cumulMobile = statsReelles.soldeTotal ?? cumulMobile;
-      return { ...statsReelles, type: 'réel' };
+      cumulMobile = (statsReelles.soldeTotalReel !== undefined ? statsReelles.soldeTotalReel : statsReelles.soldeTotal) ?? cumulMobile;
+      return { 
+        ...statsReelles, 
+        revenus: revReel, 
+        depenses: depReel, 
+        epargne: revReel - depReel, 
+        soldeTotal: cumulMobile, 
+        type: 'réel' 
+      };
     }
 
-    const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
-      const d = new Date(p.date);
-      return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
+    // Prévisions pour ce mois
+    const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
+      if (p.actif === false || p.actif === 0 || p.actif === "0") return false;
+      
+      let pMonthIdx = -1;
+      let pYear = 0;
+      if (p.date) {
+        const parts = String(p.date).split('T')[0].split('-');
+        pYear = parseInt(parts[0], 10);
+        pMonthIdx = parseInt(parts[1], 10) - 1;
+      } else {
+        pYear = parseInt(p.annee || 0, 10);
+        pMonthIdx = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(p.mois));
+      }
+
+      if (pMonthIdx !== indexMois || pYear !== anneeFiltre) return false;
+
+      if (filters.profil !== 'Tous') {
+        const compteAssocie = (comptes || []).find(c => c.compte?.trim().toUpperCase() === p.compte?.trim().toUpperCase());
+        if (compteAssocie?.groupe?.toLowerCase().trim() !== filters.profil.toLowerCase().trim()) return false;
+      }
+      return true;
     });
 
     let revReste = 0;
@@ -6130,16 +6361,14 @@ const recapPrevisionsStats = useMemo(() => {
 
     if (!estMasque) {
       previsionsDuMois.forEach(p => {
-        if (estUnTransfertPrevi(p)) return;
+        if (estTransfertInterne(p.nom || "", p.categorie || "")) return;
 
         const montantPrevuAbs = Math.abs(parseFloat(p.montant) || 0);
         const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
         const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
-        
-        // Reste à payer/percevoir sur cette prévision
         const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
 
-        if (p.montant > 0) {
+        if (parseFloat(p.montant) > 0) {
           revReste += resteAVenir;
           totalConsommeRevenusLies += montantConsomme;
         } else {
@@ -6149,13 +6378,18 @@ const recapPrevisionsStats = useMemo(() => {
       });
     }
 
-    // 🟢 SÉCURITÉ ABSOLUE :
-    // On prend le maximum entre le réel en banque et le total lié, puis on ajoute le reste non lié.
-    // Ainsi, une transaction liée à 100% ne DISPARAÎT JAMAIS du total !
-    const totalRev = Math.max(revReel, totalConsommeRevenusLies) + revReste;
-    const totalDep = Math.max(depReel, totalConsommeDepensesLiees) + depReste;
-    const balanceMois = totalRev - totalDep;
+    // 🌟 FORMULE EXACTE DU LIVE :
+    // Revenus = Réel encaissé (1884.12€) + Reste à toucher (0€) = 1884.12€
+    // Dépenses = Réel débité (1929.09€) + Reste à payer (27.00€) = 1956.09€
+    const totalRev = estMoisEnCours 
+      ? Math.max(revReel, totalConsommeRevenusLies) + revReste
+      : (estFutur ? (previsionsDuMois.length > 0 ? revReste + totalConsommeRevenusLies : 0) : revReel);
 
+    const totalDep = estMoisEnCours
+      ? Math.max(depReel, totalConsommeDepensesLiees) + depReste
+      : (estFutur ? (previsionsDuMois.length > 0 ? depReste + totalConsommeDepensesLiees : 0) : depReel);
+
+    const balanceMois = totalRev - totalDep;
     cumulMobile += balanceMois;
 
     return {
@@ -6168,7 +6402,7 @@ const recapPrevisionsStats = useMemo(() => {
       isMasque: estMasque
     };
   });
-}, [recapAnnuelStats, previsionsActivesPourRecap, filters.annee, moisListe, excludedMonths, toutesLesTransactions]);
+}, [recapAnnuelStats, allPrevisionsAnnee, filters.annee, filters.profil, moisListe, excludedMonths, toutesLesTransactions, comptes]);
 
 
 
@@ -6387,6 +6621,38 @@ const statsEpargnePrevisionnelle = useMemo(() => {
     pourcentage: pourcentage
   };
 }, [previsionsActivesPourRecap, recapAnnuelStats, filters.annee, moisListe, excludedMonths, objectifAnnuelGlobal, toutesLesTransactions]);
+
+const { epargneReelleCumulee, epargneProjeteeTotale, pctReel, pctProjete } = useMemo(() => {
+  let reelCumul = 0;
+  let projeteTotal = 0;
+
+  (recapAnnuelStats || []).forEach(m => {
+    // Réel accumulé jusqu'à aujourd'hui
+    if (m.hasRealData || m.isPasseCloture) {
+      reelCumul += (m.epargneReel || 0);
+    }
+    // Projection totale sur l'année
+    if (m.isPasseCloture) {
+      projeteTotal += (m.epargneReel || 0);
+    } else if (m.hasPrevisions) {
+      projeteTotal += (m.epargnePrevu || 0);
+    } else if (m.hasRealData) {
+      projeteTotal += (m.epargneReel || 0);
+    }
+  });
+
+  const obj = objectifAnnuelGlobal || 0;
+  const pReel = obj > 0 ? Math.max(0, Math.round((reelCumul / obj) * 100)) : 0;
+  const pProjete = obj > 0 ? Math.max(0, Math.round((projeteTotal / obj) * 100)) : 0;
+
+  return {
+    epargneReelleCumulee: reelCumul,
+    epargneProjeteeTotale: projeteTotal,
+    pctReel: pReel,
+    pctProjete: pProjete
+  };
+}, [recapAnnuelStats, objectifAnnuelGlobal]);
+
 
 useEffect(() => {
   loadAvailablePreviPeriods();
@@ -8367,89 +8633,256 @@ if (!user) {
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
                       
                         {annualTab === 'list' && (
-                        <div className="flex flex-col h-full w-full overflow-hidden">
-                          {/* EN-TÊTE DISCRET ALIGNÉ SUR 12 COLONNES */}
-                          <div className="grid grid-cols-12 px-6 mb-2 shrink-0 select-none">
-                            <span className="col-span-3 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Mois</span>
-                            <span className="col-span-2 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Revenus</span>
-                            <span className="col-span-2 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Dépenses</span>
-                            <span className="col-span-2 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20">Épargne</span>
-                            <span className="col-span-3 text-[9px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/20 text-right">Cumul</span>
-                          </div>
+  <div className="flex flex-col h-full w-full overflow-hidden">
+    {/* EN-TÊTE DU TABLEAU */}
+    <div className="grid grid-cols-12 px-6 mb-1.5 shrink-0 select-none">
+      <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Mois</span>
+      <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Revenus</span>
+      <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Dépenses</span>
+      <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-center">Épargne</span>
+      <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-right">Cumul</span>
+    </div>
 
-                          {/* ZONE DE GRILLE DES MOIS ADAPTATIVE ET PROTÉGÉE CONTRE LE SCROLL */}
-                          <div className="flex-1 grid grid-rows-12 gap-1 min-h-0 h-full w-full overflow-hidden select-none">
-                            {recapAnnuelStats.map((m, i) => (
-                              <div 
-                                key={i} 
-                                /* Passage en grid-cols-12 pour élargir horizontalement le nom des mois */
-                                className={`grid grid-cols-12 items-center px-4 bg-[var(--glass-bg)] hover:bg-white/[0.06] border border-white/5 rounded-xl transition-all duration-200 group h-full min-h-0 ${
-                                  isCompact ? 'py-1' : 'py-0.5'
-                                }`}
-                              >
-                                {/* MOIS (col-span-3 : Élargi horizontalement à 25% de la largeur totale) */}
-                                <div className="col-span-3 flex items-center min-h-0">
-                                  <span className={`font-black uppercase tracking-tighter text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80 transition-colors ${
-                                    isCompact ? 'text-xs' : 'text-[10px]'
-                                  }`}>
-                                    {m.nom}
-                                  </span>
-                                </div>
+    {/* GRILLE DES 12 MOIS */}
+    <div className="flex-1 flex flex-col gap-1 min-h-0 h-full w-full overflow-hidden select-none">
+      {recapAnnuelStats.map((m, i) => {
+        const estMoisEnCours = m.isMoisEnCours;
+        const estFutur = m.isFutur;
 
-                                {/* REVENUS (col-span-2 - 💡 Changé pour afficher 2 décimales) */}
-                                <div 
-                                  className="col-span-2 font-black tracking-tighter whitespace-nowrap min-h-0 transition-all" 
-                                  style={{ 
-                                    color: `${userTheme.color_revenus}e6`,
-                                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
-                                  }}
-                                >
-                                  {m.revenus !== null && m.revenus > 0 ? `${m.revenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                                </div>
+        return (
+          <div 
+            key={i} 
+            className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
+              estMoisEnCours
+                ? 'flex-[1.45] bg-gradient-to-r from-indigo-500/[0.12] via-indigo-500/[0.06] to-transparent border-indigo-500/40 shadow-[0_4px_18px_rgba(99,102,241,0.18)] py-1.5 ring-1 ring-indigo-500/25'
+                : estFutur
+                  ? 'flex-1 bg-white/[0.01] hover:bg-white/[0.04] border-white/5 border-dashed py-0.5 opacity-65 hover:opacity-100'
+                  : 'flex-1 bg-[var(--glass-bg)] hover:bg-white/[0.06] border-white/5 py-0.5'
+            }`}
+          >
+            {/* 1. NOM DU MOIS (+ Badge "Prévu" pour les mois futurs) */}
+            <div className="col-span-3 flex items-center gap-2 min-h-0">
+              <span className={`font-black uppercase tracking-tight transition-colors ${
+                estMoisEnCours 
+                  ? 'text-indigo-200 font-extrabold' 
+                  : estFutur 
+                    ? 'text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80' 
+                    : 'text-[var(--text-main)]/50 group-hover:text-[var(--text-main)]/90'
+              } ${isCompact ? 'text-xs' : 'text-[11px]'}`}>
+                {m.nom}
+              </span>
 
-                                {/* DÉPENSES (col-span-2 - 💡 Changé pour afficher 2 décimales) */}
-                                <div 
-                                  className="col-span-2 font-black tracking-tighter whitespace-nowrap min-h-0 transition-all" 
-                                  style={{ 
-                                    color: `${userTheme.color_depenses}e6`,
-                                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
-                                  }}
-                                >
-                                  {m.depenses > 0 ? `-${m.depenses.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/5">—</span>}
-                                </div>
+              
 
-                                {/* ÉPARGNE (col-span-2 - 💡 Suppression du Math.round et ajout de 2 décimales) */}
-                                <div className="col-span-2 flex items-center min-h-0">
-                                  <span 
-                                    className="inline-block rounded-full font-black whitespace-nowrap transition-all text-center" 
-                                    style={{ 
-                                      backgroundColor: m.epargne >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
-                                      color: m.epargne >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                                      fontSize: isCompact ? '1.35vh' : '1vh', 
-                                      padding: isCompact ? '0.1vh 0.8vw' : '0.1vh 0.4vw'
-                                    }}
-                                  >
-                                    {m.epargne !== null ? `${m.epargne > 0 ? '+' : ''}${m.epargne.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                                  </span>
-                                </div>
+              {/* 🌟 Badge prévisionnel pour les mois futurs */}
+              {estFutur && m.hasPrevisions && (
+                <span className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400/80 border border-sky-500/20 tracking-wider shrink-0 select-none">
+                  Prévu
+                </span>
+              )}
+            </div>
 
-                                {/* CUMUL TOTAL (col-span-3 - 💡 Changé pour afficher 2 décimales) */}
-                                <div className="col-span-3 text-right flex items-center justify-end min-h-0">
-                                  <div 
-                                    className="font-black tracking-tighter leading-none whitespace-nowrap transition-all" 
-                                    style={{ 
-                                      color: userTheme.color_patrimoine,
-                                      fontSize: isCompact ? '2.15vh' : '1.7vh' 
-                                    }}
-                                  >
-                                    {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+            {/* 2. REVENUS */}
+            <div className="col-span-2 flex flex-col justify-center min-h-0">
+              {estMoisEnCours ? (
+                <>
+                  <span 
+                    className="font-black tracking-tighter leading-none"
+                    style={{ 
+                      color: `${userTheme.color_revenus}e6`,
+                      fontSize: isCompact ? '1.95vh' : '1.5vh'
+                    }}
+                  >
+                    {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
+                  </span>
+                  {m.revPrevu !== null && (
+                    <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
+                      prévu {m.revPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                    </span>
+                  )}
+                </>
+              ) : estFutur ? (
+                <div className="flex flex-col justify-center">
+                  <span 
+                    className="font-black tracking-tighter leading-none" 
+                    style={{ 
+                      color: `${userTheme.color_revenus}b3`,
+                      fontSize: isCompact ? '1.95vh' : '1.5vh'
+                    }}
+                  >
+                    {m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                  </span>
+                  {m.revPrevu !== null && m.revPrevu > 0 && (
+                    <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
+                      prévu
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span 
+                  className="font-black tracking-tighter leading-none" 
+                  style={{ 
+                    color: `${userTheme.color_revenus}e6`,
+                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                  }}
+                >
+                  {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                </span>
+              )}
+            </div>
+
+            {/* 3. DÉPENSES */}
+            <div className="col-span-2 flex flex-col justify-center min-h-0">
+              {estMoisEnCours ? (
+                <>
+                  <span 
+                    className="font-black tracking-tighter leading-none"
+                    style={{ 
+                      color: `${userTheme.color_depenses}e6`,
+                      fontSize: isCompact ? '1.95vh' : '1.5vh'
+                    }}
+                  >
+                    {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
+                  </span>
+                  {m.depPrevu !== null && (
+                    <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
+                      prévu -{m.depPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                    </span>
+                  )}
+                </>
+              ) : estFutur ? (
+                <div className="flex flex-col justify-center">
+                  <span 
+                    className="font-black tracking-tighter leading-none" 
+                    style={{ 
+                      color: `${userTheme.color_depenses}b3`,
+                      fontSize: isCompact ? '1.95vh' : '1.5vh'
+                    }}
+                  >
+                    {m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                  </span>
+                  {m.depPrevu !== null && m.depPrevu > 0 && (
+                    <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
+                      prévu
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span 
+                  className="font-black tracking-tighter leading-none" 
+                  style={{ 
+                    color: `${userTheme.color_depenses}e6`,
+                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                  }}
+                >
+                  {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                </span>
+              )}
+            </div>
+
+            {/* 4. ÉPARGNE */}
+            <div className="col-span-2 flex flex-col items-center justify-center min-h-0">
+              {estMoisEnCours ? (
+                <>
+                  <span 
+                    className="inline-block rounded-full font-black text-center leading-none" 
+                    style={{ 
+                      backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
+                      color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                      fontSize: isCompact ? '1.35vh' : '1.1vh',
+                      padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                    }}
+                  >
+                    {m.epargneReel > 0 ? '+' : ''}{m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                  </span>
+                  {m.epargnePrevu !== null && (
+                    <span className="text-[9px] font-mono text-white/50 leading-none mt-1">
+                      prévu {m.epargnePrevu > 0 ? '+' : ''}{m.epargnePrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                    </span>
+                  )}
+                </>
+              ) : estFutur ? (
+                <span 
+                  className="inline-block rounded-full font-black text-center leading-none border border-dashed" 
+                  style={{ 
+                    backgroundColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}0d` : `${userTheme.color_depenses}0d`, 
+                    color: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}b3` : `${userTheme.color_depenses}b3`,
+                    borderColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}33` : `${userTheme.color_depenses}33`,
+                    fontSize: isCompact ? '1.35vh' : '1.1vh',
+                    padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                  }}
+                >
+                  {m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                </span>
+              ) : (
+                <span 
+                  className="inline-block rounded-full font-black text-center leading-none" 
+                  style={{ 
+                    backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
+                    color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                    fontSize: isCompact ? '1.35vh' : '1.1vh',
+                    padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                  }}
+                >
+                  {m.hasRealData ? `${m.epargneReel > 0 ? '+' : ''}${m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                </span>
+              )}
+            </div>
+
+            {/* 5. CUMUL PATRIMOINE */}
+            <div className="col-span-3 text-right flex flex-col justify-center items-end min-h-0">
+              {estMoisEnCours ? (
+                <>
+                  <span 
+                    className="font-black tracking-tighter leading-none" 
+                    style={{ 
+                      color: userTheme.color_patrimoine,
+                      fontSize: isCompact ? '2.15vh' : '1.7vh'
+                    }}
+                  >
+                    {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                  </span>
+                  {m.soldeProjete !== null && (
+                    <span className="text-[10px] font-black tracking-tight text-sky-400 leading-none mt-1" title="Solde projeté fin de mois">
+                      prévu {m.soldeProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                    </span>
+                  )}
+                </>
+              ) : estFutur ? (
+                <div className="flex flex-col justify-center items-end">
+                  <span 
+                    className="font-black tracking-tighter leading-none text-sky-400/80"
+                    style={{ 
+                      fontSize: isCompact ? '2.15vh' : '1.7vh'
+                    }}
+                  >
+                    {m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                  </span>
+                  {m.soldeProjete !== null && (
+                    <span className="text-[8px] font-bold text-sky-400/40 tracking-tight leading-none mt-0.5">
+                      estimé
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span 
+                  className="font-black tracking-tighter leading-none" 
+                  style={{ 
+                    color: userTheme.color_patrimoine,
+                    fontSize: isCompact ? '2.15vh' : '1.7vh' 
+                  }}
+                >
+                  {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                </span>
+              )}
+            </div>
+
+          </div>
+        );
+      })}
+    </div>
+  </div>
+)}
 
                       {annualTab === 'chart' && (
                         <div className="h-full w-full animate-in fade-in duration-500">
@@ -8634,77 +9067,161 @@ if (!user) {
                       case 'graphs':
                         return (
                    <div className="flex-1 flex flex-col min-h-0 gap-3">
-                      {/* BLOC JAUGE ÉPARGNE COMPACTÉ */}
-                      <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0">
-                        <div className="flex items-center justify-between gap-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-500/25 shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
-                              <Trophy size={16} className="text-amber-400" />
-                            </div>
-                            <div>
-                              <h4 className="text-[var(--text-main)]/40 text-[9px] font-black uppercase tracking-[0.1em] leading-tight">
-                                Objectif d'épargne {filters.annee}
-                              </h4>
-                              {objectifAnnuelGlobal > 0 ? (
-                                <p className="text-[var(--text-main)] font-black text-lg leading-tight">
-                                  {Math.floor(epargneCumuleeAnnuelle).toLocaleString('fr-FR')} € 
-                                  <span className="text-[var(--text-main)]/20 text-[10px] font-medium ml-1">
-                                    / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
-                                  </span>
-                                </p>
-                              ) : (
-                                <p className="text-[var(--text-main)]/20 font-black text-xs uppercase mt-1">Non défini</p>
-                              )}
-                            </div>
+                    {/* BLOC JAUGE ÉPARGNE : RÉEL + PROJECTION EN POINTILLÉS */}
+                    <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3.5 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0 select-none">
+                      <div className="flex items-center justify-between gap-4">
+                        
+                        {/* Titre & Chiffres */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-500/25 shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+                            <Trophy size={16} className="text-amber-400" />
                           </div>
-
-                          {/* Badge % repositionné */}
-                          {objectifAnnuelGlobal > 0 && (
-                            <div className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
-                              pourcentageAnnuel >= 100 
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            }`}>
-                              {pourcentageAnnuel}%
-                            </div>
-                          )}
+                          
+                          <div className="flex flex-col min-w-0">
+                            <h4 className="text-[var(--text-main)]/40 text-[9px] font-black uppercase tracking-[0.1em] leading-tight">
+                              Objectif d'épargne {filters.annee}
+                            </h4>
+                            
+                            {objectifAnnuelGlobal > 0 ? (
+                              <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+                                {/* Montant Réel */}
+                                <span className="text-[var(--text-main)] font-black text-base md:text-lg leading-tight">
+                                  {Math.floor(epargneReelleCumulee).toLocaleString('fr-FR')} €
+                                </span>
+                                
+                                {/* Montant Projeté */}
+                                {epargneProjeteeTotale !== epargneReelleCumulee && (
+                                  <span className="text-sky-300 text-xs font-black tracking-tight" title="Total projeté avec prévisions">
+                                    (prévu {Math.floor(epargneProjeteeTotale).toLocaleString('fr-FR')} €)
+                                  </span>
+                                )}
+                                
+                                {/* Objectif Cible */}
+                                <span className="text-[var(--text-main)]/30 text-[10px] font-bold">
+                                  / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
+                                </span>
+                              </div>
+                            ) : (
+                              <p className="text-[var(--text-main)]/20 font-black text-xs uppercase mt-1">Non défini</p>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Jauge plus fine pour gagner de la place */}
+                        {/* Badges de % (Réel et Projeté) */}
                         {objectifAnnuelGlobal > 0 && (
-                          <div className="mt-3">
-                            <div className="relative h-2 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                              <div 
-                                className="h-full rounded-full transition-all duration-1000 ease-out"
-                                style={{ 
-                                  width: `${Math.min(pourcentageAnnuel, 100)}%`,
-                                  background: `linear-gradient(90deg, ${userTheme.color_jauge || '#f1c40f'}90, ${userTheme.color_jauge || '#f1c40f'})`,
-                                  boxShadow: `0 0 10px ${(userTheme.color_jauge || '#f1c40f')}33`
-                                }}
-                              />
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {/* Badge Réel */}
+                            <div className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
+                              pctReel >= 100 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                            }`} title="Progression réelle actuelle">
+                              {pctReel}%
                             </div>
+
+                            {/* Badge Prévisionnel */}
+                            {pctProjete !== pctReel && (
+                              <div className="text-[10px] font-black px-2 py-1 rounded-lg border bg-sky-500/10 text-sky-300 border-sky-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(56,189,248,0.15)]" title="Objectif projeté fin d'année">
+                                <span className="text-[8px] opacity-70">➔</span>
+                                <span>{pctProjete}% prévu</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
+
+                    {/* 🌟 LA BARRE DOUBLE : LA COULEUR D'ABORD, LES POINTILLÉS PRENNENT LE RELAIS */}
+                      {objectifAnnuelGlobal > 0 && (
+                        <div className="mt-3 space-y-1.5">
+                          <div className="relative h-2.5 w-full bg-black/50 rounded-full overflow-hidden border border-white/10 shadow-inner">
+                            
+                            {/* 1. ÉPARGNE RÉELLE ACTUELLE (Barre pleine de 0% à pctReel%) */}
+                            {pctReel > 0 && (
+                              <div 
+                                className="absolute left-0 top-0 h-full transition-all duration-1000 ease-out"
+                                style={{ 
+                                  width: `${Math.min(pctReel, 100)}%`,
+                                  background: `linear-gradient(90deg, ${userTheme.color_jauge || '#f1c40f'}90, ${userTheme.color_jauge || '#f1c40f'})`,
+                                  boxShadow: `0 0 12px ${(userTheme.color_jauge || '#f1c40f')}50`
+                                }}
+                              />
+                            )}
+
+                            {/* 2. EXTENSION PROJETÉE (Prend le relais à partir de pctReel%) */}
+                            {pctProjete > pctReel && (
+                              <div 
+                                className="absolute top-0 h-full transition-all duration-1000 ease-out border-r border-sky-300"
+                                style={{ 
+                                  left: `${Math.min(pctReel, 100)}%`,
+                                  width: `${Math.max(0, Math.min(pctProjete - pctReel, 100 - pctReel))}%`,
+                                  background: `repeating-linear-gradient(
+                                    -45deg,
+                                    rgba(56, 189, 248, 0.85) 0,
+                                    rgba(56, 189, 248, 0.85) 3px,
+                                    transparent 3px,
+                                    transparent 7px
+                                  )`,
+                                  boxShadow: '0 0 10px rgba(56, 189, 248, 0.3)'
+                                }}
+                              />
+                            )}
+                          </div>
+
+                          {/* Légende discrète sous la barre */}
+                          <div className="flex items-center justify-between text-[7.5px] font-black uppercase text-white/30 tracking-wider px-0.5">
+                            <div className="flex items-center gap-3">
+                              <span className="flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: userTheme.color_jauge || '#f1c40f' }} />
+                                Réel actuel ({pctReel}%)
+                              </span>
+                              {pctProjete > pctReel && (
+                                <span className="flex items-center gap-1 text-sky-400/80">
+                                  <span className="w-2 h-1 border border-dashed border-sky-400 rounded-sm" />
+                                  Relais prévisions (+{pctProjete - pctReel}%)
+                                </span>
+                              )}
+                            </div>
+                            <span>Objectif : 100%</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                         {/* Évolution */}
                         <div className="flex-1 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-[var(--glass-blur)] min-h-0">
                           <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
                           
-                          {/* SECTION GRAPHIQUE ANNUEL */}
+                        {/* SECTION GRAPHIQUE ANNUEL DES FLUX */}
                           <div className="h-full w-full pb-8">
                             <ResponsiveContainer width="100%" height="110%">
                               <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
                                 <defs>
+                                  {/* Dégradés Revenus */}
                                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.3}/>
+                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.35}/>
                                     <stop offset="95%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0}/>
                                   </linearGradient>
+                                  <linearGradient id="colorRevProj" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.18}/>
+                                    <stop offset="95%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0}/>
+                                  </linearGradient>
+
+                                  {/* Dégradés Dépenses */}
                                   <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.3}/>
+                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.35}/>
                                     <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
                                   </linearGradient>
+                                  <linearGradient id="colorDepProj" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.18}/>
+                                    <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
+                                  </linearGradient>
+
+                                  {/* Dégradés Épargne */}
                                   <linearGradient id="colorEp" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.2}/>
+                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.25}/>
+                                    <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
+                                  </linearGradient>
+                                  <linearGradient id="colorEpProj" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.12}/>
                                     <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
                                   </linearGradient>
                                 </defs>
@@ -8712,16 +9229,15 @@ if (!user) {
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                                 
                                 <XAxis 
-                                dataKey="nom" 
-                                axisLine={false} 
-                                tickLine={false} 
-                                tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }}
-                                dy={10}
-                                tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''}
+                                  dataKey="nom" 
+                                  axisLine={false} 
+                                  tickLine={false} 
+                                  tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }}
+                                  dy={10}
+                                  tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''}
                                 />
 
                                 <YAxis 
-                                  hide={false}
                                   tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
                                   axisLine={false}
                                   tickLine={false}
@@ -8733,66 +9249,76 @@ if (!user) {
                                   }}
                                 />
                                 
+                                {/* 🌟 TOOLTIP UNIFIÉ : MÊME DESIGN FLUIDE */}
                                 <Tooltip 
-                                  cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
-                                  contentStyle={{ 
-                                    backgroundColor: '#0f172a', 
-                                    border: '1px solid rgba(255,255,255,0.1)', 
-                                    borderRadius: '12px',
-                                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
-                                    padding: '12px'
-                                  }}
-                                  formatter={(value, name) => {
-                                    const formattedValue = new Intl.NumberFormat('fr-FR', { 
-                                      style: 'currency', 
-                                      currency: 'EUR',
-                                      minimumFractionDigits: 2 
-                                    }).format(value);
+                                  itemSorter={(item) => -item.value}
+                                  content={({ active, payload, label }) => {
+                                    if (active && payload && payload.length) {
+                                      // Évite d'afficher en double lors du point de jonction
+                                      const seen = new Set();
+                                      const filteredPayload = payload.filter(entry => {
+                                        const baseKey = entry.dataKey.replace('Projete', '');
+                                        if (seen.has(baseKey)) return false;
+                                        seen.add(baseKey);
+                                        return true;
+                                      });
 
-                                    const labelMap = {
-                                      revenus: 'Revenus',
-                                      depenses: 'Dépenses',
-                                      epargne: 'Épargne'
-                                    };
-
-                                    return [formattedValue, labelMap[name] || name];
-                                  }}
-                                  itemStyle={{ 
-                                    fontSize: '12px', 
-                                    fontWeight: '900', 
-                                    textTransform: 'uppercase',
-                                    padding: '2px 0'
-                                  }}
-                                  labelStyle={{ 
-                                    color: 'rgba(255,255,255,0.5)', 
-                                    fontWeight: 'bold', 
-                                    marginBottom: '8px',
-                                    fontSize: '10px',
-                                    textTransform: 'uppercase'
+                                      return (
+                                        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border border-white/10 shadow-2xl">
+                                          <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
+                                          <div className="flex flex-col gap-2">
+                                            {filteredPayload.map((entry, index) => {
+                                              const isProj = entry.dataKey.includes('Projete');
+                                              const labelName = entry.dataKey.startsWith('revenus') ? 'Revenus' 
+                                                              : entry.dataKey.startsWith('depenses') ? 'Dépenses' 
+                                                              : 'Épargne';
+                                              return (
+                                                <div key={index} className="flex items-center justify-between gap-8">
+                                                  <div className="flex items-center gap-2">
+                                                    <div 
+                                                      className="w-2 h-2 rounded-full" 
+                                                      style={{ backgroundColor: entry.color }} 
+                                                    />
+                                                    <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
+                                                      {labelName} {isProj ? '(Prévu)' : ''}
+                                                    </span>
+                                                  </div>
+                                                  <span className="text-[var(--text-main)] font-bold text-xs font-mono">
+                                                    {new Intl.NumberFormat('fr-FR', { 
+                                                      style: 'currency', 
+                                                      currency: 'EUR', 
+                                                      maximumFractionDigits: 2 
+                                                    }).format(entry.value)}
+                                                  </span>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      );
+                                    }
+                                    return null;
                                   }}
                                 />
 
                                 <Legend 
                                   verticalAlign="top" 
                                   align="right" 
-                                  iconType="circle"
-                                  iconSize={8}
-                                  content={({ payload }) => (
+                                  content={() => (
                                     <div className="flex justify-end gap-6 mb-4">
-                                      {payload.map((entry, index) => {
-                                        const key = entry.value; // 'revenus', 'depenses' ou 'epargne'
+                                      {['revenus', 'depenses', 'epargne'].map((key) => {
+                                        const color = key === 'revenus' ? (userTheme.color_revenus || "#10b981") 
+                                                    : key === 'depenses' ? (userTheme.color_depenses || "#f43f5e") 
+                                                    : (userTheme.color_epargne || "#ffffff");
                                         const isVisible = visibleAnnuel[key];
                                         return (
                                           <div 
-                                            key={`item-${index}`} 
+                                            key={`item-${key}`} 
                                             className="flex items-center gap-2 cursor-pointer select-none transition-opacity duration-200"
                                             style={{ opacity: isVisible ? 1 : 0.3 }}
                                             onClick={() => setVisibleAnnuel(prev => ({ ...prev, [key]: !prev[key] }))}
                                           >
-                                            <div 
-                                              className="w-2 h-2 rounded-full" 
-                                              style={{ backgroundColor: entry.color }} 
-                                            />
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                                             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
                                               {key === 'revenus' ? 'Revenus' : key === 'depenses' ? 'Dépenses' : 'Épargne'}
                                             </span>
@@ -8803,46 +9329,79 @@ if (!user) {
                                   )}
                                 />
 
-                                {/* REVENUS */}
+                                {/* 1. REVENUS (Réel + Prévu avec dégradé) */}
                                 <Area 
                                   type="monotone" 
                                   dataKey="revenus" 
                                   hide={!visibleAnnuel.revenus}
                                   stroke={userTheme.color_revenus || "#10b981"} 
-                                  strokeWidth={4}
+                                  strokeWidth={3}
                                   fillOpacity={1} 
                                   fill="url(#colorRev)"
-                                  connectNulls={true}
-                                  dot={{ r: 4, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
-                                  activeDot={{ r: 6, strokeWidth: 0 }}
+                                  connectNulls={false}
+                                  dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
+                                />
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="revenusProjete" 
+                                  hide={!visibleAnnuel.revenus}
+                                  stroke={userTheme.color_revenus || "#10b981"} 
+                                  strokeDasharray="5 5"
+                                  strokeWidth={2}
+                                  fillOpacity={1}
+                                  fill="url(#colorRevProj)"
+                                  connectNulls={false}
+                                  dot={{ r: 3, fill: userTheme.color_revenus || '#10b981' }}
                                 />
 
-                                {/* DÉPENSES */}
+                                {/* 2. DÉPENSES (Réel + Prévu avec dégradé) */}
                                 <Area 
                                   type="monotone" 
                                   dataKey="depenses" 
                                   hide={!visibleAnnuel.depenses}
                                   stroke={userTheme.color_depenses || "#f43f5e"} 
-                                  strokeWidth={4}
+                                  strokeWidth={3}
                                   fillOpacity={1} 
                                   fill="url(#colorDep)"
-                                  connectNulls={true}
-                                  dot={{ r: 4, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
-                                  activeDot={{ r: 6, strokeWidth: 0 }}
+                                  connectNulls={false}
+                                  dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
+                                />
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="depensesProjete" 
+                                  hide={!visibleAnnuel.depenses}
+                                  stroke={userTheme.color_depenses || "#f43f5e"} 
+                                  strokeDasharray="5 5"
+                                  strokeWidth={2}
+                                  fillOpacity={1}
+                                  fill="url(#colorDepProj)"
+                                  connectNulls={false}
+                                  dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e' }}
                                 />
 
-                                {/* ÉPARGNE */}
+                                {/* 3. ÉPARGNE (Réel + Prévu avec dégradé) */}
                                 <Area 
                                   type="monotone" 
                                   dataKey="epargne" 
                                   hide={!visibleAnnuel.epargne}
                                   stroke={userTheme.color_epargne || "#ffffff"} 
-                                  strokeWidth={2}
+                                  strokeWidth={2.5}
                                   fillOpacity={1} 
                                   fill="url(#colorEp)"
-                                  connectNulls={true}
+                                  connectNulls={false}
                                   dot={{ r: 3, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
-                                  activeDot={{ r: 5, strokeWidth: 0 }}
+                                />
+                                <Area 
+                                  type="monotone" 
+                                  dataKey="epargneProjete" 
+                                  hide={!visibleAnnuel.epargne}
+                                  stroke={userTheme.color_epargne || "#ffffff"} 
+                                  strokeDasharray="5 5"
+                                  strokeWidth={2}
+                                  fillOpacity={1}
+                                  fill="url(#colorEpProj)"
+                                  connectNulls={false}
+                                  dot={{ r: 3, fill: userTheme.color_epargne || '#ffffff' }}
                                 />
                               </AreaChart>
                             </ResponsiveContainer>
@@ -8850,142 +9409,197 @@ if (!user) {
                           
 
                           {/* SECTION PATRIMOINE DÉTAILLÉ */}
-                          <div className="h-full w-full pb-12">
-                            <ResponsiveContainer width="100%" height="120%">
-                              <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                                <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''} />
-                                <YAxis 
-                                  hide={false}
-                                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
-                                  axisLine={false}
-                                  tickLine={false}
-                                  width={60}
-                                  tickFormatter={(value) => {
-                                    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
-                                    if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
-                                    return `${value}€`;
-                                  }}
-                                />
-                                
-                                <defs>
-                                  {comptesDuProfil?.map((compte, index) => (
-                                    <linearGradient 
-                                      key={`grad-${index}`} 
-                                      id={`colorGrad-${index}`}
-                                      x1="0" y1="0" x2="0" y2="1"
-                                    >
-                                      <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.4}/>
-                                      <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
-                                    </linearGradient>
-                                  ))}
-                                </defs>
+                            <div className="h-full w-full pb-12">
+                              <ResponsiveContainer width="100%" height="120%">
+                                <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                                  <XAxis 
+                                    dataKey="nom" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} 
+                                    tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''} 
+                                  />
+                                  <YAxis 
+                                    tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    width={60}
+                                    tickFormatter={(value) => {
+                                      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
+                                      if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
+                                      return `${value}€`;
+                                    }}
+                                  />
+                                  
+                                  {/* 🌟 DÉGRADÉS POUR LES COMPTES ET LEURS PROJECTIONS */}
+                                  <defs>
+                                    {comptesDuProfil?.map((compte, index) => (
+                                      <React.Fragment key={`grad-compte-${index}`}>
+                                        <linearGradient id={`colorGrad-${index}`} x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.4}/>
+                                          <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
+                                        </linearGradient>
+                                        <linearGradient id={`colorGradProj-${index}`} x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.2}/>
+                                          <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
+                                        </linearGradient>
+                                      </React.Fragment>
+                                    ))}
+                                  </defs>
 
-                                <Tooltip 
-                                  itemSorter={(item) => -item.value}
-                                  content={({ active, payload, label }) => {
-                                    if (active && payload && payload.length) {
-                                      return (
-                                        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border-none shadow-2xl">
-                                          <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
-                                          <div className="flex flex-col gap-2">
-                                            {payload.map((entry, index) => (
-                                              <div key={index} className="flex items-center justify-between gap-8">
-                                                <div className="flex items-center gap-2">
-                                                  <div 
-                                                    className="w-2 h-2 rounded-full" 
-                                                    style={{ backgroundColor: entry.color }} 
-                                                  />
-                                                  <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
-                                                    {entry.name}
-                                                  </span>
-                                                </div>
-                                                <span className="text-[var(--text-main)] font-bold text-xs">
-                                                  {new Intl.NumberFormat('fr-FR', { 
-                                                    style: 'currency', 
-                                                    currency: 'EUR', 
-                                                    maximumFractionDigits: 2 
-                                                  }).format(entry.value)}
-                                                </span>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  }}
-                                />
-                                
-                                <Legend 
-                                  verticalAlign="top" 
-                                  align="right" 
-                                  content={({ payload }) => (
-                                    <div className="flex flex-wrap justify-end gap-x-6 gap-y-2 mb-4">
-                                      {payload.map((entry, index) => {
-                                        const isHidden = !!hiddenComptes[entry.value];
+                                  {/* 🌟 TOOLTIP IDENTIQUE ET DÉDOUBLONNÉ AU SURVOL */}
+                                  <Tooltip 
+                                    itemSorter={(item) => -item.value}
+                                    content={({ active, payload, label }) => {
+                                      if (active && payload && payload.length) {
+                                        const seen = new Set();
+                                        const cleanList = payload.filter(entry => {
+                                          const cleanKey = entry.name.replace('PROJ_', '').replace(' (Prévu)', '');
+                                          if (seen.has(cleanKey)) return false;
+                                          seen.add(cleanKey);
+                                          return true;
+                                        });
+
                                         return (
-                                          <div 
-                                            key={`item-${index}`} 
-                                            className="flex items-center gap-2 cursor-pointer select-none transition-opacity duration-200"
-                                            style={{ opacity: isHidden ? 0.3 : 1 }}
-                                            onClick={() => setHiddenComptes(prev => ({ ...prev, [entry.value]: !prev[entry.value] }))}
-                                          >
-                                            <div 
-                                              className="w-2 h-2 rounded-full" 
-                                              style={{ backgroundColor: entry.color }} 
-                                            />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
-                                              {entry.value}
-                                            </span>
+                                          <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border border-white/10 shadow-2xl">
+                                            <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
+                                            <div className="flex flex-col gap-2">
+                                              {cleanList.map((entry, index) => {
+                                                const isProj = entry.dataKey.startsWith('PROJ_') || entry.dataKey === 'soldeProjete';
+                                                const cleanName = entry.name.replace('PROJ_', '');
+                                                return (
+                                                  <div key={index} className="flex items-center justify-between gap-8">
+                                                    <div className="flex items-center gap-2">
+                                                      <div 
+                                                        className="w-2 h-2 rounded-full" 
+                                                        style={{ backgroundColor: entry.color }} 
+                                                      />
+                                                      <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
+                                                        {cleanName} {isProj ? '(Prévu)' : ''}
+                                                      </span>
+                                                    </div>
+                                                    <span className="text-[var(--text-main)] font-bold text-xs font-mono">
+                                                      {new Intl.NumberFormat('fr-FR', { 
+                                                        style: 'currency', 
+                                                        currency: 'EUR', 
+                                                        maximumFractionDigits: 2 
+                                                      }).format(entry.value)}
+                                                    </span>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
                                           </div>
                                         );
-                                      })}
-                                    </div>
-                                  )}
-                                />
+                                      }
+                                      return null;
+                                    }}
+                                  />
+                                  
+                                  <Legend 
+                                    verticalAlign="top" 
+                                    align="right" 
+                                    content={() => (
+                                      <div className="flex flex-wrap justify-end gap-x-6 gap-y-2 mb-4">
+                                        {comptesDuProfil?.map((compte, index) => {
+                                          const isHidden = !!hiddenComptes[compte.compte];
+                                          return (
+                                            <div 
+                                              key={`item-${index}`} 
+                                              className="flex items-center gap-2 cursor-pointer select-none transition-opacity duration-200"
+                                              style={{ opacity: isHidden ? 0.3 : 1 }}
+                                              onClick={() => setHiddenComptes(prev => ({ ...prev, [compte.compte]: !prev[compte.compte] }))}
+                                            >
+                                              <div 
+                                                className="w-2 h-2 rounded-full" 
+                                                style={{ backgroundColor: compte.couleur || '#64748b' }} 
+                                              />
+                                              <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
+                                                {compte.compte}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  />
 
-                        {/* 1. LES COUCHES (COMPTES) DYNAMIQUES */}
-                                {comptesDuProfil
-                                  ?.filter(c => c && c.compte)
-                                  .sort((a, b) => (b.soldePeriode || 0) - (a.soldePeriode || 0)) 
-                                  .map((compte, index) => {
-                                    const nomCleData = compte.compte.trim().toUpperCase();
-                                    const maCouleurBdd = compte.couleur || '#64748b';
-                                    
-                                    return (
-                                      <Area
-                                        key={`area-compte-${index}`}
-                                        type="monotone"
-                                        dataKey={nomCleData}
-                                        name={compte.compte}
-                                        hide={!!hiddenComptes[compte.compte]} // <-- Modifié : On cache au lieu de return null
-                                        stroke={maCouleurBdd}
-                                        fill={`url(#colorGrad-${index})`} 
-                                        fillOpacity={1}
-                                        strokeWidth={2}
-                                        connectNulls={true}
-                                        dot={{ r: 3, fill: maCouleurBdd, strokeWidth: 1, stroke: '#ffffff' }}
-                                        isAnimationActive={false}
-                                      />
-                                    );
-                                  })}
+                                  {/* 1. COURBES DES COMPTES AVEC DÉGRADÉ */}
+                                  {comptesDuProfil
+                                    ?.filter(c => c && c.compte)
+                                    .sort((a, b) => (b.soldePeriode || 0) - (a.soldePeriode || 0)) 
+                                    .map((compte, index) => {
+                                      const nomCleData = compte.compte.trim().toUpperCase();
+                                      const maCouleurBdd = compte.couleur || '#64748b';
+                                      const isHidden = !!hiddenComptes[compte.compte];
+                                      
+                                      return (
+                                        <React.Fragment key={`group-compte-${index}`}>
+                                          {/* Réel (Plein avec dégradé) */}
+                                          <Area
+                                            type="monotone"
+                                            dataKey={nomCleData}
+                                            name={compte.compte}
+                                            hide={isHidden}
+                                            stroke={maCouleurBdd}
+                                            fill={`url(#colorGrad-${index})`} 
+                                            fillOpacity={1}
+                                            strokeWidth={2}
+                                            connectNulls={false}
+                                            dot={{ r: 3, fill: maCouleurBdd, strokeWidth: 1, stroke: '#ffffff' }}
+                                            isAnimationActive={false}
+                                          />
+                                          {/* Prévisionnel (Pointillé avec dégradé subtil) */}
+                                          <Area
+                                            type="monotone"
+                                            dataKey={`PROJ_${nomCleData}`}
+                                            name={`PROJ_${compte.compte}`}
+                                            hide={isHidden}
+                                            stroke={maCouleurBdd}
+                                            strokeDasharray="4 4"
+                                            fill={`url(#colorGradProj-${index})`}
+                                            fillOpacity={1}
+                                            strokeWidth={2}
+                                            connectNulls={false}
+                                            dot={{ r: 3, fill: maCouleurBdd }}
+                                            isAnimationActive={false}
+                                          />
+                                        </React.Fragment>
+                                      );
+                                    })}
 
-                                {/* 2. LA LIGNE DU SOLDE GLOBAL */}
-                                <Area
-                                  type="monotone"
-                                  dataKey="soldeTotal"
-                                  stroke="#ffffff"
-                                  strokeWidth={3}
-                                  fill="transparent"
-                                  name="PATRIMOINE TOTAL"
-                                  hide={!!hiddenComptes["PATRIMOINE TOTAL"]} // <-- Modifié : On cache au lieu du bloc IF
-                                  dot={{ r: 3, fill: '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
-                                  isAnimationActive={false}
-                                />
-                              </AreaChart>
-                            </ResponsiveContainer>
-                          </div>
+                                  {/* 2. PATRIMOINE TOTAL (Réel) */}
+                                  <Area
+                                    type="monotone"
+                                    dataKey="soldeTotal"
+                                    stroke="#ffffff"
+                                    strokeWidth={3}
+                                    fill="transparent"
+                                    name="PATRIMOINE TOTAL"
+                                    hide={!!hiddenComptes["PATRIMOINE TOTAL"]}
+                                    dot={{ r: 3, fill: '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                                    connectNulls={false}
+                                    isAnimationActive={false}
+                                  />
+
+                                  {/* 3. PATRIMOINE TOTAL (Prévu) */}
+                                  <Area
+                                    type="monotone"
+                                    dataKey="soldeProjete"
+                                    stroke="#38bdf8"
+                                    strokeDasharray="5 5"
+                                    strokeWidth={2.5}
+                                    fill="transparent"
+                                    name="PATRIMOINE TOTAL (Prévu)"
+                                    hide={!!hiddenComptes["PATRIMOINE TOTAL"]}
+                                    dot={{ r: 3.5, fill: '#38bdf8', strokeWidth: 1, stroke: '#0f172a' }}
+                                    connectNulls={false}
+                                    isAnimationActive={false}
+                                  />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
                         </div>
                           </div>
                       );
