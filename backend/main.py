@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException,Body
+from fastapi import FastAPI, HTTPException, Body, Depends
 from sqlalchemy import create_engine, text
 import pandas as pd
 import os
@@ -35,6 +35,8 @@ import calendar
 from fastapi import BackgroundTasks
 from cryptography.fernet import Fernet
 #print(Fernet.generate_key().decode())
+import jwt
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 def get_ascii_hostname():
     return "localhost"
@@ -96,6 +98,34 @@ engine = create_engine(
 def read_root():
     return {"status": "L'API de finances est en ligne"}
 
+# 1. Configuration secrète (Générez une longue chaîne aléatoire dans votre .env)
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "kleea_secret_key_super_securisee_a_changer_absolument_998877")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 30  # L'utilisateur reste connecté 30 jours
+
+security = HTTPBearer()
+
+# 2. Fonction pour fabriquer le Token
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# 3. La fonction de vérification (Le "Vigile" des routes FastAPI)
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Token invalide")
+        return username.lower()
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expirée, veuillez vous reconnecter")
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Accès non autorisé")
+
 def matches_keyword_boundary(keyword: str, text: str) -> bool:
     """
     Vérifie si 'keyword' est présent dans 'text' en tant que mot entier isolé.
@@ -110,17 +140,21 @@ def matches_keyword_boundary(keyword: str, text: str) -> bool:
     return bool(re.search(pattern, text.lower()))
 
 
+# Accepte /transactions ET /transactions/theo pour ne rien casser dans le frontend
+@app.get("/transactions")
 @app.get("/transactions/{username}")
-def get_transactions(username: str):
-    u_lower = username.lower()
+def get_transactions(username: Optional[str] = None, current_user: str = Depends(get_current_user)):
+    # Sécurité : on utilise toujours l'utilisateur garanti par le token
+    u_cible = current_user
+    
     query = text("""
-        SELECT id, date, nom, montant, categorie, utilisateur, mois, année, compte, enveloppe, prevision_id 
+        SELECT id, date, nom, montant, categorie, utilisateur, mois, annee, compte, enveloppe, prevision_id 
         FROM transactions 
         WHERE LOWER(utilisateur) = :u
     """)
     try:
         with engine.connect() as conn:
-            result = conn.execute(query, {"u": u_lower})
+            result = conn.execute(query, {"u": u_cible})
             columns = result.keys()
             records = [dict(zip(columns, row)) for row in result.fetchall()]
             for record in records:
@@ -130,7 +164,7 @@ def get_transactions(username: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Base de données: {str(e)}")
 
-
+    
 class Transaction(BaseModel):
     nom: str
     montant: float
@@ -148,7 +182,7 @@ class Transaction(BaseModel):
 def add_transaction(t: Transaction):
     # L'ordre SQL est crucial : INSERT -> ON CONFLICT -> RETURNING
     query = text("""
-        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte) 
+        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte) 
         VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
         ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
         RETURNING id
@@ -190,7 +224,7 @@ def add_transaction(t: Transaction):
 def update_transaction(t_id: int, t: Transaction):
     query = text("""
         UPDATE transactions 
-        SET nom=:n, montant=:m, categorie=:c, mois=:mo, année=:a, compte=:co, enveloppe=:env, prevision_id=:prev_id 
+        SET nom=:n, montant=:m, categorie=:c, mois=:mo, annee=:a, compte=:co, enveloppe=:env, prevision_id=:prev_id 
         WHERE id=:id AND utilisateur=:u
     """)
     try:
@@ -210,19 +244,24 @@ def update_transaction(t_id: int, t: Transaction):
     
 
 @app.delete("/transactions/batch")
-def delete_transactions(ids: List[int]):
-    """Supprime plusieurs transactions par leurs IDs"""
+def delete_transactions(ids: List[int], current_user: str = Depends(get_current_user)):
+    """Supprime plusieurs transactions par leurs IDs en vérifiant le propriétaire"""
     if not ids:
         return {"status": "error", "message": "Aucun ID fourni"}
         
-    query = text("DELETE FROM transactions WHERE id IN :id_list")
+    query = text("""
+        DELETE FROM transactions 
+        WHERE id IN :id_list AND LOWER(utilisateur) = :u
+    """)
     
     try:
         with engine.connect() as conn:
-            # SQLAlchemy attend un tuple pour le IN
-            conn.execute(query, {"id_list": tuple(ids)})
+            result = conn.execute(query, {
+                "id_list": tuple(ids),
+                "u": current_user
+            })
             conn.commit()
-        return {"status": "success", "deleted_count": len(ids)}
+        return {"status": "success", "deleted_count": result.rowcount}
     except Exception as e:
         print(f"Erreur SQL suppression: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -289,7 +328,6 @@ def register(req: RegisterRequest):
 # --- ROUTE : CONNEXION (LOGIN) ---
 @app.post("/login")
 def login(req: LoginRequest):
-    # La clé est ici : on cherche si 'nom' matche avec username OR email
     query = text("""
         SELECT username, password 
         FROM users 
@@ -297,7 +335,6 @@ def login(req: LoginRequest):
     """)
     
     with engine.connect() as conn:
-        # On passe req.nom aux deux paramètres via le même dictionnaire
         result = conn.execute(query, {"identifiant": req.nom}).fetchone()
         
         if not result:
@@ -305,7 +342,6 @@ def login(req: LoginRequest):
         
         db_username, db_hashed_password = result
         
-        # Vérification du mot de passe
         try:
             is_valid = pwd_context.verify(req.password, db_hashed_password)
         except Exception:
@@ -314,25 +350,35 @@ def login(req: LoginRequest):
         if not is_valid:
             raise HTTPException(status_code=401, detail="Mot de passe incorrect")
             
-        # On renvoie toujours le db_username pour le frontend, 
-        # peu importe comment l'utilisateur s'est connecté
-        return {"status": "success", "user": db_username}
+        # 🟢 CRÉATION DU TOKEN JWT
+        token = create_access_token(data={"sub": db_username})
+
+        return {
+            "status": "success", 
+            "access_token": token,
+            "token_type": "bearer",
+            "user": db_username
+        }
 
 
 # Modèle pour la mise à jour du mode d'import
 class ImportModeRequest(BaseModel):
     import_mode: str  # 'auto' ou 'manual'
 
-# Modifier le endpoint de profil existant pour retourner le mode d'import
+# --- ROUTE : RÉCUPÉRER LE PROFIL ---
 @app.get("/profile/{username}")
-def get_profile(username: str):
+def get_profile(username: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé à ce profil")
+
     query = text("""
         SELECT username, email, name, import_mode 
         FROM users 
         WHERE LOWER(username) = LOWER(:username)
     """)
     with engine.connect() as conn:
-        result = conn.execute(query, {"username": username}).fetchone()
+        result = conn.execute(query, {"username": current_user}).fetchone()
         if not result:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         
@@ -344,9 +390,13 @@ def get_profile(username: str):
             "import_mode": db_mode if db_mode else "manual"
         }
 
-# Endpoint pour changer le mode d'importation
+# --- ROUTE : CHANGER LE MODE D'IMPORT (AUTO / MANUAL) ---
 @app.put("/profile/{username}/import-mode")
-def update_import_mode(username: str, req: ImportModeRequest):
+def update_import_mode(username: str, req: ImportModeRequest, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé à ce profil")
+
     if req.import_mode not in ["auto", "manual"]:
         raise HTTPException(status_code=400, detail="Mode invalide")
         
@@ -357,7 +407,7 @@ def update_import_mode(username: str, req: ImportModeRequest):
     """)
     try:
         with engine.connect() as conn:
-            result = conn.execute(query, {"mode": req.import_mode, "username": username.lower()})
+            result = conn.execute(query, {"mode": req.import_mode, "username": current_user})
             conn.commit()
             if result.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
@@ -465,14 +515,18 @@ class UpdatePasswordRequest(BaseModel):
 
 # --- ROUTE : CHANGER LE MOT DE PASSE ---
 @app.put("/profile/{username}/password")
-def update_password(username: str, req: UpdatePasswordRequest):
+def update_password(username: str, req: UpdatePasswordRequest, current_user: str = Depends(get_current_user)):
+    # 🔒 SÉCURITÉ JWT : Empêche quiconque de modifier le mot de passe d'un autre profil
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier le mot de passe d'un autre utilisateur")
+
     # 1. On hache le nouveau mot de passe
     hashed_password = pwd_context.hash(req.new_password)
     
     with engine.connect() as conn:
         # 2. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
         check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
-        user_exists = conn.execute(check_query, {"username": username}).fetchone()
+        user_exists = conn.execute(check_query, {"username": current_user}).fetchone()
         
         if not user_exists:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
@@ -486,7 +540,7 @@ def update_password(username: str, req: UpdatePasswordRequest):
         
         conn.execute(update_query, {
             "password": hashed_password,
-            "username": username
+            "username": current_user
         })
         conn.commit()
         
@@ -495,18 +549,22 @@ def update_password(username: str, req: UpdatePasswordRequest):
 
 # --- ROUTE : SUPPRIMER DÉFINITIVEMENT LE COMPTE ---
 @app.delete("/profile/{username}")
-def delete_account(username: str):
+def delete_account(username: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé à ce profil")
+
     with engine.connect() as conn:
         # 1. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
         check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
-        user_exists = conn.execute(check_query, {"username": username}).fetchone()
+        user_exists = conn.execute(check_query, {"username": current_user}).fetchone()
         
         if not user_exists:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         
         # 2. Suppression de l'utilisateur (Les cascades en BDD nettoieront le reste)
         delete_query = text("DELETE FROM users WHERE LOWER(username) = LOWER(:username)")
-        conn.execute(delete_query, {"username": username})
+        conn.execute(delete_query, {"username": current_user})
         conn.commit()
         
     return {"status": "success", "message": "Compte et données associés détruits définitivement"}
@@ -519,11 +577,15 @@ class UpdateProfileRequest(BaseModel):
 
 # --- ROUTE : MODIFIER LES INFOS PERSONNELLES ---
 @app.put("/profile/{username}/details")
-def update_profile_details(username: str, req: UpdateProfileRequest):
+def update_profile_details(username: str, req: UpdateProfileRequest, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé à ce profil")
+
     with engine.connect() as conn:
         # 1. Vérifier si l'utilisateur existe
         check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
-        user_exists = conn.execute(check_query, {"username": username}).fetchone()
+        user_exists = conn.execute(check_query, {"username": current_user}).fetchone()
         
         if not user_exists:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
@@ -537,7 +599,7 @@ def update_profile_details(username: str, req: UpdateProfileRequest):
         conn.execute(update_query, {
             "name": req.name,
             "email": req.email,
-            "username": username
+            "username": current_user
         })
         conn.commit()
         
@@ -556,9 +618,14 @@ class CompteConfig(BaseModel):
     powens_name: Optional[str] = None
 
 
+# --- ROUTE : RÉCUPÉRER LA CONFIGURATION DES COMPTES ---
 @app.get("/config-comptes/{username}")
-def get_config_comptes(username: str):
-    u_clean = username.strip().lower()
+def get_config_comptes(username: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    u_clean = current_user.strip().lower()
     query = text("SELECT * FROM configuration WHERE LOWER(utilisateur) = :u")
     with engine.connect() as conn:
         result = conn.execute(query, {"u": u_clean})
@@ -570,8 +637,10 @@ def get_config_comptes(username: str):
 
 
 # 🟢 CRÉATION : Chiffre l'IBAN avant insertion en base
+# --- ROUTE : AJOUTER UN COMPTE ---
 @app.post("/config-comptes")
-def add_compte(c: CompteConfig):
+def add_compte(c: CompteConfig, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT : on force l'insertion sous l'utilisateur authentifié
     encrypted_link = encrypt_iban(c.powens_name) if c.powens_name else None
     query = text("""
         INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux, powens_name) 
@@ -580,16 +649,16 @@ def add_compte(c: CompteConfig):
     with engine.connect() as conn:
         conn.execute(query, {
             "c": c.compte, "g": c.groupe, "s": c.solde, 
-            "o": c.objectif, "col": c.couleur, "u": c.utilisateur.lower(),
+            "o": c.objectif, "col": c.couleur, "u": current_user,
             "t": c.taux, "p": encrypted_link
         })
         conn.commit()
     return {"status": "success"}
 
 
-# 🟢 MODIFICATION : Chiffre l'IBAN lors de la mise à jour (onBlur dans Kleea)
+# --- ROUTE : METTRE À JOUR UN COMPTE ---
 @app.put("/config-comptes/{compte_name}")
-def update_compte(compte_name: str, c: CompteConfig):
+def update_compte(compte_name: str, c: CompteConfig, current_user: str = Depends(get_current_user)):
     name_clean = compte_name.strip()
     encrypted_link = encrypt_iban(c.powens_name) if c.powens_name else None
     query = text("""
@@ -601,19 +670,23 @@ def update_compte(compte_name: str, c: CompteConfig):
         result = conn.execute(query, {
             "g": c.groupe, "s": c.solde, "o": c.objectif, "col": c.couleur, "t": c.taux,
             "p": encrypted_link,
-            "c": name_clean, "u": c.utilisateur.lower()
+            "c": name_clean, "u": current_user
         })
         conn.commit()
     return {"status": "updated", "rows_affected": result.rowcount}
 
+# --- ROUTE : SUPPRIMER UN COMPTE ---
 @app.delete("/config-comptes/{compte_name}/{username}")
-def delete_compte(compte_name: str, username: str):
+def delete_compte(compte_name: str, username: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     query = text("DELETE FROM configuration WHERE compte = :c AND LOWER(utilisateur) = :u")
     with engine.connect() as conn:
-        conn.execute(query, {"c": compte_name, "u": username.lower()})
+        conn.execute(query, {"c": compte_name, "u": current_user})
         conn.commit()
     return {"status": "deleted"}
-# Dans main.py
 
 class ThemeConfig(BaseModel):
     utilisateur: str
@@ -657,40 +730,41 @@ def save_theme(t: ThemeConfig):
 
 
 
+# --- 1. BLOC-NOTES ---
 @app.get("/note/{username}")
-def get_note(username: str):
+def get_note(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     query = text("SELECT texte FROM notes WHERE LOWER(utilisateur) = :u")
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": username.lower()}).fetchone()
+        res = conn.execute(query, {"u": current_user}).fetchone()
     return {"texte": res[0] if res else ""}
 
 @app.post("/note")
-def save_note(data: dict):
-    # On utilise un "INSERT OR REPLACE" ou un DELETE/INSERT pour n'avoir qu'une note
-    u = data['utilisateur'].lower()
-    t = data['texte']
+def save_note(data: dict, current_user: str = Depends(get_current_user)):
+    t = data.get('texte', '')
     with engine.connect() as conn:
-        conn.execute(text("DELETE FROM notes WHERE utilisateur = :u"), {"u": u})
-        conn.execute(text("INSERT INTO notes (utilisateur, texte) VALUES (:u, :t)"), {"u": u, "t": t})
+        conn.execute(text("DELETE FROM notes WHERE LOWER(utilisateur) = :u"), {"u": current_user})
+        conn.execute(text("INSERT INTO notes (utilisateur, texte) VALUES (:u, :t)"), {"u": current_user, "t": t})
         conn.commit()
     return {"status": "success"}
 
+
+# --- 2. PÉRIODES DASHBOARD ---
 @app.get("/dashboard/periodes/{username}")
-def get_periodes(username: str):
-    # On sélectionne directement tes colonnes existantes
+def get_periodes(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     query = text("""
-        SELECT DISTINCT 
-            année as annee, 
-            mois 
+        SELECT DISTINCT annee, mois 
         FROM transactions 
         WHERE LOWER(utilisateur) = :u
-        ORDER BY année DESC
+        ORDER BY annee DESC
     """)
     with engine.connect() as conn:
-        # On utilise pandas pour lire le résultat
-        df = pd.read_sql(query, conn, params={"u": username.lower()})
-    
-    # On transforme le DataFrame en liste de dictionnaires
+        df = pd.read_sql(query, conn, params={"u": current_user})
     return df.to_dict(orient="records")
 
 
@@ -749,31 +823,32 @@ class Projet(BaseModel):
     date_debut: Optional[str] = None  # Format "YYYY-MM-DD" (ou "YYYY-MM")
     utiliser_capa_stricte: Optional[bool] = False
 
+# --- 1. PROJETS FUTURS ---
 @app.get("/get-projets/{profil}")
-def get_projets(profil: str):
-    query = text("SELECT * FROM projets WHERE LOWER(profil) = :p ORDER BY date ASC")
+def get_projets(profil: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Filtre par profil ET par utilisateur connecté
+    query = text("SELECT * FROM projets WHERE LOWER(profil) = :p AND LOWER(utilisateur) = :u ORDER BY date ASC")
     with engine.connect() as conn:
-        res = conn.execute(query, {"p": profil.lower()}).mappings().all()
+        res = conn.execute(query, {"p": profil.lower(), "u": current_user}).mappings().all()
         return [dict(r) for r in res]
 
 @app.post("/save-projet")
-def save_projet(p: Projet):
+def save_projet(p: Projet, current_user: str = Depends(get_current_user)):
     date_start = p.date_debut if p.date_debut else str(date.today())
-
     query = text("""
         INSERT INTO projets (utilisateur, profil, nom, cout, date, capa, date_debut, utiliser_capa_stricte)
         VALUES (:u, :pr, :n, :co, :d, :ca, :dd, :ucs)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
-            "u": p.utilisateur.lower(), 
+            "u": current_user, 
             "pr": p.profil, 
             "n": p.nom, 
             "co": p.cout, 
             "d": p.date, 
             "ca": p.capa,
             "dd": date_start,
-            "ucs": p.utiliser_capa_stricte or False  # 👈 Paramètre envoyé
+            "ucs": p.utiliser_capa_stricte or False
         })
         conn.commit()
     return {"status": "success"}
@@ -802,10 +877,10 @@ def update_projet(p: Projet, old_name: str):
     return {"status": "success"}
 
 @app.delete("/delete-projet/{nom}/{profil}")
-def delete_projet(nom: str, profil: str):
-    query = text("DELETE FROM projets WHERE nom = :n AND profil = :p")
+def delete_projet(nom: str, profil: str, current_user: str = Depends(get_current_user)):
+    query = text("DELETE FROM projets WHERE nom = :n AND profil = :p AND LOWER(utilisateur) = :u")
     with engine.connect() as conn:
-        conn.execute(query, {"n": nom, "p": profil})
+        conn.execute(query, {"n": nom, "p": profil, "u": current_user})
         conn.commit()
     return {"status": "deleted"}
 
@@ -814,34 +889,33 @@ def delete_projet(nom: str, profil: str):
 class Budget(BaseModel):
     utilisateur: str
     mois: str
-    annee: int = Field(default_factory=lambda: date.today().year) # Détecte l'année actuelle par défaut (ex: 2026)
+    annee: int = Field(default_factory=lambda: date.today().year) # Détecte l'annee actuelle par défaut (ex: 2026)
     compte: str
     type: str = "Categorie"
     nom: str
     somme: float
 
 
+# --- 1. BUDGETS ---
 @app.get("/get-budgets/{utilisateur}")
 @app.get("/get-budgets/{utilisateur}/{mois}")
-def get_budgets(utilisateur: str, mois: Optional[str] = None):
-    # Si 'mois' est fourni, on filtre par mois ET par année en cours
+def get_budgets(utilisateur: str, mois: Optional[str] = None, current_user: str = Depends(get_current_user)):
+    if utilisateur.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     if mois:
         query = text("""
             SELECT * FROM budgets 
             WHERE LOWER(utilisateur) = :u AND mois = :m AND "annee" = :a
         """)
-        params = {
-            "u": utilisateur.lower(), 
-            "m": mois, 
-            "a": date.today().year  # Filtre par défaut sur l'année en cours
-        }
+        params = {"u": current_user, "m": mois, "a": date.today().year}
     else:
         query = text("""
             SELECT * FROM budgets 
             WHERE LOWER(utilisateur) = :u
             ORDER BY "annee" DESC, mois DESC
         """)
-        params = {"u": utilisateur.lower()}
+        params = {"u": current_user}
 
     with engine.connect() as conn:
         res = conn.execute(query, params).mappings().all()
@@ -849,17 +923,16 @@ def get_budgets(utilisateur: str, mois: Optional[str] = None):
 
 
 @app.post("/save-budget")
-def save_budget(b: Budget):
-    
+def save_budget(b: Budget, current_user: str = Depends(get_current_user)):
     query = text("""
         INSERT INTO budgets (utilisateur, mois, annee, compte, type, nom, somme)
         VALUES (:u, :m, :a, :c, :t, :n, :s)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
-            "u": b.utilisateur.lower(),
+            "u": current_user,
             "m": b.mois,
-            "a": b.annee, # Utilise l'année détectée ou reçue
+            "a": b.annee,
             "c": b.compte,
             "t": b.type,
             "n": b.nom,
@@ -871,7 +944,7 @@ def save_budget(b: Budget):
 
 @app.post("/update-budget")
 def update_budget(b: Budget, old_name: str):
-    #   SÉCURISATION : On filtre aussi par année pour l'UPDATE
+    #   SÉCURISATION : On filtre aussi par annee pour l'UPDATE
     query = text("""
         UPDATE budgets 
         SET nom = :new_n, somme = :s, compte = :c
@@ -891,20 +964,17 @@ def update_budget(b: Budget, old_name: str):
     return {"status": "success"}
 
 
-#   AJOUT DE L'ANNÉE DANS L'URL POUR LE DELETE
 @app.delete("/delete-budget/{nom}/{utilisateur}/{mois}/{annee}")
-def delete_budget(nom: str, utilisateur: str, mois: str, annee: int):
+def delete_budget(nom: str, utilisateur: str, mois: str, annee: int, current_user: str = Depends(get_current_user)):
+    if utilisateur.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     query = text("""
         DELETE FROM budgets 
-        WHERE nom = :n AND utilisateur = :u AND mois = :m AND annee = :a
+        WHERE nom = :n AND LOWER(utilisateur) = :u AND mois = :m AND annee = :a
     """)
     with engine.connect() as conn:
-        conn.execute(query, {
-            "n": nom, 
-            "u": utilisateur.lower(), 
-            "m": mois,
-            "a": annee
-        })
+        conn.execute(query, {"n": nom, "u": current_user, "m": mois, "a": annee})
         conn.commit()
     return {"status": "deleted"}
 
@@ -933,28 +1003,22 @@ class CategorieUpdate(BaseModel):
     couleur: Optional[str] = "#818cf8"
     utilisateur: str
 
-# 2. Création : insère bien 'couleur' dans la table
 @app.post("/api/categories")
-def add_category(cat: CategorieCreate):
-    try:
-        clean_name = cat.nom.strip()
-        clean_icon = cat.icone if cat.icone else "Tag"
-        clean_color = cat.couleur if cat.couleur else "#818cf8"
-        clean_user = cat.utilisateur.lower()
+def add_category(cat: CategorieCreate, current_user: str = Depends(get_current_user)):
+    clean_name = cat.nom.strip()
+    clean_icon = cat.icone if cat.icone else "Tag"
+    clean_color = cat.couleur if cat.couleur else "#818cf8"
 
-        with engine.begin() as conn:
-            conn.execute(
-                text("DELETE FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"), 
-                {"u": clean_user, "n": clean_name}
-            )
-            conn.execute(
-                text("INSERT INTO categories (nom, icone, couleur, utilisateur) VALUES (:n, :i, :c, :u)"),
-                {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
-            )
-        return {"status": "success"}
-    except Exception as e:
-        print(f"❌ Erreur add_category: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"), 
+            {"u": current_user, "n": clean_name}
+        )
+        conn.execute(
+            text("INSERT INTO categories (nom, icone, couleur, utilisateur) VALUES (:n, :i, :c, :u)"),
+            {"n": clean_name, "i": clean_icon, "c": clean_color, "u": current_user}
+        )
+    return {"status": "success"}
 
 # 3. Modification : met à jour icone ET couleur
 @app.put("/api/categories")
@@ -990,104 +1054,73 @@ def update_category(cat: CategorieUpdate):
         print(f"❌ Erreur update_category: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- 1. CATÉGORIES & MASQUAGES ---
 @app.get("/api/categories/{user}")
-def get_categories(user: str):
-    try:
-        user_clean = user.strip().lower()
-        
-        with engine.connect() as conn:
-            try:
-                # 🟢 On lit aussi la colonne 'groupe'
-                query_perso = text("SELECT nom, icone, couleur, groupe FROM categories WHERE LOWER(utilisateur) = :u")
-                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
-                categories_perso = [row[0] for row in result_perso]
-                icons_map = {row[0]: row[1] for row in result_perso if row[1] and str(row[1]).strip().lower() != 'tag'}
-                colors_map = {row[0]: (row[2] or "#818cf8") for row in result_perso if len(row) > 2 and row[2]}
-                groups_map = {row[0]: (row[3] or "Général") for row in result_perso if len(row) > 3}
-            except Exception as e_sql:
-                print(f"⚠️ Fallback SELECT categories: {e_sql}")
-                query_perso = text("SELECT nom, icone FROM categories WHERE LOWER(utilisateur) = :u")
-                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
-                categories_perso = [row[0] for row in result_perso]
-                icons_map = {}
-                colors_map = {}
-                groups_map = {}
+def get_categories(user: str, current_user: str = Depends(get_current_user)):
+    if user.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-            # Récupération des comptes (inchangé)
-            query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
-            result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
-            comptes_noms = [row[0] for row in result_comptes]
-        
-        types_detectes = set()
-        types_possibles = ["CCP", "LIVRET A", "LEP", "LDDS", "PEL", "AUTRE"]
-        for nom in comptes_noms:
-            nom_upper = nom.upper()
-            for t in types_possibles:
-                if t in nom_upper:
-                    types_detectes.add(t)
-                    break
+    user_clean = current_user.strip().lower()
+    with engine.connect() as conn:
+        try:
+            query_perso = text("SELECT nom, icone, couleur, groupe FROM categories WHERE LOWER(utilisateur) = :u")
+            result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+            categories_perso = [row[0] for row in result_perso]
+            icons_map = {row[0]: row[1] for row in result_perso if row[1] and str(row[1]).strip().lower() != 'tag'}
+            colors_map = {row[0]: (row[2] or "#818cf8") for row in result_perso if len(row) > 2 and row[2]}
+            groups_map = {row[0]: (row[3] or "Général") for row in result_perso if len(row) > 3}
+        except Exception:
+            query_perso = text("SELECT nom, icone FROM categories WHERE LOWER(utilisateur) = :u")
+            result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
+            categories_perso = [row[0] for row in result_perso]
+            icons_map = {}
+            colors_map = {}
+            groups_map = {}
 
-        virements_dynamiques = []
-        liste_types = sorted(list(types_detectes))
-        for i in range(len(liste_types)):
-            for j in range(i + 1, len(liste_types)):
-                virements_dynamiques.append(f"Virement : {liste_types[i]} vers {liste_types[j]}")
-                virements_dynamiques.append(f"Virement : {liste_types[j]} vers {liste_types[i]}")
+        query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
+        result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
+        comptes_noms = [row[0] for row in result_comptes]
+    
+    types_detectes = set()
+    for nom in comptes_noms:
+        nom_upper = nom.upper()
+        for t in ["CCP", "LIVRET A", "LEP", "LDDS", "PEL", "AUTRE"]:
+            if t in nom_upper:
+                types_detectes.add(t)
+                break
 
-        base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("Virement :")]
+    virements_dynamiques = []
+    liste_types = sorted(list(types_detectes))
+    for i in range(len(liste_types)):
+        for j in range(i + 1, len(liste_types)):
+            virements_dynamiques.append(f"Virement : {liste_types[i]} vers {liste_types[j]}")
+            virements_dynamiques.append(f"Virement : {liste_types[j]} vers {liste_types[i]}")
 
-        if "Autre" in base_categories:
-            idx = base_categories.index("Autre")
-            defaults_finales = base_categories[:idx] + virements_dynamiques + base_categories[idx:]
-        else:
-            defaults_finales = base_categories + virements_dynamiques
+    base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("Virement :")]
+    defaults_finales = base_categories + virements_dynamiques
+    toutes_les_categories = sorted(list(set(defaults_finales + categories_perso)))
 
-        toutes_les_categories = sorted(list(set(defaults_finales + categories_perso)))
-
-        return {
-            "defaults": sorted(defaults_finales),
-            "perso": sorted(categories_perso),
-            "all": toutes_les_categories,
-            "icons_map": icons_map,
-            "colors_map": colors_map,
-            "groups_map": groups_map  # 👈 Renvoie la carte des groupes personnalisés
-        }
-        
-    except Exception as e:
-        print(f"Erreur get_categories: {e}")
-        return {
-            "defaults": sorted(CATEGORIES_DEFAUT),
-            "perso": [],
-            "all": sorted(CATEGORIES_DEFAUT),
-            "icons_map": {},
-            "colors_map": {},
-            "groups_map": {}
-        }
+    return {
+        "defaults": sorted(defaults_finales),
+        "perso": sorted(categories_perso),
+        "all": toutes_les_categories,
+        "icons_map": icons_map,
+        "colors_map": colors_map,
+        "groups_map": groups_map
+    }
 
 @app.delete("/api/categories/{user}/{nom}")
-def delete_category(user: str, nom: str):
-    # unquote permet de transformer "🍕%20Resto" en "🍕 Resto" proprement
+def delete_category(user: str, nom: str, current_user: str = Depends(get_current_user)):
+    if user.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     nom_decode = unquote(nom)
-    
-    print(f"--- Tentative de suppression : '{nom_decode}' pour {user} ---")
-    
-    query = text("DELETE FROM categories WHERE utilisateur = :u AND nom = :n")
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"u": user, "n": nom_decode})
-            conn.commit()
-            
-            # rowcount dit combien de lignes ont été supprimées
-            if result.rowcount == 0:
-                print("❌ Aucune correspondance trouvée en base.")
-                return {"status": "not_found", "message": "Catégorie non trouvée"}
-            
-            print("✅ Suppression réussie en base.")
-            return {"status": "success"}
-            
-    except Exception as e:
-        print(f"🔥 Erreur SQL : {e}")
-        return {"status": "error", "message": str(e)}
+    query = text("DELETE FROM categories WHERE LOWER(utilisateur) = :u AND nom = :n")
+    with engine.connect() as conn:
+        conn.execute(query, {"u": current_user, "n": nom_decode})
+        conn.commit()
+    return {"status": "success"}
+
     
 class CategorieAssignGroup(BaseModel):
     nom: str
@@ -1151,7 +1184,7 @@ class Memoire(BaseModel):
     utilisateur: str
 
 @app.post("/memoire")
-def add_to_memory(m: dict): # Ou utilise un modèle Pydantic
+def add_to_memory(m: dict, current_user: str = Depends(get_current_user)):
     query = text("""
         INSERT INTO memoire (utilisateur, nom, categorie)
         VALUES (:u, :n, :c)
@@ -1159,77 +1192,59 @@ def add_to_memory(m: dict): # Ou utilise un modèle Pydantic
         DO UPDATE SET categorie = EXCLUDED.categorie
     """)
     with engine.connect() as conn:
-        conn.execute(query, {"u": m['utilisateur'], "n": m['nom'], "c": m['categorie']})
+        conn.execute(query, {"u": current_user, "n": m['nom'], "c": m['categorie']})
         conn.commit()
     return {"status": "success"}
 
 @app.get("/memoire/{username}")
-def get_memoire(username: str):
-    # On récupère les noms et catégories, triés par longueur de nom décroissante
-    # (pour que "UBER EATS" soit testé avant "UBER")
-    query = text("""
-        SELECT nom, categorie FROM memoire 
-        WHERE utilisateur = :u 
-        ORDER BY LENGTH(nom) DESC
-    """)
+def get_memoire(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    query = text("SELECT nom, categorie FROM memoire WHERE LOWER(utilisateur) = :u ORDER BY LENGTH(nom) DESC")
     with engine.connect() as conn:
-        result = conn.execute(query, {"u": username.lower()}).fetchall()
-        # On renvoie une liste de règles
+        result = conn.execute(query, {"u": current_user}).fetchall()
         return [{"nom": row[0], "categorie": row[1]} for row in result]
 
 
 
 @app.delete("/memoire/{username}/{nom}")
-def delete_from_memory(username: str, nom: str):
-    query = text("""
-        DELETE FROM memoire 
-        WHERE LOWER(utilisateur) = :u AND LOWER(nom) = :n
-    """)
+def delete_from_memory(username: str, nom: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    query = text("DELETE FROM memoire WHERE LOWER(utilisateur) = :u AND LOWER(nom) = :n")
     with engine.connect() as conn:
-        result = conn.execute(query, {"u": username.lower(), "n": nom.lower()})
+        conn.execute(query, {"u": current_user, "n": nom.lower()})
         conn.commit()
-        
-    return {"status": "success", "message": "Élément supprimé de la mémoire"}
+    return {"status": "success"}
 
 
-# --- RÉCUPÉRER LES CATÉGORIES MASQUÉES ---
 @app.get("/api/categories_masquees/{user}")
-def get_masked_categories(user: str):
-    clean_user = user.strip().lower()
-    try:
-        query = text("SELECT nom FROM categories_masquees WHERE LOWER(utilisateur) = :u")
-        with engine.connect() as conn:
-            result = conn.execute(query, {"u": clean_user}).fetchall()
-            return [row[0] for row in result]
-    except Exception as e:
-        print(f"⚠️ Erreur get_masked_categories: {e}")
-        return []
+def get_masked_categories(user: str, current_user: str = Depends(get_current_user)):
+    if user.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    query = text("SELECT nom FROM categories_masquees WHERE LOWER(utilisateur) = :u")
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": current_user}).fetchall()
+        return [row[0] for row in result]
 
 # --- SAUVEGARDER LES PRÉFÉRENCES MASQUÉES ---
 @app.post("/api/categories_masquees/{user}")
-def save_masked_categories(user: str, categories: List[str] = Body(default=[])):
-    clean_user = user.strip().lower()
-    try:
-        with engine.begin() as conn:
-            # 1. On nettoie les anciennes préférences de l'utilisateur
-            conn.execute(
-                text("DELETE FROM categories_masquees WHERE LOWER(utilisateur) = :u"), 
-                {"u": clean_user}
-            )
-            
-            # 2. On réinsère les nouvelles
-            if categories and isinstance(categories, list):
-                for cat in categories:
-                    if cat and str(cat).strip():
-                        conn.execute(
-                            text("INSERT INTO categories_masquees (nom, utilisateur) VALUES (:n, :u)"),
-                            {"n": str(cat).strip(), "u": clean_user}
-                        )
-        return {"status": "success"}
-    except Exception as e:
-        print("❌ [CRASH SQL save_masked_categories] Détails de l'erreur :")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+def save_masked_categories(user: str, categories: List[str] = Body(default=[]), current_user: str = Depends(get_current_user)):
+    if user.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM categories_masquees WHERE LOWER(utilisateur) = :u"), {"u": current_user})
+        for cat in categories:
+            if cat and str(cat).strip():
+                conn.execute(
+                    text("INSERT INTO categories_masquees (nom, utilisateur) VALUES (:n, :u)"),
+                    {"n": str(cat).strip(), "u": current_user}
+                )
+    return {"status": "success"}
 
 
 
@@ -1342,7 +1357,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 
                 # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
                 if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
-                    # Détection automatique du livret cible dans le libellé brut de la banque
+                    # Détection automatique du livret cible dans le libelle brut de la banque
                     types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
                     type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
                     
@@ -1430,7 +1445,7 @@ def add_transactions_batch(transactions: List[Transaction]):
             # On utilise .begin() individuellement pour valider (COMMIT) chaque ligne réussie
             with engine.begin() as conn:
                 query = text("""
-                    INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte) 
+                    INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte) 
                     VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
                 """)
                 
@@ -1591,31 +1606,27 @@ def get_categories_config(utilisateur: str = None):
         print(f"❌ Erreur get_categories_config: {e}")
         return []
 
+# --- 2. PRÉVISIONS ---
 @app.get("/previsions/{utilisateur}/{mois}/{annee}")
-def get_previsions_filtrees(utilisateur: str, mois: str, annee: int):
-    # 💡 1. AJOUT DE LA COLONNE 'actif' DANS LE SELECT
-    sql_base = "SELECT id, date, nom, montant, categorie, compte, mois, année as annee, actif FROM previsions WHERE utilisateur = :u AND année = :a"
-    params = {"u": utilisateur, "a": annee}
+def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_user: str = Depends(get_current_user)):
+    if utilisateur.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    # CONDITION : Si mois n'est pas "ALL", on ajoute le filtre mois
+    sql_base = "SELECT id, date, nom, montant, categorie, compte, mois, annee, actif FROM previsions WHERE LOWER(utilisateur) = :u AND annee = :a"
+    params = {"u": current_user, "a": annee}
+
     if mois != "ALL":
         sql_base += " AND mois = :m"
         params["m"] = mois
 
     query = text(sql_base + " ORDER BY date ASC")
-    
     try:
         with engine.connect() as conn:
             result = conn.execute(query, params).fetchall()
-            
             previsions = []
             for row in result:
                 r = row._mapping
-                
-                # 💡 2. SÉCURITÉ POUR LES ANCIENNES LIGNES : 
-                # Si 'actif' est NULL (None) ou absent, on le force à True par défaut
                 est_actif = r["actif"] if r["actif"] is not None else True
-                
                 previsions.append({
                     "id": r["id"],
                     "date": r["date"].isoformat() if r["date"] else None,
@@ -1625,7 +1636,7 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int):
                     "compte": r["compte"],
                     "mois": r["mois"],
                     "annee": int(r["annee"]),
-                    "actif": est_actif  # 💡 3. AJOUT DU CHAMP DANS LA RÉPONSE JSON
+                    "actif": est_actif
                 })
             return previsions
     except Exception as e:
@@ -1657,27 +1668,25 @@ class PrevisionIn(BaseModel):
         return v
 
 @app.post("/previsions")
-def add_prevision(p: PrevisionIn):
-    # 🧼 NETTOYAGE DU NOM : Si le front envoie déjà "[PRÉVI]" ou "[PREVI]", on le retire 
-    # pour éviter les doublons avant d'ajouter le tag propre standardisé.
+def add_prevision(p: PrevisionIn, current_user: str = Depends(get_current_user)):
     nom_nettoye = re.sub(r'^\[PRÉVI\]\s*|^\[PREVI\]\s*', '', p.nom, flags=re.IGNORECASE)
     nom_final = f"[PRÉVI] {nom_nettoye}"
 
     query = text("""
-        INSERT INTO previsions (date, nom, montant, categorie, compte, mois, année, utilisateur,actif)
-        VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u,:actif)
+        INSERT INTO previsions (date, nom, montant, categorie, compte, mois, annee, utilisateur, actif)
+        VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u, :actif)
     """)
     try:
         with engine.connect() as conn:
             conn.execute(query, {
                 "d": p.date, 
-                "n": nom_final,        # Enregistre "[PRÉVI] Mon Titre" proprement
+                "n": nom_final,
                 "m": p.montant, 
                 "c": p.categorie, 
                 "compte": p.compte, 
-                "mois": p.mois,         # Sera "Aout" (nettoyé par le validator Pydantic)
+                "mois": p.mois,
                 "annee": p.annee, 
-                "u": p.utilisateur,
+                "u": current_user,
                 "actif": p.actif
             })
             conn.commit()
@@ -1693,10 +1702,6 @@ def update_prevision(prev_id: int, data: dict):
     try:
         if not data:
             return {"status": "error", "message": "No data provided"}
-
-        # 1. Gestion de l'accent sur 'année' si nécessaire
-        if "annee" in data:
-            data["année"] = data.pop("annee")
             
         # 2. 🛡️ SÉCURITÉ DU MOIS : Nettoyage automatique des accents si le mois change
         if "mois" in data and data["mois"]:
@@ -1730,11 +1735,12 @@ def update_prevision(prev_id: int, data: dict):
     
     
 @app.delete("/previsions/{prev_id}")
-def delete_prevision(prev_id: int):
-    query = text("DELETE FROM previsions WHERE id = :id")
+def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité : ne supprime que si la prévision appartient à l'utilisateur connecté
+    query = text("DELETE FROM previsions WHERE id = :id AND LOWER(utilisateur) = :u")
     try:
         with engine.connect() as conn:
-            conn.execute(query, {"id": prev_id})
+            conn.execute(query, {"id": prev_id, "u": current_user})
             conn.commit()
         return {"status": "success"}
     except Exception as e:
@@ -1749,51 +1755,40 @@ class Allocation(BaseModel):
     montant_alloue: float
 
 
+# --- 2. ENVELOPPES D'ALLOCATIONS ---
 @app.get("/get-allocations/{profil_id}")
-def get_allocations(profil_id: str): # Change int en str ici
-    # On s'assure de chercher la valeur telle qu'elle est stockée
-    query = text("SELECT * FROM allocations WHERE profil = :p ORDER BY date_allocation DESC")
-    try:
-        with engine.connect() as conn:
-            res = conn.execute(query, {"p": str(profil_id)}).mappings().all()
-            return [dict(r) for r in res]
-    except Exception as e:
-        print(f"Erreur SQL Get Allocations: {e}")
-        return []
+def get_allocations(profil_id: str, current_user: str = Depends(get_current_user)):
+    query = text("SELECT * FROM allocations WHERE profil = :p AND LOWER(utilisateur) = :u ORDER BY date_allocation DESC")
+    with engine.connect() as conn:
+        res = conn.execute(query, {"p": str(profil_id), "u": current_user}).mappings().all()
+        return [dict(r) for r in res]
 
 # --- ENREGISTRER UNE NOUVELLE ALLOCATION ---
 @app.post("/save-allocation")
-def save_allocation(a: Allocation):
+def save_allocation(a: Allocation, current_user: str = Depends(get_current_user)):
     query = text("""
         INSERT INTO allocations (utilisateur, profil, projet, montant_alloue)
         VALUES (:u, :pr, :pj, :m)
     """)
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {
-                "u": a.utilisateur,
-                "pr": a.profil,
-                "pj": a.projet,
-                "m": a.montant_alloue
-            })
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        print(f"Erreur SQL Save Allocation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.connect() as conn:
+        conn.execute(query, {
+            "u": current_user,
+            "pr": a.profil,
+            "pj": a.projet,
+            "m": a.montant_alloue
+        })
+        conn.commit()
+    return {"status": "success"}
 
 
 # --- SUPPRIMER TOUTE L'ENVELOPPE ---
 @app.delete("/delete-enveloppe/{projet_nom}")
-def delete_enveloppe(projet_nom: str, profil: str):
-    query = text("DELETE FROM allocations WHERE projet = :pj AND profil = :pr")
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {"pj": projet_nom, "pr": profil})
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def delete_enveloppe(projet_nom: str, profil: str, current_user: str = Depends(get_current_user)):
+    query = text("DELETE FROM allocations WHERE projet = :pj AND profil = :pr AND LOWER(utilisateur) = :u")
+    with engine.connect() as conn:
+        conn.execute(query, {"pj": projet_nom, "pr": profil, "u": current_user})
+        conn.commit()
+    return {"status": "success"}
 
 # --- MODIFIER LE MONTANT GLOBAL (Met à jour la 1ère ligne trouvée ou recalcule) ---
 @app.put("/update-enveloppe-montant")
@@ -1862,7 +1857,7 @@ def calculer_balances(transactions):
     participants = set()
 
     for t in transactions:
-        payeur = str(t.get('paye_par') or t.get('payé_par') or '').strip()
+        payeur = str(t.get('paye_par') or t.get('paye_par') or '').strip()
         montant_total = float(t.get('montant') or 0)
         if not payeur or payeur == "Système" or montant_total <= 0:
             continue
@@ -1953,7 +1948,7 @@ def save_tricount(t: TricountTransaction):
     token_final = t.token_partage or token_existant
 
     query = text("""
-        INSERT INTO tricount (date, libellé, payé_par, pour_qui, montant, utilisateur, groupe, emoji, token_partage)
+        INSERT INTO tricount (date, libelle, paye_par, pour_qui, montant, utilisateur, groupe, emoji, token_partage)
         VALUES (:d, :l, :p, :pq, :m, :u, :g, :e, :token)
     """)
     with engine.begin() as conn:
@@ -1968,7 +1963,7 @@ def get_groups(username: str):
     # On récupère les groupes et on essaie de construire une map Nom -> Emoji
     # en regardant les transactions passées
     query = text("""
-        SELECT groupe, payé_par, emoji 
+        SELECT groupe, paye_par, emoji 
         FROM tricount 
         WHERE utilisateur = :u 
         AND emoji IS NOT NULL
@@ -1981,7 +1976,7 @@ def get_groups(username: str):
         emojis_par_groupe = {}
         for r in res:
             g = r['groupe']
-            p = r['payé_par']
+            p = r['paye_par']
             e = r['emoji']
             if g not in emojis_par_groupe:
                 emojis_par_groupe[g] = {}
@@ -2253,7 +2248,7 @@ def get_shared_tricount(token: str):
         # Compiler les émojis des membres existants
         emojis_par_membre = {}
         for t in transactions:
-            p = t.get('paye_par') or t.get('payé_par')
+            p = t.get('paye_par') or t.get('paye_par')
             e = t.get('emoji')
             if p and e:
                 emojis_par_membre[p] = e
@@ -2293,7 +2288,7 @@ def save_shared_transaction(token: str, t: SharedTransactionRequest):
         group_name = context["groupe"]
 
     query_insert = text("""
-        INSERT INTO tricount (date, libellé, payé_par, pour_qui, montant, utilisateur, groupe, token_partage, emoji)
+        INSERT INTO tricount (date, libelle, paye_par, pour_qui, montant, utilisateur, groupe, token_partage, emoji)
         VALUES (:d, :l, :p, :pq, :m, :u, :g, :token, :e)
     """)
     with engine.begin() as conn:
@@ -2323,7 +2318,7 @@ def update_shared_transaction(token: str, t: SharedTransactionUpdate):
 
     query_update = text("""
         UPDATE tricount 
-        SET date = :d, libellé = :l, payé_par = :p, pour_qui = :pq, montant = :m
+        SET date = :d, libelle = :l, paye_par = :p, pour_qui = :pq, montant = :m
         WHERE id = :id
     """)
     with engine.begin() as conn:
@@ -2487,7 +2482,7 @@ def delete_transaction(transaction_id: int):
 def update_transaction(t: UpdateTransactionRequest):
     query = text("""
         UPDATE tricount 
-        SET date = :d, libellé = :l, payé_par = :p, pour_qui = :pq, montant = :m
+        SET date = :d, libelle = :l, paye_par = :p, pour_qui = :pq, montant = :m
         WHERE id = :id
     """)
     try:
@@ -2506,7 +2501,7 @@ def update_member_emoji(data: dict):
     query = text("""
         UPDATE tricount 
         SET emoji = :e 
-        WHERE utilisateur = :u AND groupe = :g AND payé_par = :m
+        WHERE utilisateur = :u AND groupe = :g AND paye_par = :m
     """)
     
     try:
@@ -2569,7 +2564,7 @@ def get_shared_tricount(token: str):
 @app.get("/get-members/{username}/{group_name}")
 def get_members(username: str, group_name: str):
     query = text("""
-        SELECT payé_par, pour_qui 
+        SELECT paye_par, pour_qui 
         FROM tricount 
         WHERE utilisateur = :u AND groupe = :g
     """)
@@ -2580,8 +2575,8 @@ def get_members(username: str, group_name: str):
         membres = set()
         for r in res:
             # 1. On ajoute le payeur
-            if r['payé_par']:
-                membres.add(r['payé_par'].strip())
+            if r['paye_par']:
+                membres.add(r['paye_par'].strip())
             
             # 2. On extrait les gens dans 'pour_qui'
             # Format attendu : "Theo:10,Marie:5" ou "Theo,Marie"
@@ -3012,21 +3007,17 @@ def add_or_update_simulation_line(line: SimulationLineCreate):
         print(f"❌ Erreur lors du POST : {str(e)}")  # Cela s'affichera dans ton terminal FastAPI
         raise HTTPException(status_code=500, detail=f"Erreur base de données : {str(e)}")
 
+# --- 3. DÉMÉNAGEMENT ---
 @app.get("/api/simulation-demenagement/{username}")
-def get_simulation_demenagement(username: str):
-    query = text("""
-        SELECT id, scenario, titre, flux_type, categorie, montant, frequence, cible 
-        FROM simulations_demenagement 
-        WHERE LOWER(utilisateur) = :u
-    """)
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"u": username.lower().strip()})
-            columns = result.keys()
-            # Utilisation d'une compréhension de dictionnaire plus moderne/robuste
-            return [dict(zip(columns, row)) for row in result.fetchall()]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def get_simulation_demenagement(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    query = text("SELECT id, scenario, titre, flux_type, categorie, montant, frequence, cible FROM simulations_demenagement WHERE LOWER(utilisateur) = :u")
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": current_user})
+        columns = result.keys()
+        return [dict(zip(columns, row)) for row in result.fetchall()]
 
 @app.delete("/api/simulation-demenagement/{line_id}")
 def delete_simulation_line(line_id: int):
@@ -3055,11 +3046,11 @@ def delete_scenario(username: str, scenario_name: str):
 
     # 2. Requête SQL tolérante aux espaces et à la casse
     # On applique un LOWER() sur l'utilisateur et un TRIM sur le scénario au cas où
-    query = text("""
-        DELETE FROM simulations_demenagement 
-        WHERE LOWER(utilisateur) = :u 
-          AND (TRIM(scenario) = :sc OR REGEXP_REPLACE(scenario, '[\u00a0\s]+', ' ', 'g') = :sc)
-    """)
+    query = text(r"""
+            DELETE FROM simulations_demenagement 
+            WHERE LOWER(utilisateur) = :u 
+            AND (TRIM(scenario) = :sc OR REGEXP_REPLACE(scenario, '[\u00a0\s]+', ' ', 'g') = :sc)
+        """)
     
     try:
         with engine.begin() as conn:
@@ -3098,52 +3089,27 @@ class NoteUpdate(BaseModel):
     contenu: str
 
 @app.get("/api/notes-demenagement/{username}")
-def get_user_notes(username: str):
+def get_user_notes(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
     query = text("SELECT contenu FROM notes_demenagement WHERE LOWER(utilisateur) = :u")
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"u": username.lower().strip()})
-            row = result.fetchone()
-            # Si l'utilisateur n'a pas encore de note, on renvoie une chaîne vide
-            return {"contenu": row[0] if row else ""}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": current_user})
+        row = result.fetchone()
+        return {"contenu": row[0] if row else ""}
 
 @app.post("/api/notes-demenagement")
-def save_user_notes(note: NoteUpdate):
-    clean_username = note.utilisateur.lower().strip()
+def save_user_notes(note: NoteUpdate, current_user: str = Depends(get_current_user)):
     now_utc = datetime.now(timezone.utc)
-    
-    # 1. On vérifie si l'utilisateur existe déjà
-    check_query = text("SELECT utilisateur FROM notes_demenagement WHERE LOWER(utilisateur) = :u")
-    
-    try:
-        with engine.begin() as conn: # engine.begin() gère le commit automatiquement
-            exists = conn.execute(check_query, {"u": clean_username}).fetchone()
-            
-            if exists:
-                # Mode UPDATE
-                query = text("""
-                    UPDATE notes_demenagement 
-                    SET contenu = :c, mis_a_jour_le = :now 
-                    WHERE LOWER(utilisateur) = :u
-                """)
-            else:
-                # Mode INSERT
-                query = text("""
-                    INSERT INTO notes_demenagement (utilisateur, contenu, mis_a_jour_le) 
-                    VALUES (:u, :c, :now)
-                """)
-                
-            conn.execute(query, {
-                "u": clean_username,
-                "c": note.contenu,
-                "now": now_utc
-            })
-            
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        exists = conn.execute(text("SELECT utilisateur FROM notes_demenagement WHERE LOWER(utilisateur) = :u"), {"u": current_user}).fetchone()
+        if exists:
+            query = text("UPDATE notes_demenagement SET contenu = :c, mis_a_jour_le = :now WHERE LOWER(utilisateur) = :u")
+        else:
+            query = text("INSERT INTO notes_demenagement (utilisateur, contenu, mis_a_jour_le) VALUES (:u, :c, :now)")
+        conn.execute(query, {"u": current_user, "c": note.contenu, "now": now_utc})
+    return {"status": "success"}
 
 
     
@@ -3714,7 +3680,7 @@ def propagate_previsions_year(req: PropagateYearRequest):
                         detail=f"La table de prévisions (previsions ou previsionnel) n'a pas pu être trouvée. Erreur SQL : {str(e_table)}"
                     )
 
-        # 2. AUTO-DÉTECTION DE LA COLONNE DE DÉSIGNATION (nom, libellé ou libelle)
+        # 2. AUTO-DÉTECTION DE LA COLONNE DE DÉSIGNATION (nom, libelle ou libelle)
         column_name = "nom"
         with engine.connect() as conn:
             try:
@@ -3722,8 +3688,8 @@ def propagate_previsions_year(req: PropagateYearRequest):
                 column_name = "nom"
             except Exception:
                 try:
-                    conn.execute(text(f"SELECT libellé FROM {table_name} LIMIT 1"))
-                    column_name = "libellé"
+                    conn.execute(text(f"SELECT libelle FROM {table_name} LIMIT 1"))
+                    column_name = "libelle"
                 except Exception:
                     try:
                         conn.execute(text(f"SELECT libelle FROM {table_name} LIMIT 1"))
@@ -3731,21 +3697,21 @@ def propagate_previsions_year(req: PropagateYearRequest):
                     except Exception as e_col:
                         raise HTTPException(
                             status_code=500, 
-                            detail=f"Impossible d'identifier la colonne de désignation (nom, libellé, libelle) dans la table '{table_name}'. Erreur : {str(e_col)}"
+                            detail=f"Impossible d'identifier la colonne de désignation (nom, libelle, libelle) dans la table '{table_name}'. Erreur : {str(e_col)}"
                         )
 
-        # 3. AUTO-DÉTECTION DE LA COLONNE D'ANNÉE (année ou annee)
-        year_column = "année"
+        # 3. AUTO-DÉTECTION DE LA COLONNE D'annee (annee ou annee)
+        year_column = "annee"
         with engine.connect() as conn:
             try:
-                conn.execute(text(f"SELECT année FROM {table_name} LIMIT 1"))
-                year_column = "année"
+                conn.execute(text(f"SELECT annee FROM {table_name} LIMIT 1"))
+                year_column = "annee"
             except Exception:
                 try:
                     conn.execute(text(f"SELECT annee FROM {table_name} LIMIT 1"))
                     year_column = "annee"
                 except Exception:
-                    year_column = "année"
+                    year_column = "annee"
 
         # 4. RÉCUPÉRATION DES PRÉVISIONS SOURCES
         query_fetch = text(f"""
@@ -3854,7 +3820,7 @@ def clean_text_for_matching(text_val: str) -> str:
 def check_is_duplicate(conn, user: str, date_str: str, montant: float, label: str) -> bool:
     """
     Vérifie si une transaction similaire existe déjà dans une fenêtre de +/- 3 jours
-    avec le même montant exact et un libellé similaire.
+    avec le même montant exact et un libelle similaire.
     """
     tx_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     start_window = tx_date - timedelta(days=3)
@@ -3926,7 +3892,11 @@ def build_powens_account_id_to_kleea_map(powens_accounts: list, config_rows: lis
 
 # 🟢 1. VÉRIFICATION STRICTE DU MOIS EN COURS (ÉLIMINE LES DIZAINES DE MOIS PASSÉS)
 @app.get("/powens/check-sync/{username}")
-def check_sync_status(username: str):
+def check_sync_status(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+
     user_clean = username.lower().strip()
     is_test_user = (user_clean == "test")
 
@@ -4013,7 +3983,7 @@ def check_sync_status(username: str):
         is_in_db_raw = (raw_date, montant, base_nom.upper(), local_account.upper()) in db_existing_set
         is_in_db_notest = (raw_date, montant, libelle_brut.upper(), local_account.upper()) in db_existing_set
 
-        # Vérification intelligente si le libellé avait été légèrement nettoyé lors d'un import précédent
+        # Vérification intelligente si le libelle avait été légèrement nettoyé lors d'un import précédent
         is_duplicate = False
         if not is_in_db and not is_in_db_raw and not is_in_db_notest:
             cleaned_new = clean_text_for_matching(libelle_brut)
@@ -4234,7 +4204,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
 
                     dt = datetime.strptime(raw_date, "%Y-%m-%d")
                     insert_query = text("""
-                        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, année, compte)
+                        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte)
                         VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
                         ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
                         RETURNING id
@@ -4265,7 +4235,9 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
 
 # 🟢 CORRECTIF : ALIGNEMENT DES PARAMÈTRES ET TRACABILITÉ DES RECALCULS
 @app.post("/powens/recalculate-balances/{username}")
-def recalculate_initial_balances(username: str):
+def recalculate_initial_balances(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
     """
     Récupère le solde réel de chaque compte de l'utilisateur sur Powens,
     calcule la somme de toutes les transactions existantes en base sur ce compte,
@@ -4437,13 +4409,12 @@ def clean_powens_duplicates(username: str):
 
 # 🟢 SUPPRESSION TOTALE DU COMPTE ET DES CONNEXIONS CHEZ POWENS + NETTOYAGE BDD
 @app.delete("/powens/disconnect/{username}")
-def disconnect_powens(username: str):
-    """
-    Supprime définitivement l'utilisateur et toutes ses connexions chez Powens (DELETE /users/me),
-    efface le token en base locale (users.powens_token = NULL)
-    et délie les comptes dans configuration (powens_name = NULL).
-    """
-    user_clean = username.lower().strip()
+def disconnect_powens(username: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurité JWT
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    user_clean = current_user
     
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
@@ -4460,19 +4431,16 @@ def disconnect_powens(username: str):
                 domain = domain[:-3] + '/2.0'
                 
             headers = {"Authorization": f"Bearer {user_token}"}
-            # DELETE /users/me efface l'utilisateur, ses connexions, ses comptes et son token
             del_res = requests.delete(f"{domain}/users/me", headers=headers)
             print(f"🗑️ [POWENS PURGE USER] Réponse Powens: {del_res.status_code}")
         except Exception as e:
             print(f"⚠️ Erreur lors de la suppression chez Powens: {e}")
-            # On poursuit pour nettoyer la base de données locale
 
     # 2. Nettoyage de la base de données locale Kleea
-    with engine.begin() as conn:
-        # Réinitialise le token utilisateur
+    with engine.connect() as conn:
         conn.execute(text("UPDATE users SET powens_token = NULL WHERE LOWER(username) = LOWER(:u)"), {"u": user_clean})
-        # Retire les liaisons powens_name dans la table configuration
         conn.execute(text("UPDATE configuration SET powens_name = NULL WHERE LOWER(utilisateur) = LOWER(:u)"), {"u": user_clean})
+        conn.commit()
 
     return {"status": "success", "message": "Accès bancaire Powens et identifiant supprimés avec succès."}
 
@@ -4574,7 +4542,9 @@ def reconcile_and_recalculate_all(username: str):
 
 # 🟢 ROUTE POUR FORCER POWENS À SE CONNECTER EN DIRECT À LA VRAIE BANQUE
 @app.post("/powens/refresh-bank-sync/{username}")
-def refresh_bank_sync(username: str):
+def refresh_bank_sync(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
     user_clean = username.lower().strip()
     
     # 1. Récupérer le token de l'utilisateur
@@ -4623,4 +4593,19 @@ def refresh_bank_sync(username: str):
     return {
         "status": "success",
         "synced_connections": synced
+    }
+
+@app.delete("/profile/me")
+def delete_my_account(current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM users WHERE LOWER(username) = :u"), {"u": current_user})
+    return {"status": "success"}
+
+# Route de test sécurisée par JWT
+@app.get("/auth/test-token")
+def test_jwt_token(current_user: str = Depends(get_current_user)):
+    return {
+        "status": "succès",
+        "message": "Token valide et authentifié !",
+        "utilisateur_detecte": current_user
     }

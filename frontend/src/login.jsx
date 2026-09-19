@@ -23,7 +23,7 @@ import fr from 'date-fns/locale/fr';
 registerLocale('fr', fr); // Pour avoir le calendrier en français
 import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut de ton fichier
 import { createPortal } from 'react-dom';
-import api from './api';
+import api from './axios';
 import ReactMarkdown from 'react-markdown';
 import GererMobile from './GererMobile';
 import ImportMobile from './ImportMobile';
@@ -501,8 +501,8 @@ const handleUpdateTransaction = async () => {
       body: JSON.stringify({
         id: editingTransaction.id,
         date: editingTransaction.date,
-        libelle: editingTransaction.libellé || editingTransaction.libelle,
-        paye_par: editingTransaction.payé_par || editingTransaction.paye_par,
+        libelle:editingTransaction.libelle,
+        paye_par:editingTransaction.paye_par,
         // On remplace le simple nom par la chaîne détaillée
         pour_qui: chainePourQui || "Tous", 
         montant: parseFloat(editingTransaction.montant)
@@ -550,7 +550,7 @@ const participantsDuGroupe = useMemo(() => {
   if (groupData.transactions && groupData.transactions.length > 0) {
     groupData.transactions.forEach(t => {
       // On ajoute le payeur
-      if (t.payé_par) nomsUniques.add(t.payé_par.trim());
+      if (t.paye_par) nomsUniques.add(t.paye_par.trim());
       
       // --- AJOUT ICI : Scan du champ pour_qui ---
       if (t.pour_qui) {
@@ -873,7 +873,7 @@ const getEmojiForMember = (nom) => {
               <label className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40 ml-2">Libellé</label>
               <input 
                 type="text"
-                value={editingTransaction.libellé}
+                value={editingTransaction.libelle}
                 onChange={(e) => setEditingTransaction({...editingTransaction, libellé: e.target.value})}
                 className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-[var(--radius)] p-4 text-[var(--text-main)] outline-none focus:border-[var(--primary)] transition-all"
                 placeholder="Ex: Restaurant, Courses..."
@@ -1662,10 +1662,10 @@ const getEmojiForMember = (nom) => {
                         
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="text-[12px] filter drop-shadow-sm">
-                            {getEmojiForMember(t.payé_par) || "👤"}
+                            {getEmojiForMember(t.paye_par) || "👤"}
                           </span>
                           <p className="text-[9px] text-[var(--primary)] font-black uppercase tracking-widest">
-                            Par {t.payé_par}
+                            Par {t.paye_par}
                           </p>
                         </div>
                       </div>
@@ -3146,7 +3146,7 @@ const CalendarSection = React.memo(({ toutesLesTransactions, comptesDuProfil, fi
         if (anneeTStr !== anneeCibleStr) continue;
         isoString = t.date.substring(0, 10);
       } else {
-        const anneeEffective = parseInt(t.année || t.annee || 0);
+        const anneeEffective = parseInt(t.annee || 0);
         if (anneeEffective !== anneeCible) continue;
         
         const tMois = String(t.mois || "").toLowerCase().trim();
@@ -3370,7 +3370,7 @@ const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProfil, fil
         moisIndex = dateObj.getMonth();
         dateString = t.date.substring(0, 10);
       } else {
-        anneeT = parseInt(t.année || t.annee || 0);
+        anneeT = parseInt(t.annee || 0);
         moisIndex = parseInt(t.mois || 1) - 1;
         dateString = `Inconnu-${moisIndex}`;
       }
@@ -7944,20 +7944,17 @@ const showAlert = (message, type = 'error') => {
 
 
 const handleLogin = async (e) => {
-    e.preventDefault()
-    try {
-      // On envoie maintenant le nom ET le mot de passe au serveur
-      const res = await api.post(`/login`, { 
-        nom: loginName,
-        password: loginPassword // Assure-toi que l'état loginPassword est bien lié à l'input
-      })
-      
-      // On récupère le nom depuis la réponse du serveur
-      const usernameClean = res.data.user.toLowerCase() 
-      
-      // Stockage propre
-      localStorage.setItem('user', usernameClean)
-      setUser(usernameClean)
+  e.preventDefault();
+  try {
+    const res = await api.post('/login', { 
+      nom: loginName,
+      password: loginPassword 
+    });
+    
+    // 🟢 ENREGISTRER LE TOKEN ET L'UTILISATEUR
+    localStorage.setItem('token', res.data.access_token);
+    localStorage.setItem('user', res.data.user.toLowerCase());
+    setUser(res.data.user.toLowerCase());
     } catch (err) {
       // Gestion d'erreur plus précise
       if (err.response && err.response.status === 401) {
@@ -7974,6 +7971,7 @@ const handleLogout = () => {
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
   localStorage.removeItem('user');
   localStorage.removeItem('powens_user_token'); // 👈 Évite de transmettre le jeton au prochain utilisateur
+  localStorage.removeItem('token');
 
   // 2. Réinitialisation des états pour la session suivante
   setUser(null);
@@ -8304,7 +8302,12 @@ const financeData = useMemo(() => {
 
 
 
+// 🟢 CALCUL ROBUSTE DES SOLDES ET DES INTÉRÊTS PAR QUINZAINE (AVEC RÉCONCILIATION VIREMENTS ET HISTORIQUE)
 const soldesParCompte = useMemo(() => {
+  const anneeFiltre = parseInt(filters.annee) || new Date().getFullYear();
+  const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
+
+  // 1. Initialiser la configuration des comptes
   const configMap = {};
   comptes.forEach(c => {
     configMap[c.compte.trim().toUpperCase()] = {
@@ -8315,23 +8318,19 @@ const soldesParCompte = useMemo(() => {
     };
   });
 
+  // Soldes au fil de l'eau
   let soldesCourants = {};
-  let interetsAccumules = {}; 
-  
   Object.keys(configMap).forEach(nom => {
     soldesCourants[nom] = configMap[nom].soldeInitial;
-    interetsAccumules[nom] = 0;
   });
 
-  const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
-  const anneeFiltre = parseInt(filters.annee);
-
-  let derniereQuinzaineTraitee = -1;
-  const tauxParQuinzaineMap = {};
+  // Mouvements par quinzaine (0 à 23) pour l'année sélectionnée
+  const mouvementsParQuinzaine = {};
   Object.keys(configMap).forEach(nom => {
-    tauxParQuinzaineMap[nom] = (configMap[nom].taux / 100) / 24;
+    mouvementsParQuinzaine[nom] = Array(24).fill(0);
   });
 
+  // 2. Trier les transactions par ordre chronologique
   const transactionsTriees = [...(toutesLesTransactions || [])].sort((a, b) => {
     const yearA = parseInt(getTxYear(a) || 0);
     const yearB = parseInt(getTxYear(b) || 0);
@@ -8339,86 +8338,161 @@ const soldesParCompte = useMemo(() => {
     const idxA = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(a.mois));
     const idxB = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(b.mois));
     if (idxA !== idxB) return idxA - idxB;
-    return (parseInt(a.jour) || 15) - (parseInt(b.jour) || 15);
+    return 0;
   });
 
+  // Fonction helper pour détecter le compte destinataire d'un virement
+  const identifierCompteCible = (texte, compteSource) => {
+    const groupeSource = configMap[compteSource]?.groupe;
+    if (!groupeSource) return null;
+
+    for (const [nomDest, cfgDest] of Object.entries(configMap)) {
+      if (nomDest === compteSource) continue;
+      if (cfgDest.groupe !== groupeSource) continue;
+
+      const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
+      const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
+
+      const matchNomComplet = texte.includes(nomDest);
+      const matchMotsCles = motsCompte.length > 0 && motsCompte.some(m => texte.includes(m));
+
+      if (matchNomComplet || matchMotsCles) {
+        return nomDest;
+      }
+    }
+    return null;
+  };
+
+  // 3. Parcourir toutes les transactions
   transactionsTriees.forEach(t => {
     const anneeT = parseInt(getTxYear(t) || 0);
-    const indexMoisT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
+    const moisIndexT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
     
-    if (anneeT > anneeFiltre || (anneeT === anneeFiltre && indexMoisT > indexMoisSelectionne)) return;
+    // Ignorer ce qui est dans le futur par rapport au filtre sélectionné
+    if (anneeT > anneeFiltre || (anneeT === anneeFiltre && moisIndexT > indexMoisSelectionne)) {
+      return;
+    }
 
     const montant = parseFloat(t.montant) || 0;
     const compteSrc = (t.compte || "").trim().toUpperCase();
     const cat = (t.categorie || "").toUpperCase();
     const nomTrans = (t.nom || "").toUpperCase();
     const texteIntegral = `${nomTrans} ${cat}`;
-    const jourT = parseInt(t.jour) || 15;
 
-    if (anneeT === anneeFiltre) {
-      const quinzaineActuelle = (indexMoisT * 2) + (jourT > 15 ? 1 : 0);
-      
-      if (derniereQuinzaineTraitee !== -1 && quinzaineActuelle > derniereQuinzaineTraitee) {
-        const qManquantes = quinzaineActuelle - derniereQuinzaineTraitee;
-        Object.keys(configMap).forEach(nom => {
-          if (tauxParQuinzaineMap[nom] > 0 && soldesCourants[nom] > 0) {
-            interetsAccumules[nom] += soldesCourants[nom] * tauxParQuinzaineMap[nom] * qManquantes;
-          }
-        });
-      }
-      derniereQuinzaineTraitee = quinzaineActuelle;
-    }
-
+    // A. Mise à jour du compte émetteur
     if (soldesCourants.hasOwnProperty(compteSrc)) {
       soldesCourants[compteSrc] += montant;
     }
 
+    // B. Détection et réconciliation du virement interne vers le compte destinataire (ex: LEP)
+    let compteCibleVirement = null;
     if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
-      const groupeSource = configMap[compteSrc]?.groupe;
-      if (!groupeSource) return;
+      compteCibleVirement = identifierCompteCible(texteIntegral, compteSrc);
 
-      let meilleurMatch = null;
-      for (const [nomDest, cfgDest] of Object.entries(configMap)) {
-        if (nomDest === compteSrc) continue;
-        if (cfgDest.groupe !== groupeSource) continue;
-
-        const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
-        const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
-
-        const matchNomComplet = texteIntegral.includes(nomDest);
-        const matchMotsCles = motsCompte.length > 0 && motsCompte.some(m => texteIntegral.includes(m));
-
-        if (matchNomComplet || matchMotsCles) {
-          meilleurMatch = nomDest;
-          break;
-        }
-      }
-
-      if (meilleurMatch) {
-        const dejaPresent = toutesLesTransactions.some(t2 => 
+      if (compteCibleVirement) {
+        const dejaEnBase = toutesLesTransactions.some(t2 => 
           getTxYear(t2) === getTxYear(t) && 
           cleanMonth(t2.mois) === cleanMonth(t.mois) && 
-          t2.compte?.trim().toUpperCase() === meilleurMatch && 
+          t2.compte?.trim().toUpperCase() === compteCibleVirement && 
           Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
         );
 
-        if (!dejaPresent) {
-          soldesCourants[meilleurMatch] -= montant;
+        // Si l'écriture miroir n'est pas en base, on crédite virtuellement le compte cible
+        if (!dejaEnBase) {
+          soldesCourants[compteCibleVirement] -= montant; // Si montant = -2000, alors -(-2000) = +2000
+        }
+      }
+    }
+
+    // C. Enregistrement des dates de valeur pour la règle des quinzaines (année en cours uniquement)
+    if (anneeT === anneeFiltre) {
+      // Extraire le jour exact
+      let jourT = 15;
+      if (t.date) {
+        const dateSeule = t.date.split('T')[0].split(' ')[0];
+        const parties = dateSeule.split(dateSeule.includes('-') ? '-' : '/');
+        if (parties.length >= 3) {
+          jourT = parties[0].length === 4 ? parseInt(parties[2]) : parseInt(parties[0]);
+        }
+      }
+
+      // 1. Calcul pour le compte source (si rémunéré)
+      if (configMap[compteSrc] && configMap[compteSrc].taux > 0) {
+        const qEffetSrc = montant > 0
+          ? (jourT <= 15 ? moisIndexT * 2 + 1 : (moisIndexT + 1) * 2)
+          : (jourT <= 15 ? moisIndexT * 2 : moisIndexT * 2 + 1);
+
+        if (qEffetSrc < 24) {
+          mouvementsParQuinzaine[compteSrc][qEffetSrc] += montant;
+        }
+      }
+
+      // 2. Calcul pour le compte cible du virement (ex: le LEP qui reçoit les 2000€)
+      if (compteCibleVirement && configMap[compteCibleVirement] && configMap[compteCibleVirement].taux > 0) {
+        const montantRecu = -montant; // Dépôt positif sur le livret
+        const qEffetDest = montantRecu > 0
+          ? (jourT <= 15 ? moisIndexT * 2 + 1 : (moisIndexT + 1) * 2)
+          : (jourT <= 15 ? moisIndexT * 2 : moisIndexT * 2 + 1);
+
+        if (qEffetDest < 24) {
+          mouvementsParQuinzaine[compteCibleVirement][qEffetDest] += montantRecu;
         }
       }
     }
   });
 
-  const quinzaineFinAnnee = 24; 
-  if (derniereQuinzaineTraitee !== -1 && quinzaineFinAnnee > derniereQuinzaineTraitee) {
-    const qProjetees = quinzaineFinAnnee - derniereQuinzaineTraitee;
-    Object.keys(configMap).forEach(nom => {
-      if (tauxParQuinzaineMap[nom] > 0 && soldesCourants[nom] > 0) {
-        interetsAccumules[nom] += soldesCourants[nom] * tauxParQuinzaineMap[nom] * qProjetees;
-      }
-    });
-  }
+  // 4. Calcul du solde de départ au 1er janvier de l'année sélectionnée
+  // (Prend en compte le solde initial + tous les mouvements des années passées)
+  const soldeAu1erJanvier = {};
+  Object.keys(configMap).forEach(nom => {
+    soldeAu1erJanvier[nom] = configMap[nom].soldeInitial;
+  });
 
+  transactionsTriees.forEach(t => {
+    const anneeT = parseInt(getTxYear(t) || 0);
+    if (anneeT < anneeFiltre) {
+      const montant = parseFloat(t.montant) || 0;
+      const compteSrc = (t.compte || "").trim().toUpperCase();
+      if (soldeAu1erJanvier.hasOwnProperty(compteSrc)) {
+        soldeAu1erJanvier[compteSrc] += montant;
+      }
+      const cat = (t.categorie || "").toUpperCase();
+      const nomTrans = (t.nom || "").toUpperCase();
+      if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
+        const cible = identifierCompteCible(`${nomTrans} ${cat}`, compteSrc);
+        if (cible && soldeAu1erJanvier.hasOwnProperty(cible)) {
+          soldeAu1erJanvier[cible] -= montant;
+        }
+      }
+    }
+  });
+
+  // 5. Calcul annuel des 24 quinzaines pour chaque livret rémunéré
+  const interetsEstimes = {};
+
+  Object.keys(configMap).forEach(nom => {
+    const taux = configMap[nom].taux;
+    if (taux <= 0) {
+      interetsEstimes[nom] = 0;
+      return;
+    }
+
+    const tauxParQuinzaine = (taux / 100) / 24;
+    let soldeValorise = soldeAu1erJanvier[nom] || 0;
+    let totalInterets = 0;
+
+    // Simulation des 24 quinzaines de l'année
+    for (let q = 0; q < 24; q++) {
+      soldeValorise += mouvementsParQuinzaine[nom][q];
+      if (soldeValorise > 0) {
+        totalInterets += soldeValorise * tauxParQuinzaine;
+      }
+    }
+
+    interetsEstimes[nom] = Math.round(totalInterets * 100) / 100;
+  });
+
+  // 6. Rendu final des comptes avec solde réel et intérêts conformes
   return comptes
     .filter(c => filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim())
     .map(c => {
@@ -8426,7 +8500,7 @@ const soldesParCompte = useMemo(() => {
       return {
         ...c,
         soldePeriode: soldesCourants[nomNettoye] || 0,
-        interetsGagnesPériode: interetsAccumules[nomNettoye] || 0 
+        interetsGagnesPériode: interetsEstimes[nomNettoye] || 0
       };
     });
 }, [comptes, toutesLesTransactions, filters]);
@@ -15185,7 +15259,7 @@ if (!user) {
                               t.categorie === b.nom && 
                               t.compte === b.compte && 
                               t.mois === b.mois &&
-                              (t.Année || t.annee || new Date().getFullYear()) === bAnnee
+                              (t.annee || new Date().getFullYear()) === bAnnee
                             )
                             .reduce((acc, t) => acc + Math.abs(t.montant), 0);
 
