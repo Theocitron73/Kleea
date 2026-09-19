@@ -3157,10 +3157,6 @@ POWENS_DOMAIN_HOST = POWENS_DOMAIN.replace("https://", "").replace("http://", ""
 
 @app.get("/powens/connect-url")
 def get_connect_url(utilisateur: str, redirect_url: str, user_token: str = None):
-    """
-    Génère l'URL Powens Webview. 
-    Si user_token est fourni et valide, génère un code temporaire pour RATTACHER la banque au profil existant.
-    """
     try:
         encoded_redirect = quote(redirect_url, safe="")
         encoded_state = quote(utilisateur, safe="")
@@ -3177,25 +3173,28 @@ def get_connect_url(utilisateur: str, redirect_url: str, user_token: str = None)
             f"&state={encoded_state}"
         )
 
-        # 🟢 Vérification : user_token ne doit être ni None, ni "null", ni vide
+        # 🟢 CORRECTION : Sécurisation blindée du bloc try/except pour Powens
         if user_token and user_token.strip() and user_token != "null":
-            # ⚠️ Powens attend un GET pour /auth/token/code
-            code_res = requests.get(
-                f"{domain}/auth/token/code",
-                headers={"Authorization": f"Bearer {user_token}"}
-            )
-            
-            if code_res.status_code == 200:
-                temp_code = code_res.json().get("code")
-                # En passant ce code à la Webview, Powens SAIT qu'il faut ajouter
-                # la banque à l'utilisateur possédant ce token
-                webview_url += f"&code={temp_code}"
-            else:
-                print(f"⚠️ Échec génération code temporaire Powens ({code_res.status_code}): {code_res.text}")
+            try:
+                code_res = requests.get(
+                    f"{domain}/auth/token/code",
+                    headers={"Authorization": f"Bearer {user_token}"},
+                    timeout=5 # 👈 Évite de bloquer le serveur si Powens met trop de temps à répondre
+                )
+                
+                if code_res.status_code == 200:
+                    temp_code = code_res.json().get("code")
+                    if temp_code:
+                        webview_url += f"&code={temp_code}"
+                else:
+                    print(f"⚠️ Avertissement Powens token code: {code_res.status_code} - {code_res.text}")
+            except Exception as inner_err:
+                print(f"⚠️ Impossible de joindre l'endpoint code de Powens (ignoré): {inner_err}")
 
         return {"url": webview_url}
 
     except Exception as e:
+        print(f"❌ Erreur critique connect-url: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur Webview: {str(e)}")
 
 

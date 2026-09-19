@@ -419,8 +419,8 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
     displayDay = dateSeule.includes('-') ? parties[2] : parties[0];
     displayMonth = parties[1];
     displayYear = parties[0]; // L'année est le premier index en format YYYY-MM-DD
-  } else if (t.année) {
-    displayYear = t.année;
+  } else if (t.annee) {
+    displayYear = t.annee;
   }
 
   const moisNoms = { 
@@ -3635,7 +3635,7 @@ const cleanMonth = (m) => {
 };
 
 const getTxYear = (t) => {
-  return (t?.année || t?.annee || (t?.date ? new Date(t.date).getFullYear() : ""))?.toString().trim();
+  return (t?.annee || (t?.date ? new Date(t.date).getFullYear() : ""))?.toString().trim();
 };
 
 const financeData = useMemo(() => {
@@ -4148,7 +4148,7 @@ const soldePremierJanvier = useMemo(() => {
 
   // 3. Application de toutes les transactions des années PRÉCÉDENTES (strictement < anneeFiltre)
   (toutesLesTransactions || []).forEach(t => {
-    const anneeT = parseInt(t.année);
+    const anneeT = parseInt(t.annee);
     const compteSrc = (t.compte || "").trim().toUpperCase();
 
     // On ne prend que les années passées
@@ -4201,7 +4201,7 @@ const [selectedBudgetYear, setSelectedBudgetYear] = useState(new Date().getFullY
 
 
 // Extraction et tri des années uniques (ex: [2026, 2025])
-const anneesUniques = [...new Set(budgets.map(b => b.Année || b.annee || new Date().getFullYear()))].sort((a, b) => b - a);
+const anneesUniques = [...new Set(budgets.map(b => b.annee || new Date().getFullYear()))].sort((a, b) => b - a);
 
 // Formatage pour ton CustomSelect { v: valeur, l: label }
 const optionsAnnees = anneesUniques.map(annee => ({
@@ -4504,7 +4504,7 @@ const updateCell = async (id, field, value) => {
     // 💡 SÉCURITÉ : On conserve l'enveloppe actuelle pour ne pas l'effacer lors d'autres modifs
     enveloppe: transactionActive.enveloppe,
     prevision_id: transactionActive.prevision_id, // 👈 Conserver la valeur existante
-    annee: parseInt(transactionActive.annee || transactionActive.année || new Date().getFullYear()),
+    annee: parseInt(transactionActive.annee || new Date().getFullYear()),
     
     // On applique la modification demandée (nom, montant, catégorie OU enveloppe)
     [field]: parsedValue 
@@ -6512,7 +6512,7 @@ const statsAnnuellesCategories = useMemo(() => {
 
   // 2. FILTRER LES TRANSACTIONS PAR ANNÉE ET PAR COMPTES DU PROFIL
   const transAnnee = (toutesLesTransactions || []).filter(t => {
-    const matchAnnee = t.année?.toString().trim() === filters.annee.toString().trim();
+    const matchAnnee =filters.annee.toString().trim();
     // La transaction appartient au profil si son compte est dans la liste nomsComptesProfil
     const matchCompteProfil = nomsComptesProfil.includes(t.compte?.trim().toUpperCase());
     
@@ -6558,7 +6558,7 @@ const recalculerSoldeInitialHisto = (soldeSaisi, moisSaisi, anneeSaisi, transact
   // On trie les transactions pour ne traiter que celles qui sont AVANT ou PENDANT le mois saisi
   // (Parce qu'on veut "annuler" leur effet pour remonter dans le passé)
   transactionsDuCompte.forEach(t => {
-    const anneeT = parseInt(t.année);
+    const anneeT = parseInt(t.annee);
     const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === t.mois.toLowerCase());
     const indexMoisSaisi = moisListe.findIndex(m => m.v.toLowerCase() === moisSaisi.toLowerCase());
 
@@ -6850,7 +6850,7 @@ const listeMoisDisponibles = useMemo(() => {
   };
 
   const anneeCible = selectedBudgetYear || new Date().getFullYear();
-  const budgetsDeLAnnee = budgets.filter(b => (b.Année || b.annee || new Date().getFullYear()) === anneeCible);
+  const budgetsDeLAnnee = budgets.filter(b => (b.annee || new Date().getFullYear()) === anneeCible);
   const source = budgetsDeLAnnee.length > 0 ? budgetsDeLAnnee : budgets;
 
   return Array.from(new Set(source.map(b => b.mois).filter(Boolean)))
@@ -8457,7 +8457,7 @@ if (!user) {
                             data={statsAnnuellesCategories} 
                             userTheme={userTheme} 
                             currentYear={filters.annee}
-                            generateGradientStep={generateGradientStep} 
+                            generateGradientStep={generateGradientStep}
                           />
                         </div>
                       )}
@@ -10662,7 +10662,7 @@ if (!user) {
                       const anneeCible = selectedBudgetYear || new Date().getFullYear();
                       
                       const budgetsFiltres = budgets.filter(b => {
-                        const bAnnee = b.Année || b.annee;
+                        const bAnnee = b.Annee || b.annee;
                         return bAnnee === anneeCible && b.mois === (selectedBudgetMonth || b.mois);
                       });
 
@@ -10676,7 +10676,7 @@ if (!user) {
                       return [...budgetsFiltres]
                         .sort((a, b) => a.nom.localeCompare(b.nom))
                         .map((b) => {
-                          const bAnnee = b.Année || b.annee;
+                          const bAnnee = b.Annee || b.annee;
                           
                           const depenseReelle = toutesLesTransactions
                             .filter(t => 
@@ -11434,8 +11434,8 @@ if (!user) {
 
                       const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
                         const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
-                        const anneeT = parseInt(t.annee || t.année || new Date().getFullYear());
-                        const anneeP = parseInt(p.annee || p.année || new Date().getFullYear());
+                        const anneeT = parseInt(t.annee || new Date().getFullYear());
+                        const anneeP = parseInt(p.annee || new Date().getFullYear());
                         const matchAnnee = (anneeT === anneeP);
 
                         let matchGroupe = true;
@@ -13043,7 +13043,7 @@ if (!user) {
         2. VERSION MOBILE (Smartphones)
         ========================================================== */}
     <div className="block lg:hidden">
-      <ComptesMobile 
+     <ComptesMobile 
         comptes={comptes}
         setComptes={setComptes}
         handleAddCompte={handleAddCompte}
