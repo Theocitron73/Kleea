@@ -1200,15 +1200,19 @@ def add_to_memory(m: dict, current_user: str = Depends(get_current_user)):
         conn.commit()
     return {"status": "success"}
 
+# 🟢 1. FONCTION INTERNE POUR PYTHON (import-powens, import-csv, sync-user)
+def fetch_memoire_data(username: str):
+    query = text("SELECT nom, categorie FROM memoire WHERE LOWER(utilisateur) = :u ORDER BY LENGTH(nom) DESC")
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": username.lower().strip()}).fetchall()
+        return [{"nom": row[0], "categorie": row[1]} for row in result]
+
+# 🟢 2. ROUTE API SÉCURISÉE AVEC JWT
 @app.get("/memoire/{username}")
 def get_memoire(username: str, current_user: str = Depends(get_current_user)):
     if username.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
-
-    query = text("SELECT nom, categorie FROM memoire WHERE LOWER(utilisateur) = :u ORDER BY LENGTH(nom) DESC")
-    with engine.connect() as conn:
-        result = conn.execute(query, {"u": current_user}).fetchall()
-        return [{"nom": row[0], "categorie": row[1]} for row in result]
+    return fetch_memoire_data(current_user)
 
 
 
@@ -1320,7 +1324,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
             print(f"Erreur chargement mots_cles: {e}")
 
         # --- 5. CHARGEMENT DE LA MÉMOIRE ---
-        memoire_rules = get_memoire(utilisateur)
+        memoire_rules = fetch_memoire_data(utilisateur)
 
         transactions_pretes = []
         mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
@@ -3420,7 +3424,7 @@ async def import_powens(
         )
 
         mots_cles_rules = get_mots_cles_rules(utilisateur)
-        memoire_rules = get_memoire(utilisateur)
+        memoire_rules = fetch_memoire_data(utilisateur)
 
         transactions_pretes = []
         
@@ -4118,7 +4122,7 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
                 if number: number_to_local_name[number] = local_name
 
         mots_cles_rules = get_mots_cles_rules(user_clean)
-        memoire_rules = get_memoire(user_clean)
+        memoire_rules = fetch_memoire_data(user_clean)
         mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
         success_count = 0
         batch_occurrence_tracker = {}
@@ -4253,20 +4257,8 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Erreur interne synchronisation : {str(e)}")
 
-# 🟢 CORRECTIF : ALIGNEMENT DES PARAMÈTRES ET TRACABILITÉ DES RECALCULS
-@app.post("/powens/recalculate-balances/{username}")
-def recalculate_initial_balances(username: str, current_user: str = Depends(get_current_user)):
-    if username.lower() != current_user.lower():
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
-    """
-    Récupère le solde réel de chaque compte de l'utilisateur sur Powens,
-    calcule la somme de toutes les transactions existantes en base sur ce compte,
-    et met à jour la colonne 'solde' (Solde Initial) dans la table configuration.
-    """
-    user_clean = username.lower().strip()
-    print(f"[BALANCE RECALC] Début du calcul pour l'utilisateur: {user_clean}")
-
-    # 1. Récupérer le token de l'utilisateur
+# 🟢 LOGIQUE DE CALCUL DU SOLDE INITIAL
+def exec_recalculate_balances(user_clean: str):
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
@@ -4274,7 +4266,6 @@ def recalculate_initial_balances(username: str, current_user: str = Depends(get_
             raise HTTPException(status_code=400, detail="Aucun jeton bancaire trouvé.")
         user_token = res[0]
         
-    # 2. Récupérer les soldes réels de Powens
     try:
         domain = POWENS_DOMAIN.rstrip('/')
         if not domain.endswith('/2.0') and not domain.endswith('/v2'):
@@ -4284,10 +4275,8 @@ def recalculate_initial_balances(username: str, current_user: str = Depends(get_
 
         headers = {"Authorization": f"Bearer {user_token}"}
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
-        powens_accounts = res_acc.json().get("accounts", [])
-        print(f"🔍 [BALANCE RECALC] {len(powens_accounts)} comptes récupérés sur Powens.")
+        powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
     except Exception as e:
-        print(f"❌ [BALANCE RECALC] Erreur récupération comptes Powens: {e}")
         raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
 
     updates = []
@@ -4295,39 +4284,25 @@ def recalculate_initial_balances(username: str, current_user: str = Depends(get_
         for acc in powens_accounts:
             powens_name = acc.get("name")
             real_balance = float(acc.get("balance", 0.0))
-            
-            print(f"⚙️ [BALANCE RECALC] Traitement du compte Powens: '{powens_name}' (Solde réel: {real_balance}€)")
 
-            # Trouver le compte Kleea correspondant
             query_local = text("""
                 SELECT compte FROM configuration 
                 WHERE LOWER(utilisateur) = LOWER(:u) AND TRIM(UPPER(powens_name)) = TRIM(UPPER(:p))
             """)
             local_row = conn.execute(query_local, {"u": user_clean, "p": powens_name}).fetchone()
             if not local_row:
-                print(f"⚠️ [BALANCE RECALC] Aucun compte miroir Kleea trouvé en BDD pour '{powens_name}'")
                 continue
                 
             compte_local_name = local_row[0]
-            print(f"🎯 [BALANCE RECALC] Compte Kleea associé trouvé: '{compte_local_name}'")
             
-            # Calculer la somme des transactions de ce compte
-            # 🟢 CORRIGÉ : Remplacement de :c par :co pour correspondre aux paramètres passés
-            # 🟢 Requête insensible à la casse et aux espaces superflus
             query_sum = text("""
                 SELECT COALESCE(SUM(montant), 0) FROM transactions 
                 WHERE LOWER(utilisateur) = LOWER(:u) 
                 AND TRIM(UPPER(compte)) = TRIM(UPPER(:co))
             """)
             total_transactions = conn.execute(query_sum, {"u": user_clean, "co": compte_local_name}).scalar()
-            print(f"📊 [BALANCE RECALC] Somme des transactions Kleea pour '{compte_local_name}': {total_transactions}€")
-            
-            # Ajuster le solde de départ (Solde Initial = Solde Réel - Somme Transactions)
             new_initial_balance = round(real_balance - total_transactions, 2)
-            print(f"💾 [BALANCE RECALC] Ajustement du Solde de Départ de '{compte_local_name}' à: {new_initial_balance}€")
             
-            # Mettre à jour la configuration
-            # 🟢 CORRIGÉ : Remplacement de :c par :co pour correspondre aux paramètres passés
             query_update = text("""
                 UPDATE configuration 
                 SET solde = :new_solde 
@@ -4343,8 +4318,14 @@ def recalculate_initial_balances(username: str, current_user: str = Depends(get_
                 "somme_transactions": total_transactions
             })
             
-    print(f"✅ [BALANCE RECALC] Calcul terminé. {len(updates)} comptes mis à jour.")
     return {"status": "success", "updated_balances": updates}
+
+# 🟢 ROUTE API SÉCURISÉE AVEC JWT
+@app.post("/powens/recalculate-balances/{username}")
+def recalculate_initial_balances(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower() != current_user.lower():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    return exec_recalculate_balances(current_user)
 
 # Route de synchronisation globale de maintenance (exécutée par un cron externe)
 @app.post("/maintenance/sync-all")
@@ -4550,7 +4531,7 @@ def reconcile_and_recalculate_all(username: str):
 
     # 3. Recalcul automatique des soldes initiaux
     try:
-        recalculate_initial_balances(user_clean)
+        exec_recalculate_balances(user_clean)
     except Exception as e:
         print(f"⚠️ Recalcul des soldes : {e}")
 
