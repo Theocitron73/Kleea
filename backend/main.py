@@ -826,8 +826,12 @@ class Projet(BaseModel):
 # --- 1. PROJETS FUTURS ---
 @app.get("/get-projets/{profil}")
 def get_projets(profil: str, current_user: str = Depends(get_current_user)):
-    # 🔒 Filtre par profil ET par utilisateur connecté
-    query = text("SELECT * FROM projets WHERE LOWER(profil) = :p AND LOWER(utilisateur) = :u ORDER BY date ASC")
+    query = text("""
+        SELECT * FROM projets 
+        WHERE LOWER(profil) = LOWER(:p) 
+          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
+        ORDER BY date ASC
+    """)
     with engine.connect() as conn:
         res = conn.execute(query, {"p": profil.lower(), "u": current_user}).mappings().all()
         return [dict(r) for r in res]
@@ -1755,13 +1759,22 @@ class Allocation(BaseModel):
     montant_alloue: float
 
 
-# --- 2. ENVELOPPES D'ALLOCATIONS ---
+# --- 2. ENVELOPPES D'ALLOCATIONS (RÉCUPÉRATION HISTORIQUE + SÉCURITÉ) ---
 @app.get("/get-allocations/{profil_id}")
 def get_allocations(profil_id: str, current_user: str = Depends(get_current_user)):
-    query = text("SELECT * FROM allocations WHERE profil = :p AND LOWER(utilisateur) = :u ORDER BY date_allocation DESC")
-    with engine.connect() as conn:
-        res = conn.execute(query, {"p": str(profil_id), "u": current_user}).mappings().all()
-        return [dict(r) for r in res]
+    query = text("""
+        SELECT * FROM allocations 
+        WHERE LOWER(profil) = LOWER(:p) 
+          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
+        ORDER BY date_allocation DESC
+    """)
+    try:
+        with engine.connect() as conn:
+            res = conn.execute(query, {"p": str(profil_id), "u": current_user}).mappings().all()
+            return [dict(r) for r in res]
+    except Exception as e:
+        print(f"Erreur SQL Get Allocations: {e}")
+        return []
 
 # --- ENREGISTRER UNE NOUVELLE ALLOCATION ---
 @app.post("/save-allocation")
@@ -1770,39 +1783,54 @@ def save_allocation(a: Allocation, current_user: str = Depends(get_current_user)
         INSERT INTO allocations (utilisateur, profil, projet, montant_alloue)
         VALUES (:u, :pr, :pj, :m)
     """)
-    with engine.connect() as conn:
-        conn.execute(query, {
-            "u": current_user,
-            "pr": a.profil,
-            "pj": a.projet,
-            "m": a.montant_alloue
-        })
-        conn.commit()
-    return {"status": "success"}
+    try:
+        with engine.connect() as conn:
+            conn.execute(query, {
+                "u": current_user,
+                "pr": a.profil,
+                "pj": a.projet,
+                "m": a.montant_alloue
+            })
+            conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        print(f"Erreur SQL Save Allocation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- SUPPRIMER TOUTE L'ENVELOPPE ---
 @app.delete("/delete-enveloppe/{projet_nom}")
 def delete_enveloppe(projet_nom: str, profil: str, current_user: str = Depends(get_current_user)):
-    query = text("DELETE FROM allocations WHERE projet = :pj AND profil = :pr AND LOWER(utilisateur) = :u")
-    with engine.connect() as conn:
-        conn.execute(query, {"pj": projet_nom, "pr": profil, "u": current_user})
-        conn.commit()
-    return {"status": "success"}
-
-# --- MODIFIER LE MONTANT GLOBAL (Met à jour la 1ère ligne trouvée ou recalcule) ---
-@app.put("/update-enveloppe-montant")
-def update_enveloppe_montant(projet: str, profil: str, nouveau_montant: float):
-    # Pour faire simple, on supprime les anciennes lignes et on en recrée une propre
-    query_del = text("DELETE FROM allocations WHERE projet = :pj AND profil = :pr")
-    query_ins = text("""
-        INSERT INTO allocations (utilisateur, profil, projet, montant_alloue) 
-        VALUES ('System', :pr, :pj, :m)
+    query = text("""
+        DELETE FROM allocations 
+        WHERE LOWER(projet) = LOWER(:pj) 
+          AND LOWER(profil) = LOWER(:pr) 
+          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
     """)
     try:
         with engine.connect() as conn:
-            conn.execute(query_del, {"pj": projet, "pr": profil})
-            conn.execute(query_ins, {"pj": projet, "pr": profil, "m": nouveau_montant})
+            conn.execute(query, {"pj": projet_nom, "pr": profil, "u": current_user})
+            conn.commit()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- MODIFIER LE MONTANT GLOBAL (Met à jour la 1ère ligne trouvée ou recalcule) ---
+@app.put("/update-enveloppe-montant")
+def update_enveloppe_montant(projet: str, profil: str, nouveau_montant: float, current_user: str = Depends(get_current_user)):
+    query_del = text("""
+        DELETE FROM allocations 
+        WHERE LOWER(projet) = LOWER(:pj) 
+          AND LOWER(profil) = LOWER(:pr) 
+          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
+    """)
+    query_ins = text("""
+        INSERT INTO allocations (utilisateur, profil, projet, montant_alloue) 
+        VALUES (:u, :pr, :pj, :m)
+    """)
+    try:
+        with engine.connect() as conn:
+            conn.execute(query_del, {"pj": projet, "pr": profil, "u": current_user})
+            conn.execute(query_ins, {"pj": projet, "pr": profil, "m": nouveau_montant, "u": current_user})
             conn.commit()
         return {"status": "success"}
     except Exception as e:
@@ -1911,21 +1939,17 @@ def calculer_balances(transactions):
 
 @app.get("/get-tricount/{username}/{group_name}")
 def get_tricount(username: str, group_name: str):
-    # On ajoute le filtre "AND groupe = :g" dans la requête SQL
+    u_clean = username.strip().lower()
+    decoded_group = unquote(group_name).strip()
     query = text("""
         SELECT * FROM tricount 
-        WHERE utilisateur = :u AND groupe = :g 
+        WHERE LOWER(utilisateur) = :u AND (groupe = :g OR TRIM(groupe) = :g) 
         ORDER BY date DESC
     """)
-    
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": username, "g": group_name}).mappings().all()
+        res = conn.execute(query, {"u": u_clean, "g": decoded_group}).mappings().all()
         transactions = [dict(r) for r in res]
-        
-        # La fonction calculer_balances ne recevra maintenant que 
-        # les transactions de ce groupe précis
         transferts = calculer_balances(transactions)
-        
         return {
             "transactions": transactions, 
             "transferts": transferts
@@ -1960,19 +1984,15 @@ def save_tricount(t: TricountTransaction):
 
 @app.get("/get-groups/{username}")
 def get_groups(username: str):
-    # On récupère les groupes et on essaie de construire une map Nom -> Emoji
-    # en regardant les transactions passées
+    u_clean = username.strip().lower()
     query = text("""
         SELECT groupe, paye_par, emoji 
         FROM tricount 
-        WHERE utilisateur = :u 
+        WHERE LOWER(utilisateur) = :u 
         AND emoji IS NOT NULL
     """)
-    
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": username}).mappings().all()
-        
-        # On crée un dictionnaire : { "NOM_GROUPE": { "Theo": "🍕", "Marie": "🐱" } }
+        res = conn.execute(query, {"u": u_clean}).mappings().all()
         emojis_par_groupe = {}
         for r in res:
             g = r['groupe']
@@ -1982,22 +2002,18 @@ def get_groups(username: str):
                 emojis_par_groupe[g] = {}
             emojis_par_groupe[g][p] = e
 
-    # Récupération des noms de groupes uniques
-    query_names = text("SELECT DISTINCT groupe FROM tricount WHERE utilisateur = :u ORDER BY groupe")
+    query_names = text("SELECT DISTINCT groupe FROM tricount WHERE LOWER(utilisateur) = :u ORDER BY groupe")
     with engine.connect() as conn:
-        res_names = conn.execute(query_names, {"u": username}).all()
-        
+        res_names = conn.execute(query_names, {"u": u_clean}).all()
         final_groups = []
         for i, r in enumerate(res_names):
             nom_g = r[0]
-            # On transforme le dictionnaire d'emojis en chaîne "Nom:Emoji,Nom:Emoji" pour le front
             map_e = emojis_par_groupe.get(nom_g, {})
             chaine_emojis = ",".join([f"{k}:{v}" for k, v in map_e.items()])
-            
             final_groups.append({
                 "id": i,
                 "nom": nom_g,
-                "emojis": chaine_emojis # On envoie ça au front
+                "emojis": chaine_emojis
             })
         return final_groups
     
@@ -3013,7 +3029,11 @@ def get_simulation_demenagement(username: str, current_user: str = Depends(get_c
     if username.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    query = text("SELECT id, scenario, titre, flux_type, categorie, montant, frequence, cible FROM simulations_demenagement WHERE LOWER(utilisateur) = :u")
+    query = text("""
+        SELECT id, scenario, titre, flux_type, categorie, montant, frequence, cible 
+        FROM simulations_demenagement 
+        WHERE LOWER(utilisateur) = :u
+    """)
     with engine.connect() as conn:
         result = conn.execute(query, {"u": current_user})
         columns = result.keys()

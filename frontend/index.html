@@ -1,12 +1,46 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr" style="background-color: #0a0f1d;">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/Kleea_2.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Kleea</title>
+
+    <!-- 🟢 1. Empêche le flash blanc dès la toute première milliseconde -->
+    <style>
+      html, body, #root {
+        background-color: #152c48 !important;
+        color: #ffffff;
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+      }
+    </style>
+
+    <!-- 🟢 2. Applique instantanément votre thème personnalisé en mémoire vive (0 ms) -->
+    <script>
+      try {
+        // Cache venant de la base de données
+        const cached = localStorage.getItem('kleea-theme-cache');
+        if (cached) {
+          const t = JSON.parse(cached);
+          if (t.bg_site) document.documentElement.style.setProperty('--bg-site', t.bg_site);
+          if (t.primary_color) document.documentElement.style.setProperty('--primary', t.primary_color);
+          if (t.text_main) document.documentElement.style.setProperty('--text-main', t.text_main);
+          if (t.radius) document.documentElement.style.setProperty('--radius', t.radius);
+          if (t.glass_blur) document.documentElement.style.setProperty('--glass-blur', t.glass_blur);
+          if (t.glass_bg) document.documentElement.style.setProperty('--glass-bg', t.glass_bg);
+        }
+        // Cache venant du Studio de Design
+        const liveTheme = localStorage.getItem('mycash-theme');
+        if (liveTheme) {
+          const l = JSON.parse(liveTheme);
+          Object.entries(l).forEach(([k, v]) => document.documentElement.style.setProperty(k, v));
+        }
+      } catch (e) {}
+    </script>
   </head>
-  <body>
+  <body style="background-color: #0a0f1d;">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

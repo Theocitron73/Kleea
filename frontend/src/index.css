@@ -13,13 +13,14 @@ input[type=number] {
 }
 
 :root {
+  --bg-site: #152c48;
   --primary: #4f46e5;
   --text-main: #ffffff;
   --radius: 1.5rem;
 }
 
 body {
-  background-color: var(--bg-site);
+  background-color: var(--bg-site,#152c48) !important;
   color: var(--text-main);
 }
 
