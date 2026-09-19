@@ -1614,6 +1614,8 @@ def get_categories_config(utilisateur: str = None):
         print(f"❌ Erreur get_categories_config: {e}")
         return []
 
+
+
 # --- 2. PRÉVISIONS ---
 @app.get("/previsions/{utilisateur}/{mois}/{annee}")
 def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_user: str = Depends(get_current_user)):
@@ -1674,6 +1676,14 @@ class PrevisionIn(BaseModel):
             # Optionnel : Forcer la première lettre en Majuscule et le reste en minuscule
             v = v.strip().capitalize()
         return v
+
+
+@app.get("/previsions/{utilisateur}")
+def get_all_user_previsions_periods(utilisateur: str, current_user: str = Depends(get_current_user)):
+    query = text("SELECT DISTINCT mois, annee FROM previsions WHERE LOWER(utilisateur) = :u ORDER BY annee DESC")
+    with engine.connect() as conn:
+        res = conn.execute(query, {"u": current_user}).mappings().all()
+        return [dict(r) for r in res]
 
 @app.post("/previsions")
 def add_prevision(p: PrevisionIn, current_user: str = Depends(get_current_user)):

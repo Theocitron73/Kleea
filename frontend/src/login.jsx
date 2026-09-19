@@ -5052,17 +5052,14 @@ const [signType, setSignType] = useState("both");
 
 
 // 2. Définition de la fonction de chargement mise à jour
+// 🟢 Sécurisé contre la déconnexion (si user est null)
 const fetchCategoriesConfig = async () => {
+  if (!user) return; // 👈 INDISPENSABLE : s'arrête immédiatement si déconnecté
   try {
-    // On récupère le nom de l'utilisateur connecté
-    const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-    
-    // Si l'utilisateur n'est pas encore chargé, on attend
+    const nomUtilisateur = (typeof user === 'object' && user !== null) ? user.nom : user;
     if (!nomUtilisateur) return;
 
-    // On passe l'utilisateur en paramètre Query String
     const res = await api.get(`/config-categories?utilisateur=${nomUtilisateur}`);
-    
     setCategoriesConfig(res.data);
   } catch (err) {
     console.error("Erreur API Intelligence :", err);
@@ -6215,10 +6212,11 @@ const [moisAvecPrevisions, setMoisAvecPrevisions] = useState([]);
 
 // On charge une fois la liste des périodes existantes en base prévisions
 const loadAvailablePreviPeriods = async () => {
-  if (!user) return; // 👈 INDISPENSABLE : ne rien appeler si déconnecté
+  if (!user) return; // 👈 Sécurité anti-déconnexion
   try {
-    const res = await api.get(`/previsions/${user}`);
-    setMoisAvecPrevisions(res.data);
+    const nomUtilisateur = (typeof user === 'object' && user !== null) ? user.nom : user;
+    const res = await api.get(`/previsions/${nomUtilisateur}`);
+    setMoisAvecPrevisions(res.data || []);
   } catch (err) {
     console.error(err);
   }
