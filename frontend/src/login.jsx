@@ -736,8 +736,6 @@ const SortableAccountCard = ({ c, isSorting }) => {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 50 : 1,
-    
-    // 💡 CONDITIONNEMENT CLÉ : 'none' uniquement en cours de tri, 'auto' pour un défilement libre
     touchAction: isSorting ? 'none' : 'auto', 
   };
 
@@ -747,103 +745,53 @@ const SortableAccountCard = ({ c, isSorting }) => {
       style={containerStyle}
       {...attributes}
       {...listeners}
-      className="flex-1 min-w-[160px] h-28 outline-none" 
+      className="flex-1 min-w-[135px] md:min-w-[160px] h-20 md:h-28 outline-none" 
     >
-      {/* LA CARTE VISUELLE */}
       <div 
         className={`
-          w-full h-full p-3 rounded-[var(--radius)] 
-          flex flex-col justify-between
-          relative overflow-hidden group 
-          cursor-grab active:cursor-grabbing shadow-xl
-          will-change-transform
-          transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
-          
-          /* Effet de transparence et flou */
+          w-full h-full p-2.5 md:p-3 rounded-xl md:rounded-[var(--radius)] 
+          flex flex-col justify-between relative overflow-hidden group 
+          cursor-grab active:cursor-grabbing shadow-md
           backdrop-blur-[var(--glass-blur)] border
-          
-          /* Bordures et Effets selon l'état */
-          ${isEstimated 
-            ? 'border-white/40 saturate-[0.85] animate-pulse-subtle' 
-            : 'border-white/10 hover:border-white/30'
-          }
-          
-          /* Animation Drag vs Hover */
-          ${isDragging 
-            ? 'scale-105 rotate-2 shadow-2xl opacity-60 brightness-125 ring-2 ring-white/20' 
-            : 'hover:-translate-y-2 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.3)]'
-          }
+          ${isEstimated ? 'border-white/40' : 'border-white/10 hover:border-white/30'}
         `}
         style={{
-          background: isEstimated
-            ? `linear-gradient(135deg, ${c.couleur}88 0%, ${c.couleur}44 100%)`
-            : `linear-gradient(135deg, ${c.couleur}aa 0%, ${c.couleur}66 100%)`,
+          background: `linear-gradient(135deg, ${c.couleur}aa 0%, ${c.couleur}66 100%)`,
         }}
       >
-        {/* 1. Motif de fond vitreux */}
-        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-20" />
-        
-        {/* 2. Cercle de lumière dynamique au survol */}
-        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-[var(--glass-bg)] rounded-full blur-2xl group-hover:bg-white/20 group-hover:scale-150 transition-all duration-700" />
-
-        {/* 3. Header de la carte */}
+        {/* Header de la carte */}
         <div className="flex justify-between items-start relative z-10 w-full">
-          <div className="flex flex-col items-start">
-            <span className={`text-[9px] font-black uppercase tracking-[0.2em] leading-none italic ${isEstimated ? 'text-white/80' : 'text-white/40'}`}>
+          <div className="flex flex-col items-start leading-none">
+            <span className="text-[7.5px] md:text-[9px] font-black uppercase tracking-wider text-white/50 italic">
               {c.groupe || 'Compte'}
             </span>
-            <h4 className="text-white font-black text-xs tracking-tight truncate max-w-[110px] uppercase mt-0.5">
+            <h4 className="text-white font-black text-[11px] md:text-xs tracking-tight truncate max-w-[95px] md:max-w-[110px] uppercase mt-0.5">
               {c.compte}
             </h4>
           </div>
           
-          {/* Icône de la carte */}
-          <div className={`w-9 h-9 rounded-xl backdrop-blur-[var(--glass-blur)] border flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 ${isEstimated ? 'bg-white/30 border-white/40' : 'bg-[var(--glass-bg)] border-white/20'}`}>
+          <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
             {(() => {
               const g = (c.compte || "").toString().toLowerCase().trim();
-              if (g.includes('ccp')) return <CreditCard size={16} className="text-white" />;
-              if (g.includes('livret')|| g.includes('lep') || c.taux > 0) return <BadgeEuro size={16} className="text-white" />;
-              if (g.includes('commun') || g.includes('users')) return <Users2 size={16} className="text-white" />;
-              return <Wallet size={16} className="text-white" />;
+              if (g.includes('ccp')) return <CreditCard size={12} className="text-white" />;
+              if (g.includes('livret') || g.includes('lep') || c.taux > 0) return <BadgeEuro size={12} className="text-white" />;
+              if (g.includes('commun') || g.includes('users')) return <Users2 size={12} className="text-white" />;
+              return <Wallet size={12} className="text-white" />;
             })()}
           </div>
         </div>
         
-        {/* 4. Zone des chiffres : Côte à côte en format large */}
-        <div className="relative z-10 flex items-end justify-between w-full mt-auto gap-2 pt-2">
-          
-          {/* GAUCHE : LE SOLDE */}
+        {/* Solde */}
+        <div className="relative z-10 flex items-end justify-between w-full mt-auto">
           <div className="flex flex-col items-start min-w-0 flex-1">
-            <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none mb-1">
-              {isEstimated ? 'Solde prévisionnel' : 'Solde'}
+            <span className="text-[8px] md:text-[10px] font-bold uppercase text-white/50 leading-none mb-0.5">
+              {isEstimated ? 'Estimé' : 'Solde'}
             </span>
-            <h3 className="text-xl font-black text-white tracking-tighter leading-none truncate w-full">
+            <h3 className="text-sm md:text-xl font-black text-white tracking-tighter leading-none truncate w-full">
               {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-              <span className="text-[10px] ml-0.5 font-bold text-white/60">€</span>
+              <span className="text-[9px] ml-0.5 font-bold text-white/70">€</span>
             </h3>
           </div>
-
-          {/* DROITE : LES INTÉRÊTS */}
-          {c.taux > 0 && (
-            <div className="flex flex-col items-end shrink-0 max-w-[50%] text-right">
-              {/* Titre "Gains" */}
-              <div className="flex items-center gap-1 mb-1">
-                <span className="text-[11px] font-black uppercase tracking-wider text-white/40 leading-none">
-                  Interêts Estimé
-                </span>
-                <span className="text-[11px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.5 rounded leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
-                  {c.taux.toFixed(1)}%
-                </span>
-              </div>
-              
-              {/* Montant des Intérêts */}
-              <h3 className="text-[13px] font-black text-white-300 tracking-tighter leading-none animate-pulse-subtle truncate w-full">
-                +{c.interetsGagnesPériode.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-                <span className="text-[10px] ml-0.5 font-bold text-white-300/60 ">€</span>
-              </h3>
-            </div>
-          )}
-
         </div>
       </div>
     </div>
@@ -4175,7 +4123,7 @@ const recapAnnuelStats = useMemo(() => {
     });
   });
 
-  // --- 3. PROJECTIONS CONTINUES ---
+  // --- 3. CUMUL DE PROJECTION PAR COMPTE ET TOTAL ---
   let soldesProjetesParCompte = {};
   let soldeTotalProjete = 0;
 
@@ -4265,6 +4213,7 @@ const recapAnnuelStats = useMemo(() => {
       }
     });
 
+    // Progression du cumul projeté
     if (isPasseCloture) {
       nomsComptesProfil.forEach(nom => {
         soldesProjetesParCompte[nom] = reel.soldesComptes[nom];
@@ -4282,15 +4231,14 @@ const recapAnnuelStats = useMemo(() => {
       soldeTotalProjete += (revPrevu - depPrevu);
     }
 
+    // 🌟 CONTINUITÉ GARANTIE : La ligne pointillée commence à la jonction (Août) et continue sur Sep/Oct
+    const estPointDeJonction = hasAnyPrevisionInYear && (indexMoisCible === pointDeJonctionIdx);
     const estDansLaPlagePrevisions = hasAnyPrevisionInYear && 
       (indexMoisCible >= premierMoisAvecPreviIdx && indexMoisCible <= dernierMoisAvecPreviIdx);
     
-    const estPointDeJonction = hasAnyPrevisionInYear && (indexMoisCible === pointDeJonctionIdx);
-    const afficherPointilles = estDansLaPlagePrevisions || estPointDeJonction;
+    const tracerPointilleCeMois = estPointDeJonction || estDansLaPlagePrevisions;
 
-    // 🌟 SÉPARATION STRICTE RÉEL / PRÉVISION POUR ÉVITER LA DOUBLE COURBE :
-    // - Si des prévisions existent : la ligne pleine réelle s'arrête STRICTEMENT aux mois clôturés (Août).
-    // - Si aucune prévision n'existe dans l'année : la ligne réelle continue sur les mois ayant des transactions.
+    // La ligne pleine réelle s'arrête au dernier mois clôturé (Août)
     const tracerLignePleine = isPasseCloture || (!hasAnyPrevisionInYear && reel.hasRealData);
 
     const revMoisEnCoursEstime = reel.rev + revResteAVenir;
@@ -4300,10 +4248,8 @@ const recapAnnuelStats = useMemo(() => {
     const detailComptesReel = {};
     const detailComptesProjete = {};
     nomsComptesProfil.forEach(nom => {
-      // 🌟 Ligne pleine = null dès Septembre quand des prévisions existent
       detailComptesReel[nom] = tracerLignePleine ? reel.soldesComptes[nom] : null;
-      // 🌟 Ligne pointillée = prend le relais à partir de Septembre (et démarre à la jonction d'Août)
-      detailComptesProjete[`PROJ_${nom}`] = afficherPointilles ? soldesProjetesParCompte[nom] : null;
+      detailComptesProjete[`PROJ_${nom}`] = tracerPointilleCeMois ? soldesProjetesParCompte[nom] : null;
     });
 
     return {
@@ -4314,30 +4260,30 @@ const recapAnnuelStats = useMemo(() => {
       hasPrevisions: hasPrevisionsCeMois,
       hasRealData: reel.hasRealData,
 
-      // Données réelles
+      // Données pour le tableau
       revReel: reel.rev,
       depReel: reel.dep,
       epargneReel: reel.epargne,
       soldeTotalReel: reel.soldeTotal,
 
-      // 🌟 Ne vaut PAS null UNIQUEMENT s'il y a des prévisions réelles configurées
       revPrevu: hasPrevisionsCeMois ? (isMoisEnCours ? revMoisEnCoursEstime : revPrevu) : null,
       depPrevu: hasPrevisionsCeMois ? (isMoisEnCours ? depMoisEnCoursEstime : depPrevu) : null,
       epargnePrevu: hasPrevisionsCeMois ? (isMoisEnCours ? epargneMoisEnCoursEstime : (revPrevu - depPrevu)) : null,
-      soldeProjete: (hasPrevisionsCeMois && afficherPointilles) ? soldeTotalProjete : null,
+      soldeProjete: tracerPointilleCeMois ? soldeTotalProjete : null,
 
-      // Données graphiques
+      // Données de courbes graphiques
       revenus: tracerLignePleine ? reel.rev : null,
       depenses: tracerLignePleine ? reel.dep : null,
       epargne: tracerLignePleine ? reel.epargne : null,
 
-      revenusProjete: afficherPointilles && hasPrevisionsCeMois
+      // 🌟 VALEURS D'ATTACHE : À Août (jonction), la projection prend exactement la valeur réelle d'Août
+      revenusProjete: tracerPointilleCeMois 
         ? (estPointDeJonction ? reel.rev : (isMoisEnCours ? revMoisEnCoursEstime : revPrevu)) 
         : null,
-      depensesProjete: afficherPointilles && hasPrevisionsCeMois
+      depensesProjete: tracerPointilleCeMois 
         ? (estPointDeJonction ? reel.dep : (isMoisEnCours ? depMoisEnCoursEstime : depPrevu)) 
         : null,
-      epargneProjete: afficherPointilles && hasPrevisionsCeMois
+      epargneProjete: tracerPointilleCeMois 
         ? (estPointDeJonction ? reel.epargne : (isMoisEnCours ? epargneMoisEnCoursEstime : (revPrevu - depPrevu))) 
         : null,
 
@@ -8634,264 +8580,264 @@ if (!user) {
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
                       
                        {annualTab === 'list' && (
-  <div className="flex flex-col h-full w-full overflow-hidden">
-    {/* EN-TÊTE DU TABLEAU */}
-    <div className="grid grid-cols-12 px-6 mb-1.5 shrink-0 select-none">
-      <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Mois</span>
-      <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Revenus</span>
-      <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Dépenses</span>
-      <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-center">Épargne</span>
-      <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-right">Cumul</span>
-    </div>
+                          <div className="flex flex-col h-full w-full overflow-hidden">
+                            {/* EN-TÊTE DU TABLEAU */}
+                            <div className="grid grid-cols-12 px-6 mb-1.5 shrink-0 select-none">
+                              <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Mois</span>
+                              <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Revenus</span>
+                              <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Dépenses</span>
+                              <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-center">Épargne</span>
+                              <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-right">Cumul</span>
+                            </div>
 
-    {/* GRILLE DES 12 MOIS */}
-    <div className="flex-1 flex flex-col gap-1 min-h-0 h-full w-full overflow-hidden select-none">
-      {recapAnnuelStats.map((m, i) => {
-        const estMoisEnCours = m.isMoisEnCours;
-        const estFutur = m.isFutur;
-        const aDesPrevisions = m.hasPrevisions;
+                            {/* GRILLE DES 12 MOIS */}
+                            <div className="flex-1 flex flex-col gap-1 min-h-0 h-full w-full overflow-hidden select-none">
+                              {recapAnnuelStats.map((m, i) => {
+                                const estMoisEnCours = m.isMoisEnCours;
+                                const estFutur = m.isFutur;
+                                const aDesPrevisions = m.hasPrevisions;
 
-        return (
-          <div 
-            key={i} 
-            className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
-              estMoisEnCours
-                ? `${aDesPrevisions ? 'flex-[1.45] py-1.5' : 'flex-1 py-0.5'} bg-gradient-to-r from-indigo-500/[0.12] via-indigo-500/[0.06] to-transparent border-indigo-500/40 shadow-[0_4px_18px_rgba(99,102,241,0.18)] ring-1 ring-indigo-500/25`
-                : estFutur
-                  ? 'flex-1 bg-white/[0.01] hover:bg-white/[0.04] border-white/5 border-dashed py-0.5 opacity-65 hover:opacity-100'
-                  : 'flex-1 bg-[var(--glass-bg)] hover:bg-white/[0.06] border-white/5 py-0.5'
-            }`}
-          >
-            {/* 1. NOM DU MOIS */}
-            <div className="col-span-3 flex items-center gap-2 min-h-0">
-              <span className={`font-black uppercase tracking-tight transition-colors ${
-                estMoisEnCours 
-                  ? 'text-indigo-200 font-extrabold' 
-                  : estFutur 
-                    ? 'text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80' 
-                    : 'text-[var(--text-main)]/50 group-hover:text-[var(--text-main)]/90'
-              } ${isCompact ? 'text-xs' : 'text-[11px]'}`}>
-                {m.nom}
-              </span>
+                                return (
+                                  <div 
+                                    key={i} 
+                                    className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
+                                      estMoisEnCours
+                                        ? `${aDesPrevisions ? 'flex-[1.45] py-1.5' : 'flex-1 py-0.5'} bg-gradient-to-r from-indigo-500/[0.12] via-indigo-500/[0.06] to-transparent border-indigo-500/40 shadow-[0_4px_18px_rgba(99,102,241,0.18)] ring-1 ring-indigo-500/25`
+                                        : estFutur
+                                          ? 'flex-1 bg-white/[0.01] hover:bg-white/[0.04] border-white/5 border-dashed py-0.5 opacity-65 hover:opacity-100'
+                                          : 'flex-1 bg-[var(--glass-bg)] hover:bg-white/[0.06] border-white/5 py-0.5'
+                                    }`}
+                                  >
+                                    {/* 1. NOM DU MOIS */}
+                                    <div className="col-span-3 flex items-center gap-2 min-h-0">
+                                      <span className={`font-black uppercase tracking-tight transition-colors ${
+                                        estMoisEnCours 
+                                          ? 'text-indigo-200 font-extrabold' 
+                                          : estFutur 
+                                            ? 'text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80' 
+                                            : 'text-[var(--text-main)]/50 group-hover:text-[var(--text-main)]/90'
+                                      } ${isCompact ? 'text-xs' : 'text-[11px]'}`}>
+                                        {m.nom}
+                                      </span>
 
-              {/* Point clignotant mois en cours */}
-              {estMoisEnCours && (
-                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_#818cf8] shrink-0" title="Mois en cours" />
-              )}
+                                      {/* Point clignotant mois en cours */}
+                                      {estMoisEnCours && (
+                                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_#818cf8] shrink-0" title="Mois en cours" />
+                                      )}
 
-              {/* Badge prévisionnel pour les mois futurs avec prévisions */}
-              {estFutur && aDesPrevisions && (
-                <span className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400/80 border border-sky-500/20 tracking-wider shrink-0 select-none">
-                  Prévu
-                </span>
-              )}
-            </div>
+                                      {/* Badge prévisionnel pour les mois futurs avec prévisions */}
+                                      {estFutur && aDesPrevisions && (
+                                        <span className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400/80 border border-sky-500/20 tracking-wider shrink-0 select-none">
+                                          Prévu
+                                        </span>
+                                      )}
+                                    </div>
 
-            {/* 2. REVENUS */}
-            <div className="col-span-2 flex flex-col justify-center min-h-0">
-              {estMoisEnCours ? (
-                <>
-                  <span 
-                    className="font-black tracking-tighter leading-none"
-                    style={{ 
-                      color: `${userTheme.color_revenus}e6`,
-                      fontSize: isCompact ? '1.95vh' : '1.5vh'
-                    }}
-                  >
-                    {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
-                  </span>
-                  {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
-                  {aDesPrevisions && m.revPrevu !== null && (
-                    <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
-                      prévu {m.revPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                    </span>
-                  )}
-                </>
-              ) : estFutur ? (
-                <div className="flex flex-col justify-center">
-                  <span 
-                    className="font-black tracking-tighter leading-none" 
-                    style={{ 
-                      color: `${userTheme.color_revenus}b3`,
-                      fontSize: isCompact ? '1.95vh' : '1.5vh'
-                    }}
-                  >
-                    {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                  </span>
-                  {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 && (
-                    <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
-                      prévu
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <span 
-                  className="font-black tracking-tighter leading-none" 
-                  style={{ 
-                    color: `${userTheme.color_revenus}e6`,
-                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
-                  }}
-                >
-                  {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                </span>
-              )}
-            </div>
+                                    {/* 2. REVENUS */}
+                                    <div className="col-span-2 flex flex-col justify-center min-h-0">
+                                      {estMoisEnCours ? (
+                                        <>
+                                          <span 
+                                            className="font-black tracking-tighter leading-none"
+                                            style={{ 
+                                              color: `${userTheme.color_revenus}e6`,
+                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
+                                            }}
+                                          >
+                                            {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
+                                          </span>
+                                          {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
+                                          {aDesPrevisions && m.revPrevu !== null && (
+                                            <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
+                                              prévu {m.revPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : estFutur ? (
+                                        <div className="flex flex-col justify-center">
+                                          <span 
+                                            className="font-black tracking-tighter leading-none" 
+                                            style={{ 
+                                              color: `${userTheme.color_revenus}b3`,
+                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
+                                            }}
+                                          >
+                                            {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          </span>
+                                          {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 && (
+                                            <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
+                                              prévu
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span 
+                                          className="font-black tracking-tighter leading-none" 
+                                          style={{ 
+                                            color: `${userTheme.color_revenus}e6`,
+                                            fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                          }}
+                                        >
+                                          {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                        </span>
+                                      )}
+                                    </div>
 
-            {/* 3. DÉPENSES */}
-            <div className="col-span-2 flex flex-col justify-center min-h-0">
-              {estMoisEnCours ? (
-                <>
-                  <span 
-                    className="font-black tracking-tighter leading-none"
-                    style={{ 
-                      color: `${userTheme.color_depenses}e6`,
-                      fontSize: isCompact ? '1.95vh' : '1.5vh'
-                    }}
-                  >
-                    {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
-                  </span>
-                  {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
-                  {aDesPrevisions && m.depPrevu !== null && (
-                    <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
-                      prévu -{m.depPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                    </span>
-                  )}
-                </>
-              ) : estFutur ? (
-                <div className="flex flex-col justify-center">
-                  <span 
-                    className="font-black tracking-tighter leading-none" 
-                    style={{ 
-                      color: `${userTheme.color_depenses}b3`,
-                      fontSize: isCompact ? '1.95vh' : '1.5vh'
-                    }}
-                  >
-                    {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                  </span>
-                  {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 && (
-                    <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
-                      prévu
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <span 
-                  className="font-black tracking-tighter leading-none" 
-                  style={{ 
-                    color: `${userTheme.color_depenses}e6`,
-                    fontSize: isCompact ? '1.95vh' : '1.5vh' 
-                  }}
-                >
-                  {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
-                </span>
-              )}
-            </div>
+                                    {/* 3. DÉPENSES */}
+                                    <div className="col-span-2 flex flex-col justify-center min-h-0">
+                                      {estMoisEnCours ? (
+                                        <>
+                                          <span 
+                                            className="font-black tracking-tighter leading-none"
+                                            style={{ 
+                                              color: `${userTheme.color_depenses}e6`,
+                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
+                                            }}
+                                          >
+                                            {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
+                                          </span>
+                                          {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
+                                          {aDesPrevisions && m.depPrevu !== null && (
+                                            <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
+                                              prévu -{m.depPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : estFutur ? (
+                                        <div className="flex flex-col justify-center">
+                                          <span 
+                                            className="font-black tracking-tighter leading-none" 
+                                            style={{ 
+                                              color: `${userTheme.color_depenses}b3`,
+                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
+                                            }}
+                                          >
+                                            {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          </span>
+                                          {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 && (
+                                            <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
+                                              prévu
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span 
+                                          className="font-black tracking-tighter leading-none" 
+                                          style={{ 
+                                            color: `${userTheme.color_depenses}e6`,
+                                            fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                          }}
+                                        >
+                                          {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                        </span>
+                                      )}
+                                    </div>
 
-            {/* 4. ÉPARGNE */}
-            <div className="col-span-2 flex flex-col items-center justify-center min-h-0">
-              {estMoisEnCours ? (
-                <>
-                  <span 
-                    className="inline-block rounded-full font-black text-center leading-none" 
-                    style={{ 
-                      backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
-                      color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                      fontSize: isCompact ? '1.35vh' : '1.1vh',
-                      padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
-                    }}
-                  >
-                    {m.epargneReel > 0 ? '+' : ''}{m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
-                  </span>
-                  {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
-                  {aDesPrevisions && m.epargnePrevu !== null && (
-                    <span className="text-[9px] font-mono text-white/50 leading-none mt-1">
-                      prévu {m.epargnePrevu > 0 ? '+' : ''}{m.epargnePrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                    </span>
-                  )}
-                </>
-              ) : estFutur ? (
-                <span 
-                  className="inline-block rounded-full font-black text-center leading-none border border-dashed" 
-                  style={{ 
-                    backgroundColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}0d` : `${userTheme.color_depenses}0d`, 
-                    color: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}b3` : `${userTheme.color_depenses}b3`,
-                    borderColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}33` : `${userTheme.color_depenses}33`,
-                    fontSize: isCompact ? '1.35vh' : '1.1vh',
-                    padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
-                  }}
-                >
-                  {aDesPrevisions && m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                </span>
-              ) : (
-                <span 
-                  className="inline-block rounded-full font-black text-center leading-none" 
-                  style={{ 
-                    backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
-                    color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                    fontSize: isCompact ? '1.35vh' : '1.1vh',
-                    padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
-                  }}
-                >
-                  {m.hasRealData ? `${m.epargneReel > 0 ? '+' : ''}${m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                </span>
-              )}
-            </div>
+                                    {/* 4. ÉPARGNE */}
+                                    <div className="col-span-2 flex flex-col items-center justify-center min-h-0">
+                                      {estMoisEnCours ? (
+                                        <>
+                                          <span 
+                                            className="inline-block rounded-full font-black text-center leading-none" 
+                                            style={{ 
+                                              backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
+                                              color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                                              fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                              padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                                            }}
+                                          >
+                                            {m.epargneReel > 0 ? '+' : ''}{m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                                          </span>
+                                          {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
+                                          {aDesPrevisions && m.epargnePrevu !== null && (
+                                            <span className="text-[9px] font-mono text-white/50 leading-none mt-1">
+                                              prévu {m.epargnePrevu > 0 ? '+' : ''}{m.epargnePrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : estFutur ? (
+                                        <span 
+                                          className="inline-block rounded-full font-black text-center leading-none border border-dashed" 
+                                          style={{ 
+                                            backgroundColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}0d` : `${userTheme.color_depenses}0d`, 
+                                            color: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}b3` : `${userTheme.color_depenses}b3`,
+                                            borderColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}33` : `${userTheme.color_depenses}33`,
+                                            fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                            padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                                          }}
+                                        >
+                                          {aDesPrevisions && m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                        </span>
+                                      ) : (
+                                        <span 
+                                          className="inline-block rounded-full font-black text-center leading-none" 
+                                          style={{ 
+                                            backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
+                                            color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                                            fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                            padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                                          }}
+                                        >
+                                          {m.hasRealData ? `${m.epargneReel > 0 ? '+' : ''}${m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                        </span>
+                                      )}
+                                    </div>
 
-            {/* 5. CUMUL PATRIMOINE */}
-            <div className="col-span-3 text-right flex flex-col justify-center items-end min-h-0">
-              {estMoisEnCours ? (
-                <>
-                  <span 
-                    className="font-black tracking-tighter leading-none" 
-                    style={{ 
-                      color: userTheme.color_patrimoine,
-                      fontSize: isCompact ? '2.15vh' : '1.7vh' 
-                    }}
-                  >
-                    {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                  </span>
-                  {/* 🌟 N'affiche le cumul projeté QUE s'il y a des prévisions */}
-                  {aDesPrevisions && m.soldeProjete !== null && (
-                    <span className="text-[10px] font-black tracking-tight text-sky-400 leading-none mt-1" title="Solde projeté fin de mois">
-                      prévu {m.soldeProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                    </span>
-                  )}
-                </>
-              ) : estFutur ? (
-                <div className="flex flex-col justify-center items-end">
-                  <span 
-                    className="font-black tracking-tighter leading-none text-sky-400/80"
-                    style={{ 
-                      fontSize: isCompact ? '2.15vh' : '1.7vh'
-                    }}
-                  >
-                    {aDesPrevisions && m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                  </span>
-                  {aDesPrevisions && m.soldeProjete !== null && (
-                    <span className="text-[8px] font-bold text-sky-400/40 tracking-tight leading-none mt-0.5">
-                      estimé
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <span 
-                  className="font-black tracking-tighter leading-none" 
-                  style={{ 
-                    color: userTheme.color_patrimoine,
-                    fontSize: isCompact ? '2.15vh' : '1.7vh' 
-                  }}
-                >
-                  {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
-                </span>
-              )}
-            </div>
+                                    {/* 5. CUMUL PATRIMOINE */}
+                                    <div className="col-span-3 text-right flex flex-col justify-center items-end min-h-0">
+                                      {estMoisEnCours ? (
+                                        <>
+                                          <span 
+                                            className="font-black tracking-tighter leading-none" 
+                                            style={{ 
+                                              color: userTheme.color_patrimoine,
+                                              fontSize: isCompact ? '2.15vh' : '1.7vh' 
+                                            }}
+                                          >
+                                            {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          </span>
+                                          {/* 🌟 N'affiche le cumul projeté QUE s'il y a des prévisions */}
+                                          {aDesPrevisions && m.soldeProjete !== null && (
+                                            <span className="text-[10px] font-black tracking-tight text-sky-400 leading-none mt-1" title="Solde projeté fin de mois">
+                                              prévu {m.soldeProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                            </span>
+                                          )}
+                                        </>
+                                      ) : estFutur ? (
+                                        <div className="flex flex-col justify-center items-end">
+                                          <span 
+                                            className="font-black tracking-tighter leading-none text-sky-400/80"
+                                            style={{ 
+                                              fontSize: isCompact ? '2.15vh' : '1.7vh'
+                                            }}
+                                          >
+                                            {aDesPrevisions && m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          </span>
+                                          {aDesPrevisions && m.soldeProjete !== null && (
+                                            <span className="text-[8px] font-bold text-sky-400/40 tracking-tight leading-none mt-0.5">
+                                              estimé
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span 
+                                          className="font-black tracking-tighter leading-none" 
+                                          style={{ 
+                                            color: userTheme.color_patrimoine,
+                                            fontSize: isCompact ? '2.15vh' : '1.7vh' 
+                                          }}
+                                        >
+                                          {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                        </span>
+                                      )}
+                                    </div>
 
-          </div>
-        );
-      })}
-    </div>
-  </div>
-)}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
 
                       {annualTab === 'chart' && (
                         <div className="h-full w-full animate-in fade-in duration-500">
@@ -9206,31 +9152,31 @@ if (!user) {
                                 <defs>
                                   {/* Dégradés Revenus */}
                                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.35}/>
+                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.3}/>
                                     <stop offset="95%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0}/>
                                   </linearGradient>
                                   <linearGradient id="colorRevProj" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.18}/>
+                                    <stop offset="5%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0.15}/>
                                     <stop offset="95%" stopColor={userTheme.color_revenus || "#10b981"} stopOpacity={0}/>
                                   </linearGradient>
 
                                   {/* Dégradés Dépenses */}
                                   <linearGradient id="colorDep" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.35}/>
+                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.3}/>
                                     <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
                                   </linearGradient>
                                   <linearGradient id="colorDepProj" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.18}/>
+                                    <stop offset="5%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0.15}/>
                                     <stop offset="95%" stopColor={userTheme.color_depenses || "#f43f5e"} stopOpacity={0}/>
                                   </linearGradient>
 
                                   {/* Dégradés Épargne */}
                                   <linearGradient id="colorEp" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.25}/>
+                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.2}/>
                                     <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
                                   </linearGradient>
                                   <linearGradient id="colorEpProj" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.12}/>
+                                    <stop offset="5%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0.1}/>
                                     <stop offset="95%" stopColor={userTheme.color_epargne || "#ffffff"} stopOpacity={0}/>
                                   </linearGradient>
                                 </defs>
@@ -9252,84 +9198,80 @@ if (!user) {
                                   tickLine={false}
                                   width={60}
                                   tickFormatter={(value) => {
-                                    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
-                                    if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
+                                    if (Math.abs(value) >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
+                                    if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(0)}k€`;
                                     return `${value}€`;
                                   }}
                                 />
                                 
-                                {/* 🌟 TOOLTIP UNIFIÉ : MÊME DESIGN FLUIDE */}
+                                {/* INFOBULLE D'ORIGINE */}
                                 <Tooltip 
-                                  itemSorter={(item) => -item.value}
-                                  content={({ active, payload, label }) => {
-                                    if (active && payload && payload.length) {
-                                      // Évite d'afficher en double lors du point de jonction
-                                      const seen = new Set();
-                                      const filteredPayload = payload.filter(entry => {
-                                        const baseKey = entry.dataKey.replace('Projete', '');
-                                        if (seen.has(baseKey)) return false;
-                                        seen.add(baseKey);
-                                        return true;
-                                      });
+                                  cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
+                                  contentStyle={{ 
+                                    backgroundColor: '#0f172a', 
+                                    border: '1px solid rgba(255,255,255,0.1)', 
+                                    borderRadius: '12px',
+                                    boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
+                                    padding: '12px'
+                                  }}
+                                  formatter={(value, name) => {
+                                    const formattedValue = new Intl.NumberFormat('fr-FR', { 
+                                      style: 'currency', 
+                                      currency: 'EUR',
+                                      minimumFractionDigits: 2 
+                                    }).format(value);
 
-                                      return (
-                                        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border border-white/10 shadow-2xl">
-                                          <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
-                                          <div className="flex flex-col gap-2">
-                                            {filteredPayload.map((entry, index) => {
-                                              const isProj = entry.dataKey.includes('Projete');
-                                              const labelName = entry.dataKey.startsWith('revenus') ? 'Revenus' 
-                                                              : entry.dataKey.startsWith('depenses') ? 'Dépenses' 
-                                                              : 'Épargne';
-                                              return (
-                                                <div key={index} className="flex items-center justify-between gap-8">
-                                                  <div className="flex items-center gap-2">
-                                                    <div 
-                                                      className="w-2 h-2 rounded-full" 
-                                                      style={{ backgroundColor: entry.color }} 
-                                                    />
-                                                    <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
-                                                      {labelName} {isProj ? '(Prévu)' : ''}
-                                                    </span>
-                                                  </div>
-                                                  <span className="text-[var(--text-main)] font-bold text-xs font-mono">
-                                                    {new Intl.NumberFormat('fr-FR', { 
-                                                      style: 'currency', 
-                                                      currency: 'EUR', 
-                                                      maximumFractionDigits: 2 
-                                                    }).format(entry.value)}
-                                                  </span>
-                                                </div>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      );
-                                    }
-                                    return null;
+                                    const labelMap = {
+                                      revenus: 'Revenus',
+                                      depenses: 'Dépenses',
+                                      epargne: 'Épargne',
+                                      revenusProjete: 'Revenus (Prévu)',
+                                      depensesProjete: 'Dépenses (Prévues)',
+                                      epargneProjete: 'Épargne (Prévue)'
+                                    };
+
+                                    return [formattedValue, labelMap[name] || name];
+                                  }}
+                                  itemStyle={{ 
+                                    fontSize: '12px', 
+                                    fontWeight: '900', 
+                                    textTransform: 'uppercase',
+                                    padding: '2px 0'
+                                  }}
+                                  labelStyle={{ 
+                                    color: 'rgba(255,255,255,0.5)', 
+                                    fontWeight: 'bold', 
+                                    marginBottom: '8px',
+                                    fontSize: '10px',
+                                    textTransform: 'uppercase'
                                   }}
                                 />
 
+                                {/* 🌟 LÉGENDE INTERACTIVE RESTAURÉE */}
                                 <Legend 
                                   verticalAlign="top" 
                                   align="right" 
                                   content={() => (
                                     <div className="flex justify-end gap-6 mb-4">
-                                      {['revenus', 'depenses', 'epargne'].map((key) => {
-                                        const color = key === 'revenus' ? (userTheme.color_revenus || "#10b981") 
-                                                    : key === 'depenses' ? (userTheme.color_depenses || "#f43f5e") 
-                                                    : (userTheme.color_epargne || "#ffffff");
-                                        const isVisible = visibleAnnuel[key];
+                                      {[
+                                        { key: 'revenus', label: 'Revenus', color: userTheme.color_revenus || "#10b981" },
+                                        { key: 'depenses', label: 'Dépenses', color: userTheme.color_depenses || "#f43f5e" },
+                                        { key: 'epargne', label: 'Épargne', color: userTheme.color_epargne || "#ffffff" }
+                                      ].map((item) => {
+                                        const isVisible = visibleAnnuel[item.key] !== false;
                                         return (
                                           <div 
-                                            key={`item-${key}`} 
+                                            key={`item-${item.key}`} 
                                             className="flex items-center gap-2 cursor-pointer select-none transition-opacity duration-200"
                                             style={{ opacity: isVisible ? 1 : 0.3 }}
-                                            onClick={() => setVisibleAnnuel(prev => ({ ...prev, [key]: !prev[key] }))}
+                                            onClick={() => setVisibleAnnuel(prev => ({ ...prev, [item.key]: !prev[item.key] }))}
                                           >
-                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
+                                            <div 
+                                              className="w-2 h-2 rounded-full" 
+                                              style={{ backgroundColor: item.color }} 
+                                            />
                                             <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
-                                              {key === 'revenus' ? 'Revenus' : key === 'depenses' ? 'Dépenses' : 'Épargne'}
+                                              {item.label}
                                             </span>
                                           </div>
                                         );
@@ -9338,10 +9280,11 @@ if (!user) {
                                   )}
                                 />
 
-                                {/* 1. REVENUS (Réel + Prévu avec dégradé) */}
+                                {/* 1. REVENUS (Ligne pleine jusqu'à M-1 + Pointillés reliés) */}
                                 <Area 
                                   type="monotone" 
                                   dataKey="revenus" 
+                                  name="revenus"
                                   hide={!visibleAnnuel.revenus}
                                   stroke={userTheme.color_revenus || "#10b981"} 
                                   strokeWidth={3}
@@ -9353,20 +9296,23 @@ if (!user) {
                                 <Area 
                                   type="monotone" 
                                   dataKey="revenusProjete" 
+                                  name="revenusProjete"
+                                  legendType="none"
                                   hide={!visibleAnnuel.revenus}
                                   stroke={userTheme.color_revenus || "#10b981"} 
-                                  strokeDasharray="5 5"
+                                  strokeDasharray="4 4"
                                   strokeWidth={2}
                                   fillOpacity={1}
                                   fill="url(#colorRevProj)"
                                   connectNulls={false}
-                                  dot={{ r: 3, fill: userTheme.color_revenus || '#10b981' }}
+                                  dot={{ r: 2.5, fill: userTheme.color_revenus || '#10b981' }}
                                 />
 
-                                {/* 2. DÉPENSES (Réel + Prévu avec dégradé) */}
+                                {/* 2. DÉPENSES (Ligne pleine jusqu'à M-1 + Pointillés reliés) */}
                                 <Area 
                                   type="monotone" 
                                   dataKey="depenses" 
+                                  name="depenses"
                                   hide={!visibleAnnuel.depenses}
                                   stroke={userTheme.color_depenses || "#f43f5e"} 
                                   strokeWidth={3}
@@ -9378,39 +9324,44 @@ if (!user) {
                                 <Area 
                                   type="monotone" 
                                   dataKey="depensesProjete" 
+                                  name="depensesProjete"
+                                  legendType="none"
                                   hide={!visibleAnnuel.depenses}
                                   stroke={userTheme.color_depenses || "#f43f5e"} 
-                                  strokeDasharray="5 5"
+                                  strokeDasharray="4 4"
                                   strokeWidth={2}
                                   fillOpacity={1}
                                   fill="url(#colorDepProj)"
                                   connectNulls={false}
-                                  dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e' }}
+                                  dot={{ r: 2.5, fill: userTheme.color_depenses || '#f43f5e' }}
                                 />
 
-                                {/* 3. ÉPARGNE (Réel + Prévu avec dégradé) */}
+                                {/* 3. ÉPARGNE (Ligne pleine jusqu'à M-1 + Pointillés reliés) */}
                                 <Area 
                                   type="monotone" 
                                   dataKey="epargne" 
+                                  name="epargne"
                                   hide={!visibleAnnuel.epargne}
                                   stroke={userTheme.color_epargne || "#ffffff"} 
-                                  strokeWidth={2.5}
+                                  strokeWidth={2}
                                   fillOpacity={1} 
                                   fill="url(#colorEp)"
                                   connectNulls={false}
-                                  dot={{ r: 3, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                                  dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
                                 />
                                 <Area 
                                   type="monotone" 
                                   dataKey="epargneProjete" 
+                                  name="epargneProjete"
+                                  legendType="none"
                                   hide={!visibleAnnuel.epargne}
                                   stroke={userTheme.color_epargne || "#ffffff"} 
-                                  strokeDasharray="5 5"
+                                  strokeDasharray="4 4"
                                   strokeWidth={2}
                                   fillOpacity={1}
                                   fill="url(#colorEpProj)"
                                   connectNulls={false}
-                                  dot={{ r: 3, fill: userTheme.color_epargne || '#ffffff' }}
+                                  dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff' }}
                                 />
                               </AreaChart>
                             </ResponsiveContainer>
@@ -9422,6 +9373,7 @@ if (!user) {
                               <ResponsiveContainer width="100%" height="120%">
                                 <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                                  
                                   <XAxis 
                                     dataKey="nom" 
                                     axisLine={false} 
@@ -9429,22 +9381,22 @@ if (!user) {
                                     tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} 
                                     tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''} 
                                   />
+                                  
                                   <YAxis 
                                     tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
                                     axisLine={false}
                                     tickLine={false}
                                     width={60}
                                     tickFormatter={(value) => {
-                                      if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
-                                      if (value >= 1000) return `${(value / 1000).toFixed(0)}k€`;
+                                      if (Math.abs(value) >= 1000000) return `${(value / 1000000).toFixed(1)}M€`;
+                                      if (Math.abs(value) >= 1000) return `${(value / 1000).toFixed(0)}k€`;
                                       return `${value}€`;
                                     }}
                                   />
                                   
-                                  {/* 🌟 DÉGRADÉS POUR LES COMPTES ET LEURS PROJECTIONS */}
                                   <defs>
                                     {comptesDuProfil?.map((compte, index) => (
-                                      <React.Fragment key={`grad-compte-${index}`}>
+                                      <React.Fragment key={`grad-${index}`}>
                                         <linearGradient id={`colorGrad-${index}`} x1="0" y1="0" x2="0" y2="1">
                                           <stop offset="5%" stopColor={compte.couleur || '#64748b'} stopOpacity={0.4}/>
                                           <stop offset="95%" stopColor={compte.couleur || '#64748b'} stopOpacity={0}/>
@@ -9457,16 +9409,16 @@ if (!user) {
                                     ))}
                                   </defs>
 
-                                  {/* 🌟 TOOLTIP IDENTIQUE ET DÉDOUBLONNÉ AU SURVOL */}
+                                  {/* 🌟 INFOBULLE D'ORIGINE DÉDOUBLONNÉE */}
                                   <Tooltip 
                                     itemSorter={(item) => -item.value}
                                     content={({ active, payload, label }) => {
                                       if (active && payload && payload.length) {
                                         const seen = new Set();
-                                        const cleanList = payload.filter(entry => {
-                                          const cleanKey = entry.name.replace('PROJ_', '').replace(' (Prévu)', '');
-                                          if (seen.has(cleanKey)) return false;
-                                          seen.add(cleanKey);
+                                        const filteredList = payload.filter(entry => {
+                                          const baseName = entry.name.replace('PROJ_', '').replace(' (Prévu)', '');
+                                          if (seen.has(baseName)) return false;
+                                          seen.add(baseName);
                                           return true;
                                         });
 
@@ -9474,9 +9426,9 @@ if (!user) {
                                           <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border border-white/10 shadow-2xl">
                                             <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
                                             <div className="flex flex-col gap-2">
-                                              {cleanList.map((entry, index) => {
+                                              {filteredList.map((entry, index) => {
                                                 const isProj = entry.dataKey.startsWith('PROJ_') || entry.dataKey === 'soldeProjete';
-                                                const cleanName = entry.name.replace('PROJ_', '');
+                                                const displayName = entry.name.replace('PROJ_', '');
                                                 return (
                                                   <div key={index} className="flex items-center justify-between gap-8">
                                                     <div className="flex items-center gap-2">
@@ -9485,10 +9437,10 @@ if (!user) {
                                                         style={{ backgroundColor: entry.color }} 
                                                       />
                                                       <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
-                                                        {cleanName} {isProj ? '(Prévu)' : ''}
+                                                        {displayName} {isProj ? '(Prévu)' : ''}
                                                       </span>
                                                     </div>
-                                                    <span className="text-[var(--text-main)] font-bold text-xs font-mono">
+                                                    <span className="text-[var(--text-main)] font-bold text-xs">
                                                       {new Intl.NumberFormat('fr-FR', { 
                                                         style: 'currency', 
                                                         currency: 'EUR', 
@@ -9506,6 +9458,7 @@ if (!user) {
                                     }}
                                   />
                                   
+                                  {/* 🌟 LÉGENDE INTERACTIVE DES COMPTES RESTAURÉE */}
                                   <Legend 
                                     verticalAlign="top" 
                                     align="right" 
@@ -9534,51 +9487,50 @@ if (!user) {
                                     )}
                                   />
 
-                                  {/* 1. COURBES DES COMPTES AVEC DÉGRADÉ */}
+                                  {/* 1. COURBES PAR COMPTE (Ligne pleine jusqu'à M-1 + Pointillés reliés) */}
                                   {comptesDuProfil
                                     ?.filter(c => c && c.compte)
                                     .sort((a, b) => (b.soldePeriode || 0) - (a.soldePeriode || 0)) 
                                     .map((compte, index) => {
-                                      const nomCleData = compte.compte.trim().toUpperCase();
-                                      const maCouleurBdd = compte.couleur || '#64748b';
+                                      const nomCle = compte.compte.trim().toUpperCase();
+                                      const color = compte.couleur || '#64748b';
                                       const isHidden = !!hiddenComptes[compte.compte];
-                                      
+
                                       return (
-                                        <React.Fragment key={`group-compte-${index}`}>
-                                          {/* Réel (Plein avec dégradé) */}
+                                        <React.Fragment key={`area-compte-${index}`}>
                                           <Area
                                             type="monotone"
-                                            dataKey={nomCleData}
+                                            dataKey={nomCle}
                                             name={compte.compte}
                                             hide={isHidden}
-                                            stroke={maCouleurBdd}
-                                            fill={`url(#colorGrad-${index})`} 
+                                            stroke={color}
+                                            fill={`url(#colorGrad-${index})`}
                                             fillOpacity={1}
                                             strokeWidth={2}
                                             connectNulls={false}
-                                            dot={{ r: 3, fill: maCouleurBdd, strokeWidth: 1, stroke: '#ffffff' }}
+                                            dot={{ r: 3, fill: color, strokeWidth: 1, stroke: '#ffffff' }}
                                             isAnimationActive={false}
                                           />
-                                          {/* Prévisionnel (Pointillé avec dégradé subtil) */}
                                           <Area
                                             type="monotone"
-                                            dataKey={`PROJ_${nomCleData}`}
-                                            name={`PROJ_${compte.compte}`}
+                                            dataKey={`PROJ_${nomCle}`}
+                                            name={`${compte.compte} (Prévu)`}
+                                            legendType="none"
                                             hide={isHidden}
-                                            stroke={maCouleurBdd}
+                                            stroke={color}
                                             strokeDasharray="4 4"
                                             fill={`url(#colorGradProj-${index})`}
                                             fillOpacity={1}
                                             strokeWidth={2}
                                             connectNulls={false}
-                                            dot={{ r: 3, fill: maCouleurBdd }}
+                                            dot={{ r: 2.5, fill: color }}
                                             isAnimationActive={false}
                                           />
                                         </React.Fragment>
                                       );
                                     })}
 
-                                  {/* 2. PATRIMOINE TOTAL (Réel) */}
+                                  {/* 2. PATRIMOINE TOTAL (Ligne blanche jusqu'à M-1) */}
                                   <Area
                                     type="monotone"
                                     dataKey="soldeTotal"
@@ -9592,17 +9544,18 @@ if (!user) {
                                     isAnimationActive={false}
                                   />
 
-                                  {/* 3. PATRIMOINE TOTAL (Prévu) */}
+                                  {/* 3. PATRIMOINE TOTAL PROJETÉ (Ligne pointillée reliée à M-1) */}
                                   <Area
                                     type="monotone"
                                     dataKey="soldeProjete"
                                     stroke="#38bdf8"
-                                    strokeDasharray="5 5"
+                                    strokeDasharray="4 4"
                                     strokeWidth={2.5}
                                     fill="transparent"
                                     name="PATRIMOINE TOTAL (Prévu)"
+                                    legendType="none"
                                     hide={!!hiddenComptes["PATRIMOINE TOTAL"]}
-                                    dot={{ r: 3.5, fill: '#38bdf8', strokeWidth: 1, stroke: '#0f172a' }}
+                                    dot={{ r: 3, fill: '#38bdf8' }}
                                     connectNulls={false}
                                     isAnimationActive={false}
                                   />

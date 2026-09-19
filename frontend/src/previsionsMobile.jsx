@@ -57,41 +57,42 @@ export default function PrevisionsMobile(props) {
         </div>
       </div>
 
-      {/* 2. FILTRES DE PÉRIODE (Année actuelle incluse et sélection propre) */}
-      <div className="bg-[var(--glass-bg)] border border-white/10 p-3 rounded-2xl mb-4 space-y-2 shrink-0">
-        <div className="flex justify-between items-center gap-2">
-          {/* Groupe Profil Mobile Prévisionnel (Sans 'Tous') */}
-            <div className="flex bg-black/30 p-0.5 rounded-lg">
-              {(() => {
-                const groupes = [...new Set(comptes.map(c => c.groupe).filter(Boolean))].sort();
-                const liste = groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
+      {/* 2. FILTRES DE PÉRIODE (PROFILS & ANNÉES SANS AUCUN DÉBORDEMENT) */}
+      <div className="bg-[var(--glass-bg)] border border-white/10 p-2.5 rounded-xl mb-3 space-y-1.5 shrink-0">
+        <div className="flex items-center justify-between gap-1.5 min-w-0">
+          
+          {/* 🟢 Profils en défilement horizontal fluide (ne pousse plus jamais l'année hors de l'écran) */}
+          <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-1 bg-black/30 p-0.5 rounded-lg min-w-0">
+            {(() => {
+              const groupes = [...new Set((comptes || []).map(c => c.groupe).filter(Boolean))].sort();
+              const liste = groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
 
-                return liste.map(p => {
-                  const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => setFilters({...filters, profil: p})}
-                      className={`px-2.5 py-1 rounded text-[9px] font-black uppercase transition-all cursor-pointer ${
-                        isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  );
-                });
-              })()}
-            </div>
+              return liste.map(p => {
+                const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setFilters({...filters, profil: p})}
+                    className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:text-white/70'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              });
+            })()}
+          </div>
 
-          {/* 🟢 Années (avec inclusion garantie de l'année en cours) */}
-          <div className="flex bg-black/30 p-0.5 rounded-lg">
+          {/* 🟢 Années : verrouillées à droite, compactes et toujours visibles */}
+          <div className="flex items-center gap-0.5 bg-black/30 p-0.5 rounded-lg shrink-0 overflow-x-auto no-scrollbar max-w-[45%]">
             {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
               .sort((a, b) => parseInt(a) - parseInt(b))
               .map(year => (
                 <button
                   key={year}
                   onClick={() => setFilters({...filters, annee: year.toString()})}
-                  className={`px-2.5 py-1 rounded text-[9px] font-black transition-all ${
+                  className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                     filters.annee?.toString() === year.toString() ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/40'
                   }`}
                 >
@@ -101,13 +102,13 @@ export default function PrevisionsMobile(props) {
           </div>
         </div>
 
-        {/* Mois */}
-        <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1 select-none">
+        {/* Mois en défilement horizontal fluide */}
+        <div className="flex gap-1 overflow-x-auto no-scrollbar pb-0.5 select-none">
           {moisListe.map(m => (
             <button
               key={m.v}
               onClick={() => setFilters({...filters, mois: m.v})}
-              className={`px-3 py-1.5 rounded-lg text-[9px] font-black shrink-0 transition-all border ${
+              className={`px-2.5 py-1 rounded-md text-[8px] font-black shrink-0 transition-all border cursor-pointer ${
                 filters.mois === m.v 
                   ? 'bg-[var(--primary)] border-[var(--primary)] text-white' 
                   : 'bg-black/10 border-transparent text-white/30'

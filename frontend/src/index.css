@@ -914,3 +914,104 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
   z-index: 1000 !important;
 }
 
+/* =========================================================================
+   MODE MOBILE ÉPURÉ & COMPACT (SMARTPHONES < 768px)
+   Affine l'échelle globale pour un rendu léger, net et moderne sur mobile
+   ========================================================================= */
+@media (max-width: 767px) {
+
+  /* 1. ÉCHELLE RACINE : Réduit l'ensemble de l'application de ~15% */
+  :root {
+    font-size: 13.5px !important;
+    --radius: 1rem !important;
+  }
+
+  /* 2. PADDINGS ET MARGES EXTERNES */
+  body {
+    padding: 0.5rem 0.5rem 5.5rem 0.5rem !important; /* Laisse l'espace pour la barre en bas */
+  }
+
+  .p-4.md\:p-8,
+  .px-4.md\:px-8 {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    padding-top: 0.35rem !important;
+    padding-bottom: 0.35rem !important;
+  }
+
+  /* 3. ARRONDIS ET CONTENEURS VITRÉS */
+  .rounded-\[3rem\],
+  .rounded-\[2\.5rem\],
+  .rounded-\[2rem\],
+  .rounded-\[32px\] {
+    border-radius: 1.25rem !important;
+  }
+
+  /* Paddings internes des blocs */
+  .p-6 { padding: 0.85rem !important; }
+  .p-5 { padding: 0.75rem !important; }
+  .p-4 { padding: 0.65rem !important; }
+
+  /* 4. CARTES DE COMPTES BANCAIRES */
+  .h-28,
+  [class*="h-28"] {
+    height: 6rem !important;
+    min-height: 6rem !important;
+  }
+
+  .h-28 h3,
+  [class*="h-28"] h3 {
+    font-size: 1.15rem !important;
+  }
+
+  /* 5. BARRE DE NAVIGATION EN BAS (TAB BAR) */
+  .md\:hidden.fixed.bottom-0 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    padding-top: 0.35rem !important;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  .md\:hidden.fixed.bottom-0 .max-w-lg {
+    padding: 0.25rem 0.4rem !important;
+    border-radius: 1.4rem !important;
+  }
+
+  .md\:hidden.fixed.bottom-0 button {
+    width: 2.4rem !important;
+    height: 2.4rem !important;
+  }
+
+  .md\:hidden.fixed.bottom-0 svg {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+
+  /* 6. CHAMPS DE FORMULAIRE, BOUTONS ET SÉLECTEURS */
+  input[type="text"],
+  input[type="number"],
+  input[type="password"],
+  input[type="email"],
+  select,
+  button {
+    font-size: 0.88rem !important;
+  }
+
+  /* 7. MODALES ET FENÊTRES POPUP */
+  .fixed.inset-0 .max-w-md,
+  .fixed.inset-0 .max-w-sm {
+    max-width: 92vw !important;
+    padding: 1.25rem !important;
+    border-radius: 1.5rem !important;
+  }
+
+  /* 8. TABLEAUX ET LISTES */
+  table th {
+    padding: 0.4rem 0.3rem !important;
+    font-size: 7.5px !important;
+  }
+
+  table td {
+    padding: 0.35rem 0.3rem !important;
+  }
+}
