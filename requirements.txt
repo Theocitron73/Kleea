@@ -13,3 +13,4 @@ cryptography
 psycopg2-binary
 resend
 google-genai
+pyjwt
