@@ -4314,30 +4314,31 @@ const recapAnnuelStats = useMemo(() => {
       hasPrevisions: hasPrevisionsCeMois,
       hasRealData: reel.hasRealData,
 
-      // Données pour le tableau récapitulatif
+      // Données réelles
       revReel: reel.rev,
       depReel: reel.dep,
       epargneReel: reel.epargne,
       soldeTotalReel: reel.soldeTotal,
 
-      revPrevu: isMoisEnCours ? revMoisEnCoursEstime : (hasPrevisionsCeMois ? revPrevu : null),
-      depPrevu: isMoisEnCours ? depMoisEnCoursEstime : (hasPrevisionsCeMois ? depPrevu : null),
-      epargnePrevu: isMoisEnCours ? epargneMoisEnCoursEstime : (hasPrevisionsCeMois ? (revPrevu - depPrevu) : null),
-      soldeProjete: afficherPointilles ? soldeTotalProjete : null,
+      // 🌟 Ne vaut PAS null UNIQUEMENT s'il y a des prévisions réelles configurées
+      revPrevu: hasPrevisionsCeMois ? (isMoisEnCours ? revMoisEnCoursEstime : revPrevu) : null,
+      depPrevu: hasPrevisionsCeMois ? (isMoisEnCours ? depMoisEnCoursEstime : depPrevu) : null,
+      epargnePrevu: hasPrevisionsCeMois ? (isMoisEnCours ? epargneMoisEnCoursEstime : (revPrevu - depPrevu)) : null,
+      soldeProjete: (hasPrevisionsCeMois && afficherPointilles) ? soldeTotalProjete : null,
 
-      // Données pour les graphiques (ligne pleine stoppée à M-1 dès qu'il y a des prévisions)
+      // Données graphiques
       revenus: tracerLignePleine ? reel.rev : null,
       depenses: tracerLignePleine ? reel.dep : null,
       epargne: tracerLignePleine ? reel.epargne : null,
 
-      revenusProjete: afficherPointilles 
-        ? (estPointDeJonction ? reel.rev : (isMoisEnCours ? revMoisEnCoursEstime : (hasPrevisionsCeMois ? revPrevu : null))) 
+      revenusProjete: afficherPointilles && hasPrevisionsCeMois
+        ? (estPointDeJonction ? reel.rev : (isMoisEnCours ? revMoisEnCoursEstime : revPrevu)) 
         : null,
-      depensesProjete: afficherPointilles 
-        ? (estPointDeJonction ? reel.dep : (isMoisEnCours ? depMoisEnCoursEstime : (hasPrevisionsCeMois ? depPrevu : null))) 
+      depensesProjete: afficherPointilles && hasPrevisionsCeMois
+        ? (estPointDeJonction ? reel.dep : (isMoisEnCours ? depMoisEnCoursEstime : depPrevu)) 
         : null,
-      epargneProjete: afficherPointilles 
-        ? (estPointDeJonction ? reel.epargne : (isMoisEnCours ? epargneMoisEnCoursEstime : (hasPrevisionsCeMois ? (revPrevu - depPrevu) : null))) 
+      epargneProjete: afficherPointilles && hasPrevisionsCeMois
+        ? (estPointDeJonction ? reel.epargne : (isMoisEnCours ? epargneMoisEnCoursEstime : (revPrevu - depPrevu))) 
         : null,
 
       soldeTotal: tracerLignePleine ? reel.soldeTotal : null,
@@ -8632,7 +8633,7 @@ if (!user) {
                     {/* CONTENU DYNAMIQUE */}
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
                       
-                        {annualTab === 'list' && (
+                       {annualTab === 'list' && (
   <div className="flex flex-col h-full w-full overflow-hidden">
     {/* EN-TÊTE DU TABLEAU */}
     <div className="grid grid-cols-12 px-6 mb-1.5 shrink-0 select-none">
@@ -8648,19 +8649,20 @@ if (!user) {
       {recapAnnuelStats.map((m, i) => {
         const estMoisEnCours = m.isMoisEnCours;
         const estFutur = m.isFutur;
+        const aDesPrevisions = m.hasPrevisions;
 
         return (
           <div 
             key={i} 
             className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
               estMoisEnCours
-                ? 'flex-[1.45] bg-gradient-to-r from-indigo-500/[0.12] via-indigo-500/[0.06] to-transparent border-indigo-500/40 shadow-[0_4px_18px_rgba(99,102,241,0.18)] py-1.5 ring-1 ring-indigo-500/25'
+                ? `${aDesPrevisions ? 'flex-[1.45] py-1.5' : 'flex-1 py-0.5'} bg-gradient-to-r from-indigo-500/[0.12] via-indigo-500/[0.06] to-transparent border-indigo-500/40 shadow-[0_4px_18px_rgba(99,102,241,0.18)] ring-1 ring-indigo-500/25`
                 : estFutur
                   ? 'flex-1 bg-white/[0.01] hover:bg-white/[0.04] border-white/5 border-dashed py-0.5 opacity-65 hover:opacity-100'
                   : 'flex-1 bg-[var(--glass-bg)] hover:bg-white/[0.06] border-white/5 py-0.5'
             }`}
           >
-            {/* 1. NOM DU MOIS (+ Badge "Prévu" pour les mois futurs) */}
+            {/* 1. NOM DU MOIS */}
             <div className="col-span-3 flex items-center gap-2 min-h-0">
               <span className={`font-black uppercase tracking-tight transition-colors ${
                 estMoisEnCours 
@@ -8672,10 +8674,13 @@ if (!user) {
                 {m.nom}
               </span>
 
-              
+              {/* Point clignotant mois en cours */}
+              {estMoisEnCours && (
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_#818cf8] shrink-0" title="Mois en cours" />
+              )}
 
-              {/* 🌟 Badge prévisionnel pour les mois futurs */}
-              {estFutur && m.hasPrevisions && (
+              {/* Badge prévisionnel pour les mois futurs avec prévisions */}
+              {estFutur && aDesPrevisions && (
                 <span className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400/80 border border-sky-500/20 tracking-wider shrink-0 select-none">
                   Prévu
                 </span>
@@ -8695,7 +8700,8 @@ if (!user) {
                   >
                     {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
                   </span>
-                  {m.revPrevu !== null && (
+                  {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
+                  {aDesPrevisions && m.revPrevu !== null && (
                     <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
                       prévu {m.revPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
                     </span>
@@ -8710,9 +8716,9 @@ if (!user) {
                       fontSize: isCompact ? '1.95vh' : '1.5vh'
                     }}
                   >
-                    {m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                    {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                   </span>
-                  {m.revPrevu !== null && m.revPrevu > 0 && (
+                  {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 && (
                     <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
                       prévu
                     </span>
@@ -8744,7 +8750,8 @@ if (!user) {
                   >
                     {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
                   </span>
-                  {m.depPrevu !== null && (
+                  {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
+                  {aDesPrevisions && m.depPrevu !== null && (
                     <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
                       prévu -{m.depPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
                     </span>
@@ -8759,9 +8766,9 @@ if (!user) {
                       fontSize: isCompact ? '1.95vh' : '1.5vh'
                     }}
                   >
-                    {m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                    {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                   </span>
-                  {m.depPrevu !== null && m.depPrevu > 0 && (
+                  {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 && (
                     <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
                       prévu
                     </span>
@@ -8795,7 +8802,8 @@ if (!user) {
                   >
                     {m.epargneReel > 0 ? '+' : ''}{m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
                   </span>
-                  {m.epargnePrevu !== null && (
+                  {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
+                  {aDesPrevisions && m.epargnePrevu !== null && (
                     <span className="text-[9px] font-mono text-white/50 leading-none mt-1">
                       prévu {m.epargnePrevu > 0 ? '+' : ''}{m.epargnePrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
                     </span>
@@ -8812,7 +8820,7 @@ if (!user) {
                     padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
                   }}
                 >
-                  {m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                  {aDesPrevisions && m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                 </span>
               ) : (
                 <span 
@@ -8837,12 +8845,13 @@ if (!user) {
                     className="font-black tracking-tighter leading-none" 
                     style={{ 
                       color: userTheme.color_patrimoine,
-                      fontSize: isCompact ? '2.15vh' : '1.7vh'
+                      fontSize: isCompact ? '2.15vh' : '1.7vh' 
                     }}
                   >
                     {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                   </span>
-                  {m.soldeProjete !== null && (
+                  {/* 🌟 N'affiche le cumul projeté QUE s'il y a des prévisions */}
+                  {aDesPrevisions && m.soldeProjete !== null && (
                     <span className="text-[10px] font-black tracking-tight text-sky-400 leading-none mt-1" title="Solde projeté fin de mois">
                       prévu {m.soldeProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
                     </span>
@@ -8856,9 +8865,9 @@ if (!user) {
                       fontSize: isCompact ? '2.15vh' : '1.7vh'
                     }}
                   >
-                    {m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                    {aDesPrevisions && m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                   </span>
-                  {m.soldeProjete !== null && (
+                  {aDesPrevisions && m.soldeProjete !== null && (
                     <span className="text-[8px] font-bold text-sky-400/40 tracking-tight leading-none mt-0.5">
                       estimé
                     </span>
