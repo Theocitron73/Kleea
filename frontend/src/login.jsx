@@ -10788,11 +10788,10 @@ const [moisAvecPrevisions, setMoisAvecPrevisions] = useState([]);
 
 // On charge une fois la liste des périodes existantes en base prévisions
 const loadAvailablePreviPeriods = async () => {
+  if (!user) return; // 👈 INDISPENSABLE : ne rien appeler si déconnecté
   try {
-    // Il te faudrait une route dédiée ou charger TOUTES les prévisions 
-    // (sans filtre mois/annee) juste pour extraire les dates
     const res = await api.get(`/previsions/${user}`);
-    setMoisAvecPrevisions(res.data); // Format attendu : [{mois: 3, annee: 2024}, ...]
+    setMoisAvecPrevisions(res.data);
   } catch (err) {
     console.error(err);
   }
