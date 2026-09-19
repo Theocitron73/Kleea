@@ -8620,11 +8620,6 @@ if (!user) {
                                         {m.nom}
                                       </span>
 
-                                      {/* Point clignotant mois en cours */}
-                                      {estMoisEnCours && (
-                                        <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse shadow-[0_0_8px_#818cf8] shrink-0" title="Mois en cours" />
-                                      )}
-
                                       {/* Badge prévisionnel pour les mois futurs avec prévisions */}
                                       {estFutur && aDesPrevisions && (
                                         <span className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400/80 border border-sky-500/20 tracking-wider shrink-0 select-none">
