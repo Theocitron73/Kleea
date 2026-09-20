@@ -9237,9 +9237,9 @@ if (!user) {
                           <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
                           
                         {/* SECTION GRAPHIQUE ANNUEL DES FLUX */}
-                          <div className="h-full w-full pb-8">
-                            <ResponsiveContainer width="100%" height="110%">
-                              <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 0, left: -30, bottom: 0 }}>
+                          <div className="flex-1 w-full min-h-[200px] min-w-0 pb-2">
+                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                              <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 0, left: -30, bottom: 0 }}>
                                 <defs>
                                   {/* Dégradés Revenus */}
                                   <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -9460,9 +9460,9 @@ if (!user) {
                           
 
                           {/* SECTION PATRIMOINE DÉTAILLÉ */}
-                            <div className="h-full w-full pb-12">
-                              <ResponsiveContainer width="100%" height="120%">
-                                <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
+                            <div className="flex-1 w-full min-h-[200px] min-w-0 pb-4">
+                              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+                                <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
                                   
                                   <XAxis 
