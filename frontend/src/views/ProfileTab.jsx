@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, AlertTriangle, ArrowRight, Lock, Plus, Zap, FileUp } from 'lucide-react';
+import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp } from 'lucide-react';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
+import { toast } from 'sonner';
 
 export default function ProfileTab({ 
   user, powensData, comptes, syncCountByAccount = {}, 
   handleAssociateAccount, setActiveTab, importMode, setImportMode, 
-  onAutoSync, showNotify, fetchPowensConnections, fetchComptes, handleConnectNewBank 
+  onAutoSync, fetchPowensConnections, fetchComptes, handleConnectNewBank 
 }) {
   const [profileData, setProfileData] = useState(null);
   const [transactionCount, setTransactionCount] = useState(0);
@@ -20,7 +21,6 @@ export default function ProfileTab({
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
-  const [passwordStatus, setPasswordStatus] = useState({ type: '', msg: '' });
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [showDisconnectConfirm, setShowDisconnectConfirm] = useState(false);
@@ -51,6 +51,7 @@ export default function ProfileTab({
     } catch (err) {
       console.error("Erreur chargement profil:", err);
       setError(true);
+      toast.error("Impossible de charger les données du profil.");
     } finally {
       setLoading(false);
     }
@@ -70,6 +71,7 @@ export default function ProfileTab({
     }
   }, [profileData]);
 
+  // 1. Sauvegarde des infos personnelles
   const handleSaveDetails = async (e) => {
     e.preventDefault();
     try {
@@ -80,43 +82,47 @@ export default function ProfileTab({
       });
       setProfileData(prev => ({ ...prev, name: editName, email: editEmail }));
       setIsEditing(false);
+      toast.success("Profil mis à jour avec succès ! ✨");
     } catch (err) {
-      alert("Impossible de mettre à jour les informations.");
+      toast.error("Impossible de mettre à jour vos informations.");
     } finally {
       setEditLoading(false);
     }
   };
 
+  // 2. Changement de mot de passe
   const handlePasswordChange = async (e) => {
     e.preventDefault();
     if (!newPassword.trim()) return;
 
     try {
       setPasswordLoading(true);
-      setPasswordStatus({ type: '', msg: '' });
       await api.put(`/profile/${user}/password`, { new_password: newPassword });
-      setPasswordStatus({ type: 'success', msg: 'Mot de passe mis à jour !' });
+      toast.success("Mot de passe modifié avec succès ! 🔒");
       setNewPassword('');
-      setTimeout(() => setShowPasswordForm(false), 2000);
+      setShowPasswordForm(false);
     } catch (err) {
-      setPasswordStatus({ type: 'error', msg: 'Erreur lors de la modification.' });
+      toast.error("Erreur lors de la modification du mot de passe.");
     } finally {
       setPasswordLoading(false);
     }
   };
 
+  // 3. Suppression définitive du compte
   const handleDeleteAccount = async () => {
     try {
       setDeleteLoading(true);
       await api.delete(`/profile/${user}`);
+      toast.success("Compte supprimé définitivement.");
       localStorage.clear(); 
       window.location.reload(); 
     } catch (err) {
-      alert("Une erreur est survenue lors de la suppression.");
+      toast.error("Une erreur est survenue lors de la suppression.");
       setDeleteLoading(false);
     }
   };
 
+  // 4. Bascule Mode Auto / Manuel
   const handleToggleImportMode = async (mode) => {
     try {
       await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
@@ -124,16 +130,18 @@ export default function ProfileTab({
       setProfileData(prev => prev ? { ...prev, import_mode: mode } : prev);
       
       if (mode === 'auto') {
-        if (typeof showNotify === 'function') showNotify("Mode automatique activé : synchronisation en cours... ⚡", 'success');
+        toast.success("Mode automatique activé : synchronisation en cours... ⚡");
         if (typeof onAutoSync === 'function') onAutoSync('auto');
       } else {
-        if (typeof showNotify === 'function') showNotify("Mode d'import défini sur : Manuel (CSV) 📂", 'success');
+        toast.info("Mode d'import défini sur : Manuel (CSV) 📂");
       }
     } catch (err) {
       console.error("Erreur mode import:", err);
+      toast.error("Erreur lors du changement de mode d'importation.");
     }
   };
 
+  // 5. Déconnexion totale Powens
   const handleDisconnectPowens = async () => {
     try {
       setDisconnectLoading(true);
@@ -141,15 +149,16 @@ export default function ProfileTab({
       localStorage.removeItem("powens_user_token");
       if (typeof fetchComptes === 'function') await fetchComptes();
       if (typeof fetchPowensConnections === 'function') await fetchPowensConnections();
-      if (typeof showNotify === 'function') showNotify("Banques déconnectées avec succès.", "success");
+      toast.success("Banques déconnectées et accès Powens révoqué avec succès !");
       setShowDisconnectConfirm(false);
     } catch (err) {
-      alert("Erreur lors de la déconnexion des banques.");
+      toast.error("Erreur lors de la déconnexion des banques.");
     } finally {
       setDisconnectLoading(false);
     }
   };
 
+  // 6. Redirection Connexion Banque
   const onConnectBank = async () => {
     if (typeof handleConnectNewBank === 'function') {
       handleConnectNewBank();
@@ -168,7 +177,7 @@ export default function ProfileTab({
       const url = resUrl.data?.url || resUrl.data?.redirect_url;
       if (url) window.location.href = url;
     } catch (err) {
-      alert("Erreur lors de la redirection bancaire.");
+      toast.error("Erreur lors de la génération du lien bancaire.");
     } finally {
       setConnectLoading(false);
     }
@@ -221,7 +230,7 @@ export default function ProfileTab({
               {!isEditing && (
                 <button 
                   onClick={() => setIsEditing(true)}
-                  className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+                  className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider cursor-pointer"
                 >
                   Modifier
                 </button>
@@ -278,14 +287,14 @@ export default function ProfileTab({
                   <button 
                     type="submit" 
                     disabled={editLoading}
-                    className="bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition"
+                    className="bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer"
                   >
                     {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
                   </button>
                   <button 
                     type="button" 
                     onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
-                    className="bg-white/5 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5"
+                    className="bg-white/5 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer"
                   >
                     Annuler
                   </button>
@@ -321,9 +330,9 @@ export default function ProfileTab({
                   <span className="text-xs font-bold text-emerald-400">Sécurisé</span>
                   <button 
                     onClick={() => setShowPasswordForm(!showPasswordForm)}
-                    className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider"
+                    className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider cursor-pointer"
                   >
-                    {showPasswordForm ? 'Annuler' : 'Changer'}
+                    {showPasswordForm ? 'Fermer' : 'Changer'}
                   </button>
                 </div>
               </div>
@@ -385,14 +394,11 @@ export default function ProfileTab({
                 className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition shadow-inner"
               />
             </div>
-            <div className="flex items-center justify-between pt-1">
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${passwordStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {passwordStatus.msg}
-              </span>
+            <div className="flex items-center justify-end pt-1">
               <button
                 type="submit"
                 disabled={passwordLoading}
-                className="bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 text-white font-black text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-lg transition"
+                className="bg-[var(--primary)] hover:opacity-90 disabled:opacity-50 text-white font-black text-[10px] uppercase tracking-widest px-4 py-1.5 rounded-lg transition cursor-pointer"
               >
                 {passwordLoading ? 'Chiffrement...' : 'Confirmer'}
               </button>
@@ -573,7 +579,7 @@ export default function ProfileTab({
           {!showDeleteConfirm && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="text-[9px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-2.5 py-1 rounded-lg transition uppercase tracking-wider shrink-0 ml-2"
+              className="text-[9px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-2.5 py-1 rounded-lg transition uppercase tracking-wider shrink-0 ml-2 cursor-pointer"
             >
               Supprimer
             </button>
@@ -600,14 +606,14 @@ export default function ProfileTab({
               <button
                 disabled={deleteLoading || deleteInput !== 'delete'}
                 onClick={handleDeleteAccount}
-                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 text-white font-black text-[9px] uppercase tracking-widest px-3 py-1.5 rounded-lg"
+                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 text-white font-black text-[9px] uppercase tracking-widest px-3 py-1.5 rounded-lg cursor-pointer"
               >
                 {deleteLoading ? 'Purge...' : 'Oui, détruire mon compte'}
               </button>
               <button
                 disabled={deleteLoading}
                 onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); }}
-                className="bg-white/5 text-white/80 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/5"
+                className="bg-white/5 text-white/80 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/5 cursor-pointer"
               >
                 Annuler
               </button>

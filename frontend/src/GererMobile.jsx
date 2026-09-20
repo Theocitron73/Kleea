@@ -8,10 +8,16 @@ import {
 import DatePicker from 'react-datepicker';
 import { SketchPicker } from 'react-color';
 import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo, getCategoryGroup } from './categoryIcons';
+import { toast } from 'sonner';
+
+// 🟢 Fonction utilitaire de normalisation des mois (sans accents)
+const cleanMonth = (m) => {
+  if (!m) return "";
+  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+};
 
 export default function GererMobile(props) {
   const {
-    lastLearned, setLastLearned,
     toutesLesCategories = [], masquees = [], setMasquees, categoriesPerso = [], categoriesVisibles = [],
     addCategory, handleUpdateCategory, removeCategory, toggleVisibility,
     budgets = [], formBudget, setFormBudget, handleAddBudget,
@@ -53,7 +59,6 @@ export default function GererMobile(props) {
     'Logement', 'Vie courante', 'Transports', 'Santé', 'Loisirs', 'Revenus', 'Général'
   ]);
 
-  // 🟢 1. Gestion synchronisée du changement de profil
   const onSelectProfilLocal = (nouveauProfil) => {
     if (typeof handleProfilChange === 'function') {
       handleProfilChange(nouveauProfil);
@@ -70,7 +75,6 @@ export default function GererMobile(props) {
     }
   };
 
-  // 🟢 2. Gestion synchronisée du changement de compte
   const onSelectCompteLocal = (nouveauCompte) => {
     if (typeof handleCompteChange === 'function') {
       handleCompteChange(nouveauCompte);
@@ -94,8 +98,10 @@ export default function GererMobile(props) {
         utilisateur: props.user
       });
       if (props.fetchCategories) await props.fetchCategories();
+      toast.success(`Groupe assigné : ${targetGroup}`);
     } catch (e) {
       console.error("Erreur assignation groupe mobile:", e);
+      toast.error("Impossible d'assigner le groupe.");
     }
   };
 
@@ -106,6 +112,7 @@ export default function GererMobile(props) {
       setGroupFilter(clean);
       setNewGroupName('');
       setShowNewGroupInput(false);
+      toast.success(`Nouveau groupe créé : ${clean}`);
     }
   };
 
@@ -122,8 +129,10 @@ export default function GererMobile(props) {
       setUserGroups(prev => prev.filter(g => g.toLowerCase() !== grpName.toLowerCase()));
       if (groupFilter.toLowerCase() === grpName.toLowerCase()) setGroupFilter('all');
       if (props.fetchCategories) await props.fetchCategories();
+      toast.success(`Groupe "${grpName}" supprimé.`);
     } catch (e) {
       console.error("Erreur suppression groupe mobile:", e);
+      toast.error("Erreur lors de la suppression du groupe.");
     }
   };
 
@@ -132,9 +141,18 @@ export default function GererMobile(props) {
     const nom = input?.value?.trim();
     if (nom) {
       if (addCategory) addCategory(nom, selectedIconName, selectedCatColor);
+      toast.success(`Catégorie créée : ${nom}`, {
+        icon: (
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.3)] mr-2.5">
+            <CategoryIcon name={selectedIconName} size={16} color={selectedCatColor} />
+          </div>
+        )
+      });
       if (input) input.value = '';
       setSelectedIconName('Tag');
       setSelectedCatColor('#818cf8');
+    } else {
+      toast.warning("Veuillez saisir un intitulé de catégorie.");
     }
   };
 
@@ -142,6 +160,7 @@ export default function GererMobile(props) {
     if (!editingCat) return;
     if (handleUpdateCategory) {
       await handleUpdateCategory(editingCat.nom, editingCat.icone, editingCat.couleur);
+      toast.success(`Catégorie "${editingCat.nom}" mise à jour ! ✨`);
     }
     setEditingCat(null);
   };
@@ -152,15 +171,19 @@ export default function GererMobile(props) {
 
   const handleSaveMobileTx = async () => {
     if (!editingTransaction) return;
-    
-    await updateCell(editingTransaction.id, 'nom', editingTransaction.nom);
-    await updateCell(editingTransaction.id, 'montant', parseFloat(editingTransaction.montant));
-    await updateCell(editingTransaction.id, 'compte', editingTransaction.compte);
-    await updateCell(editingTransaction.id, 'categorie', editingTransaction.categorie);
-    await updateCell(editingTransaction.id, 'mois', editingTransaction.mois);
-    await updateCell(editingTransaction.id, 'enveloppe', editingTransaction.enveloppe);
-    await updateCell(editingTransaction.id, 'prevision_id', editingTransaction.prevision_id ? parseInt(editingTransaction.prevision_id) : null);
-    
+    try {
+      await updateCell(editingTransaction.id, 'nom', editingTransaction.nom);
+      await updateCell(editingTransaction.id, 'montant', parseFloat(editingTransaction.montant));
+      await updateCell(editingTransaction.id, 'compte', editingTransaction.compte);
+      await updateCell(editingTransaction.id, 'categorie', editingTransaction.categorie);
+      await updateCell(editingTransaction.id, 'mois', editingTransaction.mois);
+      await updateCell(editingTransaction.id, 'enveloppe', editingTransaction.enveloppe);
+      await updateCell(editingTransaction.id, 'prevision_id', editingTransaction.prevision_id ? parseInt(editingTransaction.prevision_id) : null);
+      
+      toast.success("Transaction modifiée avec succès ! ✨");
+    } catch (err) {
+      toast.error("Erreur lors de la modification.");
+    }
     setEditingTransaction(null);
   };
 
@@ -178,34 +201,12 @@ export default function GererMobile(props) {
     return (t.mois || 'À DÉFINIR').toUpperCase();
   };
 
-  // Liste des comptes filtrée selon le profil actif (ou tous si 'Tous')
   const comptesDisponiblesMobile = (comptes || []).filter(c => 
     !filters?.profil || filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
-      
-      {/* NOTIFICATION FLOTTANTE */}
-      {lastLearned && (
-        <div className="fixed top-4 left-4 right-4 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="bg-[#121212] border border-white/10 rounded-2xl p-4 shadow-2xl backdrop-blur-[var(--glass-blur)] relative overflow-hidden">
-            <div className="flex items-start gap-3">
-              <div className="bg-[var(--primary)]/20 p-2 rounded-xl">
-                <Brain size={16} className="text-[var(--primary)]" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-[var(--primary)]">Mémoire mise à jour</span>
-                  <button onClick={() => setLastLearned(null)} className="text-white/40"><X size={12} /></button>
-                </div>
-                <p className="text-xs font-bold truncate mt-1">{lastLearned.transaction}</p>
-                <span className="text-[10px] text-white/40 italic">Cible : {lastLearned.categorie}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-4 pt-2">
 
       {/* HEADER MOBILE */}
       <div className="flex items-center justify-between mb-4 mt-2">
@@ -249,7 +250,7 @@ export default function GererMobile(props) {
         </div>
       </div>
 
-      {/* 🟢 VOLET DE FILTRES CORRIGÉ (Z-INDEX SÉCURISÉ POUR ÉVITER LES CLICS BLOQUÉS) */}
+      {/* VOLET DE FILTRES */}
       {showFilters && (
         <div className="mb-4 bg-[#121214] border border-[var(--primary)]/40 rounded-2xl p-4 space-y-4 animate-in slide-in-from-top-4 duration-200 relative z-30 shadow-2xl">
           <div className="flex items-center justify-between pb-2 border-b border-white/5">
@@ -314,7 +315,7 @@ export default function GererMobile(props) {
 
           <button
             onClick={() => setShowFilters(false)}
-            className="w-full py-2 bg-white/10 hover:bg-white/15 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-colors mt-2"
+            className="w-full py-2 bg-white/10 hover:bg-white/15 text-white font-black text-[9px] uppercase tracking-widest rounded-xl transition-colors mt-2 cursor-pointer"
           >
             Fermer les filtres
           </button>
@@ -517,8 +518,8 @@ export default function GererMobile(props) {
 
               <button 
                 onClick={() => {
-                  const label = document.getElementById('quick-nom-mobile')?.value;
-                  const amt = document.getElementById('quick-montant-mobile')?.value;
+                  const label = document.getElementById('quick-nom-mobile')?.value?.trim();
+                  const amt = document.getElementById('quick-montant-mobile')?.value?.trim();
                   if (label && amt) {
                     const elN = document.getElementById('quick-nom');
                     const elM = document.getElementById('quick-montant');
@@ -529,6 +530,9 @@ export default function GererMobile(props) {
                     const qmm = document.getElementById('quick-montant-mobile');
                     if (qnm) qnm.value = '';
                     if (qmm) qmm.value = '';
+                    toast.success(`Transaction ajoutée : ${label}`);
+                  } else {
+                    toast.warning("Veuillez renseigner le libellé et le montant.");
                   }
                 }}
                 className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-2 shadow-lg cursor-pointer"
@@ -766,7 +770,10 @@ export default function GererMobile(props) {
                                 </button>
 
                                 <button 
-                                  onClick={() => toggleVisibility(cat)}
+                                  onClick={() => {
+                                    toggleVisibility(cat);
+                                    toast.info(estMasquee ? `Catégorie "${cat}" réaffichée` : `Catégorie "${cat}" masquée`);
+                                  }}
                                   className={`p-1 rounded-lg cursor-pointer ${estMasquee ? 'text-rose-400' : 'text-white/40 hover:text-emerald-400'}`}
                                   title={estMasquee ? "Afficher" : "Masquer"}
                                 >
@@ -775,7 +782,10 @@ export default function GererMobile(props) {
 
                                 {estPerso && (
                                   <button 
-                                    onClick={() => removeCategory(cat)} 
+                                    onClick={() => {
+                                      removeCategory(cat);
+                                      toast.error(`Catégorie "${cat}" supprimée.`);
+                                    }} 
                                     className="p-1 rounded-lg text-rose-500/60 hover:text-rose-400 cursor-pointer"
                                     title="Supprimer"
                                   >
@@ -870,7 +880,16 @@ export default function GererMobile(props) {
               </div>
 
               <button 
-                onClick={handleAddBudget}
+                onClick={async () => {
+                  if (!formBudget.nom || !formBudget.somme) {
+                    toast.warning("Veuillez choisir une catégorie et une somme.");
+                    return;
+                  }
+                  if (handleAddBudget) {
+                    await handleAddBudget();
+                    toast.success(`Budget fixé pour ${formBudget.nom} : ${formBudget.somme}€ 🎯`);
+                  }
+                }}
                 className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1 cursor-pointer"
               >
                 Fixer Objectif

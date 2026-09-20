@@ -39,6 +39,7 @@ import ProfileTab from './views/ProfileTab';
 import TricountManager from './views/TricountManager';
 import DemenagementPage from './views/DemenagementPage';
 import GestionEpargneProjet from './views/GestionEpargneProjet';
+import { toast } from 'sonner'
 
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
   // 1. Convertir HEX en RGB
@@ -3184,8 +3185,8 @@ const fetchUserTheme = async (username) => {
   }
 };
 
-// ✅ Correct : On initialise avec l'objet attendu
-const [notification2, setNotification2] = useState({ show: false, message: '', type: 'success' });
+
+
 
   const handleSaveThemeSQL = async () => {
   const styles = getComputedStyle(document.documentElement);
@@ -3201,17 +3202,11 @@ const [notification2, setNotification2] = useState({ show: false, message: '', t
 
   try {
     await api.post(`/save-theme`, themeData);
-    showNotify("Configuration propagée avec succès ! 🚀", 'success');
+    toast.success("Configuration propagée avec succès ! 🚀");
   } catch (err) {
     console.error(err);
-    showNotify("Échec de la synchronisation cloud.", 'error');
+    toast.error("Échec de la synchronisation cloud.");
   }
-};
-
-// Fonction utilitaire pour auto-fermer la notification
-const showNotify = (msg, type) => {
-  setNotification2({ show: true, message: msg, type });
-  setTimeout(() => setNotification2({ ...notification, show: false }), 4000);
 };
 
 
@@ -3356,14 +3351,9 @@ const [lastName, setLastName] = useState('');
 const [isForgotPassword, setIsForgotPassword] = useState(false);
 const [resetEmail, setResetEmail] = useState('');
 
-const [toast, setToast] = useState({ show: false, message: '', type: '' });
 
-// Fonction utilitaire pour afficher l'alerte
-const showAlert = (message, type = 'error') => {
-  setToast({ show: true, message, type });
-  // Disparition automatique après 4 secondes
-  setTimeout(() => setToast({ show: false, message: '', type: '' }), 4000);
-};
+
+
 
 
 
@@ -3383,11 +3373,11 @@ const handleLogin = async (e) => {
     } catch (err) {
       // Gestion d'erreur plus précise
       if (err.response && err.response.status === 401) {
-        showAlert("Mot de passe incorrect.")
+        toast.error("Mot de passe incorrect.")
       } else if (err.response && err.response.status === 404) {
-        showAlert("Identifiant ou e-mail inconnu.")
+        toast.error("Identifiant ou e-mail inconnu.")
       } else {
-        showAlert("Erreur de connexion au serveur.")
+        toast.error("Erreur de connexion au serveur.")
       }
     }
   }
@@ -3423,12 +3413,12 @@ const handleRegister = async (e) => {
       last_name: lastName
     });
 
-    showAlert("Compte créé ! Bienvenue chez Kleea." , "success" );
+    toast.success("Compte créé ! Bienvenue chez Kleea.");
     const usernameClean = loginName.toLowerCase();
     localStorage.setItem('user', usernameClean);
     setUser(usernameClean);
   } catch (err) {
-    showAlert(err.response?.data?.detail || "Erreur lors de l'inscription.");
+    toast.error(err.response?.data?.detail || "Erreur lors de l'inscription.");
   }
 };
 
@@ -3436,10 +3426,10 @@ const handleResetRequest = async (e) => {
   e.preventDefault();
   try {
     await api.post(`forgot-password`, { email: resetEmail });
-    showAlert("Si cet email existe, un lien a été envoyé.", "success");
+    toast.success("Si cet email existe, un lien a été envoyé.");
     setIsForgotPassword(false);
   } catch (err) {
-    showAlert("Erreur lors de la demande.");
+    toast.error("Erreur lors de la demande.");
   }
 };
 
@@ -4666,23 +4656,6 @@ const sortedData = [...filteredData].sort((a, b) => {
 
 
 
-
-
-const [lastLearned, setLastLearned] = useState(null);
-
-// Fonction pour afficher la notif et la faire disparaître après 4s
-const showLearningNotif = (transaction, categorie) => {
-  setLastLearned({ transaction, categorie });
-  setTimeout(() => setLastLearned(null), 4000);
-};
-
-
-
-
-
-
-
-
 const updateCell = async (id, field, value) => {
   const transactionActive = toutesLesTransactions.find(t => t.id == id);
 
@@ -4731,6 +4704,8 @@ const updateCell = async (id, field, value) => {
     await api.put(`/transactions/${id}`, updatedData);
     
     // --- 4. LOGIQUE D'APPRENTISSAGE ---
+    // Dans updateCell (partie apprentissage) :
+    // Dans updateCell (partie apprentissage) :
     if (field === 'categorie' && isApprendreActive) {
       const nomPropre = nettoyerPourMemoire(transactionActive.nom);
       
@@ -4740,22 +4715,22 @@ const updateCell = async (id, field, value) => {
         utilisateur: nomUtilisateur
       });
 
-      showLearningNotif(nomPropre, value);
+      // 🟢 TOAST AVEC L'ICÔNE DYNAMIQUE DE LA CATÉGORIE :
+      toast.success(`Mémoire apprise : ${nomPropre}`, {
+        icon: (
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.3)] mr-2.5">
+            <CategoryIcon name={value} size={16} />
+          </div>
+        ),
+        description: `Catégorie associée : ${value}`
+      });
 
       if (typeof fetchMemoire === 'function') {
         await fetchMemoire();
       }
 
-      // Note : Lors d'un apprentissage massif par le NOM, on ne copie pas l'enveloppe 
-      // sur les autres lignes car chaque dépense (ex: un Uber Eats) peut aller dans des projets différents.
       setToutesLesTransactions(prev => 
         prev.map(t => t.nom === transactionActive.nom ? { ...t, categorie: value } : t)
-      );
-
-    } else {
-      // --- 5. MISE À JOUR SIMPLE (Déclenché aussi pour le champ 'enveloppe') ---
-      setToutesLesTransactions(prev => 
-        prev.map(t => t.id == id ? { ...t, ...updatedData } : t)
       );
     }
 
@@ -5256,7 +5231,7 @@ const onDrop = (e) => {
 };
 
 
-const [notification, setNotification] = useState(null);
+
 
 
 
@@ -5317,18 +5292,12 @@ const handleAddKeyword = async (catName, newKeyword) => {
     // Reset du sélecteur à la valeur par défaut
     setSignType("both");
 
-    setNotification({ message: `Intelligence apprise : ${catName}`, type: "success" });
-
-    setTimeout(() => {
-      setNotification(null); 
-    }, 2000);
+    toast.success(`Intelligence apprise : ${catName}`);
 
   } catch (e) {
     console.error(e);
-    setNotification({ message: "Erreur de mémorisation", type: "error" });
-    setTimeout(() => {
-      setNotification(null);
-    }, 2000);
+    toast.error("Erreur de mémorisation");
+    
   }
 };
 
@@ -5545,16 +5514,15 @@ const handleFileUpload = async (file) => {
     setTempTransactions(lignesTraitees);
 
     if (nbDoublonsDetectes > 0) {
-      setNotification({ 
-        message: `ℹ️ ${nbDoublonsDetectes} transaction(s) similaire(s) détectée(s) et indexée(s) (#2, #3...). Vérifiez le tableau avant import.`, 
-        type: 'success' 
-      });
-      setTimeout(() => setNotification(null), 4500);
+      toast.info( 
+        `ℹ️ ${nbDoublonsDetectes} transaction(s) similaire(s) détectée(s) et indexée(s) (#2, #3...). Vérifiez le tableau avant import.` 
+         );
+      
     }
 
   } catch (error) {
     console.error("Erreur import:", error);
-    setNotification({ message: "Erreur lors de l'analyse du CSV", type: 'error' });
+    toast.error("Erreur lors de l'analyse du CSV");
     setFileName("");
   }
 };
@@ -5566,7 +5534,7 @@ const confirmBatchImport = async () => {
     const nouvellesLignes = transactionsCalculees.filter(t => !t.isAlreadyImported);
 
     if (nouvellesLignes.length === 0) {
-      setNotification({ message: "Aucune nouvelle transaction à importer.", type: "warning" });
+      toast.warning("Aucune nouvelle transaction à importer.");
       return;
     }
 
@@ -5576,14 +5544,12 @@ const confirmBatchImport = async () => {
        setTempTransactions([]);
        setFileName("");
        
-       setNotification({ 
-         message: `${response.data.added} nouvelle(s) transaction(s) importée(s) avec succès ! ⚡`, 
-         type: 'success' 
-       });
+       toast.success(
+         `${response.data.added} nouvelle(s) transaction(s) importée(s) avec succès ! ⚡`
+       
+       );
 
-       setTimeout(() => {
-         setNotification(null);
-       }, 3500);
+       
 
        await fetchTransactions(); 
        await fetchComptes();
@@ -5591,7 +5557,7 @@ const confirmBatchImport = async () => {
     }
   } catch (error) {
     console.error("Erreur import:", error);
-    setNotification({ message: "Erreur lors de l'insertion des écritures", type: 'error' });
+    toast.error("Erreur lors de l'insertion des écritures");
   }
 };
 
@@ -5682,8 +5648,7 @@ useEffect(() => {
 
     // CAS 1 : L'utilisateur a DÉJÀ un token (Ajout d'une autre banque)
     if (existingToken && (powensCode || connectionId)) {
-      setNotification({ message: "Nouvel établissement connecté avec succès !", type: "success" });
-      setTimeout(() => setNotification(null), 2000);
+      toast.success("Nouvel établissement connecté avec succès !");
       
       window.history.replaceState({}, document.title, window.location.pathname);
       await fetchPowensConnections();
@@ -5728,8 +5693,8 @@ useEffect(() => {
             });
           }
 
-          setNotification({ message: "Compte bancaire connecté avec succès !", type: "success" });
-          setTimeout(() => setNotification(null), 2000);
+          toast.success("Compte bancaire connecté avec succès !");
+         
           window.history.replaceState({}, document.title, window.location.pathname);
 
           await fetchPowensConnections();
@@ -5788,8 +5753,8 @@ const handleSyncPowens = async (overrideMode = null) => {
         return;
       }
     } catch (error) {
-      setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
-      setTimeout(() => setNotification(null), 2000);
+      toast.error("Erreur lors de la génération de l'URL bancaire.");
+      
     } finally {
       setIsSyncingPowens(false);
     }
@@ -5804,8 +5769,8 @@ const handleSyncPowens = async (overrideMode = null) => {
         await fetchTransactions();
         await fetchComptes();
         await checkNewTransactions();
-        setNotification({ message: "Comptes synchronisés avec succès ! ⚡", type: "success" });
-        setTimeout(() => setNotification(null), 2500);
+        toast.success("Comptes synchronisés avec succès ! ⚡");
+       
       } catch (err) {
         console.error("Erreur de synchro silencieuse :", err);
       } finally {
@@ -5820,10 +5785,7 @@ const handleSyncPowens = async (overrideMode = null) => {
 // 🟢 VERSION CORRIGÉE : N'INDEXE COMME "DÉJÀ IMPORTÉ" QUE CE QUI EST RÉELLEMENT EN BDD
 const handlePowensImportSuccess = (transactions, accountName) => {
   if (!transactions || transactions.length === 0) {
-    setNotification({ 
-      message: `Aucune transaction trouvée pour le compte ${accountName}.`, 
-      type: "warning" 
-    });
+    toast.warning(`Aucune transaction trouvée pour le compte ${accountName}.`);
     return;
   }
 
@@ -5875,11 +5837,10 @@ const handlePowensImportSuccess = (transactions, accountName) => {
   setFileName(`Import Powens (${accountName})`);
   setTempTransactions(transactionsMarquees);
 
-  setNotification({ 
-    message: `${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s) à importer, ${nbDejaImportees} déjà en base).`, 
-    type: "success" 
-  });
-  setTimeout(() => setNotification(null), 3500);
+  toast.success(
+   `${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s) à importer, ${nbDejaImportees} déjà en base).`
+     
+  );
 
   fetchPowensConnections();
   checkNewTransactions()
@@ -5905,15 +5866,12 @@ const handleConnectNewBank = async () => {
     if (url) {
       window.location.href = url;
     } else {
-      setNotification({ message: "URL de connexion Powens introuvable.", type: "error" });
+      toast.error("URL de connexion Powens introuvable.");
     }
   } catch (err) {
     console.error("Erreur génération lien Powens:", err);
-    setNotification({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
+    toast.error({ message: "Erreur lors de la génération de l'URL bancaire.", type: "error" });
 
-    setTimeout(() => {
-      setNotification(null); 
-    }, 3000);
   } finally {
     setIsSyncingPowens(false);
   }
@@ -6376,8 +6334,7 @@ const recapPrevisionsStats = useMemo(() => {
     }
 
     // 🌟 FORMULE EXACTE DU LIVE :
-    // Revenus = Réel encaissé (1884.12€) + Reste à toucher (0€) = 1884.12€
-    // Dépenses = Réel débité (1929.09€) + Reste à payer (27.00€) = 1956.09€
+  
     const totalRev = estMoisEnCours 
       ? Math.max(revReel, totalConsommeRevenusLies) + revReste
       : (estFutur ? (previsionsDuMois.length > 0 ? revReste + totalConsommeRevenusLies : 0) : revReel);
@@ -6529,24 +6486,13 @@ const handleConfirmDuplicate = async () => {
     setDuplicateModal({ show: false, count: 0, isSelection: false });
     loadPrevisions();
     
-    setNotification({
-      type: 'success',
-      message: `${aCopier.length} prévisions dupliquées avec succès !`
-    });
-    setTimeout(() => {
-      setNotification(null); 
-    }, 2000);
+    toast.success(`${aCopier.length} prévisions dupliquées avec succès !`);
+    
 
   } catch (err) {
     console.error("Erreur duplication :", err);
     setDuplicateModal({ show: false, count: 0, isSelection: false });
-    setNotification({
-      type: 'error',
-      message: "Erreur lors de la duplication."
-    });
-    setTimeout(() => {
-      setNotification(null); 
-    }, 2000);
+    toast.error( "Erreur lors de la duplication.");
   }
 };
 
@@ -6847,7 +6793,7 @@ const confirmerCalculAssistant = async () => {
   const montantSaisi = parseFloat(valeur.replace(',', '.'));
 
   if (isNaN(montantSaisi)) {
-    setNotification({ message: "Veuillez saisir un montant valide", type: "error" });
+    toast.error( "Veuillez saisir un montant valide");
     return;
   }
 
@@ -6865,17 +6811,14 @@ const confirmerCalculAssistant = async () => {
     setComptes(nouveauxComptes);
     await handleBlurUpdate({ ...compte, solde: nouveauSoldeInitial });
 
-    setNotification({ 
-      message: `Solde initial ajusté : ${nouveauSoldeInitial.toLocaleString('fr-FR')}€`, 
-      type: "success" 
-    });
+    toast.success(`Solde initial ajusté : ${nouveauSoldeInitial.toLocaleString('fr-FR')}€`);
     
     // Fermer la modale
     setAssistantData({ open: false, compte: null, valeur: "" });
     
-    setTimeout(() => setNotification(null), 3000);
+    
   } catch (err) {
-    setNotification({ message: "Erreur lors de la sauvegarde", type: "error" });
+    toast.error("Erreur lors de la sauvegarde");
   }
 };
 
@@ -6884,7 +6827,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "4.1"; 
+const CURRENT_VERSION = "4.2"; 
 
 useEffect(() => {
   if (!user) return;
@@ -7200,23 +7143,13 @@ const confirmPropagateToYear = async () => {
       await loadPrevisions(); 
       
       // Utilisation de votre système de toasts d'origine
-      setNotification({
-        type: 'success',
-        message: `${response.data.inserted_count} prévisions propagées sur l'année avec succès !`
-      });
-      setTimeout(() => {
-        setNotification(null); 
-      }, 2000);
+      toast.success(`${response.data.inserted_count} prévisions propagées sur l'année avec succès !`);
+     
     }
   } catch (err) {
     console.error("Erreur de propagation :", err);
-    setNotification({
-      type: 'error',
-      message: "Impossible de propager les prévisions sur l'année."
-    });
-    setTimeout(() => {
-      setNotification(null); 
-    }, 2000);
+    toast.error("Impossible de propager les prévisions sur l'année.");
+    
   }
 };
 
@@ -7392,38 +7325,51 @@ const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 const [isRefreshingPowens, setIsRefreshingPowens] = useState(false);
 
 const handleForceRefreshPowens = async () => {
-    if (isRefreshingPowens) return;
-    setIsRefreshingPowens(true);
-    try {
-      setNotification({ message: "Interrogation de votre banque en direct... ⏳", type: "success" });
+  if (isRefreshingPowens) return;
+  setIsRefreshingPowens(true);
 
-      // 🟢 1. Déclenche la connexion réelle de Powens auprès de vos serveurs bancaires
-      await api.post(`/powens/refresh-bank-sync/${user}`);
+  // 1. On démarre le toast de chargement infini et on récupère son identifiant
+  const toastId = toast.loading("Interrogation de votre banque en direct... ⏳", {
+    description: "Connexion sécurisée aux serveurs bancaires"
+  });
 
-      // 🟢 2. Si vous êtes en mode automatique, on importe les nouvelles transactions immédiatement
-      if (importMode === 'auto') {
-        await api.post(`/powens/sync-user/${user}`);
-        await api.post(`/powens/recalculate-balances/${user}`);
-        await fetchTransactions();
-      }
+  try {
+    // 🟢 1. Déclenche la connexion réelle de Powens auprès de vos serveurs bancaires
+    await api.post(`/powens/refresh-bank-sync/${user}`);
 
-      // 🟢 3. Rafraîchissement des soldes et du détecteur de nouvelles écritures
-      await Promise.all([
-        fetchPowensConnections(),
-        checkNewTransactions(),
-        fetchComptes()
-      ]);
-
-      setNotification({ message: "Banque interrogée et données synchronisées ! ⚡", type: "success" });
-      setTimeout(() => setNotification(null), 3000);
-    } catch (err) {
-      console.error("Erreur lors de l'actualisation manuelle :", err);
-      setNotification({ message: "Impossible d'interroger la banque pour le moment.", type: "error" });
-      setTimeout(() => setNotification(null), 3000);
-    } finally {
-      setIsRefreshingPowens(false);
+    // 🟢 2. Si vous êtes en mode automatique, on importe les nouvelles transactions immédiatement
+    if (importMode === 'auto') {
+      await api.post(`/powens/sync-user/${user}`);
+      await api.post(`/powens/recalculate-balances/${user}`);
+      await fetchTransactions();
     }
-  };
+
+    // 🟢 3. Rafraîchissement des soldes et du détecteur de nouvelles écritures
+    await Promise.all([
+      fetchPowensConnections(),
+      checkNewTransactions(),
+      fetchComptes()
+    ]);
+
+    // 2. Le toast de chargement se transforme instantanément en succès ✨
+    toast.success("Banque interrogée et données synchronisées ! ⚡", {
+      id: toastId, // 👈 C'est cet id qui remplace le message en cours
+      description: "Vos soldes et transactions sont à jour"
+    });
+
+  } catch (err) {
+    console.error("Erreur lors de l'actualisation manuelle :", err);
+    
+    // 3. En cas d'échec, il se transforme en erreur ❌
+    toast.error("Impossible d'interroger la banque pour le moment.", {
+      id: toastId, // 👈 Remplace le message en cours
+      description: "Veuillez réessayer dans quelques instants"
+    });
+
+  } finally {
+    setIsRefreshingPowens(false);
+  }
+};
 
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
@@ -10605,50 +10551,6 @@ if (!user) {
   {activeTab === 'gerer' && (
     <>
   <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
-
-     {/* ZONE DE NOTIFICATION GLOBALE (Portée par le body) */}
-      {lastLearned && (
-        <div className="fixed top-6 right-6 z-[9999] w-80 animate-in fade-in slide-in-from-right-8 duration-300">
-          <div className="bg-[#121212] border border-white/10 rounded-[1.5rem] p-4 shadow-2xl shadow-[var(--primary)]/20 backdrop-blur-[var(--glass-blur)] relative overflow-hidden group">
-            
-            {/* Barre de progression de disparition (optionnelle mais sexy) */}
-            <div className="absolute bottom-0 left-0 h-[2px] bg-[var(--primary)] animate-[shimmer_4s_linear_forwards]" style={{ width: '100%' }} />
-
-            <div className="flex items-start gap-4">
-              {/* Icône avec effet de halo */}
-              <div className="relative shrink-0">
-                <div className="absolute inset-0 bg-[var(--primary)]/20 blur-lg rounded-full" />
-                <div className="relative bg-[var(--primary)]/20 p-2.5 rounded-xl border border-[var(--primary)]/40">
-                  <Brain size={16} className="text-[var(--primary)]" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--primary)]">
-                    Mémoire mise à jour
-                  </span>
-                  <button onClick={() => setLastLearned(null)} className="text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors">
-                    <X size={12} />
-                  </button>
-                </div>
-                
-                <p className="text-[12px] text-[var(--text-main)] font-bold truncate pr-2">
-                  {lastLearned.transaction}
-                </p>
-                
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="px-2 py-0.5 rounded-md bg-[var(--glass-bg)] border border-white/10">
-                    <span className="text-[15px] text-[var(--text-main)]/40 font-medium italic">
-                      Cible : <span className="text-[var(--text-main)]/70 font-bold not-italic">{lastLearned.categorie}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     
     {/* HEADER */}
     <div className="mb-6 px-2 shrink-0">
@@ -12350,9 +12252,7 @@ if (!user) {
         2. VERSION MOBILE / SMARTPHONE (Visible uniquement sur petits écrans)
         ========================================================== */}
     <div className="block lg:hidden">
-      <GererMobile 
-        lastLearned={lastLearned}
-        setLastLearned={setLastLearned}
+      <GererMobile    
         toutesLesCategories={toutesLesCategories}
         masquees={masquees}
         setMasquees={setMasquees}
@@ -14008,7 +13908,7 @@ if (!user) {
     importMode={importMode}
     setImportMode={setImportMode}
     onAutoSync={performBackgroundSyncIfNeeded}
-    showNotify={showNotify}
+
     fetchPowensConnections={fetchPowensConnections}
     fetchComptes={fetchComptes}
     handleConnectNewBank={handleConnectNewBank}
@@ -14032,7 +13932,6 @@ if (!user) {
 )}
     
 
-      
 
       {/* 💡 Appel unique du menu de widgets centralisé */}
       <UnifiedWidgets 
@@ -14224,40 +14123,6 @@ if (!user) {
 )}
 
 
-{/* Notification Flash (Toast) */}
-{notification && (
-  <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-bottom-5 duration-300">
-    <div className={`
-      flex items-center gap-3 px-6 py-4 rounded-[1.5rem] shadow-2xl border backdrop-blur-[var(--glass-blur)]
-      ${notification.type === 'success' 
-        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-        : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}
-    `}>
-      <div className={`p-2 rounded-xl ${notification.type === 'success' ? 'bg-emerald-500/20' : 'bg-rose-500/20'}`}>
-        {notification.type === 'success' ? <Check size={18} /> : <X size={18} />}
-      </div>
-      
-      <div className="flex flex-col">
-        <span className="text-[11px] font-black uppercase tracking-widest">
-          {notification.type === 'success' ? 'Système à jour' : 'Échec opération'}
-        </span>
-        <span className="text-[10px] font-bold opacity-80 uppercase">
-          {notification.message}
-        </span>
-      </div>
-
-      <button 
-        onClick={() => setNotification(null)}
-        className="ml-4 hover:rotate-90 transition-transform opacity-40 hover:opacity-100"
-      >
-        <X size={14} />
-      </button>
-    </div>
-  </div>
-)}
-
-
-
 {selectedIds2.length > 0 && (
   <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
     <div className="bg-[#121212]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
@@ -14340,39 +14205,6 @@ if (!user) {
           </button>
         </div>
       </div>
-    </div>
-  </div>
-)}
-
-
-{/* ALERTE PERSONNALISÉE (TOAST) */}
-{notification2.show && (
-  <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-bottom-10 fade-in duration-500">
-    <div className={`
-      flex items-center gap-4 px-6 py-4 rounded-[var(--radius)] border shadow-[0_20px_50px_rgba(0,0,0,0.5)] min-w-[320px]
-      ${notification2.type === 'success' 
-        ? 'bg-[#0f172a] border-emerald-500/50' 
-        : 'bg-[#0f172a] border-rose-500/50'}
-    `}>
-      {/* Icône dynamique */}
-      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-xl ${
-        notification2.type === 'success' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
-      }`}>
-        {notification2.type === 'success' ? '✓' : '✕'}
-      </div>
-
-      <div className="flex-1">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/40 mb-1">
-          Système Kleea
-        </p>
-        <p className="text-xs font-bold text-[var(--text-main)] tracking-wide">
-          {notification2.message}
-        </p>
-      </div>
-
-      {/* Barre de progression éphémère */}
-      <div className="absolute bottom-0 left-0 h-1 bg-current opacity-20 transition-all duration-[4000ms] ease-linear"
-           style={{ width: '0%', animation: 'progress 4s linear' }} />
     </div>
   </div>
 )}
@@ -14508,37 +14340,56 @@ if (!user) {
       {/* Liste des changements */}
       <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
         
-        {/* NOUVEAUTÉ 1 : ICÔNES VECTORIELLES & COULEURS PERSONNALISABLES */}
-        <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(99,102,241,0.06)] animate-in slide-in-from-top-2 duration-300">
-          <span className="text-base mt-0.5">🎨</span>
+        {/* 🌟 NOUVEAUTÉ 1 : VISIBILITÉ DES PRÉVISIONS SUR LE DASHBOARD (PC & MOBILE) */}
+        <div className="p-3 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(16,185,129,0.06)] animate-in slide-in-from-top-2 duration-300">
+          <span className="text-base mt-0.5">📊</span>
           <div>
-            <h4 className="text-[14px] font-black text-indigo-300 uppercase tracking-wide">
-              Refonte Visuelle : Icônes Vectorielles & Nuancier
+            <h4 className="text-[14px] font-black text-emerald-300 uppercase tracking-wide">
+              Visibilité des Prévisions sur le Dashboard (PC & Mobile)
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
-              Fini les anciens émojis pixelisés ! Les catégories adoptent désormais des <strong className="text-indigo-400">icônes vectorielles modernes et nettes</strong> sur l’ensemble de vos graphiques, barres de suivi et historiques. Vous pouvez désormais <strong className="text-indigo-400">personnaliser l'icône et la couleur</strong> de chaque catégorie directement via le sélecteur dédié.
+              Le tableau de bord fusionne désormais vos flux réels et vos projections financières :
             </p>
+            <ul className="text-[11px] text-[var(--text-main)]/70 mt-1 space-y-1 list-disc list-inside leading-relaxed">
+              <li><strong className="text-emerald-400">Bilan Annuel enrichi :</strong> visualisation sous chaque mois des revenus prévus, dépenses restantes et patrimoine estimé en fin de mois.</li>
+              <li><strong className="text-emerald-400">Courbes prévisionnelles :</strong> projection en pointillés raccordée à votre historique réel sur les graphiques annuels.</li>
+              <li><strong className="text-emerald-400">Jauge d'épargne double-barre :</strong> affichage direct de l'épargne déjà acquise complétée par le relais hachuré de vos prévisions.</li>
+              <li><strong className="text-emerald-400">Parité Mobile :</strong> l'ensemble de ces analyses prévisionnelles et synthèses est disponible sur smartphone.</li>
+            </ul>
           </div>
         </div>
 
-        {/* 💡 NOUVEAUTÉ 2 : LIAISON TRANSACTIONS & PRÉVISIONS (RÉALISÉ VS PRÉVU) */}
-        <div className="p-3 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(16,185,129,0.06)] animate-in slide-in-from-top-2 duration-300">
+        {/* NOUVEAUTÉ 2 : LIAISON TRANSACTIONS & PRÉVISIONS (RÉALISÉ VS PRÉVU) */}
+        <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(99,102,241,0.06)] animate-in slide-in-from-top-2 duration-300">
           <span className="text-base mt-0.5">🎯</span>
           <div>
-            <h4 className="text-[14px] font-black text-emerald-300 uppercase tracking-wide">
+            <h4 className="text-[14px] font-black text-indigo-300 uppercase tracking-wide">
               Liaison des Transactions aux Prévisions
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
-              Associez d'un simple clic vos Transactions réelles à vos prévisions budgétaires ! L'application calcule en temps réel votre <strong className="text-emerald-400">avancement (consommé vs prévu)</strong> avec jauge de progression et alertes en cas de dépassement.
+              Associez d'un simple clic vos Transactions réelles à vos prévisions budgétaires ! L'application calcule en temps réel votre <strong className="text-indigo-400">avancement (consommé vs prévu)</strong> avec jauge de progression et alertes en cas de dépassement.
               <br />
-              <span className="text-[11px] text-emerald-400/90 font-semibold mt-1 block">
+              <span className="text-[11px] text-indigo-300/90 font-semibold mt-1 block">
                 ⚡ Zéro doublon : dès qu'une charge (loyer, assurance) ou un revenu (salaire) est payé et lié, la projection de fin de mois s'ajuste automatiquement sur le reste réel à venir.
               </span>
             </p>
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 3 : SYNCHRONISATION CONTINUE SANS EFFORT */}
+        {/* NOUVEAUTÉ 3 : ICÔNES VECTORIELLES & COULEURS PERSONNALISABLES */}
+        <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex items-start gap-3">
+          <span className="text-base mt-0.5">🎨</span>
+          <div>
+            <h4 className="text-[14px] font-black text-white/90 uppercase tracking-wide">
+              Refonte Visuelle : Icônes Vectorielles & Nuancier
+            </h4>
+            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
+              Fini les anciens émojis pixelisés ! Les catégories adoptent désormais des <strong className="text-white">icônes vectorielles modernes et nettes</strong> sur l’ensemble de vos graphiques, barres de suivi et historiques avec personnalisation de l'icône et de la couleur.
+            </p>
+          </div>
+        </div>
+
+        {/* NOUVEAUTÉ 4 : SYNCHRONISATION CONTINUE SANS EFFORT */}
         <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
           <span className="text-base mt-0.5">🔌</span>
           <div>
@@ -14551,7 +14402,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 4 : CALCUL AUTOMATIQUE DU SOLDE INITIAL */}
+        {/* NOUVEAUTÉ 5 : CALCUL AUTOMATIQUE DU SOLDE INITIAL */}
         <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(16,185,129,0.03)]">
           <span className="text-base mt-0.5">⚖️</span>
           <div>
@@ -14564,7 +14415,7 @@ if (!user) {
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 5 : DÉTECTION CROISÉE DES VIREMENTS & IBAN */}
+        {/* NOUVEAUTÉ 6 : DÉTECTION CROISÉE DES VIREMENTS & IBAN */}
         <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
           <span className="text-base mt-0.5">🔄</span>
           <div>
@@ -14572,12 +14423,12 @@ if (!user) {
               Détection Intelligente des Virements Internes
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Grâce à l'analyse croisée des IBANs et numéros de comptes, les virements entre vos comptes (ex: <i>CCP vers Livret A / LEP</i>) sont <strong className="text-cyan-400">automatiquement catégorisés en transferts internes</strong>, même si vous avez écrit un motif personnalisé lors du virement. Les rentrées externes (salaires, remboursements) restent quant à elles classées dans leurs vraies catégories.
+              Grâce à l'analyse croisée des IBANs et numéros de comptes, les virements entre vos comptes (ex: <i>CCP vers Livret A / LEP</i>) sont <strong className="text-cyan-400">automatiquement catégorisés en transferts internes</strong>, sans fausser vos revenus ou vos dépenses.
             </p>
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 6 : GESTION DES DOUBLONS & INDEXATION (#2, #3) */}
+        {/* NOUVEAUTÉ 7 : GESTION DES DOUBLONS & INDEXATION (#2, #3) */}
         <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
           <span className="text-base mt-0.5">🛡️</span>
           <div>
@@ -14585,12 +14436,12 @@ if (!user) {
               Indexation Transparente des Transactions Identiques
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Plus aucun blocage lors de l'import : si plusieurs transactions identiques ont lieu le même jour (ex: plusieurs péages ou micro-achats), elles sont indexées avec <strong className="text-amber-400">#2, #3...</strong> et signalées visuellement pour vous permettre de les vérifier, renommer ou supprimer à tout moment.
+              Plus aucun blocage lors de l'import : si plusieurs transactions identiques ont lieu le même jour, elles sont indexées avec <strong className="text-amber-400">#2, #3...</strong> et signalées visuellement pour vous permettre de les vérifier ou modifier à tout moment.
             </p>
           </div>
         </div>
 
-        {/* NOUVEAUTÉ 7 : CONTRÔLE TOTAL DANS LE PROFIL */}
+        {/* NOUVEAUTÉ 8 : CONTRÔLE TOTAL DANS LE PROFIL */}
         <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(168,85,247,0.03)]">
           <span className="text-base mt-0.5">⚙️</span>
           <div>
