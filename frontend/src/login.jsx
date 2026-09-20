@@ -739,65 +739,115 @@ const SortableAccountCard = ({ c, isSorting }) => {
     touchAction: isSorting ? 'none' : 'auto', 
   };
 
+  // Sécurise la valeur des intérêts
+  const interets = c.interetsGagnesPériode !== undefined ? c.interetsGagnesPériode : 0;
+
   return (
     <div 
       ref={setNodeRef}
       style={containerStyle}
       {...attributes}
       {...listeners}
-      className="flex-1 min-w-[135px] md:min-w-[160px] h-20 md:h-28 outline-none" 
+      className="flex-1 min-w-[145px] md:min-w-[160px] h-24 md:h-28 outline-none select-none" 
     >
+      {/* LA CARTE VISUELLE COMPLÈTE */}
       <div 
         className={`
-          w-full h-full p-2.5 md:p-3 rounded-xl md:rounded-[var(--radius)] 
-          flex flex-col justify-between relative overflow-hidden group 
-          cursor-grab active:cursor-grabbing shadow-md
+          w-full h-full p-2.5 md:p-3 rounded-2xl md:rounded-[var(--radius)] 
+          flex flex-col justify-between
+          relative overflow-hidden group 
+          cursor-grab active:cursor-grabbing shadow-xl
+          will-change-transform
+          transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
           backdrop-blur-[var(--glass-blur)] border
-          ${isEstimated ? 'border-white/40' : 'border-white/10 hover:border-white/30'}
+          
+          /* Bordures selon état */
+          ${isEstimated 
+            ? 'border-white/40 saturate-[0.9]' 
+            : 'border-white/10 hover:border-white/30'
+          }
+          
+          /* 🌟 ANIMATIONS DRAG & DROP VS HOVER */
+          ${isDragging 
+            ? 'scale-105 rotate-2 shadow-2xl opacity-60 brightness-125 ring-2 ring-white/20' 
+            : 'hover:-translate-y-1.5 hover:shadow-[0_20px_40px_-15px_rgba(0,0,0,0.35)]'
+          }
         `}
         style={{
-          background: `linear-gradient(135deg, ${c.couleur}aa 0%, ${c.couleur}66 100%)`,
+          background: isEstimated
+            ? `linear-gradient(135deg, ${c.couleur}88 0%, ${c.couleur}44 100%)`
+            : `linear-gradient(135deg, ${c.couleur}aa 0%, ${c.couleur}66 100%)`,
         }}
       >
-        {/* Header de la carte */}
+        {/* 1. Motif de fond vitreux */}
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/10 to-transparent pointer-events-none opacity-20" />
+        
+        {/* 2. 🌟 Cercle de lumière dynamique au survol restauré */}
+        <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-[var(--glass-bg)] rounded-full blur-2xl group-hover:bg-white/20 group-hover:scale-150 transition-all duration-700 pointer-events-none" />
+
+        {/* 3. Header de la carte */}
         <div className="flex justify-between items-start relative z-10 w-full">
-          <div className="flex flex-col items-start leading-none">
-            <span className="text-[7.5px] md:text-[9px] font-black uppercase tracking-wider text-white/50 italic">
+          <div className="flex flex-col items-start leading-none min-w-0 pr-1">
+            <span className={`text-[8px] md:text-[9px] font-black uppercase tracking-[0.15em] leading-none italic truncate max-w-[90px] md:max-w-none ${isEstimated ? 'text-white/80' : 'text-white/40'}`}>
               {c.groupe || 'Compte'}
             </span>
-            <h4 className="text-white font-black text-[11px] md:text-xs tracking-tight truncate max-w-[95px] md:max-w-[110px] uppercase mt-0.5">
+            <h4 className="text-white font-black text-[11px] md:text-xs tracking-tight truncate max-w-[100px] md:max-w-[115px] uppercase mt-1">
               {c.compte}
             </h4>
           </div>
           
-          <div className="w-6 h-6 md:w-8 md:h-8 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+          {/* 🌟 Icône qui s'anime au survol (agrandissement + rotation) */}
+          <div className={`w-7 h-7 md:w-9 md:h-9 rounded-xl backdrop-blur-[var(--glass-blur)] border flex items-center justify-center shadow-sm group-hover:scale-110 group-hover:rotate-6 transition-all duration-500 shrink-0 ${isEstimated ? 'bg-white/30 border-white/40' : 'bg-[var(--glass-bg)] border-white/20'}`}>
             {(() => {
               const g = (c.compte || "").toString().toLowerCase().trim();
-              if (g.includes('ccp')) return <CreditCard size={12} className="text-white" />;
-              if (g.includes('livret') || g.includes('lep') || c.taux > 0) return <BadgeEuro size={12} className="text-white" />;
-              if (g.includes('commun') || g.includes('users')) return <Users2 size={12} className="text-white" />;
-              return <Wallet size={12} className="text-white" />;
+              if (g.includes('ccp')) return <CreditCard size={15} className="text-white" />;
+              if (g.includes('livret') || g.includes('lep') || c.taux > 0) return <BadgeEuro size={15} className="text-white" />;
+              if (g.includes('commun') || g.includes('users')) return <Users2 size={15} className="text-white" />;
+              return <Wallet size={15} className="text-white" />;
             })()}
           </div>
         </div>
         
-        {/* Solde */}
-        <div className="relative z-10 flex items-end justify-between w-full mt-auto">
+        {/* 4. Zone des chiffres : Solde à gauche & Intérêts à droite */}
+        <div className="relative z-10 flex items-end justify-between w-full mt-auto gap-2 pt-1">
+          
+          {/* GAUCHE : LE SOLDE */}
           <div className="flex flex-col items-start min-w-0 flex-1">
-            <span className="text-[8px] md:text-[10px] font-bold uppercase text-white/50 leading-none mb-0.5">
-              {isEstimated ? 'Estimé' : 'Solde'}
+            <span className="text-[8.5px] md:text-[10px] font-black uppercase tracking-wider text-white/40 leading-none mb-1">
+              {isEstimated ? 'Solde prévu' : 'Solde'}
             </span>
-            <h3 className="text-sm md:text-xl font-black text-white tracking-tighter leading-none truncate w-full">
+            <h3 className="text-base md:text-xl font-black text-white tracking-tighter leading-none truncate w-full">
               {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-              <span className="text-[9px] ml-0.5 font-bold text-white/70">€</span>
+              <span className="text-[10px] ml-0.5 font-bold text-white/60">€</span>
             </h3>
           </div>
+
+          {/* 🌟 DROITE : AFFICHAGE DES INTÉRÊTS RESTAURÉ */}
+          {c.taux > 0 && (
+            <div className="flex flex-col items-end shrink-0 max-w-[50%] text-right">
+              {/* Badge du Taux */}
+              <div className="flex items-center gap-1 mb-1">
+                <span className="text-[8px] md:text-[9.5px] font-black uppercase tracking-wider text-white/40 leading-none">
+                  Intérêts
+                </span>
+                <span className="text-[8px] md:text-[9.5px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.2 rounded leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
+                  {c.taux.toFixed(1)}%
+                </span>
+              </div>
+              
+              {/* Montant des Intérêts */}
+              <h3 className="text-[11.5px] md:text-[13px] font-black text-white-300 tracking-tighter leading-none truncate w-full">
+                +{interets.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                <span className="text-[9px] ml-0.5 font-bold text-white-300/70">€</span>
+              </h3>
+            </div>
+          )}
+
         </div>
       </div>
     </div>
   );
 };
-
 
 const TransactionCard = ({ t, color, bg }) => {
   let day = '??';
@@ -8580,190 +8630,169 @@ if (!user) {
                     <div className="flex-1 overflow-hidden p-2 min-h-0 flex flex-col">
                       
                        {annualTab === 'list' && (
-                          <div className="flex flex-col h-full w-full overflow-hidden">
-                            {/* EN-TÊTE DU TABLEAU */}
-                            <div className="grid grid-cols-12 px-6 mb-1.5 shrink-0 select-none">
-                              <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Mois</span>
-                              <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Revenus</span>
-                              <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Dépenses</span>
-                              <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-center">Épargne</span>
-                              <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-right">Cumul</span>
-                            </div>
+                        <div className="flex flex-col h-full w-full overflow-hidden">
+                          {/* EN-TÊTE DU TABLEAU */}
+                          <div className="grid grid-cols-12 px-6 mb-1.5 shrink-0 select-none">
+                            <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Mois</span>
+                            <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Revenus</span>
+                            <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30">Dépenses</span>
+                            <span className="col-span-2 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-center">Épargne</span>
+                            <span className="col-span-3 text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-main)]/30 text-right">Cumul</span>
+                          </div>
 
-                            {/* GRILLE DES 12 MOIS */}
-                            <div className="flex-1 flex flex-col gap-1 min-h-0 h-full w-full overflow-hidden select-none">
-                              {recapAnnuelStats.map((m, i) => {
-                                const estMoisEnCours = m.isMoisEnCours;
-                                const estFutur = m.isFutur;
-                                const aDesPrevisions = m.hasPrevisions;
+                          {/* GRILLE DES 12 MOIS */}
+                          <div className="flex-1 flex flex-col gap-1 min-h-0 h-full w-full overflow-hidden select-none">
+                            {recapAnnuelStats.map((m, i) => {
+                              const estMoisEnCours = m.isMoisEnCours;
+                              const estFutur = m.isFutur;
+                              const aDesPrevisions = m.hasPrevisions;
 
-                                return (
-                                  <div 
-                                    key={i} 
-                                    className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
-                                      estMoisEnCours
-                                        ? `${aDesPrevisions ? 'flex-[1.45] py-1.5' : 'flex-1 py-0.5'} bg-gradient-to-r from-indigo-500/[0.12] via-indigo-500/[0.06] to-transparent border-indigo-500/40 shadow-[0_4px_18px_rgba(99,102,241,0.18)] ring-1 ring-indigo-500/25`
-                                        : estFutur
-                                          ? 'flex-1 bg-white/[0.01] hover:bg-white/[0.04] border-white/5 border-dashed py-0.5 opacity-65 hover:opacity-100'
-                                          : 'flex-1 bg-[var(--glass-bg)] hover:bg-white/[0.06] border-white/5 py-0.5'
-                                    }`}
-                                  >
-                                    {/* 1. NOM DU MOIS */}
-                                    <div className="col-span-3 flex items-center gap-2 min-h-0">
-                                      <span className={`font-black uppercase tracking-tight transition-colors ${
-                                        estMoisEnCours 
-                                          ? 'text-indigo-200 font-extrabold' 
-                                          : estFutur 
-                                            ? 'text-[var(--text-main)]/40 group-hover:text-[var(--text-main)]/80' 
-                                            : 'text-[var(--text-main)]/50 group-hover:text-[var(--text-main)]/90'
-                                      } ${isCompact ? 'text-xs' : 'text-[11px]'}`}>
-                                        {m.nom}
+                              return (
+                                <div 
+                                  key={i} 
+                                  className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
+                                    estMoisEnCours
+                                      ? `${aDesPrevisions ? 'flex-[1.45] py-1.5' : 'flex-1 py-0.5'} bg-white/[0.03] border-white/20 shadow-md`
+                                      : estFutur
+                                        ? 'flex-1 bg-white/[0.01] hover:bg-white/[0.04] border-white/5 border-dashed py-0.5 opacity-65 hover:opacity-100'
+                                        : 'flex-1 bg-[var(--glass-bg)] hover:bg-white/[0.06] border-white/5 py-0.5'
+                                  }`}
+                                >
+                                  {/* 1. NOM DU MOIS */}
+                                  <div className="col-span-3 flex items-center gap-2 min-h-0">
+                                    <span className={`font-black uppercase tracking-tight transition-colors ${
+                                      estMoisEnCours 
+                                        ? 'text-white font-extrabold' 
+                                        : 'text-[var(--text-main)]/50 group-hover:text-[var(--text-main)]/90'
+                                    } ${isCompact ? 'text-xs' : 'text-[11px]'}`}>
+                                      {m.nom}
+                                    </span>
+
+                        
+
+                                    {/* 🌟 Badge prévisionnel aux couleurs du patrimoine (plus de bleu) */}
+                                    {estFutur && aDesPrevisions && (
+                                      <span 
+                                        className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded tracking-wider shrink-0 select-none border"
+                                        style={{
+                                          backgroundColor: `${userTheme.color_patrimoine || '#37b58f'}1a`,
+                                          borderColor: `${userTheme.color_patrimoine || '#37b58f'}33`,
+                                          color: userTheme.color_patrimoine || '#37b58f'
+                                        }}
+                                      >
+                                        Prévu
                                       </span>
+                                    )}
+                                  </div>
 
-                                      {/* Badge prévisionnel pour les mois futurs avec prévisions */}
-                                      {estFutur && aDesPrevisions && (
-                                        <span className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-400/80 border border-sky-500/20 tracking-wider shrink-0 select-none">
-                                          Prévu
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* 2. REVENUS */}
-                                    <div className="col-span-2 flex flex-col justify-center min-h-0">
-                                      {estMoisEnCours ? (
-                                        <>
-                                          <span 
-                                            className="font-black tracking-tighter leading-none"
-                                            style={{ 
-                                              color: `${userTheme.color_revenus}e6`,
-                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
-                                            }}
-                                          >
-                                            {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
-                                          </span>
-                                          {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
-                                          {aDesPrevisions && m.revPrevu !== null && (
-                                            <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
-                                              prévu {m.revPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                                            </span>
-                                          )}
-                                        </>
-                                      ) : estFutur ? (
-                                        <div className="flex flex-col justify-center">
-                                          <span 
-                                            className="font-black tracking-tighter leading-none" 
-                                            style={{ 
-                                              color: `${userTheme.color_revenus}b3`,
-                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
-                                            }}
-                                          >
-                                            {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                                          </span>
-                                          {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 && (
-                                            <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
-                                              prévu
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : (
+                                  {/* 2. REVENUS (Couleur revenus configurée) */}
+                                  <div className="col-span-2 flex flex-col justify-center min-h-0">
+                                    {estMoisEnCours ? (
+                                      <>
                                         <span 
-                                          className="font-black tracking-tighter leading-none" 
+                                          className="font-black tracking-tighter leading-none"
                                           style={{ 
                                             color: `${userTheme.color_revenus}e6`,
-                                            fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                            fontSize: isCompact ? '1.95vh' : '1.5vh'
                                           }}
                                         >
-                                          {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
                                         </span>
-                                      )}
-                                    </div>
-
-                                    {/* 3. DÉPENSES */}
-                                    <div className="col-span-2 flex flex-col justify-center min-h-0">
-                                      {estMoisEnCours ? (
-                                        <>
+                                        {aDesPrevisions && m.revPrevu !== null && (
                                           <span 
-                                            className="font-black tracking-tighter leading-none"
-                                            style={{ 
-                                              color: `${userTheme.color_depenses}e6`,
-                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
-                                            }}
+                                            className="text-[9.5px] font-bold tracking-tight leading-none mt-1"
+                                            style={{ color: `${userTheme.color_revenus}99` }}
                                           >
-                                            {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
+                                            prévu {m.revPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
                                           </span>
-                                          {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
-                                          {aDesPrevisions && m.depPrevu !== null && (
-                                            <span className="text-[9.5px] font-bold text-white/45 tracking-tight leading-none mt-1">
-                                              prévu -{m.depPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                                            </span>
-                                          )}
-                                        </>
-                                      ) : estFutur ? (
-                                        <div className="flex flex-col justify-center">
-                                          <span 
-                                            className="font-black tracking-tighter leading-none" 
-                                            style={{ 
-                                              color: `${userTheme.color_depenses}b3`,
-                                              fontSize: isCompact ? '1.95vh' : '1.5vh'
-                                            }}
-                                          >
-                                            {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                                          </span>
-                                          {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 && (
-                                            <span className="text-[8px] font-bold text-white/30 tracking-tight leading-none mt-0.5">
-                                              prévu
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : (
+                                        )}
+                                      </>
+                                    ) : estFutur ? (
+                                      <div className="flex flex-col justify-center">
                                         <span 
                                           className="font-black tracking-tighter leading-none" 
                                           style={{ 
-                                            color: `${userTheme.color_depenses}e6`,
-                                            fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                            color: `${userTheme.color_revenus}b3`,
+                                            fontSize: isCompact ? '1.95vh' : '1.5vh'
                                           }}
                                         >
-                                          {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                          {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                         </span>
-                                      )}
-                                    </div>
-
-                                    {/* 4. ÉPARGNE */}
-                                    <div className="col-span-2 flex flex-col items-center justify-center min-h-0">
-                                      {estMoisEnCours ? (
-                                        <>
-                                          <span 
-                                            className="inline-block rounded-full font-black text-center leading-none" 
-                                            style={{ 
-                                              backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
-                                              color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                                              fontSize: isCompact ? '1.35vh' : '1.1vh',
-                                              padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
-                                            }}
-                                          >
-                                            {m.epargneReel > 0 ? '+' : ''}{m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
+                                        {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 && (
+                                          <span className="text-[8px] font-bold tracking-tight leading-none mt-0.5" style={{ color: `${userTheme.color_revenus}66` }}>
+                                            prévu
                                           </span>
-                                          {/* 🌟 N'affiche la ligne 'prévu' QUE s'il y a des prévisions */}
-                                          {aDesPrevisions && m.epargnePrevu !== null && (
-                                            <span className="text-[9px] font-mono text-white/50 leading-none mt-1">
-                                              prévu {m.epargnePrevu > 0 ? '+' : ''}{m.epargnePrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                                            </span>
-                                          )}
-                                        </>
-                                      ) : estFutur ? (
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span 
+                                        className="font-black tracking-tighter leading-none" 
+                                        style={{ 
+                                          color: `${userTheme.color_revenus}e6`,
+                                          fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                        }}
+                                      >
+                                        {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* 3. DÉPENSES (Couleur dépenses configurée) */}
+                                  <div className="col-span-2 flex flex-col justify-center min-h-0">
+                                    {estMoisEnCours ? (
+                                      <>
                                         <span 
-                                          className="inline-block rounded-full font-black text-center leading-none border border-dashed" 
+                                          className="font-black tracking-tighter leading-none"
                                           style={{ 
-                                            backgroundColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}0d` : `${userTheme.color_depenses}0d`, 
-                                            color: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}b3` : `${userTheme.color_depenses}b3`,
-                                            borderColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}33` : `${userTheme.color_depenses}33`,
-                                            fontSize: isCompact ? '1.35vh' : '1.1vh',
-                                            padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                                            color: `${userTheme.color_depenses}e6`,
+                                            fontSize: isCompact ? '1.95vh' : '1.5vh'
                                           }}
                                         >
-                                          {aDesPrevisions && m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
                                         </span>
-                                      ) : (
+                                        {aDesPrevisions && m.depPrevu !== null && (
+                                          <span 
+                                            className="text-[9.5px] font-bold tracking-tight leading-none mt-1"
+                                            style={{ color: `${userTheme.color_depenses}99` }}
+                                          >
+                                            prévu -{m.depPrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : estFutur ? (
+                                      <div className="flex flex-col justify-center">
+                                        <span 
+                                          className="font-black tracking-tighter leading-none" 
+                                          style={{ 
+                                            color: `${userTheme.color_depenses}b3`,
+                                            fontSize: isCompact ? '1.95vh' : '1.5vh'
+                                          }}
+                                        >
+                                          {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                        </span>
+                                        {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 && (
+                                          <span className="text-[8px] font-bold tracking-tight leading-none mt-0.5" style={{ color: `${userTheme.color_depenses}66` }}>
+                                            prévu
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span 
+                                        className="font-black tracking-tighter leading-none" 
+                                        style={{ 
+                                          color: `${userTheme.color_depenses}e6`,
+                                          fontSize: isCompact ? '1.95vh' : '1.5vh' 
+                                        }}
+                                      >
+                                        {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* 4. ÉPARGNE (Couleur épargne configurée) */}
+                                  <div className="col-span-2 flex flex-col items-center justify-center min-h-0">
+                                    {estMoisEnCours ? (
+                                      <>
                                         <span 
                                           className="inline-block rounded-full font-black text-center leading-none" 
                                           style={{ 
@@ -8773,48 +8802,49 @@ if (!user) {
                                             padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
                                           }}
                                         >
-                                          {m.hasRealData ? `${m.epargneReel > 0 ? '+' : ''}${m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                          {m.epargneReel > 0 ? '+' : ''}{m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€
                                         </span>
-                                      )}
-                                    </div>
+                                        {aDesPrevisions && m.epargnePrevu !== null && (
+                                          <span 
+                                            className="text-[9px] font-mono leading-none mt-1 font-bold"
+                                            style={{ color: `${(m.epargnePrevu >= 0 ? userTheme.color_epargne : userTheme.color_depenses)}99` }}
+                                          >
+                                            prévu {m.epargnePrevu > 0 ? '+' : ''}{m.epargnePrevu.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : estFutur ? (
+                                      <span 
+                                        className="inline-block rounded-full font-black text-center leading-none border border-dashed" 
+                                        style={{ 
+                                          backgroundColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}0d` : `${userTheme.color_depenses}0d`, 
+                                          color: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}b3` : `${userTheme.color_depenses}b3`,
+                                          borderColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}33` : `${userTheme.color_depenses}33`,
+                                          fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                          padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                                        }}
+                                      >
+                                        {aDesPrevisions && m.epargnePrevu !== null ? `${m.epargnePrevu > 0 ? '+' : ''}${m.epargnePrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                      </span>
+                                    ) : (
+                                      <span 
+                                        className="inline-block rounded-full font-black text-center leading-none" 
+                                        style={{ 
+                                          backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
+                                          color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
+                                          fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                          padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
+                                        }}
+                                      >
+                                        {m.hasRealData ? `${m.epargneReel > 0 ? '+' : ''}${m.epargneReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                      </span>
+                                    )}
+                                  </div>
 
-                                    {/* 5. CUMUL PATRIMOINE */}
-                                    <div className="col-span-3 text-right flex flex-col justify-center items-end min-h-0">
-                                      {estMoisEnCours ? (
-                                        <>
-                                          <span 
-                                            className="font-black tracking-tighter leading-none" 
-                                            style={{ 
-                                              color: userTheme.color_patrimoine,
-                                              fontSize: isCompact ? '2.15vh' : '1.7vh' 
-                                            }}
-                                          >
-                                            {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                                          </span>
-                                          {/* 🌟 N'affiche le cumul projeté QUE s'il y a des prévisions */}
-                                          {aDesPrevisions && m.soldeProjete !== null && (
-                                            <span className="text-[10px] font-black tracking-tight text-sky-400 leading-none mt-1" title="Solde projeté fin de mois">
-                                              prévu {m.soldeProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-                                            </span>
-                                          )}
-                                        </>
-                                      ) : estFutur ? (
-                                        <div className="flex flex-col justify-center items-end">
-                                          <span 
-                                            className="font-black tracking-tighter leading-none text-sky-400/80"
-                                            style={{ 
-                                              fontSize: isCompact ? '2.15vh' : '1.7vh'
-                                            }}
-                                          >
-                                            {aDesPrevisions && m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
-                                          </span>
-                                          {aDesPrevisions && m.soldeProjete !== null && (
-                                            <span className="text-[8px] font-bold text-sky-400/40 tracking-tight leading-none mt-0.5">
-                                              estimé
-                                            </span>
-                                          )}
-                                        </div>
-                                      ) : (
+                                  {/* 5. CUMUL PATRIMOINE (Couleur patrimoine configurée - ZÉRO BLEU) */}
+                                  <div className="col-span-3 text-right flex flex-col justify-center items-end min-h-0">
+                                    {estMoisEnCours ? (
+                                      <>
                                         <span 
                                           className="font-black tracking-tighter leading-none" 
                                           style={{ 
@@ -8822,17 +8852,58 @@ if (!user) {
                                             fontSize: isCompact ? '2.15vh' : '1.7vh' 
                                           }}
                                         >
-                                          {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                          {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                         </span>
-                                      )}
-                                    </div>
-
+                                        {/* 🌟 Prévu en couleur patrimoine avec opacité */}
+                                        {aDesPrevisions && m.soldeProjete !== null && (
+                                          <span 
+                                            className="text-[10px] font-black tracking-tight leading-none mt-1" 
+                                            style={{ color: `${userTheme.color_patrimoine}b3` }}
+                                            title="Solde projeté fin de mois"
+                                          >
+                                            prévu {m.soldeProjete.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : estFutur ? (
+                                      <div className="flex flex-col justify-center items-end">
+                                        <span 
+                                          className="font-black tracking-tighter leading-none"
+                                          style={{ 
+                                            color: `${userTheme.color_patrimoine}cc`,
+                                            fontSize: isCompact ? '2.15vh' : '1.7vh'
+                                          }}
+                                        >
+                                          {aDesPrevisions && m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
+                                        </span>
+                                        {aDesPrevisions && m.soldeProjete !== null && (
+                                          <span 
+                                            className="text-[8px] font-bold tracking-tight leading-none mt-0.5"
+                                            style={{ color: `${userTheme.color_patrimoine}66` }}
+                                          >
+                                            estimé
+                                          </span>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span 
+                                        className="font-black tracking-tighter leading-none" 
+                                        style={{ 
+                                          color: userTheme.color_patrimoine,
+                                          fontSize: isCompact ? '2.15vh' : '1.7vh' 
+                                        }}
+                                      >
+                                        {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
+                                      </span>
+                                    )}
                                   </div>
-                                );
-                              })}
-                            </div>
+
+                                </div>
+                              );
+                            })}
                           </div>
-                        )}
+                        </div>
+                      )}
 
                       {annualTab === 'chart' && (
                         <div className="h-full w-full animate-in fade-in duration-500">
@@ -9017,125 +9088,150 @@ if (!user) {
                       case 'graphs':
                         return (
                    <div className="flex-1 flex flex-col min-h-0 gap-3">
-                    {/* BLOC JAUGE ÉPARGNE : RÉEL + PROJECTION EN POINTILLÉS */}
-                    <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3.5 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0 select-none">
-                      <div className="flex items-center justify-between gap-4">
-                        
-                        {/* Titre & Chiffres */}
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center border border-amber-500/25 shrink-0 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
-                            <Trophy size={16} className="text-amber-400" />
-                          </div>
-                          
-                          <div className="flex flex-col min-w-0">
-                            <h4 className="text-[var(--text-main)]/40 text-[9px] font-black uppercase tracking-[0.1em] leading-tight">
-                              Objectif d'épargne {filters.annee}
-                            </h4>
-                            
-                            {objectifAnnuelGlobal > 0 ? (
-                              <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
-                                {/* Montant Réel */}
-                                <span className="text-[var(--text-main)] font-black text-base md:text-lg leading-tight">
-                                  {Math.floor(epargneReelleCumulee).toLocaleString('fr-FR')} €
-                                </span>
+                    {/* BLOC JAUGE ÉPARGNE : COULEUR UTILISATEUR EN RELAIS */}
+                      {(() => {
+                        const jaugeColor = userTheme.color_jauge || '#f1c40f';
+
+                        return (
+                          <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3.5 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0 select-none">
+                            <div className="flex items-center justify-between gap-4">
+                              
+                              {/* Titre & Chiffres */}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <div 
+                                  className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0"
+                                  style={{ 
+                                    backgroundColor: `${jaugeColor}1a`, 
+                                    borderColor: `${jaugeColor}33`,
+                                    boxShadow: `0 0 12px ${jaugeColor}20` 
+                                  }}
+                                >
+                                  <Trophy size={16} style={{ color: jaugeColor }} />
+                                </div>
                                 
-                                {/* Montant Projeté */}
-                                {epargneProjeteeTotale !== epargneReelleCumulee && (
-                                  <span className="text-sky-300 text-xs font-black tracking-tight" title="Total projeté avec prévisions">
-                                    (prévu {Math.floor(epargneProjeteeTotale).toLocaleString('fr-FR')} €)
-                                  </span>
-                                )}
-                                
-                                {/* Objectif Cible */}
-                                <span className="text-[var(--text-main)]/30 text-[10px] font-bold">
-                                  / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
-                                </span>
+                                <div className="flex flex-col min-w-0">
+                                  <h4 className="text-[var(--text-main)]/40 text-[9px] font-black uppercase tracking-[0.1em] leading-tight">
+                                    Objectif d'épargne {filters.annee}
+                                  </h4>
+                                  
+                                  {objectifAnnuelGlobal > 0 ? (
+                                    <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+                                      {/* Montant Réel */}
+                                      <span className="text-[var(--text-main)] font-black text-base md:text-lg leading-tight">
+                                        {Math.floor(epargneReelleCumulee).toLocaleString('fr-FR')} €
+                                      </span>
+                                      
+                                      {/* 🌟 Montant Projeté (Couleur de la jauge) */}
+                                      {epargneProjeteeTotale !== epargneReelleCumulee && (
+                                        <span className="text-xs font-black tracking-tight" style={{ color: jaugeColor }} title="Total projeté avec prévisions">
+                                          (prévu {Math.floor(epargneProjeteeTotale).toLocaleString('fr-FR')} €)
+                                        </span>
+                                      )}
+                                      
+                                      <span className="text-[var(--text-main)]/30 text-[10px] font-bold">
+                                        / {objectifAnnuelGlobal.toLocaleString('fr-FR')} €
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <p className="text-[var(--text-main)]/20 font-black text-xs uppercase mt-1">Non défini</p>
+                                  )}
+                                </div>
                               </div>
-                            ) : (
-                              <p className="text-[var(--text-main)]/20 font-black text-xs uppercase mt-1">Non défini</p>
-                            )}
-                          </div>
-                        </div>
 
-                        {/* Badges de % (Réel et Projeté) */}
-                        {objectifAnnuelGlobal > 0 && (
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {/* Badge Réel */}
-                            <div className={`text-[10px] font-black px-2 py-1 rounded-lg border ${
-                              pctReel >= 100 
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            }`} title="Progression réelle actuelle">
-                              {pctReel}%
-                            </div>
+                              {/* Badges de % */}
+                              {objectifAnnuelGlobal > 0 && (
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {/* Badge Réel */}
+                                  <div 
+                                    className="text-[10px] font-black px-2 py-1 rounded-lg border"
+                                    style={{
+                                      backgroundColor: `${jaugeColor}1a`,
+                                      borderColor: `${jaugeColor}40`,
+                                      color: jaugeColor
+                                    }}
+                                    title="Progression réelle actuelle"
+                                  >
+                                    {pctReel}%
+                                  </div>
 
-                            {/* Badge Prévisionnel */}
-                            {pctProjete !== pctReel && (
-                              <div className="text-[10px] font-black px-2 py-1 rounded-lg border bg-sky-500/10 text-sky-300 border-sky-500/30 flex items-center gap-1 shadow-[0_0_10px_rgba(56,189,248,0.15)]" title="Objectif projeté fin d'année">
-                                <span className="text-[8px] opacity-70">➔</span>
-                                <span>{pctProjete}% prévu</span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                    {/* 🌟 LA BARRE DOUBLE : LA COULEUR D'ABORD, LES POINTILLÉS PRENNENT LE RELAIS */}
-                      {objectifAnnuelGlobal > 0 && (
-                        <div className="mt-3 space-y-1.5">
-                          <div className="relative h-2.5 w-full bg-black/50 rounded-full overflow-hidden border border-white/10 shadow-inner">
-                            
-                            {/* 1. ÉPARGNE RÉELLE ACTUELLE (Barre pleine de 0% à pctReel%) */}
-                            {pctReel > 0 && (
-                              <div 
-                                className="absolute left-0 top-0 h-full transition-all duration-1000 ease-out"
-                                style={{ 
-                                  width: `${Math.min(pctReel, 100)}%`,
-                                  background: `linear-gradient(90deg, ${userTheme.color_jauge || '#f1c40f'}90, ${userTheme.color_jauge || '#f1c40f'})`,
-                                  boxShadow: `0 0 12px ${(userTheme.color_jauge || '#f1c40f')}50`
-                                }}
-                              />
-                            )}
-
-                            {/* 2. EXTENSION PROJETÉE (Prend le relais à partir de pctReel%) */}
-                            {pctProjete > pctReel && (
-                              <div 
-                                className="absolute top-0 h-full transition-all duration-1000 ease-out border-r border-sky-300"
-                                style={{ 
-                                  left: `${Math.min(pctReel, 100)}%`,
-                                  width: `${Math.max(0, Math.min(pctProjete - pctReel, 100 - pctReel))}%`,
-                                  background: `repeating-linear-gradient(
-                                    -45deg,
-                                    rgba(56, 189, 248, 0.85) 0,
-                                    rgba(56, 189, 248, 0.85) 3px,
-                                    transparent 3px,
-                                    transparent 7px
-                                  )`,
-                                  boxShadow: '0 0 10px rgba(56, 189, 248, 0.3)'
-                                }}
-                              />
-                            )}
-                          </div>
-
-                          {/* Légende discrète sous la barre */}
-                          <div className="flex items-center justify-between text-[7.5px] font-black uppercase text-white/30 tracking-wider px-0.5">
-                            <div className="flex items-center gap-3">
-                              <span className="flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: userTheme.color_jauge || '#f1c40f' }} />
-                                Réel actuel ({pctReel}%)
-                              </span>
-                              {pctProjete > pctReel && (
-                                <span className="flex items-center gap-1 text-sky-400/80">
-                                  <span className="w-2 h-1 border border-dashed border-sky-400 rounded-sm" />
-                                  Relais prévisions (+{pctProjete - pctReel}%)
-                                </span>
+                                  {/* 🌟 Badge Prévisionnel (Couleur de la jauge) */}
+                                  {pctProjete !== pctReel && (
+                                    <div 
+                                      className="text-[10px] font-black px-2 py-1 rounded-lg border flex items-center gap-1 shadow-sm"
+                                      style={{
+                                        backgroundColor: `${jaugeColor}20`,
+                                        borderColor: `${jaugeColor}60`,
+                                        color: jaugeColor
+                                      }}
+                                      title="Objectif projeté fin d'année"
+                                    >
+                                      <span className="text-[8px] opacity-70">➔</span>
+                                      <span>{pctProjete}% prévu</span>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
-                            <span>Objectif : 100%</span>
+
+                            {/* 🌟 LA BARRE DOUBLE : COULEURS UTILISATEUR SANS AUCUN BLEU */}
+                            {objectifAnnuelGlobal > 0 && (
+                              <div className="mt-3 space-y-1.5">
+                                <div className="relative h-2.5 w-full bg-black/50 rounded-full overflow-hidden border border-white/10 shadow-inner">
+                                  
+                                  {/* 1. ÉPARGNE RÉELLE ACTUELLE (Barre pleine) */}
+                                  {pctReel > 0 && (
+                                    <div 
+                                      className="absolute left-0 top-0 h-full transition-all duration-1000 ease-out"
+                                      style={{ 
+                                        width: `${Math.min(pctReel, 100)}%`,
+                                        background: `linear-gradient(90deg, ${jaugeColor}90, ${jaugeColor})`,
+                                        boxShadow: `0 0 12px ${jaugeColor}50`
+                                      }}
+                                    />
+                                  )}
+
+                                  {/* 2. EXTENSION PROJETÉE (Hachures aux couleurs de la jauge choisie) */}
+                                  {pctProjete > pctReel && (
+                                    <div 
+                                      className="absolute top-0 h-full transition-all duration-1000 ease-out"
+                                      style={{ 
+                                        left: `${Math.min(pctReel, 100)}%`,
+                                        width: `${Math.max(0, Math.min(pctProjete - pctReel, 100 - pctReel))}%`,
+                                        borderRight: `1px solid ${jaugeColor}`,
+                                        background: `repeating-linear-gradient(
+                                          -45deg,
+                                          ${jaugeColor}cc 0,
+                                          ${jaugeColor}cc 3px,
+                                          transparent 3px,
+                                          transparent 7px
+                                        )`,
+                                        boxShadow: `0 0 10px ${jaugeColor}30`
+                                      }}
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Légende sous la barre */}
+                                <div className="flex items-center justify-between text-[7.5px] font-black uppercase text-white/30 tracking-wider px-0.5">
+                                  <div className="flex items-center gap-3">
+                                    <span className="flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: jaugeColor }} />
+                                      Réel actuel ({pctReel}%)
+                                    </span>
+                                    {pctProjete > pctReel && (
+                                      <span className="flex items-center gap-1" style={{ color: jaugeColor }}>
+                                        <span className="w-2 h-1 border border-dashed rounded-sm" style={{ borderColor: jaugeColor }} />
+                                        Relais prévisions (+{pctProjete - pctReel}%)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span>Objectif : 100%</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      )}
-                    </div>
+                        );
+                      })()}
                         {/* Évolution */}
                         <div className="flex-1 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-[var(--glass-blur)] min-h-0">
                           <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
@@ -9404,54 +9500,59 @@ if (!user) {
                                     ))}
                                   </defs>
 
-                                  {/* 🌟 INFOBULLE D'ORIGINE DÉDOUBLONNÉE */}
-                                  <Tooltip 
-                                    itemSorter={(item) => -item.value}
-                                    content={({ active, payload, label }) => {
-                                      if (active && payload && payload.length) {
-                                        const seen = new Set();
-                                        const filteredList = payload.filter(entry => {
-                                          const baseName = entry.name.replace('PROJ_', '').replace(' (Prévu)', '');
-                                          if (seen.has(baseName)) return false;
-                                          seen.add(baseName);
-                                          return true;
-                                        });
+                                  {/* 🌟 INFOBULLE D'ORIGINE SANS DOUBLON */}
+                                    <Tooltip 
+                                      itemSorter={(item) => -item.value}
+                                      content={({ active, payload, label }) => {
+                                        if (active && payload && payload.length) {
+                                          const seen = new Set();
+                                          const filteredList = payload.filter(entry => {
+                                            const baseKey = entry.dataKey.replace('PROJ_', '').replace('soldeProjete', 'soldeTotal');
+                                            if (seen.has(baseKey)) return false;
+                                            seen.add(baseKey);
+                                            return true;
+                                          });
 
-                                        return (
-                                          <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border border-white/10 shadow-2xl">
-                                            <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
-                                            <div className="flex flex-col gap-2">
-                                              {filteredList.map((entry, index) => {
-                                                const isProj = entry.dataKey.startsWith('PROJ_') || entry.dataKey === 'soldeProjete';
-                                                const displayName = entry.name.replace('PROJ_', '');
-                                                return (
-                                                  <div key={index} className="flex items-center justify-between gap-8">
-                                                    <div className="flex items-center gap-2">
-                                                      <div 
-                                                        className="w-2 h-2 rounded-full" 
-                                                        style={{ backgroundColor: entry.color }} 
-                                                      />
-                                                      <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
-                                                        {displayName} {isProj ? '(Prévu)' : ''}
+                                          return (
+                                            <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] p-4 rounded-xl border border-white/10 shadow-2xl">
+                                              <p className="text-[var(--text-main)]/50 text-[10px] font-black uppercase tracking-widest mb-3">{label}</p>
+                                              <div className="flex flex-col gap-2">
+                                                {filteredList.map((entry, index) => {
+                                                  const isProj = entry.dataKey.startsWith('PROJ_') || entry.dataKey === 'soldeProjete';
+                                                  // 🟢 Nettoie tout "(Prévu)" déjà présent pour ne jamais l'avoir deux fois
+                                                  const cleanName = entry.name
+                                                    .replace('PROJ_', '')
+                                                    .replace(/\s*\([Pp]révu\)/g, '')
+                                                    .trim();
+
+                                                  return (
+                                                    <div key={index} className="flex items-center justify-between gap-8">
+                                                      <div className="flex items-center gap-2">
+                                                        <div 
+                                                          className="w-2 h-2 rounded-full" 
+                                                          style={{ backgroundColor: entry.color }} 
+                                                        />
+                                                        <span className="text-[var(--text-main)]/70 text-xs uppercase font-medium">
+                                                          {cleanName} {isProj ? '(Prévu)' : ''}
+                                                        </span>
+                                                      </div>
+                                                      <span className="text-[var(--text-main)] font-bold text-xs font-mono">
+                                                        {new Intl.NumberFormat('fr-FR', { 
+                                                          style: 'currency', 
+                                                          currency: 'EUR', 
+                                                          maximumFractionDigits: 2 
+                                                        }).format(entry.value)}
                                                       </span>
                                                     </div>
-                                                    <span className="text-[var(--text-main)] font-bold text-xs">
-                                                      {new Intl.NumberFormat('fr-FR', { 
-                                                        style: 'currency', 
-                                                        currency: 'EUR', 
-                                                        maximumFractionDigits: 2 
-                                                      }).format(entry.value)}
-                                                    </span>
-                                                  </div>
-                                                );
-                                              })}
+                                                  );
+                                                })}
+                                              </div>
                                             </div>
-                                          </div>
-                                        );
-                                      }
-                                      return null;
-                                    }}
-                                  />
+                                          );
+                                        }
+                                        return null;
+                                      }}
+                                    />
                                   
                                   {/* 🌟 LÉGENDE INTERACTIVE DES COMPTES RESTAURÉE */}
                                   <Legend 
@@ -9509,7 +9610,7 @@ if (!user) {
                                           <Area
                                             type="monotone"
                                             dataKey={`PROJ_${nomCle}`}
-                                            name={`${compte.compte} (Prévu)`}
+                                            name={compte.compte}
                                             legendType="none"
                                             hide={isHidden}
                                             stroke={color}
