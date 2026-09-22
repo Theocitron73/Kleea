@@ -4373,15 +4373,44 @@ const soldePremierJanvier = useMemo(() => {
 }, [toutesLesTransactions, comptes, filters.annee, filters.profil]);
 
 
-const totauxAnnuels = recapAnnuelStats.reduce((acc, m) => ({
-  revenus: acc.revenus + (Number(m.revenus) || 0),
-  depenses: acc.depenses + (Number(m.depenses) || 0),
-  epargne: acc.epargne + (Number(m.epargne) || 0)
-}), { revenus: 0, depenses: 0, epargne: 0 });
+// 🟢 1. CALCUL UNIFIÉ DES TOTAUX ANNUELS (Intègre le Réel + Prévisions futures)
+const totauxAnnuels = useMemo(() => {
+  return (recapAnnuelStats || []).reduce((acc, m) => {
+    let rev = 0;
+    let dep = 0;
 
-const tauxEpargneMoyen = totauxAnnuels.revenus > 0 
-  ? Math.round((totauxAnnuels.epargne / totauxAnnuels.revenus) * 100) 
-  : 0;
+    if (m.isPasseCloture) {
+      // Mois passés : données réelles
+      rev = m.revReel || 0;
+      dep = m.depReel || 0;
+    } else if (m.isMoisEnCours) {
+      // Mois en cours : prend le prévisionnel ajusté s'il existe (réel + reste à venir), sinon le réel
+      rev = m.revPrevu !== null ? m.revPrevu : (m.revReel || 0);
+      dep = m.depPrevu !== null ? m.depPrevu : (m.depReel || 0);
+    } else if (m.isFutur) {
+      // Mois futurs : prend les prévisions s'il y en a, sinon 0
+      rev = m.revPrevu !== null ? m.revPrevu : 0;
+      dep = m.depPrevu !== null ? m.depPrevu : 0;
+    } else {
+      rev = m.revReel || 0;
+      dep = m.depReel || 0;
+    }
+
+    const ep = rev - dep;
+
+    return {
+      revenus: acc.revenus + rev,
+      depenses: acc.depenses + dep,
+      epargne: acc.epargne + ep
+    };
+  }, { revenus: 0, depenses: 0, epargne: 0 });
+}, [recapAnnuelStats]);
+
+const tauxEpargneMoyen = useMemo(() => {
+  return totauxAnnuels.revenus > 0 
+    ? Math.max(0, Math.round((totauxAnnuels.epargne / totauxAnnuels.revenus) * 100))
+    : 0;
+}, [totauxAnnuels]);
 
 const epargneCumuleeAnnuelle = useMemo(() => {
   return recapAnnuelStats
@@ -6923,12 +6952,11 @@ const [moisFin, setMoisFin] = useState(filters.mois || "12");
 // 2. État pour l'onglet actif ('annuel' ou 'periode')
 const [totalTab, setTotalTab] = useState('annuel');
 // 3. Calcul automatique basé sur ton tableau recapAnnuelStats
+// 🟢 2. CALCUL DE L'ONGLET "PÉRIODE" (Ex: De Janvier à Septembre ou Octobre)
 const donneesPeriodeDirecte = useMemo(() => {
-  // On trouve le libellé complet (ex: "Janvier") pour matcher avec m.nom dans recapAnnuelStats
   const libelleDebut = moisListe.find(m => m.v === moisDebut)?.l?.toLowerCase();
   const libelleFin = moisListe.find(m => m.v === moisFin)?.l?.toLowerCase();
 
-  // On récupère les index chronologiques pour filtrer la plage
   const listeNomsMois = moisListe.map(m => m.l?.toLowerCase());
   const idxDebut = listeNomsMois.indexOf(libelleDebut);
   const idxFin = listeNomsMois.indexOf(libelleFin);
@@ -6936,22 +6964,45 @@ const donneesPeriodeDirecte = useMemo(() => {
   const idxMin = Math.min(idxDebut, idxFin);
   const idxMax = Math.max(idxDebut, idxFin);
 
-  // On filtre et on cumule
   const moisSelectionnes = (recapAnnuelStats || []).filter(m => {
     const currentIdx = listeNomsMois.indexOf(m.nom?.toLowerCase());
     return currentIdx >= idxMin && currentIdx <= idxMax;
   });
 
-  const revenus = moisSelectionnes.reduce((sum, m) => sum + (m.revenus || 0), 0);
-  const depenses = moisSelectionnes.reduce((sum, m) => sum + (m.depenses || 0), 0);
-  const epargne = moisSelectionnes.reduce((sum, m) => sum + (m.epargne !== null ? m.epargne : ((m.revenus || 0) - (m.depenses || 0))), 0);
-  const tauxEffort = revenus > 0 ? Math.round((epargne / revenus) * 100) : 0;
+  let revenus = 0;
+  let depenses = 0;
+  let epargne = 0;
+
+  moisSelectionnes.forEach(m => {
+    let rev = 0;
+    let dep = 0;
+
+    if (m.isPasseCloture) {
+      rev = m.revReel || 0;
+      dep = m.depReel || 0;
+    } else if (m.isMoisEnCours) {
+      rev = m.revPrevu !== null ? m.revPrevu : (m.revReel || 0);
+      dep = m.depPrevu !== null ? m.depPrevu : (m.depReel || 0);
+    } else if (m.isFutur) {
+      rev = m.revPrevu !== null ? m.revPrevu : 0;
+      dep = m.depPrevu !== null ? m.depPrevu : 0;
+    } else {
+      rev = m.revReel || 0;
+      dep = m.depReel || 0;
+    }
+
+    revenus += rev;
+    depenses += dep;
+    epargne += (rev - dep);
+  });
+
+  const tauxEffort = revenus > 0 ? Math.max(0, Math.round((epargne / revenus) * 100)) : 0;
 
   return {
     revenus,
     depenses,
     epargne,
-    tauxEffort: Math.max(0, tauxEffort)
+    tauxEffort
   };
 }, [recapAnnuelStats, moisDebut, moisFin, moisListe]);
 
