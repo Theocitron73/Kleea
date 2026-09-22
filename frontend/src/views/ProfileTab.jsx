@@ -341,7 +341,7 @@ export default function ProfileTab({
 
           <div className="pt-2 border-t border-white/5 flex items-center justify-between">
             <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-            <span className="text-[10px] font-black text-white/60">Kleea v.4.1</span>
+            <span className="text-[10px] font-black text-white/60">Kleea v.4.2</span>
           </div>
         </div>
 

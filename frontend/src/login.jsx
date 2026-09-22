@@ -3236,7 +3236,9 @@ const typeOptions = [
   { v: "LEP", l: "LEP" },
   { v: "LDDS", l: "LDDS" },
   { v: "PEL", l: "PEL" },
-  { v: "PEA", l: "PEA" }
+  { v: "PEA", l: "PEA" },
+  { v: "ASSURANCE VIE", l: "ASSURANCE VIE" },
+  { v: "PRET", l: "PRET" }
 ];
 
 const handleAddCompte = async (e) => {
@@ -4676,36 +4678,58 @@ const updateCell = async (id, field, value) => {
       .trim();
   };
 
-  // --- 2. PRÉPARATION DES DONNÉES POUR SQL ---
+  // --- 2. PRÉPARATION ET SÉCURISATION DES DONNÉES ---
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
 
   let parsedValue = value;
-  if (field === 'montant') parsedValue = parseFloat(value);
+  if (field === 'montant') parsedValue = parseFloat(value) || 0;
   if (field === 'prevision_id') parsedValue = value ? parseInt(value) : null;
+  if (field === 'enveloppe') parsedValue = value || null;
+
+  // Sécurisation de l'année
+  let anneeTx = parseInt(transactionActive.annee);
+  if (isNaN(anneeTx) && transactionActive.date) {
+    anneeTx = new Date(transactionActive.date).getFullYear();
+  }
+  if (isNaN(anneeTx)) {
+    anneeTx = parseInt(filters.annee) || new Date().getFullYear();
+  }
 
   const updatedData = {
-    nom: transactionActive.nom,
-    montant: transactionActive.montant,
-    categorie: transactionActive.categorie,
+    nom: transactionActive.nom || "",
+    montant: parseFloat(transactionActive.montant) || 0,
+    categorie: transactionActive.categorie || "Autre",
     utilisateur: nomUtilisateur,
-    mois: transactionActive.mois,
-    compte: transactionActive.compte,
-    // 💡 SÉCURITÉ : On conserve l'enveloppe actuelle pour ne pas l'effacer lors d'autres modifs
-    enveloppe: transactionActive.enveloppe,
-    prevision_id: transactionActive.prevision_id, // 👈 Conserver la valeur existante
-    annee: parseInt(transactionActive.annee || new Date().getFullYear()),
+    mois: transactionActive.mois || filters.mois,
+    compte: transactionActive.compte || "",
+    enveloppe: transactionActive.enveloppe || null,
+    prevision_id: transactionActive.prevision_id || null,
+    annee: anneeTx,
+    date: transactionActive.date || null,
     
-    // On applique la modification demandée (nom, montant, catégorie OU enveloppe)
+    // Application de la valeur modifiée
     [field]: parsedValue 
   };
 
   try {
-    // --- 3. SAUVEGARDE DE LA TRANSACTION ---
+    // --- 3. SAUVEGARDE EN BASE DE DONNÉES ---
     await api.put(`/transactions/${id}`, updatedData);
     
-    // --- 4. LOGIQUE D'APPRENTISSAGE ---
-    // Dans updateCell (partie apprentissage) :
-    // Dans updateCell (partie apprentissage) :
+    // 🟢 4. MISE À JOUR IMMÉDIATE DU STATE REACT (Résout le blocage de l'interface)
+    setToutesLesTransactions(prev => 
+      prev.map(t => {
+        if (t.id == id) {
+          return { ...t, [field]: parsedValue };
+        }
+        // Si apprentissage actif et qu'on modifie la catégorie, on propage aux libellés identiques
+        if (field === 'categorie' && isApprendreActive && t.nom === transactionActive.nom) {
+          return { ...t, categorie: parsedValue };
+        }
+        return t;
+      })
+    );
+
+    // --- 5. LOGIQUE D'APPRENTISSAGE ---
     if (field === 'categorie' && isApprendreActive) {
       const nomPropre = nettoyerPourMemoire(transactionActive.nom);
       
@@ -4715,7 +4739,6 @@ const updateCell = async (id, field, value) => {
         utilisateur: nomUtilisateur
       });
 
-      // 🟢 TOAST AVEC L'ICÔNE DYNAMIQUE DE LA CATÉGORIE :
       toast.success(`Mémoire apprise : ${nomPropre}`, {
         icon: (
           <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(16,185,129,0.3)] mr-2.5">
@@ -4728,15 +4751,11 @@ const updateCell = async (id, field, value) => {
       if (typeof fetchMemoire === 'function') {
         await fetchMemoire();
       }
-
-      setToutesLesTransactions(prev => 
-        prev.map(t => t.nom === transactionActive.nom ? { ...t, categorie: value } : t)
-      );
     }
 
   } catch (err) {
     console.error("Erreur de sauvegarde :", err.response?.data || err);
-    alert("Erreur lors de la mise à jour. Vérifiez la console.");
+    toast.error("Erreur lors de la mise à jour de la transaction.");
     fetchTransactions();
   }
 };
@@ -6058,6 +6077,62 @@ const previsionsActivesPourRecap = useMemo(() => {
   });
 }, [allPrevisionsAnnee, filters.profil, excludedMonths, comptes]);
 
+
+// 🟢 Helper 1 : Détection infaillible des transferts internes
+const estTransfertInterne = (nom = "", cat = "") => {
+  const txt = `${nom || ""} ${cat || ""}`.toUpperCase();
+  return (
+    txt.includes("🔄") ||
+    txt.includes("VERS") ||
+    txt.includes("TRANSFERT") ||
+    txt.startsWith("VIREMENT :") ||
+    /\bVERS\b/.test(txt)
+  );
+};
+
+// 🟢 Helper 2 : Identification intelligente du compte destinataire
+const trouverCompteDestinataire = (texte, compteSource, listeComptes) => {
+  if (!compteSource || !listeComptes || listeComptes.length === 0) return null;
+  const srcUpper = compteSource.trim().toUpperCase();
+  const txtUpper = (texte || "").toUpperCase();
+
+  const compteSrcObj = listeComptes.find(c => c.compte?.trim().toUpperCase() === srcUpper);
+  const groupeSrc = compteSrcObj?.groupe?.trim().toUpperCase();
+
+  // On cherche parmi les comptes du même profil
+  const comptesCibles = listeComptes.filter(c => {
+    const nomC = c.compte?.trim().toUpperCase();
+    if (nomC === srcUpper) return false;
+    if (groupeSrc && c.groupe && c.groupe.trim().toUpperCase() !== groupeSrc) return false;
+    return true;
+  });
+
+  const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE", "DE", "COMPTE", "BANQUE", "DU"];
+
+  for (const c of comptesCibles) {
+    const nomDest = c.compte.trim().toUpperCase();
+    if (txtUpper.includes(nomDest)) return nomDest;
+
+    // Match par mot-clé (ex: "LIVRET", "LEP", "LDDS", "PEL", "PEA")
+    const motsCompte = nomDest.split(/[\s-_]+/).filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
+    if (motsCompte.length > 0 && motsCompte.some(m => txtUpper.includes(m))) {
+      return nomDest;
+    }
+  }
+
+  // Fallback direct sur les types de livrets
+  const typesLivrets = ["LIVRET A", "LEP", "LDDS", "PEL", "PEA", "LIVRET"];
+  for (const t of typesLivrets) {
+    if (txtUpper.includes(t)) {
+      const match = comptesCibles.find(c => c.compte.trim().toUpperCase().includes(t));
+      if (match) return match.compte.trim().toUpperCase();
+    }
+  }
+
+  return null;
+};
+
+
 const soldesPrevisionnels = useMemo(() => {
   const anneeFiltre = parseInt(filters.annee);
   const maintenant = new Date();
@@ -6065,20 +6140,22 @@ const soldesPrevisionnels = useMemo(() => {
   const anneeActuelle = maintenant.getFullYear();
   const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
 
-  const estTransfertInterne = (nom, cat) => {
-    const txt = `${nom} ${cat}`.toUpperCase();
-    return txt.includes("🔄") || /\bVERS\b/.test(txt) || txt.includes("TRANSFERT");
-  };
-
   const impactPrevisions = {};
   soldesTries.forEach(c => { impactPrevisions[c.compte.trim().toUpperCase()] = 0; });
 
   (allPrevisionsAnnee || []).forEach(p => {
-    if (p.actif === false || p.actif === 0 || p.actif === "0") return;
+    if (p.actif === false || p.actif === 0 || p.actif === "0" || p.actif === "false") return;
 
-    const dateParts = String(p.date).split('T')[0].split('-');
-    const pMonthIdx = parseInt(dateParts[1], 10) - 1;
-    const pYear = parseInt(dateParts[0], 10);
+    let pMonthIdx = -1;
+    let pYear = 0;
+    if (p.date) {
+      const dateParts = String(p.date).split('T')[0].split('-');
+      pYear = parseInt(dateParts[0], 10);
+      pMonthIdx = parseInt(dateParts[1], 10) - 1;
+    } else {
+      pYear = parseInt(p.annee || 0, 10);
+      pMonthIdx = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(p.mois));
+    }
 
     if (pYear !== anneeFiltre || pMonthIdx !== indexMoisSelectionne) return;
 
@@ -6088,7 +6165,7 @@ const soldesPrevisionnels = useMemo(() => {
 
     let montantImpact = montantBrut;
 
-    // 🌟 MOIS EN COURS : On ajoute UNIQUEMENT le reste non encore débité/crédité
+    // 🌟 MOIS EN COURS : On applique UNIQUEMENT le reste non encore débité/crédité
     if (anneeFiltre === anneeActuelle && pMonthIdx === moisActuelIdx) {
       const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
       const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
@@ -6096,24 +6173,18 @@ const soldesPrevisionnels = useMemo(() => {
       montantImpact = montantBrut >= 0 ? resteAVenir : -resteAVenir;
     }
 
+    // 1. Impact sur le compte émetteur (ex: -500€ sur CCP)
     if (impactPrevisions.hasOwnProperty(compteSrc)) {
       impactPrevisions[compteSrc] += montantImpact;
     }
 
+    // 2. Impact sur le compte destinataire (ex: +500€ sur Livret A)
     if (estTransfertInterne(p.nom || "", p.categorie || "")) {
-      const groupeSource = comptes.find(c => c.compte.trim().toUpperCase() === compteSrc)?.groupe;
-      let meilleurMatch = null;
-      for (const c of comptes) {
-        const nomDest = c.compte.trim().toUpperCase();
-        if (nomDest === compteSrc) continue;
-        if (c.groupe !== groupeSource) continue;
-        if (p.nom.toUpperCase().includes(nomDest) || p.categorie.toUpperCase().includes(nomDest)) {
-          meilleurMatch = nomDest;
-          break;
-        }
-      }
-      if (meilleurMatch && impactPrevisions.hasOwnProperty(meilleurMatch)) {
-        impactPrevisions[meilleurMatch] -= montantImpact;
+      const texteComplet = `${p.nom || ""} ${p.categorie || ""}`;
+      const compteCible = trouverCompteDestinataire(texteComplet, compteSrc, comptes);
+      
+      if (compteCible && impactPrevisions.hasOwnProperty(compteCible)) {
+        impactPrevisions[compteCible] -= montantImpact; // -(-500) = +500€
       }
     }
   });
@@ -6374,19 +6445,19 @@ const moisDisponibles = useMemo(() => {
 const chartDataPrevisions = useMemo(() => {
   const aggregat = {};
   
-  // 💡 AJOUT DU FILTRE DE L'ŒIL : On ne garde que les prévisions du mois qui sont ACTIVES
   const previsionsVisiblesDuMois = previsionsFiltrees.filter(p => 
     !(p.actif === false || p.actif === 0 || p.actif === "0" || p.actif === "false")
   );
 
+  // 🟢 On exclut les transferts internes des dépenses pures
   const depensesSeules = previsionsVisiblesDuMois.filter(p => 
-    p.montant < 0 && 
-    !(p.categorie?.includes("🔄") || p.nom?.toUpperCase().includes("VERS"))
+    parseFloat(p.montant) < 0 && 
+    !estTransfertInterne(p.nom, p.categorie)
   );
 
   depensesSeules.forEach(p => {
     const cat = p.categorie || "Sans catégorie";
-    aggregat[cat] = (aggregat[cat] || 0) + Math.abs(p.montant);
+    aggregat[cat] = (aggregat[cat] || 0) + Math.abs(parseFloat(p.montant));
   });
 
   return Object.keys(aggregat)
@@ -6498,61 +6569,13 @@ const handleConfirmDuplicate = async () => {
 
 
 const statsEpargnePrevisionnelle = useMemo(() => {
-  const maintenant = new Date();
-  const moisActuelIdx = maintenant.getMonth();
-  const anneeActuelle = maintenant.getFullYear();
-  const anneeFiltre = parseInt(filters.annee);
+  if (!recapPrevisionsStats || recapPrevisionsStats.length === 0) {
+    return { montant: 0, pourcentage: 0 };
+  }
 
-  const estUnTransfertPrevi = (p) => {
-    const cat = (p.categorie || "").toLowerCase();
-    const nom = (p.nom || "").toLowerCase();
-    return cat.includes('🔄') || cat.includes('vers') || cat.includes('transfert') || nom.includes('vers');
-  };
-
-  const cumulEpargneAnnuel = moisListe.reduce((acc, moisObj, indexMois) => {
-    const estFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMois > moisActuelIdx);
-    const estMoisEnCours = (anneeFiltre === anneeActuelle && indexMois === moisActuelIdx);
-    const estPasse = !estFutur && !estMoisEnCours;
-
-    const nomMoisComplet = `${moisObj.l} ${anneeFiltre}`;
-    const estMasque = excludedMonths.includes(nomMoisComplet);
-    const statsReelles = recapAnnuelStats[indexMois] || { revenus: 0, depenses: 0, epargne: 0 };
-    const revReel = statsReelles.revenus !== null && statsReelles.revenus !== undefined ? statsReelles.revenus : 0;
-    const depReel = statsReelles.depenses !== null && statsReelles.depenses !== undefined ? statsReelles.depenses : 0;
-
-    if (estPasse || estMasque) {
-      return acc + (parseFloat(statsReelles.epargne) || 0);
-    }
-
-    const previsionsDuMois = previsionsActivesPourRecap.filter(p => {
-      const d = new Date(p.date);
-      return d.getMonth() === indexMois && d.getFullYear() === anneeFiltre;
-    });
-
-    let revReste = 0;
-    let depReste = 0;
-    let totalConsommeDepensesLiees = 0;
-    let totalConsommeRevenusLies = 0;
-
-    previsionsDuMois.forEach(p => {
-      if (estUnTransfertPrevi(p)) return;
-      const montantPrevuAbs = Math.abs(parseFloat(p.montant) || 0);
-      const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
-      const montantConsomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-      const resteAVenir = Math.max(0, montantPrevuAbs - montantConsomme);
-
-      if (p.montant > 0) {
-        revReste += resteAVenir;
-        totalConsommeRevenusLies += montantConsomme;
-      } else {
-        depReste += resteAVenir;
-        totalConsommeDepensesLiees += montantConsomme;
-      }
-    });
-
-    const totalRev = Math.max(revReel, totalConsommeRevenusLies) + revReste;
-    const totalDep = Math.max(depReel, totalConsommeDepensesLiees) + depReste;
-    return acc + (totalRev - totalDep);
+  // 🟢 Somme exacte des 12 mois de la colonne "Épargne" du tableau de projection
+  const cumulEpargneAnnuel = recapPrevisionsStats.reduce((sum, m) => {
+    return sum + (parseFloat(m.epargne) || 0);
   }, 0);
 
   const pourcentage = objectifAnnuelGlobal > 0 
@@ -6563,7 +6586,8 @@ const statsEpargnePrevisionnelle = useMemo(() => {
     montant: cumulEpargneAnnuel,
     pourcentage: pourcentage
   };
-}, [previsionsActivesPourRecap, recapAnnuelStats, filters.annee, moisListe, excludedMonths, objectifAnnuelGlobal, toutesLesTransactions]);
+}, [recapPrevisionsStats, objectifAnnuelGlobal]);
+
 
 const { epargneReelleCumulee, epargneProjeteeTotale, pctReel, pctProjete } = useMemo(() => {
   let reelCumul = 0;
@@ -10027,7 +10051,7 @@ if (!user) {
             {previsionsFiltrees.length > 0 ? (
               previsionsFiltrees.map((prev) => {
                 const isSelected = selectedIds2.includes(prev.id);
-                const isTransfert = (prev.categorie?.includes("🔄") || (prev.nom && /\bVERS\b/.test(prev.nom.toUpperCase())));
+                  const isTransfert = estTransfertInterne(prev.nom, prev.categorie); // 👈 Détection exacte
                 const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
 
                 // 💡 Calcul dynamique : Réalisé vs Restant (avec fallback sécurisé)
@@ -10143,7 +10167,7 @@ if (!user) {
                                   className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
                                   style={{ 
                                     color: isTransfert 
-                                      ? '#6d00fc' 
+                                      ? '#a855f7' 
                                       : isRevenu
                                         ? `${userTheme.color_revenus}e6` 
                                         : `${userTheme.color_depenses}e6` 
@@ -10489,13 +10513,14 @@ if (!user) {
               )}
             </div>
 
-            {/* Jauge fine d'épargne */}
+         
+           {/* Jauge fine d'épargne */}
             {objectifAnnuelGlobal > 0 && (
               <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
                 <div 
                   className="h-full rounded-full transition-all duration-1000 ease-out"
                   style={{ 
-                    width: `${Math.min(pourcentageAnnuel, 100)}%`,
+                    width: `${Math.min(statsEpargnePrevisionnelle.pourcentage, 100)}%`, // 👈 Correction ici (au lieu de pourcentageAnnuel)
                     background: `linear-gradient(90deg, ${userTheme.color_epargne || '#ffffff'}90, ${userTheme.color_epargne || '#f1c40f'})`,
                   }}
                 />
