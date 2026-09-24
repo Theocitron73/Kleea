@@ -126,18 +126,54 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Accès non autorisé")
 
+import csv
+
+def parse_keywords_list(raw_kw) -> List[str]:
+    """Parse de manière infaillible les mots-clés retournés par PostgreSQL (ARRAY ou chaîne)."""
+    if not raw_kw:
+        return []
+    if isinstance(raw_kw, list):
+        return [str(k).strip().strip('"').strip("'") for k in raw_kw if str(k).strip()]
+    
+    s = str(raw_kw).strip()
+    if s.startswith('{') and s.endswith('}'):
+        s = s[1:-1]
+    elif s.startswith('[') and s.endswith(']'):
+        s = s[1:-1]
+    
+    try:
+        reader = csv.reader([s], delimiter=',', quotechar='"', skipinitialspace=True)
+        items = next(reader)
+        return [item.strip().strip('"').strip("'") for item in items if item.strip()]
+    except Exception:
+        return [k.strip().strip('"').strip("'") for k in s.split(',') if k.strip()]
+
+
 def matches_keyword_boundary(keyword: str, text: str) -> bool:
     """
-    Vérifie si 'keyword' est présent dans 'text' en tant que mot entier isolé.
-    Empêche par exemple 'station' de matcher 'stationnement'.
-    Gère correctement les tirets, espaces, virgules et les caractères accentués.
+    Vérifie si 'keyword' est présent dans 'text'.
+    Gère les phrases exactes ET les mots multiples dans le désordre (ex: 'Jean Dupont' match 'DUPONT JEAN').
+    Empêche les faux-positifs ('Jean' seul ne matchera pas 'Jean Dupont').
     """
     if not keyword or not text:
         return False
-    escaped = re.escape(keyword.strip().lower())
-    # (?<!\w) et (?!\w) garantissent qu'il n'y a pas de lettre collée avant ou après
+    kw_clean = keyword.strip().lower().replace('"', '').replace("'", "")
+    txt_clean = text.lower()
+
+    # 1. Correspondance exacte de l'expression
+    escaped = re.escape(kw_clean)
     pattern = rf"(?<!\w){escaped}(?!\w)"
-    return bool(re.search(pattern, text.lower()))
+    if re.search(pattern, txt_clean):
+        return True
+
+    # 2. Si le mot-clé contient plusieurs mots (ex: "Jean Dupont"), vérifier que TOUS les mots sont présents
+    words = [w for w in kw_clean.split() if len(w) >= 2]
+    if len(words) > 1:
+        all_words_match = all(bool(re.search(rf"(?<!\w){re.escape(w)}(?!\w)", txt_clean)) for w in words)
+        if all_words_match:
+            return True
+
+    return False
 
 
 # Accepte /transactions ET /transactions/theo pour ne rien casser dans le frontend
@@ -1481,16 +1517,19 @@ async def update_category_keywords(data: dict):
     try:
         categorie = data.get("categorie")
         keywords_list = data.get("keywords", [])
-        utilisateur = data.get("utilisateur") # <--- On récupère l'utilisateur
+        utilisateur = data.get("utilisateur")
         
         if not utilisateur:
             raise HTTPException(status_code=400, detail="Utilisateur manquant")
 
-        # Formatage propre (SQLAlchemy gère souvent mieux les listes Python directes 
-        # si vous utilisez les types ARRAY, mais gardons votre logique)
-        keywords_sql = "{" + ",".join(keywords_list) + "}"
+        # 🟢 Entoure chaque mot-clé de guillemets pour préserver les espaces dans le tableau Postgres
+        quoted_items = []
+        for k in keywords_list:
+            clean_k = str(k).strip().strip('"').replace('"', '\\"')
+            if clean_k:
+                quoted_items.append(f'"{clean_k}"')
+        keywords_sql = "{" + ",".join(quoted_items) + "}"
         
-        # L'UPSERT se base maintenant sur (categorie, utilisateur)
         query = text("""
             INSERT INTO config_categories (categorie, mots_cles, utilisateur) 
             VALUES (:c, :k, :u)
@@ -1499,7 +1538,7 @@ async def update_category_keywords(data: dict):
         """)
         
         with engine.connect() as conn:
-            conn.execute(query, {"k": keywords_sql, "c": categorie, "u": utilisateur})
+            conn.execute(query, {"k": keywords_sql, "c": categorie, "u": utilisateur.lower().strip()})
             conn.commit()
             
         return {"status": "success"}
@@ -1581,7 +1620,6 @@ def get_categories_config(utilisateur: str = None):
     try:
         u_clean = utilisateur.strip().lower() if utilisateur else "admin"
         
-        # 💡 LOWER() pour ne rater aucun mot-clé quelle que soit la casse (theo, Theo, admin)
         query = text("""
             SELECT categorie, mots_cles, utilisateur 
             FROM config_categories 
@@ -1590,18 +1628,13 @@ def get_categories_config(utilisateur: str = None):
         
         with engine.connect() as conn:
             result = conn.execute(query, {"u": u_clean}).fetchall()
-            
             final_config = {}
             
             for row in result:
                 cat_name = row[0]
-                kw = row[1] or []
-                if isinstance(kw, str):
-                    kw = kw.replace("{", "").replace("}", "").split(",")
-                kw_list = [k.strip() for k in kw if k and k.strip()]
+                kw_list = parse_keywords_list(row[1])
                 is_user = (str(row[2]).strip().lower() == u_clean)
 
-                # Priorité aux règles de l'utilisateur sur les règles admin
                 if cat_name not in final_config or is_user:
                     final_config[cat_name] = kw_list
 
@@ -1612,6 +1645,7 @@ def get_categories_config(utilisateur: str = None):
     except Exception as e:
         print(f"❌ Erreur get_categories_config: {e}")
         return []
+
 
 
 
@@ -3382,26 +3416,25 @@ def normalize_powens_transactions(
 
 
 def get_mots_cles_rules(utilisateur: str):
-    """Charge les règles de mots-clés configurées pour un utilisateur (avec fallback admin)."""
+    """Charge les règles de mots-clés configurées pour un utilisateur."""
     mots_cles_rules = []
     try:
         with engine.connect() as conn:
             query_cat = text("""
                 SELECT categorie, mots_cles, utilisateur 
                 FROM config_categories 
-                WHERE utilisateur = :u OR utilisateur = 'admin'
+                WHERE LOWER(utilisateur) = :u OR LOWER(utilisateur) = 'admin'
             """)
-            result = conn.execute(query_cat, {"u": utilisateur}).fetchall()
+            result = conn.execute(query_cat, {"u": utilisateur.lower().strip()}).fetchall()
             
             temp_rules = {}
             for row in result:
-                cat_name, raw_keywords, owner = row
-                if raw_keywords:
-                    keywords_str = str(raw_keywords).replace('{', '').replace('}', '').replace('"', '')
-                    keywords_list = [m.strip().lower() for m in keywords_str.split(',') if m.strip()]
-                    
-                    if cat_name not in temp_rules or owner == utilisateur:
-                        temp_rules[cat_name] = keywords_list
+                cat_name = row[0]
+                kw_list = parse_keywords_list(row[1])
+                owner = str(row[2]).strip().lower()
+                
+                if cat_name not in temp_rules or owner == utilisateur.lower().strip():
+                    temp_rules[cat_name] = kw_list
             
             for cat, keys in temp_rules.items():
                 mots_cles_rules.append({"categorie": cat, "keywords": keys})

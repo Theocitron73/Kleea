@@ -5414,13 +5414,30 @@ useEffect(() => {
 
 
 
-// Fonction de matching avec frontière de mots (compatible avec les accents français)
+// Fonction de matching avec frontière de mots (compatible multi-mots et inversions prénom/nom)
 const matchesKeywordBoundary = (keyword, text) => {
   if (!keyword || !text) return false;
-  const escaped = keyword.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Utilise les classes Unicode pour ne pas couper au milieu d'un mot accentué
-  const regex = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'iu');
-  return regex.test(text.toLowerCase());
+  const kwClean = keyword.trim().toLowerCase().replace(/"/g, '').replace(/'/g, '');
+  const txtClean = text.toLowerCase();
+
+  // 1. Correspondance exacte de l'expression entière
+  const escaped = kwClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regexExact = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'iu');
+  if (regexExact.test(txtClean)) return true;
+
+  // 2. Si le mot-clé contient plusieurs mots (ex: "Jean Dupont"), vérifier que TOUS les mots sont présents
+  // même si l'ordre est inversé par la banque (ex: "VIR SEPA DUPONT JEAN")
+  const words = kwClean.split(/\s+/).filter(w => w.length >= 2);
+  if (words.length > 1) {
+    const allWordsPresent = words.every(word => {
+      const escWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rWord = new RegExp(`(?<![\\p{L}\\p{N}_])${escWord}(?![\\p{L}\\p{N}_])`, 'iu');
+      return rWord.test(txtClean);
+    });
+    if (allWordsPresent) return true;
+  }
+
+  return false;
 };
 
 const appliquerIntelligence = (transactions, config, utilisateurActuel) => {
