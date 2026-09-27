@@ -6180,15 +6180,19 @@ const trouverCompteDestinataire = (texte, compteSource, listeComptes) => {
 
 
 const soldesPrevisionnels = useMemo(() => {
-  const anneeFiltre = parseInt(filters.annee);
+  const anneeFiltre = parseInt(filters.annee) || new Date().getFullYear();
   const maintenant = new Date();
   const moisActuelIdx = maintenant.getMonth();
   const anneeActuelle = maintenant.getFullYear();
   const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
 
+  // 1. Initialisation des impacts par compte
   const impactPrevisions = {};
-  soldesTries.forEach(c => { impactPrevisions[c.compte.trim().toUpperCase()] = 0; });
+  soldesTries.forEach(c => { 
+    impactPrevisions[c.compte.trim().toUpperCase()] = 0; 
+  });
 
+  // 2. Cumul intelligent : du mois en cours jusqu'au mois sélectionné
   (allPrevisionsAnnee || []).forEach(p => {
     if (p.actif === false || p.actif === 0 || p.actif === "0" || p.actif === "false") return;
 
@@ -6203,7 +6207,17 @@ const soldesPrevisionnels = useMemo(() => {
       pMonthIdx = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(p.mois));
     }
 
-    if (pYear !== anneeFiltre || pMonthIdx !== indexMoisSelectionne) return;
+    if (pYear !== anneeFiltre) return;
+
+    // 🟢 Condition de cumul chronologique :
+    // - Si on regarde un mois futur (ex: Octobre), on prend le reste de Septembre + tout Octobre
+    // - On ignore les mois au-delà du mois sélectionné (Novembre, Décembre)
+    const isMoisEnCours = (anneeFiltre === anneeActuelle && pMonthIdx === moisActuelIdx);
+    const isMoisDansLaPlage = (pMonthIdx >= moisActuelIdx && pMonthIdx <= indexMoisSelectionne);
+
+    if (!isMoisDansLaPlage && !(anneeFiltre < anneeActuelle && pMonthIdx === indexMoisSelectionne)) {
+      return;
+    }
 
     const compteSrc = (p.compte || "").trim().toUpperCase();
     const montantBrut = parseFloat(p.montant) || 0;
@@ -6211,30 +6225,31 @@ const soldesPrevisionnels = useMemo(() => {
 
     let montantImpact = montantBrut;
 
-    // 🌟 MOIS EN COURS : On applique UNIQUEMENT le reste non encore débité/crédité
-    if (anneeFiltre === anneeActuelle && pMonthIdx === moisActuelIdx) {
+    // Pour le mois en cours (Septembre), on n'ajoute que le reste non encore passé en banque
+    if (isMoisEnCours) {
       const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id);
       const montantConsomme = liees.reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
       const resteAVenir = Math.max(0, montantAbs - montantConsomme);
       montantImpact = montantBrut >= 0 ? resteAVenir : -resteAVenir;
     }
 
-    // 1. Impact sur le compte émetteur (ex: -500€ sur CCP)
+    // A. Impact sur le compte émetteur
     if (impactPrevisions.hasOwnProperty(compteSrc)) {
       impactPrevisions[compteSrc] += montantImpact;
     }
 
-    // 2. Impact sur le compte destinataire (ex: +500€ sur Livret A)
+    // B. Impact sur le compte destinataire (en cas de virement interne vers livret/épargne)
     if (estTransfertInterne(p.nom || "", p.categorie || "")) {
       const texteComplet = `${p.nom || ""} ${p.categorie || ""}`;
       const compteCible = trouverCompteDestinataire(texteComplet, compteSrc, comptes);
       
       if (compteCible && impactPrevisions.hasOwnProperty(compteCible)) {
-        impactPrevisions[compteCible] -= montantImpact; // -(-500) = +500€
+        impactPrevisions[compteCible] -= montantImpact;
       }
     }
   });
 
+  // 3. Calcul final par compte
   return soldesTries.map(c => ({
     ...c,
     soldeFinalEstime: c.soldePeriode + (impactPrevisions[c.compte.trim().toUpperCase()] || 0)
