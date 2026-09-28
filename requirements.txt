@@ -10,7 +10,7 @@ fastapi-mail
 fpdf
 python-multipart
 cryptography
-psycopg2-binary
+psycopg[binary]
 resend
 google-genai
 pyjwt
