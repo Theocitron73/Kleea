@@ -3409,16 +3409,22 @@ const handleRegister = async (e) => {
   try {
     const res = await api.post(`/register`, { 
       nom: loginName, 
-      email: loginEmail, // Ajout de l'email ici
+      email: loginEmail,
       password: loginPassword,
       first_name: firstName, 
       last_name: lastName
     });
 
-    toast.success("Compte créé ! Bienvenue chez Kleea.");
-    const usernameClean = loginName.toLowerCase();
+    // 🟢 ENREGISTRER LE TOKEN D'ACCÈS IMMÉDIATEMENT
+    if (res.data?.access_token) {
+      localStorage.setItem('token', res.data.access_token);
+    }
+    
+    const usernameClean = (res.data?.user || loginName).toLowerCase();
     localStorage.setItem('user', usernameClean);
     setUser(usernameClean);
+
+    toast.success("Compte créé ! Bienvenue chez Kleea.");
   } catch (err) {
     toast.error(err.response?.data?.detail || "Erreur lors de l'inscription.");
   }
@@ -7276,7 +7282,10 @@ useEffect(() => {
 
 const handleChooseMode = async (mode) => {
   try {
-    await api.put(`/profile/${user}/import-mode`, { import_mode: mode });
+    const usernameClean = typeof user === 'object' ? user.nom : user;
+    
+    // 🟢 encodeURIComponent pour gérer proprement les pseudos avec espaces (ex: "test 2")
+    await api.put(`/profile/${encodeURIComponent(usernameClean)}/import-mode`, { import_mode: mode });
     setImportMode(mode); 
     
     setOnboardingDismissed(true);
@@ -7285,12 +7294,10 @@ const handleChooseMode = async (mode) => {
     if (mode === 'auto') {
       const token = localStorage.getItem('powens_user_token');
       if (token) {
-        // 🟢 Redirection directe si déjà connecté
         setActiveTab('comptes'); 
       }
       handleSyncPowens(mode); 
     } else {
-      // 🟢 Redirection pour saisie manuelle
       setActiveTab('comptes'); 
     }
   } catch (err) {
@@ -13645,58 +13652,106 @@ if (!user) {
   ) : (
          /* --- ÉTAT VIDE AMÉLIORÉ --- */
           importMode === 'auto' ? (
-          <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-8 bg-indigo-500/[0.03] border border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-6">
-            {/* Fond lumineux */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
+  <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-8 bg-indigo-500/[0.03] border border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-5">
+    {/* Fond lumineux */}
+    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
 
-            {/* Icône principale */}
-            <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-              <Sparkles size={28} className="text-indigo-400 animate-pulse" />
-            </div>
+    {/* Icône principale */}
+    <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+      <Sparkles size={28} className="text-indigo-400 animate-pulse" />
+    </div>
 
-            {/* Titre */}
-            <div>
-              <h3 className="text-white font-black text-base uppercase tracking-widest">
-                Créez vos comptes miroirs Kleea
-              </h3>
-              <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider mt-1">
-                Indispensable pour synchroniser vos Transactions et projeter votre épargne
-              </p>
-            </div>
+    {/* En-tête */}
+    <div>
+      <h3 className="text-white font-black text-base uppercase tracking-widest">
+        Configuration de vos comptes miroirs Kleea
+      </h3>
+      <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider mt-1">
+        Synchronisation bancaire, bilans annuels et projections d'épargne
+      </p>
+    </div>
 
-            {/* Explication 1 : Le rôle du compte miroir */}
-            <p className="text-[11px] text-white/70 leading-relaxed max-w-lg text-left bg-black/30 p-4 rounded-xl border border-white/5">
-              Même si votre banque réelle est connectée via Powens, Kleea a besoin d’un <strong className="text-white">compte miroir local</strong> (ex: <i>"Compte Courant"</i>) pour stocker vos transactions, calculer vos bilans et simuler vos objectifs d'épargne.
-            </p>
+    {/* =========================================================
+        💡 ENCART EXPLICATIF : POURQUOI UN COMPTE MIROIR ?
+        ========================================================= */}
+    <div className="w-full text-left p-4 rounded-2xl bg-black/40 border border-white/10 flex items-start gap-3">
+      <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-indigo-300 shrink-0 mt-0.5">
+        <Wallet size={15} />
+      </div>
+      <div className="space-y-1">
+        <h4 className="text-[10px] font-black uppercase text-white/90 tracking-wider">
+          Pourquoi créer un compte miroir ?
+        </h4>
+        <p className="text-[11px] text-white/70 leading-relaxed">
+          Même si votre banque réelle est connectée, Kleea a besoin d’un <strong className="text-white">compte miroir local</strong> (ex : <i>« CCP »</i> ou <i>« Livret A »</i>) pour stocker vos écritures, calculer vos bilans mensuels, simuler les intérêts et projeter vos objectifs d’épargne.
+        </p>
+      </div>
+    </div>
 
-            {/* 🟢 Explication 2 : Pourquoi renseigner l'IBAN de son Livret A / Épargne + Confidentialité */}
-            <div className="w-full text-left p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/25 space-y-2">
-              <div className="flex items-center gap-2">
-                <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
-                <h4 className="text-[11px] font-black uppercase text-emerald-300 tracking-wider">
-                  Pourquoi renseigner l'IBAN/Numéro de compte ou connecter vos Livrets Épargne ?
-                </h4>
-              </div>
+    {/* =========================================================
+        ÉTAPE 1 (PRIORITAIRE) : COMPTES BANCAIRES DÉJÀ CONNECTÉS
+        ========================================================= */}
+    <div className="w-full text-left p-4 rounded-2xl bg-gradient-to-r from-indigo-500/15 via-indigo-500/5 to-transparent border border-indigo-500/30 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Building2 size={16} className="text-indigo-400 shrink-0" />
+          <h4 className="text-[11px] font-black uppercase text-indigo-300 tracking-wider">
+            1. Lier un compte déjà connecté (Compte Courant / CCP)
+          </h4>
+        </div>
+        <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[8px] font-black uppercase tracking-widest">
+          En 1 clic
+        </span>
+      </div>
 
-              <p className="text-[11px] text-white/80 leading-relaxed">
-                Renseigner l'IBAN ou le numéro de compte de vos livrets (même s'ils ne sont pas directement synchronisés) permet à Kleea de <strong className="text-emerald-300">reconnaître automatiquement les virements émis depuis votre compte courant</strong> et de les classer en <i>transferts internes</i> à 100% sans aucun mot-clé.
-              </p>
+      <p className="text-[11px] text-white/80 leading-relaxed">
+        Avant toute chose, si votre banque est connectée, il vous suffit de <strong className="text-white underline decoration-indigo-400 decoration-2">sélectionner votre compte dans le menu déroulant tout à droite du formulaire du haut</strong> (le sélecteur <i>« -- Liste Powens -- »</i>).
+      </p>
+      
+      <p className="text-[10px] text-indigo-200/70 font-medium">
+        👉 Le compte miroir sera automatiquement associé et vos transactions seront synchronisées en direct.
+      </p>
+    </div>
 
-              {/* Garantie de confidentialité */}
-              <div className="flex items-start gap-2 pt-2 border-t border-emerald-500/15">
-                <Lock size={13} className="text-emerald-400 shrink-0 mt-0.5" />
-                <p className="text-[10px] text-emerald-200/70 font-medium leading-normal">
-                  <strong className="text-emerald-300">Confidentialité totale :</strong> Vos IBANs sont chiffrés de bout en bout (clé cryptographique <i>Fernet</i>). Ils sont illisibles en base de données : <strong className="text-white">personne, pas même le créateur du site, ne peut les voir en clair</strong>.
-                </p>
-              </div>
-            </div>
+    {/* =========================================================
+        ÉTAPE 2 : LIVRETS / ÉPARGNE NON CONNECTÉS (SAISIE IBAN)
+        ========================================================= */}
+    <div className="w-full text-left p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
+          <h4 className="text-[11px] font-black uppercase text-emerald-300 tracking-wider">
+            2. Pour vos livrets d'épargne non connectés (Livret A, LEP, LDDS...)
+          </h4>
+        </div>
+        <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[8px] font-black uppercase tracking-widest">
+          Zéro mot-clé
+        </span>
+      </div>
 
-            {/* CTA bas */}
-            <div className="flex items-center gap-2 text-[9px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/10 border border-indigo-500/20 px-4 py-2 rounded-xl">
-              <Plus size={12} strokeWidth={3} /> Utilisez le formulaire ci-dessus pour ajouter votre premier compte
-            </div>
-          </div>
-        ) : (
+      <p className="text-[11px] text-white/80 leading-relaxed">
+        Si votre livret n'est pas synchronisé directement, <strong className="text-emerald-300">collez simplement son IBAN ou numéro de compte à la main</strong> dans le champ texte du formulaire.
+      </p>
+
+      <p className="text-[10px] text-white/70 leading-relaxed">
+        Grâce à cet IBAN, Kleea reconnaîtra automatiquement tous les virements émis depuis votre compte courant pour les classer en <strong className="text-white">transferts internes</strong> (sans fausser vos dépenses ni vos revenus).
+      </p>
+
+      {/* Garantie de confidentialité */}
+      <div className="flex items-start gap-2 pt-2 border-t border-emerald-500/20">
+        <Lock size={13} className="text-emerald-400 shrink-0 mt-0.5" />
+        <p className="text-[9.5px] text-emerald-200/70 font-medium leading-normal">
+          <strong className="text-emerald-300">Confidentialité totale :</strong> Vos IBANs sont chiffrés de bout en bout (clé cryptographique <i>Fernet</i>). Ils sont strictement illisibles dans la base de données.
+        </p>
+      </div>
+    </div>
+
+    {/* CTA bas */}
+    <div className="flex items-center gap-2 text-[9.5px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/10 border border-indigo-500/20 px-4 py-2 rounded-xl">
+      <Plus size={12} strokeWidth={3} /> Utilisez le formulaire ci-dessus pour ajouter votre premier compte !
+    </div>
+  </div>
+) : (
           /* --- ÉTAT VIDE MANUEL CLASSIQUE --- */
           <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
             <div className="relative mb-6">

@@ -339,7 +339,7 @@ def register(req: RegisterRequest):
     
     with engine.connect() as conn:
         # Vérification si pseudo ou email existe déjà
-        check_query = text("SELECT username FROM users WHERE username = :nom OR email = :email")
+        check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:nom) OR LOWER(email) = LOWER(:email)")
         existing = conn.execute(check_query, {"nom": req.nom, "email": req.email}).fetchone()
         
         if existing:
@@ -355,11 +355,20 @@ def register(req: RegisterRequest):
             "username": req.nom,
             "email": req.email,
             "password": hashed_password,
-            "name": full_name  # <--- Ici on envoie la version fusionnée
+            "name": full_name
         })
         conn.commit()
         
-    return {"status": "success", "message": "Bienvenue chez Kleea"}
+    # 🟢 GÉNÉRATION DU TOKEN DE CONNEXION DÈS L'INSCRIPTION
+    token = create_access_token(data={"sub": req.nom})
+
+    return {
+        "status": "success", 
+        "message": "Bienvenue chez Kleea",
+        "access_token": token,
+        "token_type": "bearer",
+        "user": req.nom
+    }
 # --- ROUTE : CONNEXION (LOGIN) ---
 @app.post("/login")
 def login(req: LoginRequest):
