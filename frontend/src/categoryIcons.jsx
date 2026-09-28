@@ -335,6 +335,8 @@ export const getCategoryIconInfo = (categoryName) => {
     rule = { icon: Utensils, iconName: 'Utensils', hex: '#fb923c' };
   } else if (lower.includes('shopping')) {
     rule = { icon: ShoppingBag, iconName: 'ShoppingBag', hex: '#f472b6' };
+  } else if (lower.includes('abonnement') || lower.includes('streaming') || lower.includes('netflix') || lower.includes('spotify') || lower.includes('souscription')) {
+    rule = { icon: Tv, iconName: 'Tv', hex: '#818cf8' }; // 👈 Icône Tv Indigo
   } else if (lower.includes('coiffeur')) {
     rule = { icon: Scissors, iconName: 'Scissors', hex: '#fb7185' };
   } else if (lower.includes('cosmétique') || lower.includes('cosmetique')) {
