@@ -13730,7 +13730,7 @@ if (!user) {
       </div>
 
       <p className="text-[11px] text-white/80 leading-relaxed">
-        Si votre livret n'est pas synchronisé directement, <strong className="text-emerald-300">collez simplement son IBAN ou numéro de compte à la main</strong> dans le champ texte du formulaire.
+        Si votre livret n'est pas synchronisé directement, <strong className="text-emerald-300">collez simplement son IBAN ou numéro de compte à la main (voir ce qui est écrit dans les libellés de virements de virement interne sur votre banque)</strong> dans le champ texte du formulaire.
       </p>
 
       <p className="text-[10px] text-white/70 leading-relaxed">
