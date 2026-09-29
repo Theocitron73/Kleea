@@ -21,7 +21,15 @@
             "options": {
                 "cwd": "${workspaceFolder}/backend"
             },
-            "command": ".\\venv\\Scripts\\activate; uvicorn main:app --reload",
+            "windows": {
+                "command": ".\\venv\\Scripts\\activate; uvicorn main:app --reload"
+            },
+            "osx": {
+                "command": "source ${workspaceFolder}/venv/bin/activate && uvicorn main:app --reload"
+            },
+            "linux": {
+                "command": "source ${workspaceFolder}/venv/bin/activate && uvicorn main:app --reload"
+            },
             "isBackground": true,
             "presentation": {
                 "group": "server-group",

@@ -39,7 +39,11 @@ import ProfileTab from './views/ProfileTab';
 import TricountManager from './views/TricountManager';
 import DemenagementPage from './views/DemenagementPage';
 import GestionEpargneProjet from './views/GestionEpargneProjet';
+import CongesPage from './views/Congespage';
 import { toast } from 'sonner'
+
+
+
 
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
   // 1. Convertir HEX en RGB
@@ -3564,6 +3568,7 @@ const menuItems = [
   { id: 'theme', label: 'Thème', icon: Palette },
   { id: 'Guide', label: 'Guide', icon: FileText },
   { id: 'demenagement', label: 'Déménagement', icon: Truck },
+  { id: 'conges', label: 'Congés', icon: CalendarDays }, // 👈 Ajout ici
 ];
 
 const [hiddenPages, setHiddenPages] = useState(() => {
@@ -3575,13 +3580,12 @@ const [hiddenPages, setHiddenPages] = useState(() => {
 });
 
 const visibleMenuItems = menuItems.filter(item => {
-  // 1. 💡 Nouveau : On masque d'abord les pages désactivées par Théo localement
   if (hiddenPages.includes(item.id)) {
     return false;
   }
 
-  // 2. Votre logique d'origine : on liste les IDs réservés à Théo
-  if (item.id === 'theme' || item.id === 'demenagement') {
+  // 🟢 Réservé uniquement à Théo (inclus 'conges')
+  if (item.id === 'theme' || item.id === 'demenagement' || item.id === 'conges') {
     return user?.toLowerCase() === 'theo';
   }
   
@@ -7189,7 +7193,14 @@ useEffect(() => {
   }
 }, [listeMoisDisponibles, selectedBudgetMonth, filters?.mois]);
 
-const isPageScrollable = activeTab === 'demenagement' || activeTab === 'Guide'|| activeTab === 'tricount'|| activeTab === 'profile';
+// 🟢 Détection insensible à la casse pour autoriser le défilement sur les pages longues
+const isPageScrollable = [
+  'demenagement', 
+  'guide', 
+  'tricount', 
+  'profile', 
+  'conges'
+].includes(activeTab?.toLowerCase());
 
 
 // État pour le premier graphique (Annuel)
@@ -14084,7 +14095,9 @@ if (!user) {
 
       </div>
 
-
+{activeTab === 'conges' && user?.toLowerCase() === 'theo' && (
+  <CongesPage user={user} />
+)}
 
 {activeTab === 'tricount' && (
   <div className="w-full"> 
