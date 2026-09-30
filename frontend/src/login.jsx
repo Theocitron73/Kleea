@@ -5326,16 +5326,18 @@ const handleAddKeyword = async (catName, newKeyword) => {
   const cleanBase = newKeyword.trim().toLowerCase();
   if (!cleanBase) return;
 
-  // On assemble le mot-clé avec son modificateur de signe
   const cleanKeyword = `${cleanBase}:${signType}`;
-
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
 
-  const targetCat = categoriesConfig.find(c => c.categorie === catName);
+  const targetClean = getCleanCategoryName(catName).trim().toLowerCase();
+  const targetCat = (categoriesConfig || []).find(c => {
+    if (!c || !c.categorie) return false;
+    return getCleanCategoryName(c.categorie).trim().toLowerCase() === targetClean;
+  });
+
   const existingKeywords = targetCat ? (targetCat.mots_cles || []) : [];
-  
   if (existingKeywords.includes(cleanKeyword)) return;
-  
+
   const updatedKeywords = [...existingKeywords, cleanKeyword];
 
   try {
@@ -5346,34 +5348,33 @@ const handleAddKeyword = async (catName, newKeyword) => {
     });
     
     await fetchCategoriesConfig(); 
-    
-    // Reset du sélecteur à la valeur par défaut
     setSignType("both");
-
     toast.success(`Intelligence apprise : ${catName}`);
-
   } catch (e) {
     console.error(e);
     toast.error("Erreur de mémorisation");
-    
   }
 };
 
 const handleRemoveKeyword = async (catName, keywordToRemove) => {
   const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-  const targetCat = categoriesConfig.find(c => c.categorie === catName);
+  const targetClean = getCleanCategoryName(catName).trim().toLowerCase();
+  const targetCat = (categoriesConfig || []).find(c => {
+    if (!c || !c.categorie) return false;
+    return getCleanCategoryName(c.categorie).trim().toLowerCase() === targetClean;
+  });
   
   if (!targetCat) return;
 
-  const updatedKeywords = targetCat.mots_cles.filter(k => k !== keywordToRemove);
+  const updatedKeywords = (targetCat.mots_cles || []).filter(k => k !== keywordToRemove);
 
   try {
     await api.put(`/config-categories/update`, {
       categorie: catName,
       keywords: updatedKeywords,
-      utilisateur: nomUtilisateur // Ajout indispensable ici aussi
+      utilisateur: nomUtilisateur
     });
-    fetchCategoriesConfig();
+    await fetchCategoriesConfig();
   } catch (e) { 
     console.error(e); 
   }
@@ -5424,19 +5425,21 @@ useEffect(() => {
 
 
 
-// Fonction de matching avec frontière de mots (compatible multi-mots et inversions prénom/nom)
+// =========================================================================
+// 🟢 1. FONCTION DE MATCHING AVEC FRONTIÈRE DE MOTS ET MULTI-MOTS
+// =========================================================================
 const matchesKeywordBoundary = (keyword, text) => {
   if (!keyword || !text) return false;
-  const kwClean = keyword.trim().toLowerCase().replace(/"/g, '').replace(/'/g, '');
-  const txtClean = text.toLowerCase();
+  // Nettoyage strict des guillemets et apostrophes résiduels
+  const kwClean = String(keyword).trim().toLowerCase().replace(/["']/g, '');
+  const txtClean = String(text).toLowerCase();
 
   // 1. Correspondance exacte de l'expression entière
   const escaped = kwClean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regexExact = new RegExp(`(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`, 'iu');
   if (regexExact.test(txtClean)) return true;
 
-  // 2. Si le mot-clé contient plusieurs mots (ex: "Jean Dupont"), vérifier que TOUS les mots sont présents
-  // même si l'ordre est inversé par la banque (ex: "VIR SEPA DUPONT JEAN")
+  // 2. Si l'expression contient plusieurs mots (ex: "Jean Dupont"), vérifier que TOUS les mots sont présents
   const words = kwClean.split(/\s+/).filter(w => w.length >= 2);
   if (words.length > 1) {
     const allWordsPresent = words.every(word => {
@@ -5450,69 +5453,89 @@ const matchesKeywordBoundary = (keyword, text) => {
   return false;
 };
 
-const appliquerIntelligence = (transactions, config, utilisateurActuel) => {
+// =========================================================================
+// 🟢 2. MOTEUR D'INTELLIGENCE DYNAMIQUE (RÉÉVALUATION COMPLÈTE EN DIRECT)
+// =========================================================================
+const appliquerIntelligence = (transactions, config) => {
+  if (!transactions || transactions.length === 0) return [];
+  if (!config || config.length === 0) return transactions;
+
+  // 1. Extraire et nettoyer TOUS les mots-clés de TOUTES les catégories
+  const allRules = [];
+  config.forEach(cat => {
+    (cat.mots_cles || []).forEach(rawKw => {
+      const cleanKw = String(rawKw).replace(/^["']|["']$/g, '').trim();
+      if (!cleanKw) return;
+      const parts = cleanKw.split(':');
+      const kw = parts[0].replace(/["']/g, '').trim().toLowerCase();
+      const sign = parts[1] ? parts[1].trim().toLowerCase() : 'both';
+      if (kw) {
+        allRules.push({
+          keyword: kw,
+          sign: sign,
+          categorie: cat.categorie
+        });
+      }
+    });
+  });
+
+  // 2. Trier du mot-clé le plus long au plus court (les plus précis ont priorité)
+  allRules.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  // 3. Détecteur de transferts internes (pour ne pas écraser les virements déjà reconnus)
+  const isInternalTransfer = (cat) => {
+    if (!cat) return false;
+    const c = String(cat).toLowerCase();
+    return c.includes("vers") || c.includes("transfert") || c.startsWith("🔄") || c.startsWith("virement :");
+  };
+
   return transactions.map(t => {
-    let nouvelleCategorie = t.categorie; 
-    const nomNettoye = t.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+    // Si c'est déjà un virement interne, on le préserve
+    if (isInternalTransfer(t.categorie)) {
+      return t;
+    }
+
+    const nomNettoye = (t.nom || "").toLowerCase().replace(/\s+/g, ' ').trim();
     const montant = parseFloat(t.montant) || 0;
 
-    const configPertinente = config.filter(c => 
-      !c.proprietaire || c.proprietaire === "admin" || c.proprietaire === utilisateurActuel
-    );
+    let nouvelleCategorie = "Autre";
 
-    let matchTrouve = false;
+    for (const rule of allRules) {
+      if (matchesKeywordBoundary(rule.keyword, nomNettoye)) {
+        const matchPositif = (rule.sign === "positive" && montant > 0);
+        const matchNegatif = (rule.sign === "negative" && montant < 0);
+        const matchDeux = (rule.sign === "both" || rule.sign === "all");
 
-    // Trier les règles du mot-clé le plus long au plus court
-    // (ex: "station essence" ou "stationnement" sera testé avant "station")
-    for (const cat of configPertinente) {
-      // On trie les mots-clés de la catégorie par longueur décroissante
-      const motsClesTries = [...(cat.mots_cles || [])].sort((a, b) => b.split(':')[0].length - a.split(':')[0].length);
-
-      for (const rawKeyword of motsClesTries) {
-        const parts = rawKeyword.split(':');
-        const keywordNettoye = parts[0].toLowerCase().replace(/\s+/g, ' ').trim();
-        const filtreSigne = parts[1] || "both"; 
-
-        if (!keywordNettoye) continue;
-
-        // 🟢 VÉRIFICATION PAR MOT ENTIER (Au lieu de nomNettoye.includes(keywordNettoye))
-        if (matchesKeywordBoundary(keywordNettoye, nomNettoye)) {
-          const matchPositif = (filtreSigne === "positive" && montant > 0);
-          const matchNegatif = (filtreSigne === "negative" && montant < 0);
-          const matchDeux = (filtreSigne === "both" || filtreSigne === "all");
-
-          if (matchPositif || matchNegatif || matchDeux) {
-            nouvelleCategorie = cat.categorie;
-            matchTrouve = true;
-            break;
-          }
+        if (matchPositif || matchNegatif || matchDeux) {
+          nouvelleCategorie = rule.categorie;
+          break;
         }
       }
-      if (matchTrouve) break;
     }
 
     return { ...t, categorie: nouvelleCategorie };
   });
 };
 
-// --- ÉTAPE 2 : Mise à jour automatique quand la config change ---
-// Dès que categoriesConfig ou tempTransactions change, on recalcule les catégories
+// =========================================================================
+// 🟢 3. CALCUL DES TRANSACTIONS EN TEMPS RÉEL (RÉACTIF AUX MODIFS DE MOTS-CLÉS)
+// =========================================================================
 const transactionsCalculees = useMemo(() => {
-  if (!tempTransactions.length) return [];
+  if (!tempTransactions || tempTransactions.length === 0) return [];
   
-  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-
-  // 1. Appliquer d'abord l'intelligence globale (mots-clés)
-  let tx = appliquerIntelligence(tempTransactions, categoriesConfig, nomUtilisateur);
+  // A. Appliquer l'intelligence des mots-clés
+  let tx = appliquerIntelligence(tempTransactions, categoriesConfig);
   
-  // 2. ÉCRASER avec la mémoire (car l'apprentissage manuel est plus précis)
+  // B. Appliquer la mémoire (éléments appris manuellement, prioritaires sur les mots-clés)
   tx = tx.map(t => {
-    // Normalisation du libellé : minuscules + un seul espace entre les mots
-    const libelleCsvNettoye = t.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+    if (t.categorie && (t.categorie.includes("vers") || t.categorie.startsWith("Virement :"))) {
+      return t;
+    }
+
+    const libelleCsvNettoye = (t.nom || "").toLowerCase().replace(/\s+/g, ' ').trim();
     
-    // On cherche dans elementsAppris (qui sont déjà triés du plus long au plus court par le SQL)
-    const match = elementsAppris.find(item => {
-      const nomApprisNettoye = item.nom.toLowerCase().replace(/\s+/g, ' ').trim();
+    const match = (elementsAppris || []).find(item => {
+      const nomApprisNettoye = (item.nom || "").toLowerCase().replace(/\s+/g, ' ').trim();
       return libelleCsvNettoye.includes(nomApprisNettoye);
     });
 
@@ -5523,7 +5546,7 @@ const transactionsCalculees = useMemo(() => {
   });
   
   return tx.map(t => ({ ...t, compte: importCompte || comptes[0]?.compte }));
-}, [tempTransactions, categoriesConfig, elementsAppris, selectedCompte, user]);
+}, [tempTransactions, categoriesConfig, elementsAppris, importCompte, comptes]);
 
 const [fileName, setFileName] = useState("");
 
