@@ -3366,7 +3366,7 @@ def normalize_powens_transactions(
     # Fallback par défaut : si aucune date n'est transmise, prendre le mois en cours
     if not dt_debut and not dt_fin:
         aujourdhui = datetime.now()
-        dt_debut = aujourdhui.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        dt_debut = aujourdhui - timedelta(days=60)
         dt_fin = aujourdhui
 
     for tx in powens_txs:
@@ -3951,17 +3951,35 @@ def build_powens_account_id_to_kleea_map(powens_accounts: list, config_rows: lis
     return mapping
 
 
-# 🟢 1. VÉRIFICATION STRICTE DU MOIS EN COURS (ÉLIMINE LES DIZAINES DE MOIS PASSÉS)
+
+
+# 🟢 Helper de conversion stricte en datetime.date pure
+def to_pure_date(d_val):
+    if not d_val:
+        return None
+    if isinstance(d_val, datetime):
+        return d_val.date()
+    if isinstance(d_val, date):
+        return d_val
+    try:
+        return datetime.strptime(str(d_val).split(" ")[0].split("T")[0], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+def normalize_acc_name(name: str) -> str:
+    if not name: return ""
+    return re.sub(r'[\s\-_]+', '', name).upper()
+
+
+# 🟢 VÉRIFICATION DU STATUT DE SYNCHRONISATION (SÉCURISÉE SANS CONFLIT DE TYPES)
 @app.get("/powens/check-sync/{username}")
 def check_sync_status(username: str, current_user: str = Depends(get_current_user)):
     if username.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-
     user_clean = username.lower().strip()
-    is_test_user = (user_clean == "test")
 
-    # 1. Token utilisateur
+    # 1. Récupération du Token Powens
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
@@ -3969,11 +3987,16 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
             return {"has_pending": False, "count": 0, "accounts": {}}
         user_token = res[0]
 
-        # 2. Configurations Kleea
+        # 2. Configurations Kleea (avec déchiffrement des IBANs)
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
         if not config_rows:
             return {"has_pending": False, "count": 0, "accounts": {}}
+
+    decrypted_config_rows = [
+        (row[0], decrypt_iban(row[1]) if row[1] else None)
+        for row in config_rows
+    ]
 
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
@@ -3984,85 +4007,121 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
     headers = {"Authorization": f"Bearer {user_token}"}
     try:
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
-        powens_accounts = res_acc.json().get("accounts", [])
+        powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
         powens_txs = get_powens_transactions(user_token)
     except Exception as e:
         print(f"❌ [CHECK-SYNC] Erreur API Powens: {e}")
         return {"has_pending": False, "count": 0, "accounts": {}, "error": str(e)}
 
-    # Mapping universel ID Powens -> Compte Kleea
-    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, config_rows)
+    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
+    print(f"🔍 [CHECK-SYNC] Mapping des comptes : {acc_id_to_kleea}")
+
     if not acc_id_to_kleea:
         return {"has_pending": False, "count": 0, "accounts": {}}
 
-    # 3. Répertoire exact des transactions en BDD
+    # 3. Récupération des transactions en BDD (converties en date pure)
     with engine.connect() as conn:
         query_existing = text("""
-            SELECT date, nom, montant, compte FROM transactions WHERE LOWER(utilisateur) = LOWER(:u)
+            SELECT date, montant, compte FROM transactions WHERE LOWER(utilisateur) = LOWER(:u)
         """)
         existing_rows = conn.execute(query_existing, {"u": user_clean}).fetchall()
-        db_existing_set = set()
-        for r in existing_rows:
-            d_str = str(r[0]).split(" ")[0]
-            n_str = str(r[1] or "").strip().upper()
-            m_val = round(float(r[2]), 2)
-            c_val = str(r[3] or "").strip().upper()
-            db_existing_set.add((d_str, m_val, n_str, c_val))
 
-    # 🟢 BORNE DE DATE : Uniquement le mois en cours (ex: depuis le 2026-09-01)
+    db_by_acc = {}
+    for r in existing_rows:
+        if not r[0]: continue
+        d_obj = to_pure_date(r[0])
+        if not d_obj: continue
+        
+        m_val = round(float(r[1]), 2)
+        c_norm = normalize_acc_name(str(r[2] or ""))
+        if c_norm not in db_by_acc:
+            db_by_acc[c_norm] = []
+        db_by_acc[c_norm].append({"date": d_obj, "montant": m_val, "matched": False})
+
+    # Fenêtre glissante de 60 jours
     now = datetime.now()
-    start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
+    window_limit = (now - timedelta(days=60)).date()
 
-    batch_tracker = {}
     pending_by_account = {}
     total_pending = 0
 
+    valid_powens_txs = []
     for tx in powens_txs:
-        raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+        raw_date_str = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0].split("T")[0]
+        if not raw_date_str: continue
         
-        # 🟢 Ignore toutes les transactions des mois antérieurs
-        if raw_date < start_of_current_month:
+        d_obj = to_pure_date(raw_date_str)
+        if not d_obj or d_obj < window_limit:
             continue
 
-        acc_id = str(tx.get("id_account"))
-        local_account = acc_id_to_kleea.get(acc_id)
+        acc_id = (
+            tx.get("id_account") or 
+            tx.get("account_id") or 
+            (tx.get("account", {}).get("id") if isinstance(tx.get("account"), dict) else None)
+        )
+        if acc_id is None:
+            continue
+
+        acc_id_str = str(acc_id).strip()
+        local_account = acc_id_to_kleea.get(acc_id_str) or acc_id_to_kleea.get(acc_id)
         if not local_account:
             continue
 
         montant = round(float(tx.get("value", 0.0)), 2)
-        libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
-        base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
+        valid_powens_txs.append({
+            "date": d_obj,
+            "montant": montant,
+            "local_account": local_account,
+            "acc_norm": normalize_acc_name(local_account)
+        })
 
-        tracker_key = (raw_date, montant, base_nom.upper(), local_account.upper())
-        occurrence = batch_tracker.get(tracker_key, 0) + 1
-        batch_tracker[tracker_key] = occurrence
+    # 4. Rapprochement par Réservoir
+    for p_tx in valid_powens_txs:
+        acc_norm = p_tx["acc_norm"]
+        local_acc = p_tx["local_account"]
+        p_amount = p_tx["montant"]
+        p_date = p_tx["date"]
 
-        nom_final = base_nom if occurrence == 1 else f"{base_nom} #{occurrence}"
+        found_in_db = False
+        candidates = db_by_acc.get(acc_norm, [])
 
-        # Vérifications d'existence en BDD
-        is_in_db = (raw_date, montant, nom_final.upper(), local_account.upper()) in db_existing_set
-        is_in_db_raw = (raw_date, montant, base_nom.upper(), local_account.upper()) in db_existing_set
-        is_in_db_notest = (raw_date, montant, libelle_brut.upper(), local_account.upper()) in db_existing_set
+        # A. Correspondance même date et montant
+        for db_item in candidates:
+            if not db_item["matched"] and abs(db_item["montant"] - p_amount) < 0.005 and db_item["date"] == p_date:
+                db_item["matched"] = True
+                found_in_db = True
+                break
 
-        # Vérification intelligente si le libelle avait été légèrement nettoyé lors d'un import précédent
-        is_duplicate = False
-        if not is_in_db and not is_in_db_raw and not is_in_db_notest:
-            cleaned_new = clean_text_for_matching(libelle_brut)
-            for (d_str, m_val, n_str, c_val) in db_existing_set:
-                if d_str == raw_date and abs(m_val - montant) < 0.01 and c_val == local_account.upper():
-                    cleaned_db = clean_text_for_matching(n_str)
-                    if cleaned_new in cleaned_db or cleaned_db in cleaned_new:
-                        is_duplicate = True
+        # B. Correspondance tolérance ±3 jours (sans erreur de type)
+        if not found_in_db:
+            for db_item in candidates:
+                if not db_item["matched"] and abs(db_item["montant"] - p_amount) < 0.005:
+                    if abs((db_item["date"] - p_date).days) <= 3:
+                        db_item["matched"] = True
+                        found_in_db = True
                         break
 
-        if not is_in_db and not is_in_db_raw and not is_in_db_notest and not is_duplicate:
+        # C. Transaction non trouvée en base -> nouvelle transaction en attente
+        if not found_in_db:
             total_pending += 1
-            if local_account not in pending_by_account:
-                pending_by_account[local_account] = {"count": 0, "amount": 0.0}
-            pending_by_account[local_account]["count"] += 1
-            pending_by_account[local_account]["amount"] = round(pending_by_account[local_account]["amount"] + abs(montant), 2)
+            raw_tx_date_str = p_date.strftime("%Y-%m-%d")
+            
+            if local_acc not in pending_by_account:
+                pending_by_account[local_acc] = {
+                    "count": 0, 
+                    "amount": 0.0,
+                    "earliest_date": raw_tx_date_str # 👈 Date de la première transaction manquante
+                }
+            else:
+                # On conserve la date la plus ancienne non importée
+                if raw_tx_date_str < pending_by_account[local_acc]["earliest_date"]:
+                    pending_by_account[local_acc]["earliest_date"] = raw_tx_date_str
 
-    print(f"📊 [CHECK-SYNC] Mois en cours ({start_of_current_month}) -> {total_pending} transaction(s) en attente pour '{user_clean}'")
+            pending_by_account[local_acc]["count"] += 1
+            pending_by_account[local_acc]["amount"] = round(pending_by_account[local_acc]["amount"] + abs(p_amount), 2)
+
+    print(f"📊 [CHECK-SYNC] En attente: {total_pending} | Par compte: {pending_by_account}")
+
     return {
         "has_pending": total_pending > 0,
         "count": total_pending,
@@ -4165,13 +4224,14 @@ async def sync_user_transactions(username: str, background_tasks: BackgroundTask
         batch_occurrence_tracker = {}
 
         now = datetime.now()
-        start_of_current_month = now.replace(day=1).strftime("%Y-%m-%d")
+        window_limit = (now - timedelta(days=90)).strftime("%Y-%m-%d")
 
         with engine.connect() as conn:
             for tx in powens_raw:
                 try:
                     raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
-                    if raw_date < start_of_current_month:
+                    # On ignore seulement ce qui a plus de 90 jours
+                    if not raw_date or raw_date < window_limit:
                         continue
 
                     tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
