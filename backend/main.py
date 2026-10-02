@@ -36,6 +36,8 @@ from cryptography.fernet import Fernet
 #print(Fernet.generate_key().decode())
 import jwt
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 def get_ascii_hostname():
     return "localhost"
@@ -112,6 +114,158 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         raise HTTPException(status_code=401, detail="Session expirée, veuillez vous reconnecter")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Accès non autorisé")
+
+
+
+
+
+
+
+
+# =========================================================================
+# 🛡️ MODULE CYBERSÉCURITÉ : PARE-FEU, HONEYPOT & ANTI BRUTE-FORCE
+# =========================================================================
+
+# Cache en mémoire des IP bannies { "ip": datetime_expiration }
+BANNED_IPS_CACHE = {}
+
+# 🍯 Identifiants pièges (Honeypot) : Toute tentative bannit l'IP
+HONEYPOT_USERNAMES = {
+    "admin", "administrator", "root", "superuser", "system", 
+    "guest", "test_admin", "user_admin", "demo", "master","theo"
+}
+
+# 🟢 Extraction infaillible de la véritable IP client (derrière Render / Cloudflare)
+def get_client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+# 🟢 Initialisation des tables de sécurité au démarrage
+def init_security_tables():
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS banned_ips (
+                ip VARCHAR(50) PRIMARY KEY,
+                reason TEXT,
+                banned_until TIMESTAMP WITH TIME ZONE,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS login_failed_attempts (
+                id SERIAL PRIMARY KEY,
+                ip VARCHAR(50) NOT NULL,
+                attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        # Charger les IP déjà bannies au démarrage
+        now = datetime.now(timezone.utc)
+        res = conn.execute(text("SELECT ip, banned_until FROM banned_ips WHERE banned_until > :now"), {"now": now}).fetchall()
+        for row in res:
+            BANNED_IPS_CACHE[row[0]] = row[1]
+
+# Lancement de l'initialisation
+try:
+    init_security_tables()
+except Exception as e:
+    print(f"⚠️ Initialisation table sécurité : {e}")
+
+
+def ban_ip(ip: str, reason: str, duration_minutes: int):
+    banned_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
+    BANNED_IPS_CACHE[ip] = banned_until
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            INSERT INTO banned_ips (ip, reason, banned_until)
+            VALUES (:ip, :reason, :until)
+            ON CONFLICT (ip) DO UPDATE 
+            SET reason = EXCLUDED.reason, banned_until = EXCLUDED.banned_until
+        """), {"ip": ip, "reason": reason, "until": banned_until})
+    
+    print(f"🚫 [FIREWALL] IP BANNIE : {ip} | Raison : {reason} | Jusqu'à : {banned_until}")
+
+
+def check_and_record_failed_attempt(ip: str) -> bool:
+    """Enregistre une tentative ratée et bannit l'IP si > 5 échecs en 10 minutes."""
+    now = datetime.now(timezone.utc)
+    ten_minutes_ago = now - timedelta(minutes=10)
+
+    with engine.begin() as conn:
+        # Enregistrer l'échec
+        conn.execute(text("INSERT INTO login_failed_attempts (ip, attempted_at) VALUES (:ip, :now)"), {"ip": ip, "now": now})
+
+        # Nettoyage automatique des vieilles tentatives
+        conn.execute(text("DELETE FROM login_failed_attempts WHERE attempted_at < :old"), {"old": now - timedelta(hours=1)})
+
+        # Compter les échecs récents
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM login_failed_attempts WHERE ip = :ip AND attempted_at > :window"),
+            {"ip": ip, "window": ten_minutes_ago}
+        ).scalar() or 0
+
+    if count >= 5:
+        ban_ip(ip, f"Force brute détectée ({count} tentatives échouées)", duration_minutes=30)
+        return True
+    return False
+
+
+# =========================================================================
+# 🛡️ MIDDLEWARE PARE-FEU GLOBAL
+# =========================================================================
+@app.middleware("http")
+async def security_firewall_middleware(request: Request, call_next):
+    client_ip = get_client_ip(request)
+    now = datetime.now(timezone.utc)
+
+    # Vérification dans le cache mémoire ultra-rapide
+    if client_ip in BANNED_IPS_CACHE:
+        banned_until = BANNED_IPS_CACHE[client_ip]
+        if banned_until and banned_until > now:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Accès refusé : Votre adresse IP a été temporairement bloquée par le pare-feu de sécurité."}
+            )
+        else:
+            del BANNED_IPS_CACHE[client_ip]
+
+    response = await call_next(request)
+    return response
+
+# --- ROUTE PRIVÉE THÉO : VOIR LES IP BANNIES ---
+@app.get("/api/security/banned-ips")
+def get_banned_ips(current_user: str = Depends(get_current_user)):
+    if current_user.lower() != "theo":
+        raise HTTPException(status_code=403, detail="Accès réservé à l'administrateur")
+    
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT ip, reason, banned_until, created_at FROM banned_ips ORDER BY created_at DESC")).fetchall()
+        return [dict(r._mapping) for r in res]
+
+# --- ROUTE PRIVÉE THÉO : DÉBLOQUER UNE IP ---
+@app.delete("/api/security/unban-ip/{ip}")
+def unban_ip(ip: str, current_user: str = Depends(get_current_user)):
+    if current_user.lower() != "theo":
+        raise HTTPException(status_code=403, detail="Accès réservé à l'administrateur")
+    
+    if ip in BANNED_IPS_CACHE:
+        del BANNED_IPS_CACHE[ip]
+        
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM banned_ips WHERE ip = :ip"), {"ip": ip})
+        conn.execute(text("DELETE FROM login_failed_attempts WHERE ip = :ip"), {"ip": ip})
+        
+    return {"status": "success", "message": f"IP {ip} débloquée."}
+
+
+
 
 import csv
 
@@ -356,32 +510,54 @@ def register(req: RegisterRequest):
         "token_type": "bearer",
         "user": req.nom
     }
-# --- ROUTE : CONNEXION (LOGIN) ---
+# --- ROUTE : CONNEXION SÉCURISÉE AVEC PARE-FEU & HONEYPOT ---
 @app.post("/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest, request: Request):
+    client_ip = get_client_ip(request)
+    identifiant_clean = req.nom.strip().lower()
+
+    # 🍯 1. PIÈGE HONEYPOT : Détection immédiate des bots cherchant "admin", "root", etc.
+    if identifiant_clean in HONEYPOT_USERNAMES:
+        ban_ip(client_ip, f"Tentative de scan sur compte piège ('{req.nom}')", duration_minutes=1440) # 24 heures
+        raise HTTPException(status_code=403, detail="Accès définitivement bloqué pour cette IP.")
+
+    # 2. Recherche normale de l'utilisateur
     query = text("""
         SELECT username, password 
         FROM users 
-        WHERE username = :identifiant OR email = :identifiant
+        WHERE LOWER(username) = :identifiant OR LOWER(email) = :identifiant
     """)
     
     with engine.connect() as conn:
-        result = conn.execute(query, {"identifiant": req.nom}).fetchone()
+        result = conn.execute(query, {"identifiant": identifiant_clean}).fetchone()
         
+        # Utilisateur introuvable -> Enregistre un échec
         if not result:
-            raise HTTPException(status_code=404, detail="Utilisateur ou email inconnu")
+            is_banned = check_and_record_failed_attempt(client_ip)
+            if is_banned:
+                raise HTTPException(status_code=403, detail="Trop de tentatives échouées. Votre IP est bloquée pour 30 minutes.")
+            raise HTTPException(status_code=404, detail="Identifiant ou e-mail inconnu")
         
         db_username, db_hashed_password = result
         
+        # Vérification du mot de passe
         try:
             is_valid = pwd_context.verify(req.password, db_hashed_password)
         except Exception:
             is_valid = (req.password == db_hashed_password)
 
+        # Mot de passe erroné -> Enregistre un échec
         if not is_valid:
+            is_banned = check_and_record_failed_attempt(client_ip)
+            if is_banned:
+                raise HTTPException(status_code=403, detail="Trop d'échecs de mot de passe. Votre IP est bloquée pour 30 minutes.")
             raise HTTPException(status_code=401, detail="Mot de passe incorrect")
             
-        # 🟢 CRÉATION DU TOKEN JWT
+        # 🟢 Succès : Nettoie l'historique des échecs pour cette IP
+        with engine.begin() as cleanup_conn:
+            cleanup_conn.execute(text("DELETE FROM login_failed_attempts WHERE ip = :ip"), {"ip": client_ip})
+
+        # Création du Token JWT
         token = create_access_token(data={"sub": db_username})
 
         return {
