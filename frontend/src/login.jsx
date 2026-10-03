@@ -13756,7 +13756,7 @@ if (!user) {
     {/* En-tête */}
     <div>
       <h3 className="text-white font-black text-base uppercase tracking-widest">
-        Configuration de vos comptes miroirs Kleea
+        Configuration de vos comptes virtuels Kleea
       </h3>
       <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider mt-1">
         Synchronisation bancaire, bilans annuels et projections d'épargne
@@ -13772,10 +13772,10 @@ if (!user) {
       </div>
       <div className="space-y-1">
         <h4 className="text-[10px] font-black uppercase text-white/90 tracking-wider">
-          Pourquoi créer un compte miroir ?
+          Pourquoi créer un compte virtuel ?
         </h4>
         <p className="text-[11px] text-white/70 leading-relaxed">
-          Même si votre banque réelle est connectée, Kleea a besoin d’un <strong className="text-white">compte miroir local</strong> (ex : <i>« CCP »</i> ou <i>« Livret A »</i>) pour stocker vos écritures, calculer vos bilans mensuels, simuler les intérêts et projeter vos objectifs d’épargne.
+          Même si votre banque réelle est connectée, Kleea a besoin d’un <strong className="text-white">compte virtuel local</strong> (ex : <i>« CCP »</i> ou <i>« Livret A »</i>) pour stocker vos écritures, calculer vos bilans mensuels, simuler les intérêts et projeter vos objectifs d’épargne.
         </p>
       </div>
     </div>
@@ -13801,7 +13801,7 @@ if (!user) {
       </p>
       
       <p className="text-[10px] text-indigo-200/70 font-medium">
-        👉 Le compte miroir sera automatiquement associé et vos transactions seront synchronisées en direct.
+        👉 Le compte virtuel sera automatiquement associé et vos transactions seront synchronisées en direct.
       </p>
     </div>
 
@@ -13866,7 +13866,7 @@ if (!user) {
 
             {/* Explication du compte miroir */}
             <p className="text-[11px] text-white/70 leading-relaxed max-w-lg text-left bg-black/30 p-4 rounded-2xl border border-white/5">
-              Kleea fonctionne avec des <strong className="text-white">comptes miroirs</strong> (ex: <i>« Compte Courant »</i>, <i>« Livret A »</i>). Ils sont indispensables pour rattacher vos transactions, calculer vos bilans mensuels et simuler l'évolution de votre patrimoine dans le temps.
+              Kleea fonctionne avec des <strong className="text-white">comptes virtuels</strong> (ex: <i>« Compte Courant »</i>, <i>« Livret A »</i>). Ils sont indispensables pour rattacher vos transactions, calculer vos bilans mensuels et simuler l'évolution de votre patrimoine dans le temps.
             </p>
 
             {/* Présentation du choix : CSV ou Connexion bancaire */}
@@ -14726,7 +14726,7 @@ if (!user) {
               Ajustement Automatique des Soldes
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              L'application calcule automatiquement le <strong className="text-emerald-400">solde de départ exact</strong> de vos comptes miroirs Kleea. Votre solde global affiché sur le Dashboard correspond ainsi toujours en temps réel à l'argent présent sur votre banque.
+              L'application calcule automatiquement le <strong className="text-emerald-400">solde de départ exact</strong> de vos comptes virtuels Kleea. Votre solde global affiché sur le Dashboard correspond ainsi toujours en temps réel à l'argent présent sur votre banque.
             </p>
           </div>
         </div>
