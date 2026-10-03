@@ -7,7 +7,7 @@ import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
 
 export default function PrevisionsMobile(props) {
   const {
-    filters, setFilters, comptes, moisListe, availablePeriods,
+    user, filters, setFilters, comptes, moisListe, availablePeriods,
     soldeGlobalProjete, soldesPrevisionnels, userTheme,
     newPrevi, setNewPrevi, handleAddPrevision, handleTryDuplicate, selectedIds2,
     previsionsFiltrees, updatePrevision, toggleSelect2, toggleAll2,

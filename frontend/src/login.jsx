@@ -10726,6 +10726,7 @@ if (!user) {
         </div>
  <div className="block lg:hidden">
       <PrevisionsMobile 
+        user={user}
         filters={filters}
         setFilters={setFilters}
         comptes={comptes}
@@ -13386,40 +13387,40 @@ if (!user) {
         </div>
       )}
 
-    {/* 6. LIAISON COMPTE RÉEL / IBAN (BLOC UNIQUE FUSIONNÉ) */}
-    {importMode === 'auto' && (
-      <div className="flex-[1.2] min-w-[170px]">
-        <div className="flex items-center gap-1.5 bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-[var(--primary)]/50 transition-colors">
-          <Building2 size={12} className="text-[var(--primary)] shrink-0 opacity-60" />
-          <input 
-            type="text" 
-            name="creationPowensInput"
-            placeholder="IBAN/N° Compte OU POWENS..." 
-            value={creationPowensName}
-            onChange={(e) => setCreationPowensName(e.target.value.toUpperCase())}
-            className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[9.5px] font-mono font-bold uppercase placeholder:text-[var(--text-main)]/20 truncate" 
-          />
-          {powensData?.accounts?.length > 0 && (
-            <div className="shrink-0">
-              <CustomSelect 
-                value=""
-                options={[
-                  { v: "", l: "-- Liste Powens --" },
-                  ...powensData.accounts.map(acc => ({
-                    v: acc.name,
-                    l: `${acc.name} (${acc.balance}€)`
-                  }))
-                ]}
-                onChange={(val) => {
-                  if (val) setCreationPowensName(val);
-                }}
-                className="p-1 px-2 text-[8px] font-bold bg-white/5 border-white/5 cursor-pointer rounded-lg hover:bg-white/10"
-              />
-            </div>
-          )}
+    {/* 6. LIAISON COMPTE RÉEL / IBAN (AFFICHE SI MODE AUTO OU SI DES COMPTES SONT CONNECTÉS) */}
+      {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_user_token'))) && (
+        <div className="flex-[1.2] min-w-[170px]">
+          <div className="flex items-center gap-1.5 bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-[var(--primary)]/50 transition-colors">
+            <Building2 size={12} className="text-[var(--primary)] shrink-0 opacity-60" />
+            <input 
+              type="text" 
+              name="creationPowensInput"
+              placeholder="IBAN/N° Compte OU POWENS..." 
+              value={creationPowensName}
+              onChange={(e) => setCreationPowensName(e.target.value.toUpperCase())}
+              className="w-full bg-transparent border-none outline-none text-[var(--text-main)] text-[9.5px] font-mono font-bold uppercase placeholder:text-[var(--text-main)]/20 truncate" 
+            />
+            {powensData?.accounts?.length > 0 && (
+              <div className="shrink-0">
+                <CustomSelect 
+                  value=""
+                  options={[
+                    { v: "", l: "-- Liste Powens --" },
+                    ...powensData.accounts.map(acc => ({
+                      v: acc.name,
+                      l: `${acc.name} (${acc.balance}€)`
+                    }))
+                  ]}
+                  onChange={(val) => {
+                    if (val) setCreationPowensName(val);
+                  }}
+                  className="p-1 px-2 text-[8px] font-bold bg-white/5 border-white/5 cursor-pointer rounded-lg hover:bg-white/10"
+                />
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    )}
+      )}
 
     {/* 7. TEINTE COULEUR */}
     <div className="flex flex-col items-center gap-0.5 px-2 border-l border-white/10 shrink-0 select-none">
@@ -13610,133 +13611,122 @@ if (!user) {
 
             </div>
 
-            {/* LIGNE 3 : LIAISON COMPTE RÉEL / IBAN (CLARTÉ : CHOIX POWENS OU IBAN) */}
-            {importMode === 'auto' && (
-              <div className="pt-2.5 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
-                <div className="flex justify-between items-center px-1">
-                  <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
-                    <Building2 size={10} className="text-[var(--primary)]" /> Liaison pour synchronisation
-                  </span>
-                </div>
+            {/* LIGNE 3 : LIAISON BANCAIRE / IBAN SUR LA CARTE (VISIBLE DÈS QU'IL Y A UNE LIAISON OU DES COMPTES CONNECTÉS) */}
+              {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(c.powens_name)) && (
+                <div className="pt-2.5 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
+                      <Building2 size={10} className="text-[var(--primary)]" /> Liaison bancaire
+                    </span>
+                  </div>
 
-                {(() => {
-                  // 1. Est-il lié à un compte Powens connecté ?
-                  const isLinkedToPowens = (powensData?.accounts || []).some(
-                    acc => acc.name.trim().toUpperCase() === (c.powens_name || "").trim().toUpperCase()
-                  );
-
-                  // 2. Est-il lié via un IBAN manuel (ex: LEP non connecté) ?
-                  const isManualIban = !isLinkedToPowens && Boolean(c.powens_name);
-
-                  // CAS 1 : Compte connecté via Powens
-                  if (isLinkedToPowens) {
-                    return (
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                        <div className="flex items-center gap-2 truncate pr-2">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_#34d399]" />
-                          <div className="flex flex-col truncate">
-                            <span className="text-[10px] font-black text-emerald-300 uppercase truncate">
-                              {c.powens_name}
-                            </span>
-                            <span className="text-[7px] text-emerald-400/60 font-bold uppercase tracking-wider">
-                              Banque connectée
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          type="button"
-                          onClick={() => handleAssociateAccount("", c.compte)}
-                          className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
-                          title="Dissocier ce compte"
-                        >
-                          Délier
-                        </button>
-                      </div>
+                  {(() => {
+                    const isLinkedToPowens = (powensData?.accounts || []).some(
+                      acc => acc.name.trim().toUpperCase() === (c.powens_name || "").trim().toUpperCase()
                     );
-                  }
+                    const isManualIban = !isLinkedToPowens && Boolean(c.powens_name);
 
-                  // CAS 2 : Compte avec IBAN manuel enregistré
-                  if (isManualIban) {
-                    return (
-                      <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-                        <div className="flex items-center gap-2 truncate pr-2">
-                          <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_#818cf8]" />
-                          <div className="flex flex-col truncate">
-                            <span className="text-[9.5px] font-mono font-bold text-indigo-200 truncate uppercase">
-                              {c.powens_name}
-                            </span>
-                            <span className="text-[7px] text-indigo-400/60 font-bold uppercase tracking-wider">
-                              IBAN manuel enregistré
-                            </span>
+                    if (isLinkedToPowens) {
+                      return (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0 shadow-[0_0_8px_#34d399]" />
+                            <div className="flex flex-col truncate">
+                              <span className="text-[10px] font-black text-emerald-300 uppercase truncate">
+                                {c.powens_name}
+                              </span>
+                              <span className="text-[7px] text-emerald-400/60 font-bold uppercase tracking-wider">
+                                Banque connectée
+                              </span>
+                            </div>
                           </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => handleAssociateAccount("", c.compte)}
+                            className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
+                          >
+                            Délier
+                          </button>
                         </div>
-                        
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...c, powens_name: null };
-                            handleBlurUpdate(updated);
-                          }}
-                          className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
-                          title="Supprimer cet IBAN"
-                        >
-                          Retirer
-                        </button>
-                      </div>
-                    );
-                  }
+                      );
+                    }
 
-                  // CAS 3 : Non lié -> Choix explicite (Soit Powens, SOIT IBAN)
-                  return (
-                    <div className="flex flex-col gap-1.5 pt-0.5">
-                      {/* OPTION A : Sélection depuis la banque connectée */}
-                      {powensData?.accounts?.length > 0 && (
-                        <CustomSelect
-                          value=""
-                          options={[
-                            { v: "", l: "🏦 Lier un compte Powens connecté..." },
-                            ...powensData.accounts.map(acc => ({
-                              v: acc.name,
-                              l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
-                            }))
-                          ]}
-                          onChange={(selectedValue) => {
-                            if (selectedValue) handleAssociateAccount(selectedValue, c.compte);
+                    if (isManualIban) {
+                      return (
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_#818cf8]" />
+                            <div className="flex flex-col truncate">
+                              <span className="text-[9.5px] font-mono font-bold text-indigo-200 truncate uppercase">
+                                {c.powens_name}
+                              </span>
+                              <span className="text-[7px] text-indigo-400/60 font-bold uppercase tracking-wider">
+                                IBAN manuel enregistré
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...c, powens_name: null };
+                              handleBlurUpdate(updated);
+                            }}
+                            className="px-2 py-1 bg-white/5 hover:bg-rose-500/20 hover:text-rose-300 text-white/40 text-[8px] font-bold uppercase rounded-lg transition-all shrink-0 cursor-pointer"
+                          >
+                            Retirer
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="flex flex-col gap-1.5 pt-0.5">
+                        {powensData?.accounts?.length > 0 && (
+                          <CustomSelect
+                            value=""
+                            options={[
+                              { v: "", l: "🏦 Lier un compte Powens connecté..." },
+                              ...powensData.accounts.map(acc => ({
+                                v: acc.name,
+                                l: `${acc.bank_name ? `[${acc.bank_name}] ` : ''}${acc.name} (${acc.balance}€)`
+                              }))
+                            ]}
+                            onChange={(selectedValue) => {
+                              if (selectedValue) handleAssociateAccount(selectedValue, c.compte);
+                            }}
+                            icon={Building2}
+                            className="p-1.5 px-2.5 rounded-lg text-[8.5px] bg-black/40 border-white/5 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
+                          />
+                        )}
+
+                        {powensData?.accounts?.length > 0 && (
+                          <div className="flex items-center gap-2 px-1 my-0.5">
+                            <div className="h-px flex-1 bg-white/5" />
+                            <span className="text-[7px] font-black uppercase text-white/20 tracking-widest">OU</span>
+                            <div className="h-px flex-1 bg-white/5" />
+                          </div>
+                        )}
+
+                        <input
+                          type="text"
+                          placeholder="Coller l'IBAN/N° compte (ex: FR49...)"
+                          defaultValue=""
+                          onBlur={(e) => {
+                            const val = e.target.value.trim().toUpperCase();
+                            if (val) {
+                              const updated = { ...c, powens_name: val };
+                              handleBlurUpdate(updated);
+                            }
                           }}
-                          icon={Building2}
-                          className="p-1.5 px-2.5 rounded-lg text-[8.5px] bg-black/40 border-white/5 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
+                          className="w-full bg-black/40 border border-white/5 focus:border-[var(--primary)]/50 rounded-lg px-2.5 py-1.5 text-[8.5px] font-mono text-white placeholder:text-white/20 outline-none transition-all uppercase"
                         />
-                      )}
-
-                      {/* Séparateur visuel OU */}
-                      {powensData?.accounts?.length > 0 && (
-                        <div className="flex items-center gap-2 px-1 my-0.5">
-                          <div className="h-px flex-1 bg-white/5" />
-                          <span className="text-[7px] font-black uppercase text-white/20 tracking-widest">OU</span>
-                          <div className="h-px flex-1 bg-white/5" />
-                        </div>
-                      )}
-
-                      {/* OPTION B : Saisie d'un IBAN manuel (pour les comptes non connectés) */}
-                      <input
-                        type="text"
-                        placeholder="Coller l'IBAN/N° compte si non connecté (ex: FR49...)"
-                        defaultValue=""
-                        onBlur={(e) => {
-                          const val = e.target.value.trim().toUpperCase();
-                          if (val) {
-                            const updated = { ...c, powens_name: val };
-                            handleBlurUpdate(updated);
-                          }
-                        }}
-                        className="w-full bg-black/40 border border-white/5 focus:border-[var(--primary)]/50 rounded-lg px-2.5 py-1.5 text-[8.5px] font-mono text-white placeholder:text-white/20 outline-none transition-all uppercase"
-                      />
-                    </div>
-                  );
-                })()}
-              </div>
-            )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
             {/* COLOR PICKER (POPOVER) */}
             {showPicker === i && (
@@ -13855,16 +13845,75 @@ if (!user) {
   </div>
 ) : (
           /* --- ÉTAT VIDE MANUEL CLASSIQUE --- */
-          <div className="h-full flex flex-col items-center justify-center text-center p-10 border-2 border-dashed border-white/5 rounded-[var(--radius)] bg-white/[0.01]">
-            <div className="relative mb-6">
-              <div className="absolute inset-0 bg-[var(--primary)]/10 blur-3xl rounded-full"></div>
-              <div className="relative w-20 h-20 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center shadow-2xl">
-                <Wallet size={32} className="text-[var(--primary)]/80" />
-              </div>
+          <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-8 bg-white/[0.02] border border-white/10 rounded-[var(--radius)] backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-6">
+            
+            {/* Halo lumineux discret */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-[var(--primary)]/10 blur-[80px] rounded-full pointer-events-none" />
+
+            {/* Icône */}
+            <div className="relative w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg">
+              <Wallet size={28} className="text-[var(--primary)]" />
             </div>
-            <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.3em] opacity-40">Aucun compte configuré</h3>
-            <p className="text-[var(--text-main)]/20 text-[10px] font-bold uppercase tracking-[0.2em] mt-3 max-w-[320px] leading-relaxed">
-              Pour commencer à analyser vos finances, créez votre premier compte à l'aide du formulaire ci-dessus.
+
+            <div>
+              <h3 className="text-white font-black text-base uppercase tracking-widest">
+                Pourquoi devez-vous créer vos comptes Kleea ?
+              </h3>
+              <p className="text-[10px] text-white/40 uppercase font-bold tracking-wider mt-1">
+                Le socle indispensable pour analyser vos finances et projeter votre épargne
+              </p>
+            </div>
+
+            {/* Explication du compte miroir */}
+            <p className="text-[11px] text-white/70 leading-relaxed max-w-lg text-left bg-black/30 p-4 rounded-2xl border border-white/5">
+              Kleea fonctionne avec des <strong className="text-white">comptes miroirs</strong> (ex: <i>« Compte Courant »</i>, <i>« Livret A »</i>). Ils sont indispensables pour rattacher vos transactions, calculer vos bilans mensuels et simuler l'évolution de votre patrimoine dans le temps.
+            </p>
+
+            {/* Présentation du choix : CSV ou Connexion bancaire */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full text-left">
+              
+              {/* Option 1 : CSV */}
+              <div className="p-4 rounded-2xl bg-black/20 border border-white/5 flex flex-col justify-between space-y-2">
+                <div className="flex items-center gap-2">
+                  <FileUp size={15} className="text-white/60" />
+                  <h4 className="text-[10px] font-black uppercase text-white/90 tracking-wider">
+                    Option 1 : 100% Fichiers CSV
+                  </h4>
+                </div>
+                <p className="text-[10px] text-white/50 leading-relaxed">
+                  Créez vos comptes avec le formulaire du haut, puis télécharger depuis le site de votre banque vos fichier csv et importer les dans l'onglet <i>Importer</i>.
+                </p>
+              </div>
+
+              {/* Option 2 : Connexion bancaire (évite les CSV) */}
+              <div className="p-4 rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex flex-col justify-between space-y-2">
+                <div className="flex items-center gap-2">
+                  <Landmark size={15} className="text-[var(--primary)]" />
+                  <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-wider">
+                    Option 2 : Zéro téléchargement
+                  </h4>
+                </div>
+                <p className="text-[10px] text-white/70 leading-relaxed">
+                  Vous pouvez connecter votre banque en direct pour récupérer vos transactions automatiquement sans jamais avoir à manipuler de fichiers CSV.
+                  Allez ensuite dans la page "importer" et cliquez sur synchroniser
+                </p>
+                
+                {/* 🟢 Bouton pour connecter sa banque en direct */}
+                <button
+                  type="button"
+                  onClick={handleConnectNewBank}
+                  className="w-full py-2 bg-[var(--primary)] hover:brightness-110 text-black font-black uppercase text-[9px] tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer mt-1"
+                >
+                  <Plus size={12} strokeWidth={3} />
+                  <span>Connecter mes comptes bancaires</span>
+                </button>
+              </div>
+
+            </div>
+
+            {/* CTA Bas */}
+            <p className="text-[9px] text-white/30 font-bold uppercase tracking-widest pt-2">
+              👉 Utilisez le formulaire ci-dessus pour ajouter votre premier compte
             </p>
           </div>
           )
@@ -14716,7 +14765,7 @@ if (!user) {
               Liberté de Choix (Profil)
             </h4>
             <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Vous gardez le contrôle : basculez à tout instant entre le <strong className="text-purple-400">Mode Automatique</strong> et le <strong className="text-purple-400">Mode Manuel (CSV)</strong> directement depuis la page de votre profil.
+              Vous gardez le contrôle : basculez à tout instant entre le <strong className="text-purple-400">Mode Automatique</strong> et le <strong className="text-purple-400">Mode Manuel</strong> directement depuis la page de votre profil.
             </p>
           </div>
         </div>
@@ -14828,9 +14877,9 @@ if (!user) {
 
 {showOnboarding && toutesLesTransactions.length === 0 && (
   <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-    <div className="bg-[#111113] border border-white/10 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+    <div className="bg-[#111113] border border-white/10 rounded-[2.5rem] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
       
-      {/* Icône d'en-tête (remplace ✨) */}
+      {/* Icône d'en-tête */}
       <div className="w-16 h-16 bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 rounded-full flex items-center justify-center mx-auto shadow-[0_0_25px_rgba(99,102,241,0.15)]">
         <Sparkles size={28} className="animate-pulse" />
       </div>
@@ -14841,33 +14890,41 @@ if (!user) {
       </div>
       
       <p className="text-xs text-white/60 leading-relaxed">
-        Comment souhaitez-vous importer vos transactions financières sur l'application ? Vous pourrez changer d'avis à tout moment dans votre profil.
+        Comment souhaitez-vous gérer l'arrivée de vos transactions ? Vous pourrez modifier ce choix à tout moment dans votre profil.
       </p>
 
-      <div className="grid grid-cols-1 gap-3 pt-2">
-        {/* Option 1 : Synchronisation Automatique (remplace 🔌) */}
+      <div className="grid grid-cols-1 gap-3 pt-1">
+        
+        {/* OPTION 1 : SYNCHRONISATION AUTOMATIQUE */}
         <button
+          type="button"
           onClick={() => handleChooseMode('auto')}
-          className="p-4 bg-[var(--primary)] hover:opacity-90 text-white rounded-2xl flex flex-col items-center gap-1 transition-all group cursor-pointer shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
+          className="p-4 bg-[var(--primary)] hover:opacity-95 text-white rounded-2xl flex flex-col items-center gap-1.5 transition-all group cursor-pointer shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
         >
           <span className="text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
             <Zap size={14} className="shrink-0 fill-current text-amber-300" />
             <span>Synchronisation Automatique</span>
           </span>
-          <span className="text-[8px] opacity-70 uppercase font-medium">Relevés en temps réel (recommandé)</span>
+          <span className="text-[8.5px] opacity-80 text-center leading-relaxed font-medium">
+            Connexion bancaire avec mise à jour continue en arrière-plan (zéro action requise)
+          </span>
         </button>
 
-        {/* Option 2 : Mode Manuel (remplace 📂) */}
+        {/* OPTION 2 : MODE MANUEL (CONTRÔLE TOTAL) */}
         <button
+          type="button"
           onClick={() => handleChooseMode('manual')}
-          className="p-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl flex flex-col items-center gap-1 transition-all cursor-pointer active:scale-[0.98]"
+          className="p-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98] group"
         >
           <span className="text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-white/90">
             <FileUp size={14} className="shrink-0 text-white/60 group-hover:text-white transition-colors" />
-            <span>Mode Manuel (CSV)</span>
+            <span>Mode Manuel (Contrôle total)</span>
           </span>
-          <span className="text-[8px] opacity-40 uppercase font-medium">Imports de fichiers bancaires manuels</span>
+          <span className="text-[8.5px] text-white/50 group-hover:text-white/70 text-center leading-relaxed font-medium transition-colors">
+            Vous décidez vous-même quand importer vos transactions : par <strong className="text-white">fichiers CSV</strong> ou en reliant <strong className="text-white">vos comptes bancaires réels</strong>
+          </span>
         </button>
+
       </div>
     </div>
   </div>

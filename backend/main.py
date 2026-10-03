@@ -90,7 +90,7 @@ def read_root():
 # 1. Configuration secrète (Générez une longue chaîne aléatoire dans votre .env)
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "kleea_secret_key_super_securisee_a_changer_absolument_998877")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_DAYS = 30  # L'utilisateur reste connecté 30 jours
+ACCESS_TOKEN_EXPIRE_DAYS = 7  # L'utilisateur reste connecté 30 jours
 
 security = HTTPBearer()
 
@@ -132,7 +132,7 @@ BANNED_IPS_CACHE = {}
 # 🍯 Identifiants pièges (Honeypot) : Toute tentative bannit l'IP
 HONEYPOT_USERNAMES = {
     "admin", "administrator", "root", "superuser", "system", 
-    "guest", "test_admin", "user_admin", "demo", "master","theo"
+    "guest", "test_admin", "user_admin", "demo", "master"
 }
 
 # 🟢 Extraction infaillible de la véritable IP client (derrière Render / Cloudflare)
@@ -264,7 +264,19 @@ def unban_ip(ip: str, current_user: str = Depends(get_current_user)):
         
     return {"status": "success", "message": f"IP {ip} débloquée."}
 
-
+# 🟢 2. EN-TÊTES DE SÉCURITÉ HTTP OFFICIELS (SECURITY HEADERS)
+@app.middleware("http")
+async def add_security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    # Empêche l'affichage dans une iframe invisible (Anti-Clickjacking)
+    response.headers["X-Frame-Options"] = "DENY"
+    # Empêche le navigateur de deviner le type MIME des fichiers (Anti-Sniffing)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    # Force les connexions chiffrées HTTPS
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Protège la vie privée lors des redirections externes
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 import csv
@@ -473,25 +485,29 @@ class RegisterRequest(BaseModel):
 
 @app.post("/register")
 def register(req: RegisterRequest):
-    hashed_password = pwd_context.hash(req.password)
-    
-    # ON FUSIONNE LE PRÉNOM ET LE NOM
+    # 🟢 VALIDATION DE LA ROBUSTESSE DU MOT DE PASSE
+    pwd = req.password.strip()
+    if len(pwd) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit comporter au moins 8 caractères.")
+    if not any(c.isdigit() for c in pwd):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins un chiffre.")
+    if not any(c.isalpha() for c in pwd):
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une lettre.")
+
+    hashed_password = pwd_context.hash(pwd)
     full_name = f"{req.first_name} {req.last_name}".strip()
     
     with engine.connect() as conn:
-        # Vérification si pseudo ou email existe déjà
         check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:nom) OR LOWER(email) = LOWER(:email)")
         existing = conn.execute(check_query, {"nom": req.nom, "email": req.email}).fetchone()
         
         if existing:
             raise HTTPException(status_code=400, detail="Identifiant ou email déjà utilisé")
         
-        # INSERTION DANS LA COLONNE 'name'
         insert_query = text("""
             INSERT INTO users (username, email, password, name) 
             VALUES (:username, :email, :password, :name)
         """)
-        
         conn.execute(insert_query, {
             "username": req.nom,
             "email": req.email,
@@ -500,9 +516,7 @@ def register(req: RegisterRequest):
         })
         conn.commit()
         
-    # 🟢 GÉNÉRATION DU TOKEN DE CONNEXION DÈS L'INSCRIPTION
     token = create_access_token(data={"sub": req.nom})
-
     return {
         "status": "success", 
         "message": "Bienvenue chez Kleea",
@@ -510,6 +524,7 @@ def register(req: RegisterRequest):
         "token_type": "bearer",
         "user": req.nom
     }
+
 # --- ROUTE : CONNEXION SÉCURISÉE AVEC PARE-FEU & HONEYPOT ---
 @app.post("/login")
 def login(req: LoginRequest, request: Request):
@@ -625,35 +640,41 @@ def update_import_mode(username: str, req: ImportModeRequest, current_user: str 
 class ResetRequest(BaseModel):
     email: EmailStr
 
+# Caches en mémoire pour le Rate-Limiting
+PASSWORD_RESET_RATE_LIMIT = {}  # { "email": datetime_last_request }
+AI_CHAT_RATE_LIMIT = {}          # { "ip_or_user": [timestamps] }
+
 @app.post("/forgot-password")
 async def forgot_password(req: ResetRequest):
-    # Réponse générique constante pour éviter l'énumération d'e-mails (sécurité)
+    email_clean = req.email.lower().strip()
+    now = datetime.now(timezone.utc)
+
+    # 🟢 RATE LIMITING : 1 demande toutes les 3 minutes max par e-mail
+    if email_clean in PASSWORD_RESET_RATE_LIMIT:
+        last_request = PASSWORD_RESET_RATE_LIMIT[email_clean]
+        if now - last_request < timedelta(minutes=3):
+            # Réponse neutre pour ne rien divulguer tout en bloquant l'envoi
+            return {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
+
+    PASSWORD_RESET_RATE_LIMIT[email_clean] = now
+
     response_msg = {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
     
-    # 1. On ouvre une transaction unique pour chercher et mettre à jour le token
     with engine.begin() as conn:
-        # Vérifier si l'utilisateur existe
-        query = text("SELECT username FROM users WHERE email = :email")
-        user = conn.execute(query, {"email": req.email}).fetchone()
+        query = text("SELECT username FROM users WHERE LOWER(email) = LOWER(:email)")
+        user = conn.execute(query, {"email": email_clean}).fetchone()
         
         if not user:
             return response_msg
             
-        # 2. Générer le token unique
         token = secrets.token_urlsafe(32)
-        
-        # 3. Sauvegarder le token en base (dans la même transaction)
-        update_query = text("UPDATE users SET reset_token = :t WHERE email = :e")
-        conn.execute(update_query, {"t": token, "e": req.email})
+        update_query = text("UPDATE users SET reset_token = :t WHERE LOWER(email) = LOWER(:e)")
+        conn.execute(update_query, {"t": token, "e": email_clean})
 
-    # 4. Préparer le lien (Dynamique selon l'environnement)
-    # Configurez FRONTEND_URL=https://kleea.theolebarbier.fr dans vos variables d'environnement sur Render !
     frontend_url = os.getenv("SOUS_DOMAINE_URL", "http://localhost:5173")
     reset_link = f"{frontend_url}/reset-password?token={token}"
 
     resend.api_key = os.getenv("RESEND_API_KEY")
-
-    # 5. Envoyer le mail via l'API Resend
     try:
         html_content = f"""
         <html>
@@ -675,17 +696,13 @@ async def forgot_password(req: ResetRequest):
             </body>
         </html>
         """
-
-        # Envoi via l'API Resend
         resend.Emails.send({
             "from": "Kleea <noreply@theolebarbier.fr>", 
-            "to": [req.email],
+            "to": [email_clean],
             "subject": "Kleea - Récupération de votre accès",
             "html": html_content
         })
-
     except Exception as e:
-        # On log l'erreur mais on ne bloque pas l'UI
         print(f"ERREUR RESEND : {str(e)}")
     
     return response_msg
@@ -1920,41 +1937,55 @@ def add_prevision(p: PrevisionIn, current_user: str = Depends(get_current_user))
 
 
 
+# 🟢 COLONNES AUTORISÉES EXCLUSIVEMENT (Anti-Injection SQL)
+ALLOWED_PREVISION_FIELDS = {"nom", "montant", "categorie", "compte", "mois", "annee", "date", "actif"}
+
 @app.put("/previsions/{prev_id}")
-def update_prevision(prev_id: int, data: dict):
+def update_prevision(prev_id: int, data: dict, current_user: str = Depends(get_current_user)):
     try:
         if not data:
             return {"status": "error", "message": "No data provided"}
-            
-        # 2. 🛡️ SÉCURITÉ DU MOIS : Nettoyage automatique des accents si le mois change
-        if "mois" in data and data["mois"]:
-            m = data["mois"]
-            # Enlève les accents (Août -> Aout, Février -> Fevrier)
+
+        # Nettoyage des champs envoyés
+        filtered_data = {}
+        for k, v in data.items():
+            if k in ALLOWED_PREVISION_FIELDS:
+                filtered_data[k] = v
+
+        if not filtered_data:
+            raise HTTPException(status_code=400, detail="Aucun champ valide à mettre à jour.")
+
+        # Nettoyage du mois
+        if "mois" in filtered_data and filtered_data["mois"]:
+            m = str(filtered_data["mois"])
             m = "".join(c for c in unicodedata.normalize('NFD', m) if unicodedata.category(c) != 'Mn')
-            data["mois"] = m.strip().capitalize()
+            filtered_data["mois"] = m.strip().capitalize()
 
-        # 3. 🛡️ SÉCURITÉ BOOLEEN : Conversion forcée pour PostgreSQL
-        if "actif" in data:
-            # Si data["actif"] vaut 0, "0", False ou "false" (insensible à la casse) -> False.
-            # Pour toute autre valeur (comme 1, True, "true") -> True.
-            val = data["actif"]
+        # Nettoyage du booléen actif
+        if "actif" in filtered_data:
+            val = filtered_data["actif"]
             if isinstance(val, str):
-                data["actif"] = val.lower() not in ("0", "false")
+                filtered_data["actif"] = val.lower() not in ("0", "false")
             else:
-                data["actif"] = val not in (0, False)
+                filtered_data["actif"] = val not in (0, False)
 
-        # Construction de la requête SQL
-        set_clause = ", ".join([f"{k} = :{k}" for k in data.keys()])
-        query = text(f"UPDATE previsions SET {set_clause} WHERE id = :id")
+        # Construction dynamique sécurisée
+        set_clause = ", ".join([f"{k} = :{k}" for k in filtered_data.keys()])
         
-        with engine.connect() as conn:
-            conn.execute(query, {**data, "id": prev_id})
-            conn.commit()
+        # 🟢 ANTI-IDOR : On vérifie que la prévision appartient bien à l'utilisateur connecté
+        query = text(f"UPDATE previsions SET {set_clause} WHERE id = :id AND LOWER(utilisateur) = :u")
+        
+        with engine.begin() as conn:
+            result = conn.execute(query, {**filtered_data, "id": prev_id, "u": current_user})
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Prévision introuvable ou non autorisée.")
             
         return {"status": "success"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        print(f"Détail de l'erreur backend: {str(e)}")
-        return {"status": "error", "message": str(e)}
+        print(f"Erreur update_prevision: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
     
     
 @app.delete("/previsions/{prev_id}")
@@ -2703,30 +2734,40 @@ class UpdateTransactionRequest(BaseModel):
     pour_qui: str
     montant: float
 
+# 🟢 1. SUPPRESSION / MODIFICATION DE TRANSACTIONS TRICOUNT
 @app.delete("/delete-transaction/{transaction_id}")
-def delete_transaction(transaction_id: int):
-    query = text("DELETE FROM tricount WHERE id = :id")
+def delete_transaction(transaction_id: int, current_user: str = Depends(get_current_user)):
+    query = text("DELETE FROM tricount WHERE id = :id AND LOWER(utilisateur) = :u")
     try:
         with engine.begin() as conn:
-            conn.execute(query, {"id": transaction_id})
+            res = conn.execute(query, {"id": transaction_id, "u": current_user})
+            if res.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Transaction introuvable.")
         return {"status": "success"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/update-transaction")
-def update_transaction(t: UpdateTransactionRequest):
+def update_transaction(t: UpdateTransactionRequest, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE tricount 
         SET date = :d, libelle = :l, paye_par = :p, pour_qui = :pq, montant = :m
-        WHERE id = :id
+        WHERE id = :id AND LOWER(utilisateur) = :u
     """)
     try:
         with engine.begin() as conn:
-            conn.execute(query, {
+            res = conn.execute(query, {
                 "d": t.date, "l": t.libelle, "p": t.paye_par, 
-                "pq": t.pour_qui, "m": t.montant, "id": t.id
+                "pq": t.pour_qui, "m": t.montant, "id": t.id,
+                "u": current_user
             })
+            if res.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Transaction introuvable.")
         return {"status": "success"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
@@ -2900,13 +2941,16 @@ def get_custom_stats(username: str):
 
 # --- 3. SUPPRIMER UNE STAT PERSO ---
 @app.delete("/custom-stats/{stat_id}")
-def delete_custom_stat(stat_id: int):
-    query = text("DELETE FROM custom_stats WHERE id = :id")
+def delete_custom_stat(stat_id: int, current_user: str = Depends(get_current_user)):
+    query = text("DELETE FROM custom_stats WHERE id = :id AND LOWER(utilisateur) = :u")
     try:
-        with engine.connect() as conn:
-            conn.execute(query, {"id": stat_id})
-            conn.commit()
+        with engine.begin() as conn:
+            res = conn.execute(query, {"id": stat_id, "u": current_user})
+            if res.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Indicateur introuvable.")
             return {"status": "success"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
          raise HTTPException(status_code=500, detail=str(e))
 
@@ -2921,32 +2965,34 @@ class CustomStatUpdate(BaseModel):
 
 # --- 4. MODIFIER UNE STAT PERSO (NOUVEAU ✨) ---
 @app.put("/custom-stats/{stat_id}")
-def update_custom_stat(stat_id: int, stat: CustomStatUpdate):
+def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE custom_stats 
         SET titre = :t, flux_type = :f, operateur = :o, couleur = :c, icone = :i, regles = :r
-        WHERE id = :id
+        WHERE id = :id AND LOWER(utilisateur) = :u
     """)
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             regles_liste = [r.model_dump() for r in stat.regles]
             regles_json = json.dumps(regles_liste)
             
-            conn.execute(query, {
+            res = conn.execute(query, {
                 "id": stat_id,
                 "t": stat.titre,
                 "f": stat.flux_type,
                 "o": stat.operateur,
                 "c": stat.couleur,
                 "i": stat.icone,
-                "r": regles_json
+                "r": regles_json,
+                "u": current_user
             })
-            conn.commit()
+            if res.rowcount == 0:
+                raise HTTPException(status_code=404, detail="Indicateur introuvable.")
             return {"status": "success", "id": stat_id}
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        print(f"Erreur SQL update custom_stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 
@@ -2980,8 +3026,23 @@ class ChatResponseSchema(BaseModel):
 
 # 2. La route modifiée
 @app.post("/api/insights-chat")
-def insights_chat(req: ChatRequest):
-    print(f"--- 🚀 REQUÊTE REÇUE DU FRONTEND POUR GEMINI : {req.question} ---")
+def insights_chat(req: ChatRequest, request: Request, current_user: str = Depends(get_current_user)):
+    user_key = current_user.lower()
+    now = datetime.now(timezone.utc)
+
+    # 🟢 RATE LIMITING IA : Maximum 15 requêtes Gemini par tranche de 10 minutes
+    history = AI_CHAT_RATE_LIMIT.get(user_key, [])
+    history = [t for t in history if now - t < timedelta(minutes=10)]
+    
+    if len(history) >= 15:
+        raise HTTPException(
+            status_code=429, 
+            detail="Trop de demandes d'analyse IA en peu de temps. Veuillez patienter quelques minutes."
+        )
+    
+    history.append(now)
+    AI_CHAT_RATE_LIMIT[user_key] = history
+
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
@@ -3258,19 +3319,18 @@ def get_simulation_demenagement(username: str, current_user: str = Depends(get_c
         columns = result.keys()
         return [dict(zip(columns, row)) for row in result.fetchall()]
 
+# 🟢 2. SIMULATION DÉMÉNAGEMENT
 @app.delete("/api/simulation-demenagement/{line_id}")
-def delete_simulation_line(line_id: int):
-    query = text("DELETE FROM simulations_demenagement WHERE id = :id")
+def delete_simulation_line(line_id: int, current_user: str = Depends(get_current_user)):
+    query = text("DELETE FROM simulations_demenagement WHERE id = :id AND LOWER(utilisateur) = :u")
     try:
         with engine.begin() as conn:
-            result = conn.execute(query, {"id": line_id})
-            # Optionnel : vérifier si la ligne existait vraiment
+            result = conn.execute(query, {"id": line_id, "u": current_user})
             if result.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Ligne introuvable")
-                
+                raise HTTPException(status_code=404, detail="Ligne introuvable.")
         return {"status": "success"}
-    except HTTPException as http_err:
-        raise http_err
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
