@@ -6,15 +6,15 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate', // Met à jour automatiquement le cache dès qu'une nouvelle version est déployée
+      registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo_isa.png'],
       manifest: {
         name: 'Kleea - Gestion Financière',
         short_name: 'Kleea',
         description: 'Gestion de patrimoine privé, budgets, prévisions et comptes partagés.',
-        theme_color: '#152c48', // Couleur de la barre d'état système
-        background_color: '#0a0a0a', // Couleur du fond de démarrage (Splash Screen)
-        display: 'standalone', // Supprime la barre d'URL du navigateur
+        theme_color: '#152c48',
+        background_color: '#0a0a0a',
+        display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
         scope: '/',
@@ -33,14 +33,32 @@ export default defineConfig({
             src: '/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable' // Permet aux icônes Android de s'adapter aux formes rondes/carrées
+            purpose: 'any maskable'
           }
         ]
       },
       workbox: {
-        // Met en cache les fichiers statiques de base pour un chargement immédiat
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // 🟢 1. Augmente la limite de taille autorisée à 5 Mo
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
       }
     })
-  ]
+  ],
+  // 🟢 2. Découpage en sous-fichiers légers (évite les fichiers de +3 Mo)
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts')) return 'vendor-charts';
+            if (id.includes('xlsx')) return 'vendor-xlsx';
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            if (id.includes('@dnd-kit')) return 'vendor-dnd';
+            return 'vendor-libs';
+          }
+        }
+      }
+    }
+  }
 });
