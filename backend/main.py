@@ -1,18 +1,17 @@
-from fastapi import FastAPI, HTTPException, Body, Depends
-from sqlalchemy import create_engine, text
+from fastapi import FastAPI, HTTPException, Body, Depends, Request, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
+from sqlalchemy import create_engine, text, bindparam
 import pandas as pd
 import os
 from dotenv import load_dotenv
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional
-from typing import List, Any # 💡 Importez "Any" depuis typing
+from typing import Optional, List, Any
 import io
-from fastapi import UploadFile, File
-from passlib.context import CryptContext
 import secrets
 import socket
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 from fpdf import FPDF
 from fastapi import Response
 import uuid
@@ -22,112 +21,154 @@ import unicodedata
 import json
 from google import genai
 from google.genai import types
-from urllib.parse import unquote
-from datetime import datetime, timezone, timedelta  # <-- Assure-toi d'importer timezone
-from sqlalchemy import text
+from urllib.parse import unquote, quote
 import httpx
 import requests
-from urllib.parse import quote
-from fastapi import APIRouter
 import traceback
 import calendar
-from fastapi import BackgroundTasks
-from cryptography.fernet import Fernet
-#print(Fernet.generate_key().decode())
-import jwt
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi import Request
-from fastapi.responses import JSONResponse
-from sqlalchemy import bindparam
 import time
 import asyncio
+import csv
+from cryptography.fernet import Fernet
+import jwt
+import bcrypt
+from contextlib import asynccontextmanager
 
-
+# 1. Patch Hostname
 def get_ascii_hostname():
     return "localhost"
 
 socket.gethostname = get_ascii_hostname
 
 load_dotenv()
-app = FastAPI()
 
+# 2. Configuration Base de données
+engine = create_engine(
+    os.getenv("DATABASE_URL"),
+    pool_pre_ping=True,
+    pool_recycle=60,
+    pool_size=5,
+    max_overflow=10,
+    connect_args={
+        "sslmode": "require",
+        "connect_timeout": 10
+    }
+)
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("CRITICAL : La variable JWT_SECRET_KEY est manquante dans votre .env !")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 7
+security = HTTPBearer()
+
+# 3. Helpers Mots de passe (bcrypt natif)
+def hash_password(password: str) -> str:
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except Exception:
+        return plain_password == hashed_password
+
+# 4. Cache & Tâche de fond Sécurité
+BANNED_IPS_CACHE = {}
+LAST_BANNED_SYNC = 0.0
+
+def refresh_banned_ips_cache(force: bool = False):
+    global LAST_BANNED_SYNC, BANNED_IPS_CACHE
+    now_ts = time.time()
+    if force or (now_ts - LAST_BANNED_SYNC > 30):
+        now = datetime.now(timezone.utc)
+        try:
+            with engine.connect() as conn:
+                res = conn.execute(
+                    text("SELECT ip, banned_until FROM banned_ips WHERE banned_until > :now"), 
+                    {"now": now}
+                ).fetchall()
+                BANNED_IPS_CACHE = {row[0]: row[1] for row in res}
+            LAST_BANNED_SYNC = now_ts
+        except Exception as e:
+            print(f"⚠️ Erreur synchro cache IP : {e}")
+
+async def periodic_cleanup_task():
+    """Purge les vieux rate-limits toutes les heures sans bloquer les requêtes."""
+    while True:
+        try:
+            await asyncio.sleep(3600)
+            now = datetime.now(timezone.utc)
+            with engine.begin() as conn:
+                conn.execute(text("DELETE FROM security_rate_limits WHERE attempted_at < :old"), {"old": now - timedelta(hours=24)})
+                conn.execute(text("DELETE FROM login_failed_attempts WHERE attempted_at < :old"), {"old": now - timedelta(hours=2)})
+            print("🧹 [MAINTENANCE] Tables de sécurité nettoyées.")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"⚠️ Erreur tâche périodique : {e}")
+
+# 5. Lifespan (Démarrage / Arrêt)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    refresh_banned_ips_cache(force=True)
+    cleanup_task = asyncio.create_task(periodic_cleanup_task())
+    yield
+    cleanup_task.cancel()
+
+# 6. INSTANCIATION UNIQUE DE FASTAPI
+app = FastAPI(lifespan=lifespan)
+
+# 7. MIDDLEWARE CORS (DOIT ÊTRE PLACÉ IMMÉDIATEMENT APRÈS app = FastAPI)
 origins = [
     orig for orig in [
         "http://localhost:5173",
+        "http://localhost:3000",
         "http://localhost:8000",
+        "http://127.0.0.1:5173",
         "http://127.0.0.1:8000",
         os.getenv("DOMAINE_DEFAULT"),
         os.getenv("SOUS_DOMAINE_URL"),
     ] if orig
 ]
 
-# LE BLOC INDISPENSABLE :
-# 3. Activation du Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,             # Autorise ces domaines
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-
-
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-engine = create_engine(
-    os.getenv("DATABASE_URL"),
-    pool_pre_ping=True,  # INDISPENSABLE pour Neon (réveille la DB si besoin)
-    pool_recycle=60,     # On recycle toutes les 60s pour éviter la déconnexion SSL
-    pool_size=5,         # Neon supporte beaucoup de connexions, mais reste léger
-    max_overflow=10,
-    connect_args={
-        "sslmode": "require",
-        "connect_timeout": 10 # Donne un peu de temps à Neon pour sortir de veille
-    }
-)
-
-
-@app.get("/")
-def read_root():
-    return {"status": "L'API de finances est en ligne"}
-
-# 1. Configuration secrète (Générez une longue chaîne aléatoire dans votre .env)
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("CRITICAL : La variable JWT_SECRET_KEY est manquante dans votre fichier .env !")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_DAYS = 7  # L'utilisateur reste connecté 30 jours
-
-security = HTTPBearer()
-
-# 2. Fonction pour fabriquer le Token
+# 8. Authentification & Rôles
 def create_access_token(data: dict):
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-# 3. La fonction de vérification (Le "Vigile" des routes FastAPI)
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
-        if username is None:
+        if not username:
             raise HTTPException(status_code=401, detail="Token invalide")
-        return username.lower()
+        return username.lower().strip()
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Session expirée, veuillez vous reconnecter")
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Accès non autorisé")
 
-
-
-
-
-
+def get_current_admin(current_user: str = Depends(get_current_user)) -> str:
+    with engine.connect() as conn:
+        role = conn.execute(
+            text("SELECT role FROM users WHERE LOWER(username) = :u"),
+            {"u": current_user}
+        ).scalar()
+        if role != "admin":
+            raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
+    return current_user
 
 
 # =========================================================================
@@ -144,7 +185,7 @@ HONEYPOT_USERNAMES = {
     "guest", "test_admin", "user_admin", "demo", "master"
 }
 
-# 🟢 Extraction infaillible de la véritable IP client (derrière Render / Cloudflare)
+# 9. Pare-feu Sécurité
 def get_client_ip(request: Request) -> str:
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
@@ -156,6 +197,56 @@ def get_client_ip(request: Request) -> str:
     if real_ip:
         return real_ip.strip()
     return request.client.host if request.client else "127.0.0.1"
+
+@app.middleware("http")
+async def security_firewall_middleware(request: Request, call_next):
+    # 1. Laisse toujours passer les requêtes preflight CORS
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
+    client_ip = get_client_ip(request)
+    now = datetime.now(timezone.utc)
+    refresh_banned_ips_cache()
+
+    # 2. Vérification si l'IP est bannie
+    if client_ip in BANNED_IPS_CACHE:
+        banned_until = BANNED_IPS_CACHE[client_ip]
+        if banned_until and banned_until > now:
+            # Calcule les minutes restantes
+            minutes_restantes = max(1, int((banned_until - now).total_seconds() / 60))
+            
+            origin = request.headers.get("origin")
+            response = JSONResponse(
+                status_code=403,
+                content={
+                    "detail": f"🚫 Accès bloqué : trop de tentatives échouées. Votre adresse IP est suspendue pour encore {minutes_restantes} minute(s)."
+                }
+            )
+            # 🟢 INDISPENSABLE : En-têtes CORS pour que le frontend puisse lire le message 403
+            if origin:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
+        else:
+            del BANNED_IPS_CACHE[client_ip]
+
+    response = await call_next(request)
+    return response
+
+@app.middleware("http")
+async def add_security_headers_middleware(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+
+
+
+
+
 
 
 # 🟢 Initialisation des tables de sécurité au démarrage
@@ -227,94 +318,55 @@ def ban_ip(ip: str, reason: str, duration_minutes: int):
     print(f"🚫 [FIREWALL] IP BANNIE : {ip} | Raison : {reason} | Jusqu'à : {banned_until}")
 
 
-def check_and_record_failed_attempt(ip: str) -> bool:
-    """Enregistre une tentative ratée et bannit l'IP si > 5 échecs en 10 minutes."""
+MAX_LOGIN_ATTEMPTS = 5  # 5 tentatives autorisées en 10 minutes
+
+def check_and_record_failed_attempt(ip: str) -> tuple[bool, int]:
+    """Enregistre l'échec et retourne (est_banni, tentatives_restantes)."""
     now = datetime.now(timezone.utc)
     ten_minutes_ago = now - timedelta(minutes=10)
 
     with engine.begin() as conn:
-        # Enregistrer l'échec
-        conn.execute(text("INSERT INTO login_failed_attempts (ip, attempted_at) VALUES (:ip, :now)"), {"ip": ip, "now": now})
+        # 1. Enregistrer l'échec
+        conn.execute(
+            text("INSERT INTO login_failed_attempts (ip, attempted_at) VALUES (:ip, :now)"), 
+            {"ip": ip, "now": now}
+        )
 
-        # Nettoyage automatique des vieilles tentatives
-        conn.execute(text("DELETE FROM login_failed_attempts WHERE attempted_at < :old"), {"old": now - timedelta(hours=1)})
-
-        # Compter les échecs récents
+        # 2. Compter les échecs récents dans les 10 dernières minutes
         count = conn.execute(
             text("SELECT COUNT(*) FROM login_failed_attempts WHERE ip = :ip AND attempted_at > :window"),
             {"ip": ip, "window": ten_minutes_ago}
         ).scalar() or 0
 
-    if count >= 5:
+    tentatives_restantes = max(0, MAX_LOGIN_ATTEMPTS - count)
+
+    if count >= MAX_LOGIN_ATTEMPTS:
         ban_ip(ip, f"Force brute détectée ({count} tentatives échouées)", duration_minutes=30)
-        return True
-    return False
+        return True, 0
+
+    return False, tentatives_restantes
 
 
-# =========================================================================
-# 🛡️ MIDDLEWARE PARE-FEU GLOBAL
-# =========================================================================
-@app.middleware("http")
-async def security_firewall_middleware(request: Request, call_next):
-    client_ip = get_client_ip(request)
-    now = datetime.now(timezone.utc)
 
-    # Rafraîchit le cache depuis PostgreSQL si > 30 secondes
-    refresh_banned_ips_cache()
-
-    # Vérification ultra-rapide en mémoire RAM
-    if client_ip in BANNED_IPS_CACHE:
-        banned_until = BANNED_IPS_CACHE[client_ip]
-        if banned_until and banned_until > now:
-            return JSONResponse(
-                status_code=403,
-                content={"detail": "Accès refusé : Votre adresse IP a été temporairement bloquée par le pare-feu de sécurité."}
-            )
-        else:
-            del BANNED_IPS_CACHE[client_ip]
-
-    response = await call_next(request)
-    return response
 
 # --- ROUTE PRIVÉE THÉO : VOIR LES IP BANNIES ---
 @app.get("/api/security/banned-ips")
-def get_banned_ips(current_user: str = Depends(get_current_user)):
-    if current_user.lower() != "theo":
-        raise HTTPException(status_code=403, detail="Accès réservé à l'administrateur")
-    
+def get_banned_ips(admin_user: str = Depends(get_current_admin)):
     with engine.connect() as conn:
         res = conn.execute(text("SELECT ip, reason, banned_until, created_at FROM banned_ips ORDER BY created_at DESC")).fetchall()
         return [dict(r._mapping) for r in res]
 
-# --- ROUTE PRIVÉE THÉO : DÉBLOQUER UNE IP ---
 @app.delete("/api/security/unban-ip/{ip}")
-def unban_ip(ip: str, current_user: str = Depends(get_current_user)):
+def unban_ip(ip: str, admin_user: str = Depends(get_current_admin)):
     global LAST_BANNED_SYNC
-    if current_user.lower() != "theo":
-        raise HTTPException(status_code=403, detail="Accès réservé à l'administrateur")
-    
     BANNED_IPS_CACHE.pop(ip, None)
-    LAST_BANNED_SYNC = 0.0 # Force la resynchronisation
-        
+    LAST_BANNED_SYNC = 0.0
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM banned_ips WHERE ip = :ip"), {"ip": ip})
         conn.execute(text("DELETE FROM login_failed_attempts WHERE ip = :ip"), {"ip": ip})
-        
     return {"status": "success", "message": f"IP {ip} débloquée."}
 
-# 🟢 2. EN-TÊTES DE SÉCURITÉ HTTP OFFICIELS (SECURITY HEADERS)
-@app.middleware("http")
-async def add_security_headers_middleware(request: Request, call_next):
-    response = await call_next(request)
-    # Empêche l'affichage dans une iframe invisible (Anti-Clickjacking)
-    response.headers["X-Frame-Options"] = "DENY"
-    # Empêche le navigateur de deviner le type MIME des fichiers (Anti-Sniffing)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    # Force les connexions chiffrées HTTPS
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    # Protège la vie privée lors des redirections externes
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
+
 
 
 import csv
@@ -435,26 +487,24 @@ def add_transaction(t: Transaction, current_user: str = Depends(get_current_user
 
 
 @app.put("/transactions/{t_id}")
-def update_transaction(t_id: int, t: Transaction):
+def update_transaction(t_id: int, t: Transaction, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE transactions 
         SET nom=:n, montant=:m, categorie=:c, mois=:mo, annee=:a, compte=:co, enveloppe=:env, prevision_id=:prev_id 
-        WHERE id=:id AND LOWER(utilisateur) = LOWER(:u)
+        WHERE id=:id AND LOWER(utilisateur) = :u
     """)
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {
-                "n": t.nom, "m": t.montant, "c": t.categorie, 
-                "mo": t.mois, "a": t.annee, "co": t.compte,
-                "env": t.enveloppe, 
-                "prev_id": t.prevision_id,
-                "id": t_id, "u": t.utilisateur.lower()
-            })
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        print(f"Erreur SQL: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        result = conn.execute(query, {
+            "n": t.nom, "m": t.montant, "c": t.categorie, 
+            "mo": t.mois, "a": t.annee, "co": t.compte,
+            "env": t.enveloppe, 
+            "prev_id": t.prevision_id,
+            "id": t_id, 
+            "u": current_user  # 👈 Bloqué sur l'utilisateur du token
+        })
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Transaction introuvable ou non autorisée")
+    return {"status": "success"}
     
 
 @app.delete("/transactions/batch")
@@ -525,7 +575,7 @@ def register(req: RegisterRequest):
     if not any(c.isalpha() for c in pwd):
         raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins une lettre.")
 
-    hashed_password = pwd_context.hash(pwd)
+    hashed_password = hash_password(pwd)
     full_name = f"{req.first_name} {req.last_name}".strip()
     
     with engine.connect() as conn:
@@ -579,25 +629,33 @@ def login(req: LoginRequest, request: Request):
         
         # Utilisateur introuvable -> Enregistre un échec
         if not result:
-            is_banned = check_and_record_failed_attempt(client_ip)
+            is_banned, remaining = check_and_record_failed_attempt(client_ip)
             if is_banned:
-                raise HTTPException(status_code=403, detail="Trop de tentatives échouées. Votre IP est bloquée pour 30 minutes.")
+                raise HTTPException(status_code=403, detail="Trop de tentatives échouées. Votre adresse IP est suspendue pour 30 minutes.")
             raise HTTPException(status_code=404, detail="Identifiant ou e-mail inconnu")
         
         db_username, db_hashed_password = result
         
         # Vérification du mot de passe
         try:
-            is_valid = pwd_context.verify(req.password, db_hashed_password)
+            is_valid = verify_password(req.password, db_hashed_password)
         except Exception:
             is_valid = (req.password == db_hashed_password)
 
         # Mot de passe erroné -> Enregistre un échec
         if not is_valid:
-            is_banned = check_and_record_failed_attempt(client_ip)
+            is_banned, remaining = check_and_record_failed_attempt(client_ip)
             if is_banned:
-                raise HTTPException(status_code=403, detail="Trop d'échecs de mot de passe. Votre IP est bloquée pour 30 minutes.")
-            raise HTTPException(status_code=401, detail="Mot de passe incorrect")
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Trop d'échecs consécutifs. Votre adresse IP est suspendue pour 30 minutes."
+                )
+            
+            pluriel = "s" if remaining > 1 else ""
+            raise HTTPException(
+                status_code=401, 
+                detail=f"Mot de passe incorrect. Il vous reste {remaining} tentative{pluriel} avant suspension."
+            )
             
         # 🟢 Succès : Nettoie l'historique des échecs pour cette IP
         with engine.begin() as cleanup_conn:
@@ -674,27 +732,17 @@ class ResetRequest(BaseModel):
 # Caches en mémoire pour le Rate-Limiting
 
 def check_is_rate_limited(key: str, action: str, max_attempts: int, window_minutes: int) -> bool:
-    """
-    Vérifie le rate-limit via PostgreSQL (persistant multi-workers et multi-redémarrages).
-    Renvoie True si la limite est DÉPASSÉE, False si la requête est autorisée.
-    """
     now = datetime.now(timezone.utc)
     window_start = now - timedelta(minutes=window_minutes)
 
     with engine.begin() as conn:
-        # Nettoyage opportuniste : supprime les vieilles traces de plus de 24h
-        conn.execute(
-            text("DELETE FROM security_rate_limits WHERE attempted_at < :old"),
-            {"old": now - timedelta(hours=24)}
-        )
-
-        # Compte les tentatives récentes dans la fenêtre de temps
+        # Compte les tentatives récentes dans la fenêtre
         count = conn.execute(
             text("""
                 SELECT COUNT(*) FROM security_rate_limits 
                 WHERE key = :k AND action = :a AND attempted_at > :ws
             """),
-            {"k": key.lower(), "a": action, "ws": window_start}
+            {"k": key.lower().strip(), "a": action, "ws": window_start}
         ).scalar() or 0
 
         if count >= max_attempts:
@@ -703,7 +751,7 @@ def check_is_rate_limited(key: str, action: str, max_attempts: int, window_minut
         # Enregistre cette tentative
         conn.execute(
             text("INSERT INTO security_rate_limits (key, action, attempted_at) VALUES (:k, :a, :now)"),
-            {"k": key.lower(), "a": action, "now": now}
+            {"k": key.lower().strip(), "a": action, "now": now}
         )
         return False
 
@@ -773,7 +821,7 @@ class NewPasswordRequest(BaseModel):
 
 @app.post("/reset-password-confirm")
 async def reset_password_confirm(req: NewPasswordRequest):
-    hashed_password = pwd_context.hash(req.new_password)
+    hashed_password = hash_password(req.new_password)
     
     # On utilise engine.begin() pour s'assurer que le UPDATE est bien commit et fermé
     with engine.begin() as conn:
@@ -804,7 +852,7 @@ def update_password(username: str, req: UpdatePasswordRequest, current_user: str
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier le mot de passe d'un autre utilisateur")
 
     # 1. On hache le nouveau mot de passe
-    hashed_password = pwd_context.hash(req.new_password)
+    hashed_password = hash_password(req.new_password)
     
     with engine.connect() as conn:
         # 2. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
@@ -1306,37 +1354,33 @@ def add_category(cat: CategorieCreate, current_user: str = Depends(get_current_u
 
 # 3. Modification : met à jour icone ET couleur
 @app.put("/api/categories")
-def update_category(cat: CategorieUpdate):
-    try:
-        clean_name = cat.nom.strip()
-        clean_user = cat.utilisateur.lower()
-        clean_icon = cat.icone if cat.icone else "Tag"
-        clean_color = cat.couleur if cat.couleur else "#818cf8"
+def update_category(cat: CategorieUpdate, current_user: str = Depends(get_current_user)):
+    clean_name = cat.nom.strip()
+    clean_user = current_user  # 👈 Token forcé
+    clean_icon = cat.icone if cat.icone else "Tag"
+    clean_color = cat.couleur if cat.couleur else "#818cf8"
 
-        with engine.begin() as conn:
-            check = conn.execute(
-                text("SELECT 1 FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"),
-                {"u": clean_user, "n": clean_name}
-            ).fetchone()
-            
-            if check:
-                conn.execute(
-                    text("""
-                        UPDATE categories 
-                        SET icone = :i, couleur = :c 
-                        WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)
-                    """),
-                    {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
-                )
-            else:
-                conn.execute(
-                    text("INSERT INTO categories (nom, icone, couleur, utilisateur) VALUES (:n, :i, :c, :u)"),
-                    {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
-                )
-        return {"status": "success"}
-    except Exception as e:
-        print(f"❌ Erreur update_category: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        check = conn.execute(
+            text("SELECT 1 FROM categories WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)"),
+            {"u": clean_user, "n": clean_name}
+        ).fetchone()
+        
+        if check:
+            conn.execute(
+                text("""
+                    UPDATE categories 
+                    SET icone = :i, couleur = :c 
+                    WHERE LOWER(utilisateur) = :u AND LOWER(nom) = LOWER(:n)
+                """),
+                {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
+            )
+        else:
+            conn.execute(
+                text("INSERT INTO categories (nom, icone, couleur, utilisateur) VALUES (:n, :i, :c, :u)"),
+                {"n": clean_name, "i": clean_icon, "c": clean_color, "u": clean_user}
+            )
+    return {"status": "success"}
 
 # --- 1. CATÉGORIES & MASQUAGES ---
 @app.get("/api/categories/{user}")
@@ -1412,8 +1456,8 @@ class CategorieAssignGroup(BaseModel):
     utilisateur: str
 
 @app.put("/api/categories/assign-group")
-def assign_category_group(req: CategorieAssignGroup):
-    clean_user = req.utilisateur.lower().strip()
+def assign_category_group(req: CategorieAssignGroup, current_user: str = Depends(get_current_user)):
+    clean_user = current_user  # 👈 Token forcé
     clean_name = req.nom.strip()
     clean_group = req.groupe.strip()
 
@@ -1429,7 +1473,6 @@ def assign_category_group(req: CategorieAssignGroup):
                 {"g": clean_group, "u": clean_user, "n": clean_name}
             )
         else:
-            # Si c'était une catégorie par défaut, on la persiste avec son groupe
             conn.execute(
                 text("INSERT INTO categories (nom, icone, couleur, groupe, utilisateur) VALUES (:n, 'Tag', '#818cf8', :g, :u)"),
                 {"n": clean_name, "g": clean_group, "u": clean_user}
@@ -1445,8 +1488,8 @@ class DeleteGroupRequest(BaseModel):
     fallback_groupe: Optional[str] = "Général"
 
 @app.put("/api/categories/delete-group")
-def delete_category_group(req: DeleteGroupRequest):
-    clean_user = req.utilisateur.lower().strip()
+def delete_category_group(req: DeleteGroupRequest, current_user: str = Depends(get_current_user)):
+    clean_user = current_user  # 👈 Token forcé
     clean_group = req.groupe.strip()
     clean_fallback = (req.fallback_groupe or "Général").strip()
 
@@ -1539,19 +1582,25 @@ def save_masked_categories(user: str, categories: List[str] = Body(default=[]), 
 
 
 @app.post("/import-csv")
-async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = File(...)):
+async def import_csv(
+    compte: Optional[str] = None, 
+    file: UploadFile = File(...),
+    utilisateur: Optional[str] = None, # Conservé pour rétrocompatibilité d'URL
+    current_user: str = Depends(get_current_user) # 👈 JWT forcé
+):
+    # L'utilisateur connecté écrase tout paramètre passé dans l'URL
+    user_cible = current_user
     try:
         contents = await file.read()
         try:
             decoded = contents.decode('utf-8')
-        except:
+        except Exception:
             decoded = contents.decode('latin-1')
             
         lines = [l.strip() for l in decoded.splitlines() if l.strip()]
         if not lines:
             return []
         
-        # --- 1. DÉTECTION DU FORMAT ---
         is_revolut = "Date de début" in lines[0] or "Type,Produit" in lines[0]
         separator = ',' if is_revolut else ';'
         
@@ -1563,12 +1612,10 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 start_line = i
                 break
         
-        # --- 2. CHARGEMENT DU CSV ---
         csv_data = "\n".join(lines[start_line:])
         df = pd.read_csv(io.StringIO(csv_data), sep=separator, engine='python', on_bad_lines='skip')
         df.columns = [c.strip().lower() for c in df.columns]
 
-        # --- 3. IDENTIFICATION DES COLONNES ---
         col_date = next((c for c in df.columns if any(k in c for k in ['date de début', 'start date', 'date operation', 'date'])), None)
         col_nom = next((c for c in df.columns if any(k in c for k in ['description', 'libelle simplifie', 'nom', 'libell'])), None)
         col_montant = next((c for c in df.columns if any(k in c for k in ['montant', 'amount', 'valeur'])), None)
@@ -1577,42 +1624,14 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
         col_etat = next((c for c in df.columns if any(k in c for k in ['état', 'status', 'state'])), None)
         col_info = next((c for c in df.columns if any(k in c for k in ['informations complementaires', 'info'])), None)
 
-        # --- 4. CHARGEMENT DE L'INTELLIGENCE (Mots-clés) ---
-        mots_cles_rules = []
-        try:
-            with engine.connect() as conn:
-                query_cat = text("""
-                    SELECT categorie, mots_cles, utilisateur 
-                    FROM config_categories 
-                    WHERE utilisateur = :u OR utilisateur = 'admin'
-                """)
-                result = conn.execute(query_cat, {"u": utilisateur}).fetchall()
-                
-                temp_rules = {}
-                for row in result:
-                    cat_name, raw_keywords, owner = row
-                    if raw_keywords:
-                        keywords_str = str(raw_keywords).replace('{', '').replace('}', '').replace('"', '')
-                        keywords_list = [m.strip().lower() for m in keywords_str.split(',') if m.strip()]
-                        
-                        if cat_name not in temp_rules or owner == utilisateur:
-                            temp_rules[cat_name] = keywords_list
-                
-                for cat, keys in temp_rules.items():
-                    mots_cles_rules.append({"categorie": cat, "keywords": keys})
-        except Exception as e:
-            print(f"Erreur chargement mots_cles: {e}")
-
-        # --- 5. CHARGEMENT DE LA MÉMOIRE ---
-        memoire_rules = fetch_memoire_data(utilisateur)
+        mots_cles_rules = get_mots_cles_rules(user_cible)
+        memoire_rules = fetch_memoire_data(user_cible)
 
         transactions_pretes = []
         mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
 
-        # --- 6. BOUCLE DE TRAITEMENT ---
         for _, row in df.iterrows():
             if pd.isna(row[col_date]): continue
-            
             if col_etat and pd.notna(row[col_etat]):
                 if str(row[col_etat]).upper() not in ['TERMINÉ', 'COMPLETED', 'FINI']:
                     continue
@@ -1627,7 +1646,6 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 if col_debit or col_credit:
                     d_val = clean_val(row.get(col_debit)) if col_debit else "0"
                     c_val = clean_val(row.get(col_credit)) if col_credit else "0"
-                    
                     if d_val and d_val not in ["0", "0.00", "0.0"]: 
                         montant_float = -abs(float(d_val)) 
                     elif c_val and c_val not in ["0", "0.00", "0.0"]: 
@@ -1640,26 +1658,15 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                 nom_t_lower = nom_t.lower()
                 texte_integral_upper = (nom_t + " " + info_t).upper()
 
-                # --- ALGORITHME DE CATÉGORISATION ---
                 cat = "Autre"
-                
-                # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
                 if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
-                    # Détection automatique du livret cible dans le libelle brut de la banque
                     types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
                     type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
-                    
                     if type_cible:
-                        if montant_float < 0: # Débit : Argent envoyé du compte courant vers l'épargne
-                            cat = f"Virement : CCP vers {type_cible}"
-                        else: # Crédit : Argent retiré de l'épargne vers le compte courant
-                            cat = f"Virement : {type_cible} vers {type_cible if type_cible != 'CCP' else 'LIVRET A'}" # Fallback
-                            cat = f"Virement : {type_cible} vers CCP"
+                        cat = f"Virement : CCP vers {type_cible}" if montant_float < 0 else f"Virement : {type_cible} vers CCP"
                     else:
-                        # Si aucun livret connu n'est identifié
                         cat = "Transfert Interne"
 
-                # B. Priorité 2 : Mémoire Apprise
                 if cat == "Autre":
                     nom_t_normalise = " ".join(nom_t_lower.split())
                     for m in memoire_rules:
@@ -1668,7 +1675,6 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                             cat = m["categorie"]
                             break
 
-                # C. Priorité 3 : Intelligence (Mots-clés de la configuration)
                 if cat == "Autre":
                     for rule in mots_cles_rules:
                         matched = False
@@ -1676,9 +1682,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                             parts = raw_k.split(':')
                             keyword_clean = parts[0].strip().lower()
                             filtre_signe = parts[1].strip().lower() if len(parts) > 1 else "both"
-                            
-                            if not keyword_clean:
-                                continue
+                            if not keyword_clean: continue
 
                             if matches_keyword_boundary(keyword_clean, nom_t_lower):
                                 match_positif = (filtre_signe == "positive" and montant_float > 0)
@@ -1689,10 +1693,8 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                                     matched = True
                                     cat = rule["categorie"]
                                     break
-                        if matched:
-                            break
+                        if matched: break
 
-                # --- DATE ET FORMATAGE FINAL ---
                 date_str = str(row[col_date]).split(' ')[0]
                 dt = pd.to_datetime(date_str, dayfirst=True, errors='coerce')
                 if pd.isna(dt): continue
@@ -1702,7 +1704,7 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
                     "nom": nom_t,
                     "montant": montant_float,
                     "categorie": cat,
-                    "utilisateur": utilisateur.lower(),
+                    "utilisateur": user_cible,
                     "compte": compte,
                     "mois": mois_fr[dt.month - 1],
                     "annee": int(dt.year)
@@ -3224,65 +3226,53 @@ class SimulationLineCreate(BaseModel):
     cible: str
 
 @app.post("/api/simulation-demenagement")
-def add_or_update_simulation_line(line: SimulationLineCreate):
-    clean_username = line.utilisateur.lower().strip()
+def add_or_update_simulation_line(line: SimulationLineCreate, current_user: str = Depends(get_current_user)):
+    clean_username = current_user  # 👈 Token forcé
     
-    # 1. On cherche d'abord si la ligne existe déjà
     check_query = text("""
         SELECT id FROM simulations_demenagement 
         WHERE LOWER(utilisateur) = :u AND scenario = :sc AND titre = :t
     """)
     
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(check_query, {
+    with engine.begin() as conn:
+        existing_row = conn.execute(check_query, {
+            "u": clean_username,
+            "sc": line.scenario,
+            "t": line.titre
+        }).fetchone()
+        
+        if existing_row:
+            existing_id = existing_row[0]
+            conn.execute(text("""
+                UPDATE simulations_demenagement 
+                SET montant = :m, frequence = :freq, categorie = :c, flux_type = :f, cible = :cible
+                WHERE id = :id AND LOWER(utilisateur) = :u
+            """), {
+                "id": existing_id,
+                "u": clean_username,
+                "m": line.montant,
+                "freq": line.frequence,
+                "c": line.categorie,
+                "f": line.flux_type,
+                "cible": line.cible
+            })
+            return {"id": existing_id, "status": "success"}
+        else:
+            insert_result = conn.execute(text("""
+                INSERT INTO simulations_demenagement (utilisateur, scenario, titre, flux_type, categorie, montant, frequence, cible)
+                VALUES (:u, :sc, :t, :f, :c, :m, :freq, :cible)
+                RETURNING id
+            """), {
                 "u": clean_username,
                 "sc": line.scenario,
-                "t": line.titre
+                "t": line.titre,
+                "f": line.flux_type,
+                "c": line.categorie,
+                "m": line.montant,
+                "freq": line.frequence,
+                "cible": line.cible
             })
-            existing_row = result.fetchone()
-            
-            if existing_row:
-                # 2. Si elle existe, on fait un UPDATE
-                existing_id = existing_row[0]
-                update_query = text("""
-                    UPDATE simulations_demenagement 
-                    SET montant = :m, frequence = :freq, categorie = :c, flux_type = :f, cible = :cible
-                    WHERE id = :id
-                """)
-                conn.execute(update_query, {
-                    "id": existing_id,
-                    "m": line.montant,
-                    "freq": line.frequence,
-                    "c": line.categorie,
-                    "f": line.flux_type,
-                    "cible": line.cible
-                })
-                return {"id": existing_id, "status": "success"}
-                
-            else:
-                # 3. Si elle n'existe pas, on fait un INSERT classique
-                insert_query = text("""
-                    INSERT INTO simulations_demenagement (utilisateur, scenario, titre, flux_type, categorie, montant, frequence, cible)
-                    VALUES (:u, :sc, :t, :f, :c, :m, :freq, :cible)
-                    RETURNING id
-                """)
-                insert_result = conn.execute(insert_query, {
-                    "u": clean_username,
-                    "sc": line.scenario,
-                    "t": line.titre,
-                    "f": line.flux_type,
-                    "c": line.categorie,
-                    "m": line.montant,
-                    "freq": line.frequence,
-                    "cible": line.cible
-                })
-                new_id = insert_result.fetchone()[0]
-                return {"id": new_id, "status": "success"}
-                
-    except Exception as e:
-        print(f"❌ Erreur lors du POST : {str(e)}")  # Cela s'affichera dans ton terminal FastAPI
-        raise HTTPException(status_code=500, detail=f"Erreur base de données : {str(e)}")
+            return {"id": insert_result.fetchone()[0], "status": "success"}
 
 # --- 3. DÉMÉNAGEMENT ---
 @app.get("/api/simulation-demenagement/{username}")
@@ -3316,52 +3306,31 @@ def delete_simulation_line(line_id: int, current_user: str = Depends(get_current
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.delete("/api/simulation-demenagement/{username}/{scenario_name}")
-def delete_scenario(username: str, scenario_name: str):
-    # 1. Nettoyage complet des chaînes
-    decoded_scenario = unquote(scenario_name).strip()
-    
-    # Remplacer les espaces insécables (\u00a0 ou \u202f) par des espaces normaux
-    decoded_scenario = re.sub(r'[\u00a0\u202f\s]+', ' ', decoded_scenario).strip()
-    clean_username = username.lower().strip()
+def delete_scenario(username: str, scenario_name: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    # 2. Requête SQL tolérante aux espaces et à la casse
-    # On applique un LOWER() sur l'utilisateur et un TRIM sur le scénario au cas où
-    query = text(r"""
+    decoded_scenario = unquote(scenario_name).strip()
+    decoded_scenario = re.sub(r'[\u00a0\u202f\s]+', ' ', decoded_scenario).strip()
+
+    with engine.begin() as conn:
+        result = conn.execute(text("""
             DELETE FROM simulations_demenagement 
             WHERE LOWER(utilisateur) = :u 
             AND (TRIM(scenario) = :sc OR REGEXP_REPLACE(scenario, '[\u00a0\s]+', ' ', 'g') = :sc)
-        """)
-    
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(query, {
-                "u": clean_username,
-                "sc": decoded_scenario
-            })
-            
-            # Si la requête exacte échoue, on tente une suppression plus large avec LIKE
-            if result.rowcount == 0:
-                fallback_query = text("""
-                    DELETE FROM simulations_demenagement 
-                    WHERE LOWER(utilisateur) = :u 
-                      AND scenario LIKE :sc_like
-                """)
-                # On cherche "Loyer%900%€" en remplaçant les espaces par des jokers %
-                like_pattern = f"%{decoded_scenario.replace(' ', '%')}%"
-                result = conn.execute(fallback_query, {
-                    "u": clean_username,
-                    "sc_like": like_pattern
-                })
+        """), {"u": current_user, "sc": decoded_scenario})
+        
+        if result.rowcount == 0:
+            like_pattern = f"%{decoded_scenario.replace(' ', '%')}%"
+            result = conn.execute(text("""
+                DELETE FROM simulations_demenagement 
+                WHERE LOWER(utilisateur) = :u AND scenario LIKE :sc_like
+            """), {"u": current_user, "sc_like": like_pattern})
 
-            if result.rowcount == 0:
-                print(f"⚠️ Aucun match trouvé pour l'utilisateur '{clean_username}' et le scénario '{decoded_scenario}'")
-                raise HTTPException(status_code=404, detail="Scénario introuvable")
-                
-        return {"status": "success", "message": f"{result.rowcount} lignes supprimées."}
-    except HTTPException as http_err:
-        raise http_err
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Scénario introuvable")
+            
+    return {"status": "success", "message": f"{result.rowcount} lignes supprimées."}
     
 
 class NoteUpdate(BaseModel):
@@ -4683,7 +4652,9 @@ def sync_all_users_background(auth_key: str = None):
     return {"status": "success", "synchronized_users": synced_users}
 
 @app.post("/powens/clean-duplicates/{username}")
-def clean_powens_duplicates(username: str):
+def clean_powens_duplicates(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
     """
     Supprime les connexions en doublon pour une MÊME banque,
     sans jamais toucher aux autres banques.
@@ -4779,7 +4750,9 @@ def disconnect_powens(username: str, current_user: str = Depends(get_current_use
     return {"status": "success", "message": "Accès bancaire Powens et identifiant supprimés avec succès."}
 
 @app.post("/powens/reconcile-and-recalculate/{username}")
-def reconcile_and_recalculate_all(username: str):
+def reconcile_and_recalculate_all(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
     """
     Déclenché lors de l'ajout ou la modification d'un compte :
     1. Re-scanne les transactions pour lier les virements miroirs avec le nouveau compte.
@@ -4978,43 +4951,18 @@ class CongeProfile(BaseModel):
 
 @app.get("/api/conges/{username}")
 def get_user_conges(username: str, current_user: str = Depends(get_current_user)):
-    user_clean = current_user.lower().strip()
-    
-    with engine.begin() as conn:
-        # Création et migration automatique de la colonne date_embauche
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS conges (
-                id SERIAL PRIMARY KEY,
-                utilisateur VARCHAR(100) NOT NULL,
-                type VARCHAR(20) NOT NULL,
-                date_debut DATE NOT NULL,
-                date_fin DATE NOT NULL,
-                nb_jours NUMERIC(5,2) NOT NULL,
-                motif TEXT,
-                anticipe BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS conges_profile (
-                utilisateur VARCHAR(100) PRIMARY KEY,
-                nom VARCHAR(100),
-                prenom VARCHAR(100),
-                societe VARCHAR(100),
-                poste VARCHAR(100),
-                jours_acquis_annuel NUMERIC(5,2) DEFAULT 25,
-                date_embauche DATE DEFAULT '2026-01-01'
-            );
-            ALTER TABLE conges_profile ADD COLUMN IF NOT EXISTS date_embauche DATE DEFAULT '2026-01-01';
-            ALTER TABLE conges_profile ADD COLUMN IF NOT EXISTS jours_acquis_annuel NUMERIC(5,2) DEFAULT 25;
-        """))
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
 
+    with engine.connect() as conn:
         conges_res = conn.execute(
             text("SELECT * FROM conges WHERE LOWER(utilisateur) = :u ORDER BY date_debut DESC"),
-            {"u": user_clean}
+            {"u": current_user}
         ).mappings().all()
 
         profile_res = conn.execute(
             text("SELECT * FROM conges_profile WHERE LOWER(utilisateur) = :u"),
-            {"u": user_clean}
+            {"u": current_user}
         ).mappings().first()
 
         profile_dict = dict(profile_res) if profile_res else None

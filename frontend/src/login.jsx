@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen,Trophy,WalletCards
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen,Trophy,WalletCards,WifiOff,UserX,ShieldAlert
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -3393,7 +3393,6 @@ const [resetEmail, setResetEmail] = useState('');
 
 
 
-
 const handleLogin = async (e) => {
   e.preventDefault();
   try {
@@ -3402,21 +3401,61 @@ const handleLogin = async (e) => {
       password: loginPassword 
     });
     
-    // 🟢 ENREGISTRER LE TOKEN ET L'UTILISATEUR
     localStorage.setItem('token', res.data.access_token);
     localStorage.setItem('user', res.data.user.toLowerCase());
     setUser(res.data.user.toLowerCase());
-    } catch (err) {
-      // Gestion d'erreur plus précise
-      if (err.response && err.response.status === 401) {
-        toast.error("Mot de passe incorrect.")
-      } else if (err.response && err.response.status === 404) {
-        toast.error("Identifiant ou e-mail inconnu.")
-      } else {
-        toast.error("Erreur de connexion au serveur.")
-      }
+  } catch (err) {
+    // 🛡️ 1. IP bloquée / Pare-feu déclenché (403)
+    if (err.response && err.response.status === 403) {
+      const messageDetail = err.response.data?.detail || "Trop d'échecs. Votre adresse IP a été suspendue temporairement.";
+      toast.error(messageDetail, {
+        duration: 8000,
+        icon: (
+          <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.3)] mr-2.5">
+            <ShieldAlert size={16} strokeWidth={2.5} />
+          </div>
+        )
+      });
+    } 
+    // 🔒 2. Mot de passe incorrect avec décompte (401)
+    else if (err.response && err.response.status === 401) {
+      const messageDetail = err.response.data?.detail || "Mot de passe incorrect.";
+      toast.error(messageDetail, {
+        duration: 5000,
+        icon: (
+          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.3)] mr-2.5">
+            <Lock size={15} strokeWidth={2.5} />
+          </div>
+        )
+      });
+    } 
+    // 👤 3. Utilisateur ou e-mail introuvable (404)
+    else if (err.response && err.response.status === 404) {
+      toast.error("Identifiant ou adresse e-mail inconnu.", {
+        duration: 4000,
+        icon: (
+          <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.3)] mr-2.5">
+            <UserX size={16} strokeWidth={2.5} />
+          </div>
+        )
+      });
+    } 
+    // ⚠️ 4. Autre message d'erreur envoyé par FastAPI
+    else if (err.response?.data?.detail) {
+      toast.error(err.response.data.detail);
+    } 
+    // 📡 5. Panne réseau / Serveur inaccessible
+    else {
+      toast.error("Impossible de joindre le serveur Kleea.", {
+        icon: (
+          <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.3)] mr-2.5">
+            <WifiOff size={15} strokeWidth={2.5} />
+          </div>
+        )
+      });
     }
   }
+};
 
 const handleLogout = () => {
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
