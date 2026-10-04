@@ -38,6 +38,10 @@ import jwt
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from sqlalchemy import bindparam
+import time
+import asyncio
+
 
 def get_ascii_hostname():
     return "localhost"
@@ -48,11 +52,13 @@ load_dotenv()
 app = FastAPI()
 
 origins = [
-    "http://localhost:5173",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",    # Pour tes tests locaux
-     os.getenv("DOMAINE_DEFAULT"),        # Ton URL Vercel
-     os.getenv("SOUS_DOMAINE_URL"),
+    orig for orig in [
+        "http://localhost:5173",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        os.getenv("DOMAINE_DEFAULT"),
+        os.getenv("SOUS_DOMAINE_URL"),
+    ] if orig
 ]
 
 # LE BLOC INDISPENSABLE :
@@ -88,7 +94,9 @@ def read_root():
     return {"status": "L'API de finances est en ligne"}
 
 # 1. Configuration secrète (Générez une longue chaîne aléatoire dans votre .env)
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "kleea_secret_key_super_securisee_a_changer_absolument_998877")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("CRITICAL : La variable JWT_SECRET_KEY est manquante dans votre fichier .env !")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7  # L'utilisateur reste connecté 30 jours
 
@@ -128,6 +136,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 
 # Cache en mémoire des IP bannies { "ip": datetime_expiration }
 BANNED_IPS_CACHE = {}
+LAST_BANNED_SYNC = 0.0
 
 # 🍯 Identifiants pièges (Honeypot) : Toute tentative bannit l'IP
 HONEYPOT_USERNAMES = {
@@ -164,14 +173,37 @@ def init_security_tables():
                 ip VARCHAR(50) NOT NULL,
                 attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
+            -- Table centralisée pour tous les rate limits (Mot de passe, Chat IA, etc.)
+            CREATE TABLE IF NOT EXISTS security_rate_limits (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(255) NOT NULL,
+                action VARCHAR(50) NOT NULL,
+                attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_rate_limits_lookup 
+            ON security_rate_limits (key, action, attempted_at);
         """))
-        # Charger les IP déjà bannies au démarrage
-        now = datetime.now(timezone.utc)
-        res = conn.execute(text("SELECT ip, banned_until FROM banned_ips WHERE banned_until > :now"), {"now": now}).fetchall()
-        for row in res:
-            BANNED_IPS_CACHE[row[0]] = row[1]
+    # Pré-charge le cache au démarrage
+    refresh_banned_ips_cache(force=True)
 
-# Lancement de l'initialisation
+
+def refresh_banned_ips_cache(force: bool = False):
+    """Synchronise le cache mémoire avec PostgreSQL toutes les 30 secondes max."""
+    global LAST_BANNED_SYNC, BANNED_IPS_CACHE
+    now_ts = time.time()
+    if force or (now_ts - LAST_BANNED_SYNC > 30):
+        now = datetime.now(timezone.utc)
+        try:
+            with engine.connect() as conn:
+                res = conn.execute(
+                    text("SELECT ip, banned_until FROM banned_ips WHERE banned_until > :now"), 
+                    {"now": now}
+                ).fetchall()
+                BANNED_IPS_CACHE = {row[0]: row[1] for row in res}
+            LAST_BANNED_SYNC = now_ts
+        except Exception as e:
+            print(f"⚠️ Erreur synchro cache IP : {e}")
+
 try:
     init_security_tables()
 except Exception as e:
@@ -179,8 +211,10 @@ except Exception as e:
 
 
 def ban_ip(ip: str, reason: str, duration_minutes: int):
+    global LAST_BANNED_SYNC
     banned_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
     BANNED_IPS_CACHE[ip] = banned_until
+    LAST_BANNED_SYNC = time.time() # Met à jour le timestamp local
 
     with engine.begin() as conn:
         conn.execute(text("""
@@ -225,7 +259,10 @@ async def security_firewall_middleware(request: Request, call_next):
     client_ip = get_client_ip(request)
     now = datetime.now(timezone.utc)
 
-    # Vérification dans le cache mémoire ultra-rapide
+    # Rafraîchit le cache depuis PostgreSQL si > 30 secondes
+    refresh_banned_ips_cache()
+
+    # Vérification ultra-rapide en mémoire RAM
     if client_ip in BANNED_IPS_CACHE:
         banned_until = BANNED_IPS_CACHE[client_ip]
         if banned_until and banned_until > now:
@@ -252,11 +289,12 @@ def get_banned_ips(current_user: str = Depends(get_current_user)):
 # --- ROUTE PRIVÉE THÉO : DÉBLOQUER UNE IP ---
 @app.delete("/api/security/unban-ip/{ip}")
 def unban_ip(ip: str, current_user: str = Depends(get_current_user)):
+    global LAST_BANNED_SYNC
     if current_user.lower() != "theo":
         raise HTTPException(status_code=403, detail="Accès réservé à l'administrateur")
     
-    if ip in BANNED_IPS_CACHE:
-        del BANNED_IPS_CACHE[ip]
+    BANNED_IPS_CACHE.pop(ip, None)
+    LAST_BANNED_SYNC = 0.0 # Force la resynchronisation
         
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM banned_ips WHERE ip = :ip"), {"ip": ip})
@@ -368,41 +406,29 @@ class Transaction(BaseModel):
     prevision_id: Optional[int] = None  # 👈 AJOUT ICI
 
 @app.post("/transactions")
-def add_transaction(t: Transaction):
-    # L'ordre SQL est crucial : INSERT -> ON CONFLICT -> RETURNING
+def add_transaction(t: Transaction, current_user: str = Depends(get_current_user)):
     query = text("""
         INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte) 
         VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
         ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
         RETURNING id
     """)
-    
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             result = conn.execute(query, {
                 "n": t.nom, 
                 "m": t.montant, 
                 "c": t.categorie, 
-                "u": t.utilisateur.lower(),
+                "u": current_user.lower(), # Force l'utilisateur connecté
                 "mo": t.mois,
                 "a": t.annee,
                 "co": t.compte,
                 "d": t.date
             })
-            
-            # On récupère la ligne retournée
             row = result.fetchone()
-            conn.commit()
-            
             if row:
-                # Cas 1 : Nouvelle insertion réussie
-                new_id = row[0]
-                return {**t.dict(), "id": new_id, "status": "success"}
-            else:
-                # Cas 2 : La transaction existe déjà (ON CONFLICT a agi)
-                # On renvoie un status spécial pour informer le frontend
-                return {**t.dict(), "status": "ignored", "message": "Doublon détecté"}
-            
+                return {**t.dict(), "id": row[0], "status": "success"}
+            return {**t.dict(), "status": "ignored", "message": "Doublon détecté"}
     except Exception as e:
         print(f"Erreur SQL: {e}")
         return {"status": "error", "message": str(e)}
@@ -436,19 +462,24 @@ def delete_transactions(ids: List[int], current_user: str = Depends(get_current_
     """Supprime plusieurs transactions par leurs IDs en vérifiant le propriétaire"""
     if not ids:
         return {"status": "error", "message": "Aucun ID fourni"}
-        
+    
+    # Validation stricte que tous les éléments sont bien des entiers
+    clean_ids = [int(i) for i in ids if isinstance(i, (int, str)) and str(i).isdigit()]
+    if not clean_ids:
+        return {"status": "error", "message": "Identifiants invalides"}
+
+    # expanding=True génère dynamiquement le nombre exact de paramètres bindés
     query = text("""
         DELETE FROM transactions 
         WHERE id IN :id_list AND LOWER(utilisateur) = :u
-    """)
+    """).bindparams(bindparam("id_list", expanding=True))
     
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             result = conn.execute(query, {
-                "id_list": tuple(ids),
-                "u": current_user
+                "id_list": clean_ids,   # Une simple liste Python, plus besoin de tuple()
+                "u": current_user.lower()
             })
-            conn.commit()
         return {"status": "success", "deleted_count": result.rowcount}
     except Exception as e:
         print(f"Erreur SQL suppression: {e}")
@@ -641,22 +672,50 @@ class ResetRequest(BaseModel):
     email: EmailStr
 
 # Caches en mémoire pour le Rate-Limiting
-PASSWORD_RESET_RATE_LIMIT = {}  # { "email": datetime_last_request }
-AI_CHAT_RATE_LIMIT = {}          # { "ip_or_user": [timestamps] }
+
+def check_is_rate_limited(key: str, action: str, max_attempts: int, window_minutes: int) -> bool:
+    """
+    Vérifie le rate-limit via PostgreSQL (persistant multi-workers et multi-redémarrages).
+    Renvoie True si la limite est DÉPASSÉE, False si la requête est autorisée.
+    """
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(minutes=window_minutes)
+
+    with engine.begin() as conn:
+        # Nettoyage opportuniste : supprime les vieilles traces de plus de 24h
+        conn.execute(
+            text("DELETE FROM security_rate_limits WHERE attempted_at < :old"),
+            {"old": now - timedelta(hours=24)}
+        )
+
+        # Compte les tentatives récentes dans la fenêtre de temps
+        count = conn.execute(
+            text("""
+                SELECT COUNT(*) FROM security_rate_limits 
+                WHERE key = :k AND action = :a AND attempted_at > :ws
+            """),
+            {"k": key.lower(), "a": action, "ws": window_start}
+        ).scalar() or 0
+
+        if count >= max_attempts:
+            return True  # Limite dépassée
+
+        # Enregistre cette tentative
+        conn.execute(
+            text("INSERT INTO security_rate_limits (key, action, attempted_at) VALUES (:k, :a, :now)"),
+            {"k": key.lower(), "a": action, "now": now}
+        )
+        return False
+
 
 @app.post("/forgot-password")
 async def forgot_password(req: ResetRequest):
     email_clean = req.email.lower().strip()
-    now = datetime.now(timezone.utc)
 
-    # 🟢 RATE LIMITING : 1 demande toutes les 3 minutes max par e-mail
-    if email_clean in PASSWORD_RESET_RATE_LIMIT:
-        last_request = PASSWORD_RESET_RATE_LIMIT[email_clean]
-        if now - last_request < timedelta(minutes=3):
-            # Réponse neutre pour ne rien divulguer tout en bloquant l'envoi
-            return {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
-
-    PASSWORD_RESET_RATE_LIMIT[email_clean] = now
+    # 🟢 RATE LIMITING PERSISTANT : 1 demande toutes les 3 minutes max par e-mail
+    if check_is_rate_limited(key=email_clean, action="password_reset", max_attempts=1, window_minutes=3):
+        # Réponse neutre pour ne rien divulguer tout en bloquant l'envoi de mail
+        return {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
 
     response_msg = {"message": "Si cet email est associé à un compte, vous recevrez un lien sous peu."}
     
@@ -1083,15 +1142,15 @@ def save_projet(p: Projet, current_user: str = Depends(get_current_user)):
 
 
 @app.post("/update-projet")
-def update_projet(p: Projet, old_name: str):
+def update_projet(p: Projet, old_name: str, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE projets 
         SET nom = :new_n, cout = :co, date = :d, capa = :ca, date_debut = :dd, utiliser_capa_stricte = :ucs
         WHERE nom = :old_n AND profil = :pr AND LOWER(utilisateur) = :u
     """)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(query, {
-            "u": p.utilisateur.lower(), 
+            "u": current_user.lower(),
             "pr": p.profil, 
             "new_n": p.nom,
             "old_n": old_name,
@@ -1099,9 +1158,8 @@ def update_projet(p: Projet, old_name: str):
             "d": p.date, 
             "ca": p.capa,
             "dd": p.date_debut,
-            "ucs": p.utiliser_capa_stricte or False  # 👈 Paramètre envoyé
+            "ucs": p.utiliser_capa_stricte or False
         })
-        conn.commit()
     return {"status": "success"}
 
 @app.delete("/delete-projet/{nom}/{profil}")
@@ -1171,16 +1229,15 @@ def save_budget(b: Budget, current_user: str = Depends(get_current_user)):
 
 
 @app.post("/update-budget")
-def update_budget(b: Budget, old_name: str):
-    #   SÉCURISATION : On filtre aussi par annee pour l'UPDATE
+def update_budget(b: Budget, old_name: str, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE budgets 
         SET nom = :new_n, somme = :s, compte = :c
-        WHERE nom = :old_n AND utilisateur = :u AND mois = :m AND annee = :a
+        WHERE nom = :old_n AND LOWER(utilisateur) = :u AND mois = :m AND annee = :a
     """)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(query, {
-            "u": b.utilisateur.lower(),
+            "u": current_user.lower(),
             "m": b.mois,
             "a": b.annee,
             "new_n": b.nom,
@@ -1188,7 +1245,6 @@ def update_budget(b: Budget, old_name: str):
             "s": b.somme,
             "c": b.compte
         })
-        conn.commit()
     return {"status": "success"}
 
 
@@ -1667,173 +1723,95 @@ async def import_csv(utilisateur: str, compte: str = None, file: UploadFile = Fi
 
 
 @app.post("/transactions/batch")
-def add_transactions_batch(transactions: List[Transaction]):
-    success_count = 0
-    has_duplicates = False
+def add_transactions_batch(transactions: List[Transaction], current_user: str = Depends(get_current_user)):
+    if not transactions:
+        return {"status": "success", "added": 0, "warning": False}
+
+    user_clean = current_user.lower().strip()
+    rows_to_insert = []
     
-    # On traite chaque transaction indépendamment pour éviter l'effet domino en cas de doublon
     for t in transactions:
-        try:
-            # On utilise .begin() individuellement pour valider (COMMIT) chaque ligne réussie
-            with engine.begin() as conn:
-                query = text("""
-                    INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte) 
-                    VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
-                """)
-                
-                conn.execute(query, {
-                    "d": t.date, "n": t.nom, "m": t.montant, 
-                    "c": t.categorie, "u": t.utilisateur.lower(),
-                    "mo": t.mois, "a": t.annee, "co": t.compte
-                })
-                success_count += 1
-        except Exception as e:
-            # Si l'erreur est un doublon (UniqueViolation), on le note mais on ne crash pas l'application
-            print(f"Ligne ignorée (Doublon ou contrainte) sur {t.nom}: {e}")
-            has_duplicates = True
-            continue
-            
-    # On renvoie le résultat global
-    return {
-        "status": "success", 
-        "added": success_count,
-        "warning": has_duplicates
-    }
+        rows_to_insert.append({
+            "d": t.date,
+            "n": t.nom,
+            "m": t.montant,
+            "c": t.categorie,
+            "u": user_clean,
+            "mo": t.mois,
+            "a": t.annee,
+            "co": t.compte
+        })
+
+    insert_query = text("""
+        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte) 
+        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
+        ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
+        RETURNING id
+    """)
+
+    try:
+        # Un seul bloc begin() = 1 seule transaction réseau atomique
+        with engine.begin() as conn:
+            inserted_count = 0
+            for row in rows_to_insert:
+                res = conn.execute(insert_query, row)
+                if res.fetchone():
+                    inserted_count += 1
+
+        has_ignored = (len(rows_to_insert) - inserted_count) > 0
+        return {
+            "status": "success",
+            "added": inserted_count,
+            "warning": has_ignored
+        }
+    except Exception as e:
+        print(f"❌ Erreur bulk insert : {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur d'insertion par lot : {str(e)}")
 
 
 @app.put("/config-categories/update")
-async def update_category_keywords(data: dict):
-    try:
-        categorie = data.get("categorie")
-        keywords_list = data.get("keywords", [])
-        utilisateur = data.get("utilisateur")
+async def update_category_keywords(data: dict, current_user: str = Depends(get_current_user)):
+    categorie = data.get("categorie")
+    keywords_list = data.get("keywords", [])
+
+    quoted_items = []
+    for k in keywords_list:
+        clean_k = str(k).strip().strip('"').replace('"', '\\"')
+        if clean_k:
+            quoted_items.append(f'"{clean_k}"')
+    keywords_sql = "{" + ",".join(quoted_items) + "}"
+    
+    query = text("""
+        INSERT INTO config_categories (categorie, mots_cles, utilisateur) 
+        VALUES (:c, :k, :u)
+        ON CONFLICT (categorie, utilisateur) 
+        DO UPDATE SET mots_cles = EXCLUDED.mots_cles
+    """)
+    
+    with engine.begin() as conn:
+        conn.execute(query, {"k": keywords_sql, "c": categorie, "u": current_user.lower()})
         
-        if not utilisateur:
-            raise HTTPException(status_code=400, detail="Utilisateur manquant")
+    return {"status": "success"}
 
-        # 🟢 Entoure chaque mot-clé de guillemets pour préserver les espaces dans le tableau Postgres
-        quoted_items = []
-        for k in keywords_list:
-            clean_k = str(k).strip().strip('"').replace('"', '\\"')
-            if clean_k:
-                quoted_items.append(f'"{clean_k}"')
-        keywords_sql = "{" + ",".join(quoted_items) + "}"
-        
-        query = text("""
-            INSERT INTO config_categories (categorie, mots_cles, utilisateur) 
-            VALUES (:c, :k, :u)
-            ON CONFLICT (categorie, utilisateur) 
-            DO UPDATE SET mots_cles = EXCLUDED.mots_cles
-        """)
-        
-        with engine.connect() as conn:
-            conn.execute(query, {"k": keywords_sql, "c": categorie, "u": utilisateur.lower().strip()})
-            conn.commit()
-            
-        return {"status": "success"}
-    except Exception as e:
-        print(f"Erreur Update: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/categories/{user}")
-def get_categories(user: str):
-    try:
-        user_clean = user.strip().lower()
-        
-        with engine.connect() as conn:
-            try:
-                query_perso = text("SELECT nom, icone, couleur FROM categories WHERE LOWER(utilisateur) = :u")
-                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
-                categories_perso = [row[0] for row in result_perso]
-                icons_map = {row[0]: row[1] for row in result_perso if row[1] and row[1].strip() and row[1].lower() != 'tag'}
-                colors_map = {row[0]: (row[2] or "#818cf8") for row in result_perso if len(row) > 2 and row[2]}
-            except Exception as e_sql:
-                print(f"⚠️ Fallback SELECT sans couleur: {e_sql}")
-                query_perso = text("SELECT nom, icone FROM categories WHERE LOWER(utilisateur) = :u")
-                result_perso = conn.execute(query_perso, {"u": user_clean}).fetchall()
-                categories_perso = [row[0] for row in result_perso]
-                icons_map = {row[0]: row[1] for row in result_perso if row[1] and row[1].strip() and row[1].lower() != 'tag'}
-                colors_map = {}
-
-            # Récupération des comptes et calcul des virements dynamiques (inchangé)
-            query_comptes = text("SELECT compte FROM configuration WHERE LOWER(utilisateur) = :u")
-            result_comptes = conn.execute(query_comptes, {"u": user_clean}).fetchall()
-            comptes_noms = [row[0] for row in result_comptes]
-        
-        types_detectes = set()
-        types_possibles = ["CCP", "LIVRET A", "LEP", "LDDS", "PEL", "AUTRE"]
-        for nom in comptes_noms:
-            nom_upper = nom.upper()
-            for t in types_possibles:
-                if t in nom_upper:
-                    types_detectes.add(t)
-                    break
-
-        virements_dynamiques = []
-        liste_types = sorted(list(types_detectes))
-        for i in range(len(liste_types)):
-            for j in range(i + 1, len(liste_types)):
-                virements_dynamiques.append(f"Virement : {liste_types[i]} vers {liste_types[j]}")
-                virements_dynamiques.append(f"Virement : {liste_types[j]} vers {liste_types[i]}")
-
-        base_categories = [c for c in CATEGORIES_DEFAUT if not c.startswith("Virement :")]
-
-        if "Autre" in base_categories:
-            idx = base_categories.index("Autre")
-            defaults_finales = base_categories[:idx] + virements_dynamiques + base_categories[idx:]
-        else:
-            defaults_finales = base_categories + virements_dynamiques
-
-        toutes_les_categories = sorted(list(set(defaults_finales + categories_perso)))
-
-        return {
-            "defaults": sorted(defaults_finales),
-            "perso": sorted(categories_perso),
-            "all": toutes_les_categories,
-            "icons_map": icons_map,
-            "colors_map": colors_map
-        }
-        
-    except Exception as e:
-        print(f"Erreur get_categories: {e}")
-        return {
-            "defaults": sorted(CATEGORIES_DEFAUT),
-            "perso": [],
-            "all": sorted(CATEGORIES_DEFAUT),
-            "icons_map": {},
-            "colors_map": {}
-        }
 
 @app.get("/config-categories")
-def get_categories_config(utilisateur: str = None):
-    try:
-        u_clean = utilisateur.strip().lower() if utilisateur else "admin"
-        
-        query = text("""
-            SELECT categorie, mots_cles, utilisateur 
-            FROM config_categories 
-            WHERE LOWER(utilisateur) = :u OR LOWER(utilisateur) = 'admin'
-        """)
-        
-        with engine.connect() as conn:
-            result = conn.execute(query, {"u": u_clean}).fetchall()
-            final_config = {}
-            
-            for row in result:
-                cat_name = row[0]
-                kw_list = parse_keywords_list(row[1])
-                is_user = (str(row[2]).strip().lower() == u_clean)
+def get_categories_config(current_user: str = Depends(get_current_user)):
+    query = text("""
+        SELECT categorie, mots_cles, utilisateur 
+        FROM config_categories 
+        WHERE LOWER(utilisateur) = :u OR LOWER(utilisateur) = 'admin'
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": current_user.lower()}).fetchall()
+        final_config = {}
+        for row in result:
+            cat_name = row[0]
+            kw_list = parse_keywords_list(row[1])
+            is_user = (str(row[2]).strip().lower() == current_user.lower())
+            if cat_name not in final_config or is_user:
+                final_config[cat_name] = kw_list
 
-                if cat_name not in final_config or is_user:
-                    final_config[cat_name] = kw_list
-
-            return [
-                {"categorie": k, "mots_cles": v} 
-                for k, v in final_config.items()
-            ]
-    except Exception as e:
-        print(f"❌ Erreur get_categories_config: {e}")
-        return []
+        return [{"categorie": k, "mots_cles": v} for k, v in final_config.items()]
 
 
 
@@ -2268,15 +2246,14 @@ def get_groups(username: str):
         return final_groups
     
 @app.delete("/delete-group/{username}/{group_name}")
-def delete_group(username: str, group_name: str):
-    # Suppression de toutes les transactions liées à ce groupe pour cet utilisateur
-    query = text("DELETE FROM tricount WHERE utilisateur = :u AND groupe = :g")
-    try:
-        with engine.begin() as conn:
-            conn.execute(query, {"u": username, "g": group_name})
-        return {"status": "success", "message": f"Groupe {group_name} supprimé"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def delete_group(username: str, group_name: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
+    query = text("DELETE FROM tricount WHERE LOWER(utilisateur) = :u AND groupe = :g")
+    with engine.begin() as conn:
+        conn.execute(query, {"u": current_user.lower(), "g": group_name})
+    return {"status": "success", "message": f"Groupe {group_name} supprimé"}
     
 # Modèle pour valider les données reçues lors du renommage
 class RenameGroupRequest(BaseModel):
@@ -2285,24 +2262,19 @@ class RenameGroupRequest(BaseModel):
     newName: str
 
 @app.put("/rename-group")
-def rename_group(request: RenameGroupRequest):
-    # La requête SQL met à jour toutes les transactions du groupe
+def rename_group(request: RenameGroupRequest, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE tricount 
         SET groupe = :new 
-        WHERE utilisateur = :u AND groupe = :old
+        WHERE LOWER(utilisateur) = :u AND groupe = :old
     """)
-    
-    try:
-        with engine.begin() as conn:
-            conn.execute(query, {
-                "new": request.newName,
-                "u": request.userId,
-                "old": request.oldName
-            })
-        return {"status": "success", "message": f"Groupe renommé en {request.newName}"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        conn.execute(query, {
+            "new": request.newName,
+            "u": current_user.lower(), # Empêche de renommer les groupes d'un autre
+            "old": request.oldName
+        })
+    return {"status": "success", "message": f"Groupe renommé en {request.newName}"}
     
 
 
@@ -2886,57 +2858,51 @@ class CustomStatCreate(BaseModel):
 
 # --- 1. AJOUTER UNE STAT PERSO (CORRIGÉ ✨) ---
 @app.post("/custom-stats")
-def create_custom_stat(stat: CustomStatCreate):
-    # Ajout du champ 'profil' dans la structure de l'INSERT SQL
+def create_custom_stat(stat: CustomStatCreate, current_user: str = Depends(get_current_user)):
     query = text("""
         INSERT INTO custom_stats (utilisateur, profil, titre, flux_type, operateur, couleur, icone, regles)
         VALUES (:u, :p, :t, :f, :o, :c, :i, :r)
         RETURNING id
     """)
-    try:
-        with engine.connect() as conn:
-            regles_liste = [r.model_dump() for r in stat.regles]
-            regles_json = json.dumps(regles_liste)
-            
-            result = conn.execute(query, {
-                "u": stat.utilisateur.lower(),
-                "p": stat.profil,  # 👈 On envoie enfin la valeur reçue du frontend !
-                "t": stat.titre,
-                "f": stat.flux_type,
-                "o": stat.operateur,
-                "r": regles_json,
-                "c": stat.couleur,
-                "i": stat.icone,
-            })
-            new_id = result.fetchone()[0]
-            conn.commit()
-            return {"id": new_id, "status": "success"}
-    except Exception as e:
-        print(f"Erreur SQL custom_stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        regles_json = json.dumps([r.model_dump() for r in stat.regles])
+        result = conn.execute(query, {
+            "u": current_user.lower(),
+            "p": stat.profil,
+            "t": stat.titre,
+            "f": stat.flux_type,
+            "o": stat.operateur,
+            "r": regles_json,
+            "c": stat.couleur,
+            "i": stat.icone,
+        })
+        new_id = result.fetchone()[0]
+        return {"id": new_id, "status": "success"}
 
-# --- 2. RÉCUPÉRER LES STATS D'UN UTILISATEUR (CORRIGÉ ✨) ---
+
+# Vers la ligne 1238 :
 @app.get("/custom-stats/{username}")
-def get_custom_stats(username: str):
-    # 🌟 AJOUT DE COULEUR ET ICONE DANS LE SELECT :
-    query = text("SELECT id, profil, titre, flux_type, operateur, couleur, icone, regles FROM custom_stats WHERE LOWER(utilisateur) = :u")
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"u": username.lower()})
-            columns = result.keys()
-            records = []
-            for row in result.fetchall():
-                row_dict = dict(zip(columns, row))
-                
-                if isinstance(row_dict['regles'], str):
-                    row_dict['regles'] = json.loads(row_dict['regles'])
-                elif row_dict['regles'] is None:
-                    row_dict['regles'] = []
-                    
-                records.append(row_dict)
-            return records
-    except Exception as e:
-         raise HTTPException(status_code=500, detail=str(e))
+def get_custom_stats(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
+    query = text("""
+        SELECT id, profil, titre, flux_type, operateur, couleur, icone, regles 
+        FROM custom_stats 
+        WHERE LOWER(utilisateur) = :u
+    """)
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": current_user.lower()})
+        columns = result.keys()
+        records = []
+        for row in result.fetchall():
+            row_dict = dict(zip(columns, row))
+            if isinstance(row_dict['regles'], str):
+                row_dict['regles'] = json.loads(row_dict['regles'])
+            elif row_dict['regles'] is None:
+                row_dict['regles'] = []
+            records.append(row_dict)
+        return records
     
 
 # --- 3. SUPPRIMER UNE STAT PERSO ---
@@ -3028,36 +2994,33 @@ class ChatResponseSchema(BaseModel):
 @app.post("/api/insights-chat")
 def insights_chat(req: ChatRequest, request: Request, current_user: str = Depends(get_current_user)):
     user_key = current_user.lower()
-    now = datetime.now(timezone.utc)
 
-    # 🟢 RATE LIMITING IA : Maximum 15 requêtes Gemini par tranche de 10 minutes
-    history = AI_CHAT_RATE_LIMIT.get(user_key, [])
-    history = [t for t in history if now - t < timedelta(minutes=10)]
-    
-    if len(history) >= 15:
+    # 🟢 RATE LIMITING IA PERSISTANT : Maximum 15 requêtes Gemini par tranche de 10 minutes par utilisateur
+    if check_is_rate_limited(key=user_key, action="gemini_chat", max_attempts=15, window_minutes=10):
         raise HTTPException(
             status_code=429, 
             detail="Trop de demandes d'analyse IA en peu de temps. Veuillez patienter quelques minutes."
         )
-    
-    history.append(now)
-    AI_CHAT_RATE_LIMIT[user_key] = history
 
     try:
         client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
         if not req.transactions:
-            return {"reponse": "Je n'ai détecté aucune transaction à analyser ce mois-ci.", "creation_stat": None}
+            return {
+                "reponse": "Je n'ai détecté aucune transaction à analyser ce mois-ci.", 
+                "creation_stat": None
+            }
 
-        payload_pour_gemini = []
-        for t in req.transactions:
-            payload_pour_gemini.append({
-                "date": t.get("date"),
+        payload_pour_gemini = [
+            {
+                "date": str(t.get("date")),
                 "type": t.get("type") or ("revenus" if float(t.get("montant", 0)) > 0 else "depenses"),
                 "cat": t.get("categorie"),
                 "nom": t.get("nom"),
                 "montant": float(t.get("montant") or 0)
-            })
+            }
+            for t in req.transactions
+        ]
 
         system_instruction = f"""
         Tu es un analyste financier privé de haut niveau. Ton but est d'analyser les données et de configurer des filtres automatiques.
@@ -3135,6 +3098,7 @@ def insights_chat(req: ChatRequest, request: Request, current_user: str = Depend
         - Cas générique / Non classé -> couleur="amber", icone="star"
         """
 
+        # Appel du modèle Gemini
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=req.question,
@@ -3146,19 +3110,36 @@ def insights_chat(req: ChatRequest, request: Request, current_user: str = Depend
             )
         )
 
-        import json as python_json
-        result_data = python_json.loads(response.text)
+        result_data = json.loads(response.text)
+
+        # 🟢 Sécurisation stricte du format pour le frontend
+        if result_data.get("creation_stat"):
+            stat = result_data["creation_stat"]
+            # Si le dictionnaire est vide ou n'a pas de règles, on le remet à None
+            if not isinstance(stat, dict) or not stat.get("titre"):
+                result_data["creation_stat"] = None
+            else:
+                stat.setdefault("regles", [])
+        else:
+            result_data["creation_stat"] = None
+
         return result_data
 
     except Exception as e:
         error_str = str(e)
-        print(f"❌ CRASH ROUTE AI: {error_str}")
+        print(f"❌ CRASH ROUTE AI : {error_str}")
+        
+        # 🟢 Fallback propre respectant le contrat d'interface
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
             return {
-                "reponse": "⚠️ **Quota Gemini épuisé pour aujourd'hui**.",
-                "creation_stat": {}
+                "reponse": "⚠️ **Quota Gemini momentanément épuisé**. Veuillez réessayer dans quelques instants.",
+                "creation_stat": None  # Plus jamais de dictionnaire vide {}
             }
-        raise HTTPException(status_code=500, detail=error_str)
+            
+        return {
+            "reponse": "⚠️ Une erreur est survenue lors de l'analyse IA.",
+            "creation_stat": None
+        }
     
 
 
@@ -3856,49 +3837,33 @@ class SavePowensTokenRequest(BaseModel):
     utilisateur: str
     user_token: str
 
+# Vers la ligne 1530 :
 @app.post("/powens/sauvegarder-token")
-def sauvegarder_token(req: SavePowensTokenRequest):
+def sauvegarder_token(req: SavePowensTokenRequest, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE users 
         SET powens_token = :token 
-        WHERE LOWER(username) = LOWER(:username) OR LOWER(email) = LOWER(:username)
+        WHERE LOWER(username) = :u OR LOWER(email) = :u
     """)
-    
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"token": req.user_token, "username": req.utilisateur})
-            conn.commit()
-            
-            if result.rowcount == 0:
-                raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
-                
-        return {"status": "success", "message": "Token Powens sauvegardé en BDD."}
-        
-    except Exception as e:
-        raise e
+    with engine.begin() as conn:
+        result = conn.execute(query, {"token": req.user_token, "u": current_user.lower()})
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
+    return {"status": "success", "message": "Token Powens sauvegardé en BDD."}
 
 
+# Vers la ligne 1552 :
 @app.get("/powens/recuperer-token")
-def recuperer_token(utilisateur: str):
-    query = text("""
-        SELECT powens_token 
-        FROM users 
-        WHERE LOWER(username) = LOWER(:username) OR LOWER(email) = LOWER(:username)
-    """)
-    
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"username": utilisateur}).fetchone()
-            
-            if not result or not result[0]:
-                return {"status": "success", "user_token": None}
-                
-            token_bdd = result[0]
-            
-        return {"status": "success", "user_token": token_bdd}
-        
-    except Exception as e:
-        raise e
+def recuperer_token(utilisateur: str, current_user: str = Depends(get_current_user)):
+    if utilisateur.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
+    query = text("SELECT powens_token FROM users WHERE LOWER(username) = :u OR LOWER(email) = :u")
+    with engine.connect() as conn:
+        result = conn.execute(query, {"u": current_user.lower()}).fetchone()
+        if not result or not result[0]:
+            return {"status": "success", "user_token": None}
+        return {"status": "success", "user_token": result[0]}
 
 @app.get("/powens/transactions")
 def read_powens_transactions(user_token: str):
@@ -3922,13 +3887,22 @@ def read_powens_transactions(user_token: str):
 
 class PropagateYearRequest(BaseModel):
     ids: List[int]
-    utilisateur: Any  # 💡 Accepte une chaîne de caractères OU un dictionnaire/objet
-    mois_actuel: Any  # 💡 Accepte une chaîne ou un entier
-    annee: Any        # 💡 Accepte une chaîne ou un entier
+    mois_actuel: Any          # Nom du mois (ex: "Juin") ou chiffre (ex: 6)
+    annee: Any                # Année cible (ex: 2026)
+    utilisateur: Optional[Any] = None  # Conservé pour compatibilité front, mais ignoré au profit du JWT
+
 
 @app.post("/api/previsions/propagate-year")
-def propagate_previsions_year(req: PropagateYearRequest):
-    # 💡 1. DICTIONNAIRE IMBRIQUÉ : Traduction du français en chiffres
+def propagate_previsions_year(
+    req: PropagateYearRequest, 
+    current_user: str = Depends(get_current_user)
+):
+    # 1. Validation stricte des IDs
+    clean_ids = [int(i) for i in req.ids if isinstance(i, (int, str)) and str(i).isdigit()]
+    if not clean_ids:
+        raise HTTPException(status_code=400, detail="Aucun identifiant de prévision valide fourni.")
+
+    # 2. Dictionnaires de correspondance
     MONTH_NAME_TO_INT = {
         "janvier": 1, "jan": 1, "jan.": 1,
         "fevrier": 2, "fev": 2, "février": 2, "fév.": 2,
@@ -3944,13 +3918,11 @@ def propagate_previsions_year(req: PropagateYearRequest):
         "decembre": 12, "dec": 12, "décembre": 12, "déc.": 12
     }
 
-    # 💡 2. LISTE IMBRIQUÉE : Traduction des index en noms sans accents
     MONTH_INT_TO_NAME = [
         "", "Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin",
         "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"
     ]
 
-    # 💡 3. CALCULATEUR IMBRIQUÉ : Dernier jour du mois (sans import)
     def get_last_day_of_month(year: int, month: int) -> int:
         if month == 2:
             is_leap = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
@@ -3958,9 +3930,10 @@ def propagate_previsions_year(req: PropagateYearRequest):
         return [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month]
 
     try:
-        user_clean = req.utilisateur.lower().strip()
-        
-        # 1. AUTO-DÉTECTION DYNAMIQUE DE LA TABLE (previsions ou previsionnel)
+        # L'utilisateur est TOUJOURS celui certifié par le token JWT
+        user_clean = current_user.lower().strip()
+
+        # 3. Détection dynamique de la table et des colonnes (sécurisée)
         table_name = "previsions"
         with engine.connect() as conn:
             try:
@@ -3971,63 +3944,50 @@ def propagate_previsions_year(req: PropagateYearRequest):
                     conn.execute(text("SELECT 1 FROM previsionnel LIMIT 1"))
                     table_name = "previsionnel"
                 except Exception as e_table:
-                    print("ERREUR DIAGNOSTIQUE TABLE SQL INTROUVABLE")
                     raise HTTPException(
                         status_code=500, 
-                        detail=f"La table de prévisions (previsions ou previsionnel) n'a pas pu être trouvée. Erreur SQL : {str(e_table)}"
+                        detail=f"Table de prévisions introuvable : {str(e_table)}"
                     )
 
-        # 2. AUTO-DÉTECTION DE LA COLONNE DE DÉSIGNATION (nom, libelle ou libelle)
         column_name = "nom"
         with engine.connect() as conn:
             try:
                 conn.execute(text(f"SELECT nom FROM {table_name} LIMIT 1"))
                 column_name = "nom"
             except Exception:
-                try:
-                    conn.execute(text(f"SELECT libelle FROM {table_name} LIMIT 1"))
-                    column_name = "libelle"
-                except Exception:
-                    try:
-                        conn.execute(text(f"SELECT libelle FROM {table_name} LIMIT 1"))
-                        column_name = "libelle"
-                    except Exception as e_col:
-                        raise HTTPException(
-                            status_code=500, 
-                            detail=f"Impossible d'identifier la colonne de désignation (nom, libelle, libelle) dans la table '{table_name}'. Erreur : {str(e_col)}"
-                        )
+                column_name = "libelle"
 
-        # 3. AUTO-DÉTECTION DE LA COLONNE D'annee (annee ou annee)
         year_column = "annee"
         with engine.connect() as conn:
             try:
                 conn.execute(text(f"SELECT annee FROM {table_name} LIMIT 1"))
                 year_column = "annee"
             except Exception:
-                try:
-                    conn.execute(text(f"SELECT annee FROM {table_name} LIMIT 1"))
-                    year_column = "annee"
-                except Exception:
-                    year_column = "annee"
+                year_column = "annee"
 
-        # 4. RÉCUPÉRATION DES PRÉVISIONS SOURCES
+        # 4. Récupération des prévisions sources (Sécurisée via bindparam expanding)
         query_fetch = text(f"""
             SELECT id, date, {column_name} as nom, montant, categorie, compte, actif, utilisateur
             FROM {table_name} 
             WHERE id IN :ids AND LOWER(utilisateur) = :u
-        """)
+        """).bindparams(bindparam("ids", expanding=True))
         
         with engine.connect() as conn:
-            res = conn.execute(query_fetch, {"ids": tuple(req.ids), "u": user_clean}).mappings().all()
+            res = conn.execute(query_fetch, {
+                "ids": clean_ids,          # Liste Python propre (plus de tuple !)
+                "u": user_clean
+            }).mappings().all()
             previsions_sources = [dict(r) for r in res]
             
         if not previsions_sources:
-            raise HTTPException(status_code=404, detail="Aucun mouvement d'origine trouvé pour ces identifiants.")
+            raise HTTPException(
+                status_code=404, 
+                detail="Aucune prévision correspondante trouvée pour cet utilisateur."
+            )
 
-        # SÉCURISATION DU MOIS
-        mois_raw = str(req.mois_actuel)
-        mois_normalise = mois_raw.lower().strip()
-        mois_normalise = mois_normalise.replace('é', 'e').replace('û', 'u').replace('ô', 'o').replace('è', 'e')
+        # 5. Résolution du mois de départ
+        mois_raw = str(req.mois_actuel).lower().strip()
+        mois_normalise = mois_raw.replace('é', 'e').replace('û', 'u').replace('ô', 'o').replace('è', 'e')
         
         if mois_normalise.isdigit():
             current_month_int = int(mois_normalise)
@@ -4036,22 +3996,24 @@ def propagate_previsions_year(req: PropagateYearRequest):
             if not current_month_int:
                 current_month_int = next((v for k, v in MONTH_NAME_TO_INT.items() if k in mois_normalise), None)
 
-        if not current_month_int:
-            raise HTTPException(status_code=400, detail=f"Mois actuellement non reconnu : {req.mois_actuel}")
+        if not current_month_int or not (1 <= current_month_int <= 12):
+            raise HTTPException(status_code=400, detail=f"Mois non reconnu : {req.mois_actuel}")
 
         if current_month_int >= 12:
             return {"status": "success", "inserted_count": 0, "message": "Déjà sur le mois de Décembre."}
 
+        target_year = int(str(req.annee).strip())
         new_rows = []
-        target_year = int(req.annee)
 
-        # 5. BOUCLE DE DUPLICATION DE MASSE
+        # 6. Génération des lignes futures (du mois suivant jusqu'à Décembre)
         for prev in previsions_sources:
             original_date = prev["date"]
             if isinstance(original_date, str):
-                dt_orig = date.fromisoformat(original_date.split(" ")[0])
-            else:
+                dt_orig = date.fromisoformat(original_date.split(" ")[0].split("T")[0])
+            elif hasattr(original_date, "day"):
                 dt_orig = original_date
+            else:
+                dt_orig = date.today()
                 
             orig_day = dt_orig.day
 
@@ -4059,6 +4021,7 @@ def propagate_previsions_year(req: PropagateYearRequest):
                 try:
                     target_date = date(target_year, m_idx, orig_day)
                 except ValueError:
+                    # Cas où le jour dépasse (ex: 31 sur un mois de 30 jours, ou 29 février)
                     last_day = get_last_day_of_month(target_year, m_idx)
                     target_date = date(target_year, m_idx, last_day)
 
@@ -4067,35 +4030,35 @@ def propagate_previsions_year(req: PropagateYearRequest):
                 new_rows.append({
                     "d": target_date,
                     "n": prev["nom"],
-                    "m": prev["montant"],
+                    "m": float(prev["montant"]),
                     "cat": prev["categorie"],
                     "c": prev["compte"],
-                    "a": prev["actif"],
-                    "u": prev["utilisateur"],
+                    "a": prev["actif"] if prev["actif"] is not None else True,
+                    "u": user_clean,
                     "mois": target_month_name,
                     "annee": target_year
                 })
 
-        # 6. INSERTION DE MASSE (BULK INSERT) DANS LA BONNE TABLE/COLONNE
+        if not new_rows:
+            return {"status": "success", "inserted_count": 0}
+
+        # 7. Insertion de masse (Bulk Insert) en une seule transaction
         query_insert = text(f"""
             INSERT INTO {table_name} (date, {column_name}, montant, categorie, compte, actif, utilisateur, mois, {year_column})
             VALUES (:d, :n, :m, :cat, :c, :a, :u, :mois, :annee)
-            ON CONFLICT ON CONSTRAINT constraint_prev DO NOTHING
+            ON CONFLICT DO NOTHING
         """)
         
         with engine.begin() as conn:
-            for row in new_rows:
-                conn.execute(query_insert, row)
+            conn.execute(query_insert, new_rows)
                 
         return {"status": "success", "inserted_count": len(new_rows)}
 
     except HTTPException as he:
         raise he
     except Exception as e:
-        print("====== ERREUR CRASH PROPAGATION ======")
-        traceback.print_exc()
-        print("======================================")
-        raise HTTPException(status_code=500, detail=f"Erreur interne de propagation: {str(e)}")
+        print(f"❌ Erreur propagation annuelle : {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur interne de propagation : {str(e)}")
 
 
 
@@ -4402,250 +4365,288 @@ def decrypt_iban(val: str) -> str:
         return val
 
 
-# 🟢 SYNCHRONISATION ROBUSTE AVEC DÉCHIFFREMENT ET DÉTECTION D'IBAN
-@app.post("/powens/sync-user/{username}")
-async def sync_user_transactions(username: str, background_tasks: BackgroundTasks):
-    try:
-        user_clean = username.lower().strip()
-        is_test_user = (user_clean == "test")
+# 🟢 FONCTION MÉTIER ATOMIQUE (Appelable par l'API et par les tâches de fond)
+def exec_sync_user_transactions(username: str):
+    user_clean = username.lower().strip()
+    is_test_user = (user_clean == "test")
 
-        # 1. Token utilisateur
-        query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
-        with engine.connect() as conn:
-            res = conn.execute(query_token, {"u": user_clean}).fetchone()
-            if not res or not res[0]:
-                raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
-            user_token = res[0]
-            
-            query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
-            config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
-
-        decrypted_config_rows = [
-            (row[0], decrypt_iban(row[1]) if row[1] else None)
-            for row in config_rows
-        ]
-
-        domain = POWENS_DOMAIN.rstrip('/')
-        if not domain.endswith('/2.0') and not domain.endswith('/v2'):
-            domain += '/2.0'
-        elif domain.endswith('/v2'):
-            domain = domain[:-3] + '/2.0'
-            
-        headers = {"Authorization": f"Bearer {user_token}"}
+    # 1. Récupération du token Powens
+    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+    with engine.connect() as conn:
+        res = conn.execute(query_token, {"u": user_clean}).fetchone()
+        if not res or not res[0]:
+            raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
+        user_token = res[0]
         
-        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
+        query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
+        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+
+    decrypted_config_rows = [
+        (row[0], decrypt_iban(row[1]) if row[1] else None)
+        for row in config_rows
+    ]
+
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+        
+    headers = {"Authorization": f"Bearer {user_token}"}
+    
+    try:
+        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers, timeout=10)
         powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
         powens_raw = get_powens_transactions(user_token)
+    except Exception as err:
+        raise HTTPException(status_code=500, detail=f"Erreur API Powens : {str(err)}")
 
-        acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
-        if not acc_id_to_kleea:
-            return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
+    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
+    if not acc_id_to_kleea:
+        return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
 
-        # Bâtir les tables d'IBANs et numéros (SÉCURISÉ CONTRE LES VALEURS NULL)
-        iban_to_local_name = {}
-        number_to_local_name = {}
-        for acc in powens_accounts:
-            acc_id = str(acc.get("id"))
-            local_name = acc_id_to_kleea.get(acc_id)
-            if local_name:
-                iban = str(acc.get("iban") or "").strip().upper().replace(" ", "")
-                number = str(acc.get("number") or "").strip().upper().replace(" ", "")
-                if iban: iban_to_local_name[iban] = local_name
-                if number: number_to_local_name[number] = local_name
+    # Bâtir les tables d'IBANs et numéros de comptes
+    iban_to_local_name = {}
+    number_to_local_name = {}
+    for acc in powens_accounts:
+        acc_id = str(acc.get("id"))
+        local_name = acc_id_to_kleea.get(acc_id)
+        if local_name:
+            iban = str(acc.get("iban") or "").strip().upper().replace(" ", "")
+            number = str(acc.get("number") or "").strip().upper().replace(" ", "")
+            if iban: iban_to_local_name[iban] = local_name
+            if number: number_to_local_name[number] = local_name
 
-        mots_cles_rules = get_mots_cles_rules(user_clean)
-        memoire_rules = fetch_memoire_data(user_clean)
-        mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
-        success_count = 0
-        batch_occurrence_tracker = {}
+    mots_cles_rules = get_mots_cles_rules(user_clean)
+    memoire_rules = fetch_memoire_data(user_clean)
+    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
+    batch_occurrence_tracker = {}
 
-        now = datetime.now()
-        window_limit = (now - timedelta(days=90)).strftime("%Y-%m-%d")
+    now = datetime.now()
+    window_limit = (now - timedelta(days=90)).strftime("%Y-%m-%d")
 
-        with engine.connect() as conn:
-            for tx in powens_raw:
-                try:
-                    raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
-                    # On ignore seulement ce qui a plus de 90 jours
-                    if not raw_date or raw_date < window_limit:
-                        continue
+    # 🟢 1. INITIALISATION DU TABLEAU DES CANDIDATS (en mémoire vive)
+    transactions_to_save = []
 
-                    tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
-                    local_account_name = acc_id_to_kleea.get(tx_account_id)
-                    if not local_account_name:
-                        continue
-                        
-                    montant = float(tx.get("value", 0.0))
-                    libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
-                    base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
-                    
-                    tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
-                    occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
-                    batch_occurrence_tracker[tracker_key] = occurrence_in_batch
-                    
-                    nom_final = base_nom if occurrence_in_batch == 1 else f"{base_nom} #{occurrence_in_batch}"
+    for tx in powens_raw:
+        try:
+            raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
+            if not raw_date or raw_date < window_limit:
+                continue
 
-                    check_existing_query = text("""
-                        SELECT 1 FROM transactions 
-                        WHERE LOWER(utilisateur) = LOWER(:u) 
-                          AND date = :d 
-                          AND ABS(montant - :m) < 0.001 
-                          AND nom = :n 
-                          AND compte = :co 
-                        LIMIT 1
-                    """)
-                    already_in_db = conn.execute(check_existing_query, {
-                        "u": user_clean, "d": raw_date, "m": montant,
-                        "n": nom_final, "co": local_account_name
-                    }).fetchone()
-
-                    if already_in_db:
-                        continue
-
-                    # Catégorisation
-                    cat = "Autre"
-                    libelle_lower = libelle_brut.lower()
-                    libelle_compact = libelle_brut.upper().replace(" ", "")
-                    autre_compte_local = None
-
-                    for target_iban, local_name in iban_to_local_name.items():
-                        if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
-                            autre_compte_local = local_name
-                            break
-                    
-                    if not autre_compte_local:
-                        for target_number, local_name in number_to_local_name.items():
-                            if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
-                                autre_compte_local = local_name
-                                break
-
-                    if not autre_compte_local:
-                        for c_name, p_link in decrypted_config_rows:
-                            if not p_link or c_name.upper() == local_account_name.upper():
-                                continue
-                            p_link_compact = p_link.replace(" ", "").upper()
-                            if p_link_compact and p_link_compact in libelle_compact:
-                                autre_compte_local = c_name
-                                break
-
-                    if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
-                        types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
-                        type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
-                        if type_cible: 
-                            autre_compte_local = type_cible
-
-                    if autre_compte_local:
-                        cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
-
-                    if cat == "Autre":
-                        for m in memoire_rules:
-                            if m["nom"].lower() in libelle_lower:
-                                cat = m["categorie"]
-                                break
-                                
-                    if cat == "Autre":
-                        for rule in mots_cles_rules:
-                            for raw_k in rule["keywords"]:
-                                parts = raw_k.split(':')
-                                keyword = parts[0].strip().lower()
-                                signe = parts[1].strip().lower() if len(parts) > 1 else "both"
-                                if matches_keyword_boundary(keyword, libelle_lower):
-                                    if (signe == "positive" and montant > 0) or (signe == "negative" and montant < 0) or (signe in ["both", "all"]):
-                                        cat = rule["categorie"]
-                                        break
-
-                    if cat == "Autre":
-                        is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
-                        if is_transfer:
-                            cat = "Virements Reçus" if montant > 0 else "Virements envoyé"
-
-                    dt = datetime.strptime(raw_date, "%Y-%m-%d")
-                    insert_query = text("""
-                        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte)
-                        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
-                        ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
-                        RETURNING id
-                    """)
-                    res_insert = conn.execute(insert_query, {
-                        "d": raw_date, "n": nom_final, "m": montant, "c": cat,
-                        "u": user_clean, "mo": mois_fr[dt.month - 1], "a": dt.year,
-                        "co": local_account_name
-                    })
-                    conn.commit()
-
-                    if res_insert.fetchone():
-                        success_count += 1
-
-                except Exception as line_error:
-                    conn.rollback()
-                    print(f"Ligne ignorée : {line_error}")
-                    continue
+            tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
+            local_account_name = acc_id_to_kleea.get(tx_account_id)
+            if not local_account_name:
+                continue
                 
-        print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
-        return {"status": "success", "added": success_count}
+            montant = float(tx.get("value", 0.0))
+            libelle_brut = (tx.get("simplified_wording") or tx.get("wording") or tx.get("raw_wording") or "Transaction").strip()
+            base_nom = f"[TEST] {libelle_brut}" if is_test_user else libelle_brut
+            
+            tracker_key = (raw_date, round(montant, 2), base_nom.upper(), local_account_name.upper())
+            occurrence_in_batch = batch_occurrence_tracker.get(tracker_key, 0) + 1
+            batch_occurrence_tracker[tracker_key] = occurrence_in_batch
+            
+            nom_final = base_nom if occurrence_in_batch == 1 else f"{base_nom} #{occurrence_in_batch}"
 
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Erreur interne synchronisation : {str(e)}")
+            # Logique de Catégorisation
+            cat = "Autre"
+            libelle_lower = libelle_brut.lower()
+            libelle_compact = libelle_brut.upper().replace(" ", "")
+            autre_compte_local = None
+
+            for target_iban, local_name in iban_to_local_name.items():
+                if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
+                    autre_compte_local = local_name
+                    break
+            
+            if not autre_compte_local:
+                for target_number, local_name in number_to_local_name.items():
+                    if local_name.upper() != local_account_name.upper() and target_number in libelle_compact:
+                        autre_compte_local = local_name
+                        break
+
+            if not autre_compte_local:
+                for c_name, p_link in decrypted_config_rows:
+                    if not p_link or c_name.upper() == local_account_name.upper():
+                        continue
+                    p_link_compact = p_link.replace(" ", "").upper()
+                    if p_link_compact and p_link_compact in libelle_compact:
+                        autre_compte_local = c_name
+                        break
+
+            if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
+                types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
+                type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
+                if type_cible: 
+                    autre_compte_local = type_cible
+
+            if autre_compte_local:
+                cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
+
+            if cat == "Autre":
+                for m in memoire_rules:
+                    if m["nom"].lower() in libelle_lower:
+                        cat = m["categorie"]
+                        break
+                        
+            if cat == "Autre":
+                for rule in mots_cles_rules:
+                    for raw_k in rule["keywords"]:
+                        parts = raw_k.split(':')
+                        keyword = parts[0].strip().lower()
+                        signe = parts[1].strip().lower() if len(parts) > 1 else "both"
+                        if matches_keyword_boundary(keyword, libelle_lower):
+                            if (signe == "positive" and montant > 0) or (signe == "negative" and montant < 0) or (signe in ["both", "all"]):
+                                cat = rule["categorie"]
+                                break
+
+            if cat == "Autre":
+                is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
+                if is_transfer:
+                    cat = "Virements Reçus" if montant > 0 else "Virements envoyé"
+
+            dt = datetime.strptime(raw_date, "%Y-%m-%d")
+
+            # 🟢 On ajoute la transaction préparée au tableau
+            transactions_to_save.append({
+                "d": raw_date,
+                "n": nom_final,
+                "m": montant,
+                "c": cat,
+                "u": user_clean,
+                "mo": mois_fr[dt.month - 1],
+                "a": dt.year,
+                "co": local_account_name
+            })
+
+        except Exception as parse_err:
+            print(f"⚠️ Erreur analyse ligne brute : {parse_err}")
+            continue
+
+    # 🟢 2. ÉCRITURE ATOMIQUE EN BASE (Une seule transaction pour tout le lot)
+    success_count = 0
+    check_existing_query = text("""
+        SELECT 1 FROM transactions 
+        WHERE LOWER(utilisateur) = LOWER(:u) 
+          AND date = :d 
+          AND ABS(montant - :m) < 0.001 
+          AND nom = :n 
+          AND compte = :co 
+        LIMIT 1
+    """)
+
+    insert_query = text("""
+        INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte)
+        VALUES (:d, :n, :m, :c, :u, :mo, :a, :co)
+        ON CONFLICT (date, nom, montant, utilisateur) DO NOTHING
+        RETURNING id
+    """)
+
+    with engine.begin() as conn:
+        for tx_data in transactions_to_save:
+            already_in_db = conn.execute(check_existing_query, tx_data).fetchone()
+            if already_in_db:
+                continue
+
+            res_insert = conn.execute(insert_query, tx_data)
+            if res_insert.fetchone():
+                success_count += 1
+            
+    print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
+    return {"status": "success", "added": success_count}
+
+
+# 🟢 ROUTE API SÉCURISÉE AVEC JWT (Sans paramètre inutilisé)
+@app.post("/powens/sync-user/{username}")
+async def sync_user_transactions(
+    username: str, 
+    current_user: str = Depends(get_current_user)
+):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+    return exec_sync_user_transactions(username)
 
 # 🟢 LOGIQUE DE CALCUL DU SOLDE INITIAL
 def exec_recalculate_balances(user_clean: str):
+    user_clean = user_clean.lower().strip()
+
+    # 1. Récupération du token Powens et de la configuration Kleea
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun jeton bancaire trouvé.")
         user_token = res[0]
-        
-    try:
-        domain = POWENS_DOMAIN.rstrip('/')
-        if not domain.endswith('/2.0') and not domain.endswith('/v2'):
-            domain += '/2.0'
-        elif domain.endswith('/v2'):
-            domain = domain[:-3] + '/2.0'
 
+        query_config = text("SELECT compte, powens_name, solde FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
+        config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+        if not config_rows:
+            return {"status": "success", "updated_balances": []}
+
+    # 2. Déchiffrement des liens IBAN
+    decrypted_config_rows = [
+        (row[0], decrypt_iban(row[1]) if row[1] else None, float(row[2] or 0.0))
+        for row in config_rows
+    ]
+
+    # 3. Récupération des comptes bancaires réels Powens
+    domain = POWENS_DOMAIN.rstrip('/')
+    if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+        domain += '/2.0'
+    elif domain.endswith('/v2'):
+        domain = domain[:-3] + '/2.0'
+
+    try:
         headers = {"Authorization": f"Bearer {user_token}"}
-        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
+        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers, timeout=10)
         powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
 
+    # 4. Association infaillible Powens <-> Kleea
+    acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
+    if not acc_id_to_kleea:
+        return {"status": "success", "updated_balances": [], "message": "Aucun compte associé à recalibrer."}
+
     updates = []
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         for acc in powens_accounts:
-            powens_name = acc.get("name")
+            acc_id = str(acc.get("id"))
+            local_account_name = acc_id_to_kleea.get(acc_id)
+            if not local_account_name:
+                continue
+
             real_balance = float(acc.get("balance", 0.0))
 
-            query_local = text("""
-                SELECT compte FROM configuration 
-                WHERE LOWER(utilisateur) = LOWER(:u) AND TRIM(UPPER(powens_name)) = TRIM(UPPER(:p))
-            """)
-            local_row = conn.execute(query_local, {"u": user_clean, "p": powens_name}).fetchone()
-            if not local_row:
-                continue
-                
-            compte_local_name = local_row[0]
-            
+            # Somme exacte des transactions enregistrées sur ce compte Kleea
             query_sum = text("""
                 SELECT COALESCE(SUM(montant), 0) FROM transactions 
                 WHERE LOWER(utilisateur) = LOWER(:u) 
-                AND TRIM(UPPER(compte)) = TRIM(UPPER(:co))
+                  AND TRIM(UPPER(compte)) = TRIM(UPPER(:co))
             """)
-            total_transactions = conn.execute(query_sum, {"u": user_clean, "co": compte_local_name}).scalar()
-            new_initial_balance = round(real_balance - total_transactions, 2)
-            
+            total_transactions = conn.execute(query_sum, {
+                "u": user_clean, 
+                "co": local_account_name
+            }).scalar() or 0.0
+
+            # Solde initial requis pour que : solde_initial + sum(transactions) == real_balance
+            new_initial_balance = round(real_balance - float(total_transactions), 2)
+
             query_update = text("""
                 UPDATE configuration 
                 SET solde = :new_solde 
-                WHERE LOWER(utilisateur) = LOWER(:u) AND compte = :co
+                WHERE LOWER(utilisateur) = LOWER(:u) 
+                  AND TRIM(UPPER(compte)) = TRIM(UPPER(:co))
             """)
-            conn.execute(query_update, {"new_solde": new_initial_balance, "u": user_clean, "co": compte_local_name})
-            conn.commit()
-            
+            conn.execute(query_update, {
+                "new_solde": new_initial_balance, 
+                "u": user_clean, 
+                "co": local_account_name
+            })
+
             updates.append({
-                "compte": compte_local_name, 
+                "compte": local_account_name, 
                 "solde_initial": new_initial_balance, 
                 "solde_reel": real_balance,
                 "somme_transactions": total_transactions
@@ -4663,7 +4664,6 @@ def recalculate_initial_balances(username: str, current_user: str = Depends(get_
 # Route de synchronisation globale de maintenance (exécutée par un cron externe)
 @app.post("/maintenance/sync-all")
 def sync_all_users_background(auth_key: str = None):
-    # Sécuriser avec une clé secrète dans votre .env
     if auth_key != os.getenv("MAINTENANCE_API_KEY"):
         raise HTTPException(status_code=401, detail="Non autorisé")
         
@@ -4673,12 +4673,12 @@ def sync_all_users_background(auth_key: str = None):
         users = conn.execute(query).fetchall()
         for u in users:
             try:
-                # Appeler la logique de synchronisation pour chaque utilisateur en arrière-plan
-                sync_user_transactions(u[0], BackgroundTasks())
-                recalculate_initial_balances(u[0])
+                # Appel direct des fonctions métiers
+                exec_sync_user_transactions(u[0])
+                exec_recalculate_balances(u[0])
                 synced_users.append(u[0])
             except Exception as e:
-                print(f"Échec synchro cron pour {u[0]}: {str(e)}")
+                print(f"❌ Échec synchro cron pour {u[0]}: {str(e)}")
                 
     return {"status": "success", "synchronized_users": synced_users}
 
@@ -4875,13 +4875,16 @@ def reconcile_and_recalculate_all(username: str):
     }
 
 # 🟢 ROUTE POUR FORCER POWENS À SE CONNECTER EN DIRECT À LA VRAIE BANQUE
+import asyncio
+
 @app.post("/powens/refresh-bank-sync/{username}")
-def refresh_bank_sync(username: str, current_user: str = Depends(get_current_user)):
-    if username.lower() != current_user.lower():
+async def refresh_bank_sync(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
-    user_clean = username.lower().strip()
     
-    # 1. Récupérer le token de l'utilisateur
+    user_clean = current_user.lower().strip()
+    
+    # 1. Récupération du jeton
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
@@ -4897,32 +4900,35 @@ def refresh_bank_sync(username: str, current_user: str = Depends(get_current_use
 
     headers = {"Authorization": f"Bearer {user_token}"}
 
-    # 2. Récupérer toutes les connexions bancaires
-    try:
-        res_conn = requests.get(f"{domain}/users/me/connections", headers=headers)
-        connections = res_conn.json().get("connections", []) if res_conn.status_code == 200 else []
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur contact Powens: {str(e)}")
-
-    if not connections:
-        return {"status": "no_connections", "message": "Aucune banque connectée."}
-
-    # 3. Forcer chaque banque connectée à se synchroniser en direct (psu_requested=true)
-    synced = []
-    for c in connections:
-        conn_id = c.get("id")
-        if not conn_id or c.get("deleted"):
-            continue
+    # 2. Récupération des connexions
+    async with httpx.AsyncClient(timeout=15.0) as client:
         try:
-            # 🟢 C'est cet appel PUT qui déclenche la connexion réelle à la banque !
-            r = requests.put(
-                f"{domain}/users/me/connections/{conn_id}",
-                headers=headers,
-                params={"psu_requested": "true"}
-            )
-            synced.append({"id": conn_id, "status": r.status_code})
-        except Exception as e_sync:
-            print(f"⚠️ Erreur sync connexion {conn_id}: {e_sync}")
+            res_conn = await client.get(f"{domain}/users/me/connections", headers=headers)
+            connections = res_conn.json().get("connections", []) if res_conn.status_code == 200 else []
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Erreur de contact Powens : {str(e)}")
+
+        if not connections:
+            return {"status": "no_connections", "message": "Aucune banque connectée."}
+
+        # 3. Actualisation parallèle de toutes les connexions
+        async def trigger_connection_sync(conn_id):
+            try:
+                r = await client.put(
+                    f"{domain}/users/me/connections/{conn_id}",
+                    headers=headers,
+                    params={"psu_requested": "true"}
+                )
+                return {"id": conn_id, "status": r.status_code}
+            except Exception as e:
+                return {"id": conn_id, "status": "error", "error": str(e)}
+
+        active_connection_ids = [
+            c["id"] for c in connections if c.get("id") and not c.get("deleted")
+        ]
+        
+        # Lance tous les appels simultanément
+        synced = await asyncio.gather(*[trigger_connection_sync(cid) for cid in active_connection_ids])
 
     return {
         "status": "success",

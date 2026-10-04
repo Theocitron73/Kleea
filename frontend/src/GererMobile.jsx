@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { 
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
@@ -9,8 +10,9 @@ import DatePicker from 'react-datepicker';
 import { SketchPicker } from 'react-color';
 import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo, getCategoryGroup } from './categoryIcons';
 import { toast } from 'sonner';
+import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
 
-// 🟢 Fonction utilitaire de normalisation des mois (sans accents)
+// 🟢 Normalisation des mois sans accents
 const cleanMonth = (m) => {
   if (!m) return "";
   return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
@@ -38,15 +40,17 @@ export default function GererMobile(props) {
     handleProfilChange, handleCompteChange
   } = props;
 
-  const [activeSection, setActiveSection] = useState('transactions');
+  const [activeSection, setActiveSection] = useState('transactions'); // 'transactions' | 'tools' | 'budgets'
   const [showFilters, setShowFilters] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
+  // Création catégorie
   const [selectedIconName, setSelectedIconName] = useState('Tag');
   const [selectedCatColor, setSelectedCatColor] = useState('#818cf8');
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [showCatColorPicker, setShowCatColorPicker] = useState(false);
 
+  // Édition catégorie
   const [editingCat, setEditingCat] = useState(null);
   const [showEditIconPicker, setShowEditIconPicker] = useState(false);
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
@@ -58,6 +62,16 @@ export default function GererMobile(props) {
   const [userGroups, setUserGroups] = useState([
     'Logement', 'Vie courante', 'Transports', 'Santé', 'Loisirs', 'Revenus', 'Général'
   ]);
+
+  // 🟢 VIRTUALISEUR MOBILE TANSTACK
+  const mobileListContainerRef = useRef(null);
+
+  const mobileVirtualizer = useVirtualizer({
+    count: transactionsFiltrees.length,
+    getScrollElement: () => mobileListContainerRef.current,
+    estimateSize: () => 76, // Hauteur moyenne d'une carte de transaction
+    overscan: 6,
+  });
 
   const onSelectProfilLocal = (nouveauProfil) => {
     if (typeof handleProfilChange === 'function') {
@@ -206,7 +220,7 @@ export default function GererMobile(props) {
   );
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-4 pt-2">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-4 pt-2 select-none">
 
       {/* HEADER MOBILE */}
       <div className="flex items-center justify-between mb-4 mt-2">
@@ -356,10 +370,14 @@ export default function GererMobile(props) {
         </button>
       </div>
 
-      {/* ONGLET 1 : TRANSACTIONS */}
+      {/* =========================================================================
+          ONGLET 1 : FLUX & TRANSACTIONS VIRTUALISÉES (CORRIGÉ & FLUIDE)
+          ========================================================================= */}
       {activeSection === 'transactions' && (
-        <div className="space-y-3 flex-1 animate-in fade-in duration-200">
-          <div className="relative">
+        <div className="space-y-3 flex-1 flex flex-col min-h-0 animate-in fade-in duration-200">
+          
+          {/* BARRE DE RECHERCHE */}
+          <div className="relative shrink-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
             <input
               type="text"
@@ -375,79 +393,113 @@ export default function GererMobile(props) {
             )}
           </div>
 
-          <div className="space-y-2 mt-2">
+          {/* 🟢 CONTENEUR DE DÉFILEMENT AVEC HAUTEUR GARANTIE */}
+          <div 
+            ref={mobileListContainerRef} 
+            className="mt-1 flex-1 min-h-[380px] h-[55vh] max-h-[65vh] overflow-y-auto custom-scrollbar pr-0.5"
+          >
             {transactionsFiltrees.length > 0 ? (
-              transactionsFiltrees.map((t) => {
-                const isTransfertInterne = Boolean(
-                  t.categorie && (
-                    t.categorie.includes(" vers ") || 
-                    t.categorie.startsWith("Virement :") || 
-                    t.categorie.includes("🔄")
-                  )
-                );
-                const isRevenu = parseFloat(t.montant) > 0;
-                const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
-                
-                return (
-                  <div 
-                    key={t.id} 
-                    onClick={() => openEditTx(t)}
-                    className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-2.5 h-10 rounded-full shrink-0 ${
-                        isTransfertInterne ? 'bg-[var(--primary)]/40' : isRevenu ? 'bg-emerald-500/40' : 'bg-rose-500/40'
-                      }`} />
-                      
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate pr-2">{t.nom || "Sans libellé"}</p>
-                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                          <span className="text-[8px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
-                            {t.compte}
-                          </span>
-                          
-                          <div className="flex items-center gap-1">
-                            <CategoryIcon name={t.categorie} size={11} />
-                            <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[110px]">
-                              {getCleanCategoryName(t.categorie) || "Autre"}
-                            </span>
-                          </div>
+              <div 
+                style={{ 
+                  height: `${mobileVirtualizer.getTotalSize()}px`, 
+                  width: '100%', 
+                  position: 'relative' 
+                }}
+              >
+                {mobileVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const t = transactionsFiltrees[virtualRow.index];
+                  if (!t) return null;
 
-                          {prevAssociee && (
-                            <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[105px] truncate flex items-center gap-1">
-                              <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={9} />
-                              <span className="truncate">{getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, ''))}</span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                  const isTransfertInterne = Boolean(
+                    t.categorie && (
+                      t.categorie.includes(" vers ") || 
+                      t.categorie.startsWith("Virement :") || 
+                      t.categorie.includes("🔄")
+                    )
+                  );
+                  const isRevenu = parseFloat(t.montant) > 0;
+                  const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
 
-                    <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
-                      <div>
-                        <span className={`text-xs font-mono font-black ${
-                          isTransfertInterne 
-                            ? 'text-[var(--primary)]' 
-                            : isRevenu 
-                              ? 'text-emerald-400' 
-                              : 'text-rose-400'
-                        }`}>
-                          {isRevenu && !isTransfertInterne ? '+' : ''}
-                          {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                        </span>
+                  return (
+                    <div 
+                      key={t.id || virtualRow.key} 
+                      data-index={virtualRow.index}
+                      ref={mobileVirtualizer.measureElement}
+                      onClick={() => openEditTx(t)}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        transform: `translateY(${virtualRow.start}px)`,
+                      }}
+                      className="pb-2"
+                    >
+                      <div className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all cursor-pointer select-none">
                         
-                        <p className="text-[8.5px] text-white/40 font-black tracking-tight mt-1">
-                          {getFormattedDate(t)}
-                        </p>
-                      </div>
-                      
-                      <div className="p-1.5 bg-white/[0.02] border border-white/5 rounded-lg text-white/20">
-                        <Pencil size={10} />
+                        {/* Ligne gauche : barre de couleur + Libellé + Badges */}
+                        <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                          <div className={`w-2.5 h-10 rounded-full shrink-0 ${
+                            isTransfertInterne ? 'bg-[var(--primary)]/50' : isRevenu ? 'bg-emerald-500/50' : 'bg-rose-500/50'
+                          }`} />
+                          
+                          <div className="min-w-0 flex-1">
+                            {/* Libellé complet */}
+                            <p className="text-xs font-bold text-white break-words leading-tight">
+                              {t.nom || "Sans libellé"}
+                            </p>
+                            
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                              <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
+                                {t.compte}
+                              </span>
+                              
+                              <div className="flex items-center gap-1">
+                                <CategoryIcon name={t.categorie} size={11} />
+                                <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[110px]">
+                                  {getCleanCategoryName(t.categorie) || "Autre"}
+                                </span>
+                              </div>
+
+                              {prevAssociee && (
+                                <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[105px] truncate flex items-center gap-1">
+                                  <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={9} />
+                                  <span className="truncate">{getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, ''))}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Montant + Date */}
+                        <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
+                          <div>
+                            <span className={`text-xs font-mono font-black ${
+                              isTransfertInterne 
+                                ? 'text-[var(--primary)]' 
+                                : isRevenu 
+                                  ? 'text-emerald-400' 
+                                  : 'text-rose-400'
+                            }`}>
+                              {isRevenu && !isTransfertInterne ? '+' : ''}
+                              {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                            </span>
+                            
+                            <p className="text-[8.5px] text-white/40 font-black tracking-tight mt-1">
+                              {getFormattedDate(t)}
+                            </p>
+                          </div>
+                          
+                          <div className="p-1.5 bg-white/[0.02] border border-white/5 rounded-lg text-white/20">
+                            <Pencil size={10} />
+                          </div>
+                        </div>
+
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             ) : (
               <div className="py-12 text-center">
                 <span className="text-xl opacity-30">📂</span>
@@ -455,10 +507,13 @@ export default function GererMobile(props) {
               </div>
             )}
           </div>
+
         </div>
       )}
 
-      {/* ONGLET 2 : OUTILS & GESTION CATÉGORIES */}
+      {/* =========================================================================
+          ONGLET 2 : SAISIE EXPRESS & GESTION CATÉGORIES
+          ========================================================================= */}
       {activeSection === 'tools' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           {/* Saisie express */}
@@ -822,7 +877,9 @@ export default function GererMobile(props) {
         </div>
       )}
 
-      {/* ONGLET 3 : BUDGETS */}
+      {/* =========================================================================
+          ONGLET 3 : OBJECTIFS BUDGETS
+          ========================================================================= */}
       {activeSection === 'budgets' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
@@ -890,7 +947,7 @@ export default function GererMobile(props) {
                     toast.success(`Budget fixé pour ${formBudget.nom} : ${formBudget.somme}€ 🎯`);
                   }
                 }}
-                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1 cursor-pointer"
+                className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1 cursor-pointer shadow-md"
               >
                 Fixer Objectif
               </button>
@@ -899,7 +956,7 @@ export default function GererMobile(props) {
 
           <div className="space-y-3">
             {budgets.map((b) => {
-              const depenseReelle = props.toutesLesTransactions
+              const depenseReelle = (props.toutesLesTransactions || [])
                 .filter(t => 
                   t.categorie === b.nom && 
                   t.compte === b.compte && 
@@ -942,7 +999,9 @@ export default function GererMobile(props) {
         </div>
       )}
 
-      {/* MODALE MOBILE D'ÉDITION DE TRANSACTION */}
+      {/* =========================================================================
+          MODALE D'ÉDITION DE TRANSACTION MOBILE
+          ========================================================================= */}
       {editingTransaction && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setEditingTransaction(null)} />
@@ -1111,7 +1170,9 @@ export default function GererMobile(props) {
         </div>
       )}
 
-      {/* MODALE D'ÉDITION CATÉGORIE */}
+      {/* =========================================================================
+          MODALE D'ÉDITION DE CATÉGORIE
+          ========================================================================= */}
       {editingCat && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setEditingCat(null)} />

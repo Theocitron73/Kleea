@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import DatePicker from "react-datepicker";
+import { toLocalDateString, getTodayLocalDateString } from "../utils/dateUtils";
 
 // Composant interne pour le Drag and Drop
 function SortableItem({ id, children, disabled }) {
@@ -105,11 +106,7 @@ export default function GestionEpargneProjet({
   // 2. HELPERS / FONCTIONS UTILITAIRES
   // ==========================================
   const formatDateForApi = (dateInput) => {
-    if (!dateInput) return new Date().toISOString().split('T')[0];
-    const d = new Date(dateInput);
-    return isNaN(d.getTime())
-      ? new Date().toISOString().split('T')[0]
-      : d.toISOString().split('T')[0];
+  return toLocalDateString(dateInput) || getTodayLocalDateString();
   };
 
   const calculerMoisEcoules = (dateDebutStr, moisCourantStr) => {

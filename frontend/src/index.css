@@ -584,8 +584,8 @@ select {
   table:has(textarea) td:nth-child(3),
   table.border-spacing-0 th:nth-child(3),
   table.border-spacing-0 td:nth-child(3) {
-    min-width: 170px !important;
-    max-width: 250px !important;
+    min-width: 240px !important;
+    max-width: 550px !important;
   }
 
   /* Col 4 : Montant */

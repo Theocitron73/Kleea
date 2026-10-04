@@ -6,27 +6,34 @@ import DatePicker from 'react-datepicker';
 import { 
   Plus, Edit2, Trash2, CheckCircle, AlertCircle, Smile, FileText, ArrowUpRight, ArrowDownRight, Minus, X
 } from 'lucide-react';
+import { toLocalDateString, getTodayLocalDateString } from "./utils/dateUtils";
 
 export default function SharedTricount() {
   const { token } = useParams();
   
+  // 🟢 Base URL sécurisée avec fallback localhost
+  const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
+
   const [groupeNom, setGroupeNom] = useState("");
   const [owner, setOwner] = useState("");
   const [groupData, setGroupData] = useState({ transactions: [], transferts: [] });
   const [emojisChaine, setEmojisChaine] = useState("");
   const [loading, setLoading] = useState(true);
   
+  // ✅ paye_par initialisé proprement sans référence à userId
   const [newTransaction, setNewTransaction] = useState({
-    libelle: "", montant: 0, paye_par: "", date: new Date().toISOString().split('T')[0], details_montants: {}
+    libelle: "", 
+    montant: 0, 
+    paye_par: "", 
+    date: getTodayLocalDateString(), 
+    details_montants: {}
   });
+
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [activeEmojiPicker, setActiveEmojiPicker] = useState(null);
-  
   const [notification, setNotification] = useState({ show: false, message: "", type: "error" });
-  
-  // 💡 NOUVEL ÉTAT LOCAL : Gère la navigation par onglets sur mobile
-  const [mobileTab, setMobileTab] = useState('bilan'); // 'bilan' | 'ajouter' | 'historique'
+  const [mobileTab, setMobileTab] = useState('bilan');
 
   const showToast = (message, type = "error") => {
     setNotification({ show: true, message, type });
@@ -34,14 +41,17 @@ export default function SharedTricount() {
   };
 
   const fetchSharedData = async () => {
+    if (!token) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/get-shared-tricount/${token}`);
-      if (!response.ok) throw new Error("Données introuvables.");
+      const response = await fetch(`${API_BASE}/get-shared-tricount/${encodeURIComponent(token)}`);
+      if (!response.ok) {
+        throw new Error("Lien de partage introuvable ou expiré.");
+      }
       const data = await response.json();
       setGroupeNom(data.groupe);
       setOwner(data.utilisateur);
       setGroupData(data);
-      setEmojisChaine(data.emojis);
+      setEmojisChaine(data.emojis || "");
     } catch (err) {
       console.error(err);
       showToast("Lien de partage introuvable ou expiré.", "error");
@@ -50,36 +60,43 @@ export default function SharedTricount() {
     }
   };
 
-  useEffect(() => { fetchSharedData(); }, [token]);
+  useEffect(() => { 
+    fetchSharedData(); 
+  }, [token]);
 
+  // Récupération des participants uniques
   const participantsDuGroupe = useMemo(() => {
-    const nomsUniques = new Set();
-    if (groupData.transactions && groupData.transactions.length > 0) {
-      groupData.transactions.forEach(t => {
-        if (t.payé_par) nomsUniques.add(t.payé_par.trim());
-        if (t.pour_qui) {
-          t.pour_qui.split(',').forEach(s => {
-            const nom = s.split(':')[0].trim();
-            if (nom) nomsUniques.add(nom);
-          });
-        }
-      });
-    }
-    return Array.from(nomsUniques)
-      .filter(m => {
-        const n = m.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        return n !== "" && n !== "systeme" && n !== "undefined";
-      })
-      .sort((a, b) => a.localeCompare(b));
-  }, [groupData.transactions]);
+      const nomsUniques = new Set();
+      if (groupData.transactions && groupData.transactions.length > 0) {
+        groupData.transactions.forEach(t => {
+          // ✅ Supporte paye_par et payé_par
+          const payeur = (t.paye_par || t.payé_par || "").trim();
+          if (payeur) nomsUniques.add(payeur);
 
-  // Initialiser le payeur par défaut sur la première personne du groupe
+          if (t.pour_qui) {
+            t.pour_qui.split(',').forEach(s => {
+              const nom = s.split(':')[0].trim();
+              if (nom) nomsUniques.add(nom);
+            });
+          }
+        });
+      }
+      return Array.from(nomsUniques)
+        .filter(m => {
+          const n = m.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return n !== "" && n !== "systeme" && n !== "undefined";
+        })
+        .sort((a, b) => a.localeCompare(b));
+    }, [groupData.transactions]);
+
+  // Initialise le payeur sur le premier membre
   useEffect(() => {
     if (participantsDuGroupe.length > 0 && !newTransaction.paye_par) {
       setNewTransaction(prev => ({ ...prev, paye_par: participantsDuGroupe[0] }));
     }
   }, [participantsDuGroupe]);
 
+  // Enregistrement d'une dépense partagée
   const handleCreateTransaction = async () => {
     if (!newTransaction.libelle || newTransaction.libelle.trim() === "") {
       showToast("Veuillez donner un libellé à cette dépense.", "error");
@@ -107,7 +124,7 @@ export default function SharedTricount() {
         .map(([nom, m]) => `${nom.trim()}:${m}`)
         .join(',');
 
-      await fetch(`${import.meta.env.VITE_API_URL}/save-shared-transaction/${token}`, {
+      const res = await fetch(`${API_BASE}/save-shared-transaction/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,13 +137,19 @@ export default function SharedTricount() {
         })
       });
 
+      if (!res.ok) throw new Error("Erreur enregistrement.");
+
       setNewTransaction({
-        libelle: "", montant: 0, paye_par: participantsDuGroupe[0] || "", date: new Date().toISOString().split('T')[0], details_montants: {}
+        libelle: "", 
+        montant: 0, 
+        paye_par: participantsDuGroupe[0] || "", 
+        date: getTodayLocalDateString(), 
+        details_montants: {}
       });
       showToast("Dépense enregistrée !", "success");
       fetchSharedData();
     } catch (err) {
-      console.error(err);
+      showToast("Erreur lors de l'enregistrement.", "error");
     }
   };
 
@@ -137,7 +160,7 @@ export default function SharedTricount() {
         .map(([nom, m]) => `${nom}:${m}`)
         .join(',');
 
-      await fetch(`${import.meta.env.VITE_API_URL}/update-shared-transaction/${token}`, {
+      await fetch(`${API_BASE}/update-shared-transaction/${encodeURIComponent(token)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -151,18 +174,20 @@ export default function SharedTricount() {
       });
       setEditingTransaction(null);
       fetchSharedData();
+      showToast("Dépense mise à jour !", "success");
     } catch (err) {
-      console.error(err);
+      showToast("Erreur lors de la modification.", "error");
     }
   };
 
   const executeDelete = async (id) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/delete-shared-transaction/${token}/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/delete-shared-transaction/${encodeURIComponent(token)}/${id}`, { method: 'DELETE' });
       fetchSharedData();
       setDeletingId(null);
+      showToast("Dépense supprimée.", "success");
     } catch (err) {
-      console.error(err);
+      showToast("Erreur lors de la suppression.", "error");
     }
   };
 
@@ -172,29 +197,8 @@ export default function SharedTricount() {
     return match ? match.split(':')[1] : null;
   };
 
-  const handleSetEmoji = async (nom, emoji) => {
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/update-member-emoji`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: owner,
-          group_name: groupeNom,
-          member_name: nom,
-          new_emoji: emoji
-        })
-      });
-      if (response.ok) {
-        fetchSharedData();
-        showToast("Emoji enregistré !", "success");
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   const handleDownloadPDF = async (sujet = null) => {
-    let url = `${import.meta.env.VITE_API_URL}/download-shared-pdf/${token}`;
+    let url = `${API_BASE}/download-shared-pdf/${encodeURIComponent(token)}`;
     if (sujet) url += `?sujet=${encodeURIComponent(sujet)}`;
     try {
       const response = await fetch(url);
@@ -428,13 +432,31 @@ export default function SharedTricount() {
             /* 💡 CORRECTION : Classe 'relative' rajoutée pour ancrer l'overlay de suppression sur mobile */
             <div key={t.id || i} className="p-3 bg-black/20 rounded-xl border border-white/5 flex justify-between items-center relative overflow-hidden">
               <div>
-                <span className="text-[8px] text-white/30 font-bold block">{new Date(t.date).toLocaleDateString('fr-FR')}</span>
-                <span className="text-xs font-black text-white">{t.libellé}</span>
-                <span className="text-[8px] text-indigo-400 font-black uppercase block mt-1">Payé par {t.payé_par}</span>
+                {/* 1. Date */}
+                <span className="text-[8px] text-white/30 font-bold block">
+                  {new Date(t.date).toLocaleDateString('fr-FR')}
+                </span>
+                
+                {/* 2. Libellé (supporte libelle ET libellé) */}
+                <span className="text-xs font-black text-white block mt-0.5">
+                  {t.libelle || t.libellé || "Sans libellé"}
+                </span>
+                
+                {/* 3. Payeur + son Émoji (supporte paye_par ET payé_par) */}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs">
+                    {getEmojiForMember(t.paye_par || t.payé_par) || "👤"}
+                  </span>
+                  <span className="text-[8.5px] text-indigo-400 font-black uppercase tracking-wider">
+                    Par {t.paye_par || t.payé_par || "Inconnu"}
+                  </span>
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-xs font-mono font-black text-white">{t.montant.toFixed(2)}€</span>
+                <span className="text-xs font-mono font-black text-white">
+                  {parseFloat(t.montant || 0).toFixed(2)} €
+                </span>
                 <button 
                   onClick={() => setDeletingId(t.id)}
                   className="text-white/20 hover:text-rose-500 transition-colors p-1"
@@ -443,6 +465,7 @@ export default function SharedTricount() {
                 </button>
               </div>
 
+              {/* Confirmation de suppression */}
               {deletingId === t.id && (
                 <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-sm rounded-xl flex items-center justify-between px-4 animate-in fade-in duration-200">
                   <span className="text-[9px] font-black uppercase text-rose-400">Supprimer définitivement ?</span>
@@ -575,9 +598,7 @@ export default function SharedTricount() {
                     <DatePicker
                       selected={editingTransaction.date ? new Date(editingTransaction.date) : null}
                       onChange={(date) => {
-                        if (date) {
-                          setEditingTransaction({ ...editingTransaction, date: date.toISOString().split('T')[0] });
-                        }
+                        if (date) setEditingTransaction({ ...editingTransaction, date: toLocalDateString(date) });
                       }}
                       dateFormat="dd/MM/yyyy"
                       className="bg-transparent border-none outline-none text-center text-xs font-bold text-white w-full cursor-pointer"

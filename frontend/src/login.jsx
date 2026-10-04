@@ -41,9 +41,9 @@ import DemenagementPage from './views/DemenagementPage';
 import GestionEpargneProjet from './views/GestionEpargneProjet';
 import CongesPage from './views/Congespage';
 import { toast } from 'sonner'
-
-
-
+import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import ExportModal from './components/ExportModal';
 
 const generateGradientStep = (hex, stepIndex, totalSteps) => {
   // 1. Convertir HEX en RGB
@@ -2208,37 +2208,34 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
   // 1. GESTION DE L'INDICATEUR D'ÉCONOMIES + CACHE LOCAL
   const [savingsIndicator, setSavingsIndicator] = useState(null);
   const [loadingSavings, setLoadingSavings] = useState(false);
-  const [savingsCache, setSavingsCache] = useState({}); // Clé: "Profil-Mois-Année"
+  const [savingsCache, setSavingsCache] = useState({});
 
-  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
-  // Charger les statistiques enregistrées en BDD
+  // 🟢 CHARGEMENT SÉCURISÉ AVEC AXIOS (Injecte automatiquement le Token JWT)
   useEffect(() => {
     const fetchCustomStats = async () => {
       try {
-        const res = await fetch(`${apiUrl}/custom-stats/${user}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setCustomStats(data);
+        const res = await api.get(`/custom-stats/${user}`);
+        if (Array.isArray(res.data)) {
+          setCustomStats(res.data);
         }
       } catch (err) {
         console.error("Erreur chargement des widgets personnalisés:", err);
       }
     };
     if (user) fetchCustomStats();
-  }, [user, apiUrl]);
+  }, [user]);
 
-  // Synchroniser l'indicateur d'économies selon le profil courant (depuis le cache si disponible)
+  // Synchroniser l'indicateur d'économies selon le profil courant
   useEffect(() => {
     const cacheKey = `${filters?.profil || 'Tous'}-${filters?.mois}-${filters?.annee}`;
     if (savingsCache[cacheKey]) {
       setSavingsIndicator(savingsCache[cacheKey]);
     } else {
-      setSavingsIndicator(null); // Réinitialise si non encore analysé
+      setSavingsIndicator(null);
     }
   }, [filters?.profil, filters?.mois, filters?.annee, savingsCache]);
 
-  // 2. FONCTION DE DÉCLENCHEMENT MANUEL (Appelée UNIQUEMENT lors du clic sur le bouton)
+  // Génération des conseils d'économies via l'instance Axios
   const genererAnalyseEconomies = async () => {
     const depensesMois = transactions.filter(t => parseFloat(t.montant) < 0);
     if (depensesMois.length === 0) return;
@@ -2246,7 +2243,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     const cacheKey = `${filters?.profil || 'Tous'}-${filters?.mois}-${filters?.annee}`;
     setLoadingSavings(true);
 
-    // Groupement des dépenses par catégorie
     const categoriesMap = {};
     let totalDepenses = 0;
 
@@ -2268,16 +2264,10 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     };
 
     try {
-      const res = await fetch(`${apiUrl}/api/indicators/savings-analysis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Sauvegarde en cache + mise à jour de l'affichage
-        setSavingsCache(prev => ({ ...prev, [cacheKey]: data }));
-        setSavingsIndicator(data);
+      const res = await api.post('/api/indicators/savings-analysis', payload);
+      if (res.data) {
+        setSavingsCache(prev => ({ ...prev, [cacheKey]: res.data }));
+        setSavingsIndicator(res.data);
       }
     } catch (err) {
       console.error("Erreur calcul indicateur d'économies:", err);
@@ -2286,34 +2276,32 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     }
   };
 
+  // 🟢 SUPPRESSION SÉCURISÉE AVEC AXIOS
   const supprimerStatPerso = async (id) => {
     try {
-      const res = await fetch(`${apiUrl}/custom-stats/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setCustomStats(customStats.filter(stat => stat.id !== id));
-      }
+      await api.delete(`/custom-stats/${id}`);
+      setCustomStats(prev => prev.filter(stat => stat.id !== id));
+      toast.success("Indicateur supprimé");
     } catch (err) {
       console.error("Erreur lors de la suppression de la statistique:", err);
+      toast.error("Impossible de supprimer l'indicateur");
     }
   };
 
+  // 🟢 ANALYSE IA ET MODIFICATION EN DIRECT VIA AXIOS
   const analyserDonneesAvecGemini = async () => {
     if (!question.trim() || transactions.length === 0) return;
     setLoading(true);
     setReponseAI(""); 
 
     try {
-      const res = await fetch(`${apiUrl}/api/insights-chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          question: question, 
-          transactions: transactions,
-          custom_stats: customStats 
-        })
+      const res = await api.post('/api/insights-chat', { 
+        question: question, 
+        transactions: transactions,
+        custom_stats: customStats 
       });
       
-      const data = await res.json();
+      const data = res.data;
       if (data.error) throw new Error(data.error);
       
       setReponseAI(data.reponse);
@@ -2327,8 +2315,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
         if (action === "UPDATE" && targetId) {
           const payloadUpdate = {
             id: targetId,
-            utilisateur: user.toLowerCase(),
-            profil: filters?.profil || "Tous",
             titre: statData.titre,
             flux_type: statData.flux_type,
             operateur: statData.operateur,
@@ -2337,23 +2323,14 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             regles: statData.regles
           };
 
-          const updateRes = await fetch(`${apiUrl}/custom-stats/${targetId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payloadUpdate)
-          });
-
-          if (updateRes.ok) {
-            setCustomStats(prev => prev.map(s => Number(s.id) === targetId ? { ...s, ...payloadUpdate } : s));
-            setReponseAI(prev => prev + "\n\n✨ **Indicateur mis à jour en direct !**");
-          }
+          await api.put(`/custom-stats/${targetId}`, payloadUpdate);
+          setCustomStats(prev => prev.map(s => Number(s.id) === targetId ? { ...s, ...payloadUpdate } : s));
+          setReponseAI(prev => prev + "\n\n✨ **Indicateur mis à jour en direct !**");
         } 
         else if (action === "DELETE" && targetId) {
-          const deleteRes = await fetch(`${apiUrl}/custom-stats/${targetId}`, { method: "DELETE" });
-          if (deleteRes.ok) {
-            setCustomStats(prev => prev.filter(s => Number(s.id) !== targetId));
-            setReponseAI(prev => prev + "\n\n🗑️ **Indicateur supprimé en direct.**");
-          }
+          await api.delete(`/custom-stats/${targetId}`);
+          setCustomStats(prev => prev.filter(s => Number(s.id) !== targetId));
+          setReponseAI(prev => prev + "\n\n🗑️ **Indicateur supprimé en direct.**");
         } 
         else {
           const nouvelleStat = {
@@ -2367,15 +2344,9 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             regles: statData.regles
           };
 
-          const saveRes = await fetch(`${apiUrl}/custom-stats`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(nouvelleStat)
-          });
-          
-          const saveData = await saveRes.json();
-          if (saveData.status === "success" || saveData.id) {
-            const statCreee = { id: Number(saveData.id), ...nouvelleStat };
+          const saveRes = await api.post('/custom-stats', nouvelleStat);
+          if (saveRes.data.status === "success" || saveRes.data.id) {
+            const statCreee = { id: Number(saveRes.data.id), ...nouvelleStat };
             setCustomStats(prev => [...prev, statCreee]);
             setReponseAI(prev => prev + "\n\n✨ **Indicateur configuré en direct !**");
           }
@@ -2394,7 +2365,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
   const insights = useMemo(() => {
     const list = [];
 
-    // INSIGHT OPTIMISATION : affiché uniquement si déjà généré
     if (savingsIndicator && savingsIndicator.potentiel_total > 0) {
       const topConseil = savingsIndicator.conseils?.[0];
       list.push({
@@ -2423,7 +2393,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       });
     }
 
-    // INSIGHT 1 : Pics budgétaires
     const pireAugmentation = [...statsCategories]
       .filter(item => item.evolution !== null && item.evolution > 25) 
       .sort((a, b) => b.evolution - a.evolution)[0];
@@ -2438,7 +2407,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       });
     }
 
-    // INSIGHT 2 : Alimentation
     const transacAlim = transactions.filter(t => {
       const cat = (t.categorie || "").toLowerCase();
       return cat.includes("alimentation") || cat.includes("courses");
@@ -2457,7 +2425,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       });
     }
 
-    // INSIGHT 3 : Micro-dépenses
     const microTransactions = transactions.filter(t => {
       const montant = parseFloat(t.montant);
       return montant < 0 && Math.abs(montant) <= 10;
@@ -2474,7 +2441,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       });
     }
 
-    // INSIGHT 4 : Plus grosse dépense
     const depensesPures = transactions.filter(t => parseFloat(t.montant) < 0);
     if (depensesPures.length > 0) {
       const plusGrosseDepense = [...depensesPures].sort((a, b) => parseFloat(a.montant) - parseFloat(b.montant))[0];
@@ -2499,9 +2465,13 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       .filter(t => parseFloat(t.montant) > 0)
       .reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
 
-    // INJECTION DES STATS PERSO BDD
+    // 🟢 FILTRAGE INSENSIBLE À LA CASSE POUR ÉVITER TOUTE DISPARITION DE PROFIL
     customStats
-      .filter(config => config.profil === filters?.profil || config.profil === "Tous") 
+      .filter(config => {
+        if (!config.profil || config.profil.toLowerCase() === "tous") return true;
+        const currentProfil = (filters?.profil || '').toLowerCase().trim();
+        return config.profil.toLowerCase().trim() === currentProfil;
+      }) 
       .forEach((config) => {
         const total = calculerMontantStatPerso(config, transactions);
         const totalRef = config.flux_type === "revenus" ? totalRevenusGlobaux : totalDepensesGlobales;
@@ -2558,7 +2528,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
           <button
             onClick={analyserDonneesAvecGemini}
             disabled={loading || !question.trim()}
-            className="h-7 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white disabled:bg-white/0 disabled:text-white/50 text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center justify-center"
+            className="h-7 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white disabled:bg-white/0 disabled:text-white/50 text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center justify-center cursor-pointer"
           >
             {loading ? (
               <span className="w-3 h-3 border-2 border-white/50 border-t-indigo-400 rounded-full animate-spin" />
@@ -2576,11 +2546,10 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             Détecteur de comportement budgétaire & indicateurs
           </p>
 
-          {/* 🔘 BOUTON MANUEL POUR ÉCONOMISER LES CRÉDITS GEMINI */}
           <button
             onClick={genererAnalyseEconomies}
             disabled={loadingSavings}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 text-emerald-400 text-[10px] font-black uppercase tracking-wider transition-all disabled:opacity-50 cursor-pointer"
           >
             {loadingSavings ? (
               <>
@@ -2632,7 +2601,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
                 {!insight.isDefault && (
                   <button 
                     onClick={() => supprimerStatPerso(insight.id)}
-                    className="text-white/20 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-all shrink-0 ms-2"
+                    className="text-white/20 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition-all shrink-0 ms-2 cursor-pointer"
                     title="Supprimer cet indicateur permanent"
                   >
                     <Trash2 size={12} />
@@ -2647,7 +2616,6 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
     </div>
   );
 };
-
 
 
 
@@ -2669,7 +2637,7 @@ export function ImportPowensModal({
   const [modeDate, setModeDate] = useState('smart');
 
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
+  const todayStr = toLocalDateString(now);
   const [dateDebut, setDateDebut] = useState(todayStr);
   const [dateFin, setDateFin] = useState(todayStr);
 
@@ -2796,7 +2764,7 @@ export function ImportPowensModal({
       onClose();
     } catch (err) {
       console.error("Erreur import Powens:", err);
-      alert("Erreur lors de l'importation");
+      toast.error("Erreur lors de l'importation");
     } finally {
       setImporting(false);
     }
@@ -2915,10 +2883,7 @@ export function ImportPowensModal({
                   <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[var(--primary)] transition-all">
                     <DatePicker
                       selected={dateDebut ? new Date(dateDebut) : null}
-                      onChange={(date) => {
-                        const formatted = date ? date.toISOString().split('T')[0] : '';
-                        setDateDebut(formatted);
-                      }}
+                      onChange={(date) => setDateDebut(toLocalDateString(date))}
                       dateFormat="dd/MM/yyyy"
                       className="bg-transparent border-none outline-none text-[var(--text-main)] text-xs font-bold w-full cursor-pointer"
                       calendarClassName="custom-calendar-dark"
@@ -2931,10 +2896,7 @@ export function ImportPowensModal({
                   <div className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-3 py-2.5 focus-within:border-[var(--primary)] transition-all">
                     <DatePicker
                       selected={dateFin ? new Date(dateFin) : null}
-                      onChange={(date) => {
-                        const formatted = date ? date.toISOString().split('T')[0] : '';
-                        setDateFin(formatted);
-                      }}
+                      onChange={(date) => setDateFin(toLocalDateString(date))}
                       dateFormat="dd/MM/yyyy"
                       className="bg-transparent border-none outline-none text-[var(--text-main)] text-xs font-bold w-full cursor-pointer"
                       calendarClassName="custom-calendar-dark"
@@ -2982,7 +2944,7 @@ export function ImportPowensModal({
 
 function FinanceApp() {
 
-
+const [showExportModal, setShowExportModal] = useState(false);
   
 // Liste des mois pour le select
 const moisListe = [
@@ -3219,7 +3181,7 @@ const confirmDelete = async () => {
     
   } catch (err) {
     console.error("Erreur détaillée:", err.response?.data);
-    alert("Erreur lors de la suppression. Vérifie les logs console.");
+    toast.error("Erreur lors de la suppression. Vérifie les logs console.");
   }
 };
   
@@ -3318,7 +3280,7 @@ const handleAddCompte = async (e) => {
   
   let nomSaisi = compteName.trim().toUpperCase();
   if (!nomSaisi) {
-    alert("Veuillez saisir un nom pour votre compte !");
+    toast.warning("Veuillez saisir un nom pour votre compte !");
     return;
   }
 
@@ -3365,7 +3327,7 @@ const handleAddCompte = async (e) => {
       await fetchCategories(); 
     }
   } catch (err) {
-    alert("Erreur lors de l'ajout du compte.");
+    toast.error("Erreur lors de l'ajout du compte.");
   }
 };
 
@@ -3521,7 +3483,7 @@ const deleteTransaction = async (id) => {
       // Mise à jour locale immédiate sans refetch
       setToutesLesTransactions(prev => prev.filter(t => t.id !== id));
     } catch (err) {
-      alert("Erreur de suppression");
+      toast.error("Erreur de suppression de la transaction.");
       fetchTransactions(); // En cas d'erreur, on resynchronise
     }
   }
@@ -4985,7 +4947,7 @@ const addCategory = async (name, iconName = 'Tag', colorHex = '#818cf8') => {
     await fetchCategories(); 
   } catch (err) {
     console.error("Erreur ajout catégorie:", err);
-    alert("Impossible d'ajouter la catégorie.");
+    toast.error("Impossible d'ajouter la catégorie.");
   }
 };
 
@@ -5002,7 +4964,7 @@ const handleUpdateCategory = async (name, iconName, colorHex) => {
     setEditingCat(null);
   } catch (err) {
     console.error("Erreur modification catégorie:", err);
-    alert("Impossible de modifier la catégorie.");
+    toast.error("Impossible de modifier la catégorie.");
   }
 };
 
@@ -5029,7 +4991,7 @@ const confirmDeletecat = async () => {
     }
   } catch (err) {
     console.error("Erreur réseau lors de la suppression:", err);
-    alert("Erreur lors de la suppression");
+    toast.error("Erreur lors de la suppression");
     setShowDeleteConfirm(false);
   }
 };
@@ -5168,7 +5130,7 @@ const submitQuickTransaction = async () => {
   const elNom = document.getElementById('quick-nom');
   const elMontant = document.getElementById('quick-montant');
 
-  if (!elNom?.value || !elMontant?.value) return alert("Nom et montant requis");
+  if (!elNom?.value || !elMontant?.value) return toast.warning("Le libellé et le montant sont obligatoires.");
 
   const year = selectedDate.getFullYear();
   const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
@@ -5205,11 +5167,11 @@ const submitQuickTransaction = async () => {
       elMontant.value = '';
       
     } else if (res.data.status === "ignored") {
-      alert("Doublon détecté : cette transaction existe déjà.");
+      toast.warning("Doublon détecté : cette transaction existe déjà.");
     }
   } catch (err) {
     console.error("Erreur lors de l'ajout :", err.response?.data?.detail || err.message);
-    alert("Erreur lors de l'enregistrement.");
+    toast.error("Erreur lors de l'enregistrement.");
   }
 };
 
@@ -5310,7 +5272,7 @@ const handleDeleteMemory = async (itemNom) => {
 
   } catch (error) {
     console.error("Erreur lors de la suppression de l'élément mémoire :", error);
-    alert("Impossible de supprimer cet élément de la mémoire.");
+    toast.error("Impossible de supprimer cet élément de la mémoire.");
   }
 };
 
@@ -5352,7 +5314,7 @@ const onDrop = (e) => {
   if (isCSV) {
     handleFileUpload(file);
   } else {
-    alert("Veuillez déposer un fichier CSV valide (.csv)");
+    toast.error("Format invalide : déposez un fichier .csv");
   }
 };
 
@@ -6366,7 +6328,7 @@ const soldeGlobalProjete = useMemo(() =>
 
 
 const [newPrevi, setNewPrevi] = useState({
-  date: new Date().toISOString().split('T')[0],
+  date: getTodayLocalDateString(),
   nom: '',
   montant: '',
   categorie: '',
@@ -6822,7 +6784,7 @@ const handleSaveAllocation = async (nomEnveloppe, montant) => {
 
   // Vérification simple
   if (!nomEnveloppe || !montant) {
-    alert("Données manquantes (nom ou montant).");
+    toast.error("Données manquantes (nom ou montant).");
     return;
   }
 
@@ -6946,6 +6908,16 @@ const statsAnnuellesCategories = useMemo(() => {
 }, [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
 // On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
 
+// 🟢 Référence du conteneur de défilement du tableau
+  const tableContainerRef = useRef(null);
+
+  // 🟢 Virtualiseur de lignes de transactions Desktop
+  const rowVirtualizer = useVirtualizer({
+    count: transactionsFiltrees.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 54, // Hauteur moyenne d'une ligne en pixels
+    overscan: 10,           // Pré-rend 10 lignes en avance pour un scroll 100% fluide
+  });
 
 const recalculerSoldeInitialHisto = (soldeSaisi, moisSaisi, anneeSaisi, transactionsDuCompte) => {
   let soldeRemonte = soldeSaisi;
@@ -7328,7 +7300,7 @@ const [duplicateType, setDuplicateType] = useState('month'); // 'month' | 'year'
 // 2. Déclencheur pour la propagation sur l'année complète (mois restants)
 const handleTryPropagateYear = () => {
   if (selectedIds2.length === 0) {
-    alert("Veuillez d'abord sélectionner au moins une prévision à propager.");
+    toast.info("Sélectionnez au moins une prévision à propager.");
     return;
   }
   setDuplicateType('year');
@@ -7990,29 +7962,6 @@ if (!user) {
         </RouterLink>
       </div>
 
-      {/* COMPOSANT TOAST PERSONNALISÉ */}
-      {toast.show && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] animate-in slide-in-from-top duration-300">
-          <div className={`
-            px-6 py-3 rounded-2xl border backdrop-blur-[var(--glass-blur)] shadow-2xl flex items-center gap-3
-            ${toast.type === 'success' 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-              : 'bg-red-500/10 border-red-500/20 text-red-400'}
-          `}>
-            <div className={`w-2 h-2 rounded-full animate-pulse ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}`} />
-            <p className="text-[11px] font-black uppercase tracking-[0.15em]">
-              {toast.message}
-            </p>
-            <button 
-              onClick={() => setToast({ ...toast, show: false })}
-              className="ml-2 hover:opacity-50 transition-opacity"
-            >
-              <span className="text-lg">×</span>
-            </button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
@@ -8517,7 +8466,10 @@ if (!user) {
           {tabActive === 'flash' && (
             <FlashInsightsView 
               statsCategories={statsCategories} 
-              transactions={financeData?.journal?.depenses || []} 
+              transactions={[
+                ...(financeData?.journal?.depenses || []),
+                ...(financeData?.journal?.revenus || [])
+              ]} 
               user={user}
               filters={filters}
             />
@@ -11949,6 +11901,18 @@ if (!user) {
               {/* BLOC DROITE : Recherche + Compteur */}
                 <div className="flex items-center gap-3">
                     {/* BARRE DE RECHERCHE DYNAMIQUE */}
+
+                    {/* BOUTON D'EXPORT COMPTABLE */}
+                      <button
+                        type="button"
+                        onClick={() => setShowExportModal(true)}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
+                        title="Exporter en Excel ou CSV"
+                      >
+                        <Download size={12} strokeWidth={2.5} />
+                        <span>Exporter</span>
+                      </button>
+
                     <div className="relative group/search">
                       <Search 
                         size={12} 
@@ -11989,9 +11953,8 @@ if (!user) {
 
                 
                 
-{/* Conteneur de scroll interne */}
-<div className="flex-1 overflow-auto custom-scrollbar">
-  {/* 💡 Mois raccourcis pour le CustomSelect (v = valeur BDD complète, l = affichage court et net) */}
+{/* Conteneur de scroll interne virtualisé avec Prévisions et Enveloppes complètes */}
+<div ref={tableContainerRef} className="flex-1 overflow-auto custom-scrollbar">
   {(() => {
     const moisOptionsAbrege = [
       { v: "Janvier", l: "Janv." },
@@ -12008,11 +11971,17 @@ if (!user) {
       { v: "Décembre", l: "Déc." }
     ];
 
+    // 🟢 Données du virtualiseur TanStack
+    const virtualRows = rowVirtualizer.getVirtualItems();
+    const totalSize = rowVirtualizer.getTotalSize();
+    const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+    const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+
     return (
       <table className="w-full text-left border-separate border-spacing-0">
         <thead>
           <tr className="bg-[var(--bg-site)]/95 backdrop-blur-md sticky top-0 z-40 border-b border-white/10 shadow-sm">
-            {/* 1. CHECKBOX (Resserré) */}
+            {/* 1. CHECKBOX */}
             <th className="py-3 px-2 w-10 border-b border-white/10 text-center">
               <input 
                 type="checkbox"
@@ -12034,14 +12003,14 @@ if (!user) {
               </div>
             </th>
             
-            {/* 3. TRANSACTION (Largeur équilibrée) */}
+            {/* 3. TRANSACTION */}
             <th className="py-3 px-2 min-w-[260px] max-w-[420px] cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('nom')}>
               <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
                 Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
               </div>
             </th>
 
-            {/* 4. MONTANT (Rapproché de la transaction) */}
+            {/* 4. MONTANT */}
             <th className="py-3 px-2 w-28 cursor-pointer hover:bg-white/[0.02] text-right" onClick={() => handleSort('montant')}>
               <div className="flex items-center justify-end gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
                 Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
@@ -12055,7 +12024,7 @@ if (!user) {
               </div>
             </th>
             
-            {/* 6. 💡 MOIS AFFECTÉ : Largeur garantie pour ne plus tronquer en Se... */}
+            {/* 6. MOIS AFFECTÉ */}
             <th className="py-3 px-2 w-36 min-w-[135px] text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
               Mois Affecté
             </th>
@@ -12077,375 +12046,395 @@ if (!user) {
           className="divide-y divide-white/[0.03]"
         >
           {transactionsFiltrees.length > 0 ? (
-            transactionsFiltrees.map((t) => {
-              const isSelected = selectedIds.includes(t.id);
-              const isTransfertInterne = Boolean(
-                t.categorie && (
-                  t.categorie.includes(" vers ") || 
-                  t.categorie.startsWith("Virement :") || 
-                  t.categorie.includes("🔄")
-                )
-              );
-              const isRevenu = parseFloat(t.montant) > 0;
+            <>
+              {/* CALE D'ESPACEMENT DU HAUT */}
+              {paddingTop > 0 && (
+                <tr>
+                  <td colSpan={8} style={{ height: `${paddingTop}px`, padding: 0, border: 0 }} />
+                </tr>
+              )}
 
-              return (
-                <tr 
-                  key={t.id} 
-                  className={`group transition-colors duration-150 ${
-                    isSelected 
-                      ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
-                      : 'hover:bg-white/[0.02]'
-                  }`}
-                >
-                  {/* 1. CHECKBOX */}
-                  <td className="py-2.5 px-2 w-10 border-b border-white/[0.04] text-center">
-                    <input 
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleSelect(t.id)}
-                      className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-[var(--primary)] cursor-pointer"
-                    />
-                  </td>
+              {/* LIGNES VISIBLES À L'ÉCRAN */}
+              {virtualRows.map((virtualRow) => {
+                const t = transactionsFiltrees[virtualRow.index];
+                if (!t) return null;
 
-                  {/* 2. DATE */}
-                  <td className="py-2.5 px-2 border-b border-white/[0.04] w-16 whitespace-nowrap">
-                    <div className="pointer-events-none">
-                      <CustomBadgeDate t={t} />
-                    </div>
-                  </td>
+                const isSelected = selectedIds.includes(t.id);
+                const isTransfertInterne = Boolean(
+                  t.categorie && (
+                    t.categorie.includes(" vers ") || 
+                    t.categorie.startsWith("Virement :") || 
+                    t.categorie.includes("🔄")
+                  )
+                );
+                const isRevenu = parseFloat(t.montant) > 0;
 
-                  {/* 3. LIBELLÉ AUTO-ADAPTATIF EN HAUTEUR */}
-                  <td className="py-2.5 px-2 border-b border-white/[0.04] min-w-[260px] max-w-[420px]">
-                    <div className={`flex flex-col border-l-4 pl-2.5 py-0.5 transition-colors ${
-                      isTransfertInterne
-                        ? "border-[var(--primary)]/50 group-hover:border-[var(--primary)]" 
-                        : isRevenu 
-                          ? "border-emerald-500/50 group-hover:border-emerald-400" 
-                          : "border-rose-500/50 group-hover:border-rose-400"
-                    }`}>
-                      <div className="flex items-start gap-2">
-                        {/* Textarea dynamique qui s'étend selon la longueur */}
-                        <textarea
-                          rows="1"
-                          defaultValue={t.nom}
-                          onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
-                          onInput={handleInput}
-                          ref={(el) => {
-                            if (el) {
-                              el.style.height = "auto";
-                              el.style.height = `${el.scrollHeight}px`;
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              e.target.blur();
-                            }
-                          }}
-                          className="bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/60 text-[12px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1 px-2 rounded-lg transition-all break-words cursor-text"
-                          placeholder="Modifier le libellé..."
-                        />
-                        
-                        {/#\d+$/.test(t.nom) && (
+                return (
+                  <tr 
+                    key={t.id || virtualRow.key} 
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    className={`group transition-colors duration-150 ${
+                      isSelected 
+                        ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' 
+                        : 'hover:bg-white/[0.02]'
+                    }`}
+                  >
+                    {/* 1. CHECKBOX */}
+                    <td className="py-2.5 px-2 w-10 border-b border-white/[0.04] text-center">
+                      <input 
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(t.id)}
+                        className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-[var(--primary)] cursor-pointer"
+                      />
+                    </td>
+
+                    {/* 2. DATE */}
+                    <td className="py-2.5 px-2 border-b border-white/[0.04] w-16 whitespace-nowrap">
+                      <div className="pointer-events-none">
+                        <CustomBadgeDate t={t} />
+                      </div>
+                    </td>
+
+                    {/* 3. LIBELLÉ (Affichage intégral multilignes avec calcul automatique de hauteur) */}
+                      <td className="py-2.5 px-2 border-b border-white/[0.04] min-w-[280px] max-w-[550px]">
+                        <div className={`flex flex-col border-l-4 pl-2.5 py-0.5 transition-colors ${
+                          isTransfertInterne
+                            ? "border-[var(--primary)]/50 group-hover:border-[var(--primary)]" 
+                            : isRevenu 
+                              ? "border-emerald-500/50 group-hover:border-emerald-400" 
+                              : "border-rose-500/50 group-hover:border-rose-400"
+                        }`}>
+                          <div className="flex items-start gap-2">
+                            {/* 🟢 key={t.id} + ref de calcul forcent l'affichage complet du texte sans tronquer */}
+                            <textarea
+                              key={t.id}
+                              rows="1"
+                              defaultValue={t.nom}
+                              onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
+                              onInput={(e) => {
+                                e.target.style.height = "auto";
+                                e.target.style.height = `${Math.max(26, e.target.scrollHeight)}px`;
+                              }}
+                              ref={(el) => {
+                                if (el) {
+                                  el.style.height = "auto";
+                                  el.style.height = `${Math.max(26, el.scrollHeight)}px`;
+                                }
+                              }}
+                              className="bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/60 text-[12px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1 px-2 rounded-lg transition-all break-words cursor-text"
+                              placeholder="Modifier le libellé..."
+                            />
+                            
+                            {/#\d+$/.test(t.nom) && (
+                              <span 
+                                title="Transaction similaire indexée"
+                                className="shrink-0 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
+                              >
+                                {t.nom.match(/#\d+$/)[0]}
+                              </span>
+                            )}
+
+                            <div className="mt-1 shrink-0 opacity-30 group-hover:opacity-100 transition-opacity" title="Cliquer pour modifier">
+                              <Pencil size={11} className="text-white/40 hover:text-[var(--primary)] transition-colors" />
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-1.5 mt-0.5 pl-1">
+                            <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase font-mono tracking-wider">{t.compte}</span>
+                            <span className="text-white/10 text-[8px]">•</span>
+                            <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
+                              isTransfertInterne
+                                ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                                : isRevenu 
+                                  ? "bg-emerald-500/15 text-emerald-400" 
+                                  : "bg-rose-500/15 text-rose-400"
+                            }`}>
+                              {isTransfertInterne ? "Transfert" : isRevenu ? "Revenu" : "Dépense"}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                    {/* 4. MONTANT */}
+                    <td className="py-2.5 px-2 text-right border-b border-white/[0.04] w-28 whitespace-nowrap">
+                      <span className={`text-[13px] font-black tabular-nums transition-colors ${
+                        isTransfertInterne 
+                          ? 'text-[var(--primary)]' 
+                          : isRevenu 
+                            ? 'text-emerald-400' 
+                            : 'text-rose-400'
+                      }`}>
+                        {isRevenu && !isTransfertInterne ? '+' : ''}
+                        {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                      </span>
+                    </td>
+
+                    {/* 5. CATÉGORIE */}
+                    <td className="py-2.5 px-2 hidden md:table-cell border-b border-white/[0.04] w-44">
+                      <CustomSelect 
+                        value={t.categorie || "Autre"}
+                        icon={Tag} 
+                        options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
+                        onChange={(val) => updateCell(t.id, 'categorie', val)}
+                        className="px-2 py-1 rounded-xl text-[10px] bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
+                      />
+                    </td>
+
+                    {/* 6. MOIS */}
+                    <td className="py-2.5 px-2 border-b border-white/[0.04] w-36 min-w-[135px]">
+                      <CustomSelect 
+                        value={t.mois || "Janvier"}
+                        icon={Calendar} 
+                        options={moisOptionsAbrege}
+                        onChange={(val) => updateCell(t.id, 'mois', val)}
+                        className="px-2.5 py-1 rounded-xl text-[10.5px] font-bold bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
+                      />
+                    </td>
+
+                    {/* 7. PRÉVISION (RESTAURÉ INTÉGRALEMENT AVEC SON POPOVER) */}
+                    <td className={`py-2.5 px-2 border-b border-white/[0.04] w-28 text-center relative ${activePrevisionDropdownId === t.id ? 'z-[60]' : ''}`}>
+                      {(() => {
+                        const isTxPositive = (parseFloat(t.montant) || 0) >= 0;
+                        const compteTx = (comptes || []).find(c => 
+                          (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase()
+                        );
+                        const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
+
+                        const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
+                        const nomBadge = prevAssociee ? getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '')) : null;
+
+                        const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
+                          const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
+                          const anneeT = parseInt(t.annee || new Date().getFullYear());
+                          const anneeP = parseInt(p.annee || new Date().getFullYear());
+                          const matchAnnee = (anneeT === anneeP);
+
+                          let matchGroupe = true;
+                          if (groupeCible) {
+                            const compteP = (comptes || []).find(c => 
+                              (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
+                            );
+                            matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
+                          }
+
+                          const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
+                          const matchSens = (isTxPositive === isPrevPositive);
+
+                          return matchMois && matchAnnee && matchGroupe && matchSens;
+                        });
+
+                        return (
+                          <div className="flex items-center justify-center gap-1.5">
+                            {nomBadge ? (
+                              <span 
+                                title={`Lié à : ${nomBadge}`}
+                                className="text-[8.5px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 uppercase max-w-[85px] truncate flex items-center gap-1"
+                              >
+                                <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
+                                <span className="truncate">{nomBadge}</span>
+                              </span>
+                            ) : (
+                              <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
+                                Aucune
+                              </span>
+                            )}
+
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activePrevisionDropdownId === t.id) {
+                                  setActivePrevisionDropdownId(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  const spaceBelow = window.innerHeight - rect.bottom;
+                                  setDropdownPosition(spaceBelow < 280 ? 'top' : 'bottom');
+                                  setActivePrevisionDropdownId(t.id);
+                                }
+                              }}
+                              className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+                                activePrevisionDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
+                              }`}
+                            >
+                              <MoreHorizontal size={12} />
+                            </button>
+
+                            {/* 🟢 POPOVER PRÉVISIONS RESTAURÉ */}
+                            {activePrevisionDropdownId === t.id && (
+                              <>
+                                <div 
+                                  className="fixed inset-0 z-50 cursor-default" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActivePrevisionDropdownId(null);
+                                  }}
+                                />
+
+                                <div 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className={`
+                                    absolute right-0 w-60 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-xl
+                                    ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-9'}
+                                  `}
+                                >
+                                  <div className="px-2 py-1 text-[8px] font-black text-white/40 uppercase tracking-wider border-b border-white/5 flex items-center justify-between mb-1">
+                                    <span>Prévisions ({t.mois})</span>
+                                    <span className={isTxPositive ? 'text-emerald-400' : 'text-rose-400'}>
+                                      {isTxPositive ? '+ Revenu' : '- Dépense'}
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    onClick={async () => {
+                                      await updateCell(t.id, 'prevision_id', null);
+                                      setActivePrevisionDropdownId(null);
+                                    }}
+                                    className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                      !t.prevision_id ? 'bg-white/10 text-white' : 'text-white/40 hover:bg-white/5 hover:text-white'
+                                    }`}
+                                  >
+                                    <span>✕</span> Aucune liaison
+                                  </button>
+
+                                  <div className="max-h-52 overflow-y-auto custom-scrollbar flex flex-col gap-1">
+                                    {previsionsDuMois.map((p) => {
+                                      const isLinked = t.prevision_id === p.id;
+                                      const nomAff = getCleanCategoryName(p.nom.replace(/^\[PRÉVI\]\s*/i, ''));
+                                      const mntPrv = Math.abs(parseFloat(p.montant) || 0);
+
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          onClick={async () => {
+                                            await updateCell(t.id, 'prevision_id', p.id);
+                                            setActivePrevisionDropdownId(null);
+                                          }}
+                                          className={`w-full text-left p-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                            isLinked ? 'bg-emerald-500/15 text-emerald-300' : 'hover:bg-white/5 text-white/70'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-1.5 truncate">
+                                            <CategoryIcon name={p.categorie || p.nom} size={11} />
+                                            <span className="truncate">{nomAff} ({mntPrv.toFixed(0)}€)</span>
+                                          </div>
+                                          {isLinked && <span className="text-emerald-400 text-xs">✓</span>}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
+
+                    {/* 8. ENVELOPPE (RESTAURÉ INTÉGRALEMENT AVEC SON POPOVER) */}
+                    <td className="py-2.5 px-2 border-b border-white/[0.04] w-20 text-center relative">
+                      <div className="flex items-center justify-center gap-1">
+                        {t.enveloppe ? (
                           <span 
-                            title="Transaction similaire indexée"
-                            className="shrink-0 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
+                            title={`Alloué à : ${t.enveloppe}`}
+                            className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[var(--primary)]/15 border border-[var(--primary)]/20 text-[var(--primary)] uppercase max-w-[65px] truncate"
                           >
-                            {t.nom.match(/#\d+$/)[0]}
+                            {t.enveloppe}
+                          </span>
+                        ) : (
+                          <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
+                            Aucune
                           </span>
                         )}
 
-                        <div className="mt-1 shrink-0 opacity-30 group-hover:opacity-100 transition-opacity" title="Cliquer pour modifier">
-                          <Pencil size={11} className="text-white/40 hover:text-[var(--primary)] transition-colors" />
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-1.5 mt-0.5 pl-1">
-                        <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase font-mono tracking-wider">{t.compte}</span>
-                        <span className="text-white/10 text-[8px]">•</span>
-                        <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
-                          isTransfertInterne
-                            ? "bg-[var(--primary)]/15 text-[var(--primary)]"
-                            : isRevenu 
-                              ? "bg-emerald-500/15 text-emerald-400" 
-                              : "bg-rose-500/15 text-rose-400"
-                        }`}>
-                          {isTransfertInterne ? "Transfert" : isRevenu ? "Revenu" : "Dépense"}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* 4. MONTANT (€) - POLICE CLASSIQUE ORIGINALE (PAS DE FONT-MONO) */}
-                  <td className="py-2.5 px-2 text-right border-b border-white/[0.04] w-28 whitespace-nowrap">
-                    <span className={`text-[13px] font-black tabular-nums transition-colors ${
-                      isTransfertInterne 
-                        ? 'text-[var(--primary)]' 
-                        : isRevenu 
-                          ? 'text-emerald-400' 
-                          : 'text-rose-400'
-                    }`}>
-                      {isRevenu && !isTransfertInterne ? '+' : ''}
-                      {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                    </span>
-                  </td>
-
-                  {/* 5. CATÉGORIE */}
-                  <td className="py-2.5 px-2 hidden md:table-cell border-b border-white/[0.04] w-44">
-                    <CustomSelect 
-                      value={t.categorie || "Autre"}
-                      icon={Tag} 
-                      options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
-                      onChange={(val) => updateCell(t.id, 'categorie', val)}
-                      className="px-2 py-1 rounded-xl text-[10px] bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
-                    />
-                  </td>
-
-                  {/* 6. 💡 MOIS AFFECTÉ : CUSTOMSELECT ÉPURÉ & PARFAITEMENT LISIBLE */}
-                  <td className="py-2.5 px-2 border-b border-white/[0.04] w-36 min-w-[135px]">
-                    <CustomSelect 
-                      value={t.mois || "Janvier"}
-                      icon={Calendar} 
-                      options={moisOptionsAbrege}
-                      onChange={(val) => updateCell(t.id, 'mois', val)}
-                      className="px-2.5 py-1 rounded-xl text-[10.5px] font-bold bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
-                    />
-                  </td>
-
-                  {/* 7. PRÉVISION */}
-                  <td className={`py-2.5 px-2 border-b border-white/[0.04] w-28 text-center relative ${activePrevisionDropdownId === t.id ? 'z-[60]' : ''}`}>
-                    {(() => {
-                      const isTxPositive = (parseFloat(t.montant) || 0) >= 0;
-                      const compteTx = (comptes || []).find(c => 
-                        (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase()
-                      );
-                      const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
-
-                      const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
-                      const nomBadge = prevAssociee ? getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '')) : null;
-
-                      const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
-                        const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
-                        const anneeT = parseInt(t.annee || new Date().getFullYear());
-                        const anneeP = parseInt(p.annee || new Date().getFullYear());
-                        const matchAnnee = (anneeT === anneeP);
-
-                        let matchGroupe = true;
-                        if (groupeCible) {
-                          const compteP = (comptes || []).find(c => 
-                            (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
-                          );
-                          matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
-                        }
-
-                        const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
-                        const matchSens = (isTxPositive === isPrevPositive);
-
-                        return matchMois && matchAnnee && matchGroupe && matchSens;
-                      });
-
-                      return (
-                        <div className="flex items-center justify-center gap-1.5">
-                          {nomBadge ? (
-                            <span 
-                              title={`Lié à : ${nomBadge}`}
-                              className="text-[8.5px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 uppercase max-w-[85px] truncate flex items-center gap-1"
-                            >
-                              <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
-                              <span className="truncate">{nomBadge}</span>
-                            </span>
-                          ) : (
-                            <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
-                              Aucune
-                            </span>
-                          )}
-
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (activePrevisionDropdownId === t.id) {
-                                setActivePrevisionDropdownId(null);
-                              } else {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const spaceBelow = window.innerHeight - rect.bottom;
-                                setDropdownPosition(spaceBelow < 280 ? 'top' : 'bottom');
-                                setActivePrevisionDropdownId(t.id);
-                              }
-                            }}
-                            className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-                              activePrevisionDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
-                            }`}
-                          >
-                            <MoreHorizontal size={12} />
-                          </button>
-
-                          {/* Popover Prévisions */}
-                          {activePrevisionDropdownId === t.id && (
-                            <>
-                              <div 
-                                className="fixed inset-0 z-50 cursor-default" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActivePrevisionDropdownId(null);
-                                }}
-                              />
-
-                              <div 
-                                onClick={(e) => e.stopPropagation()}
-                                className={`
-                                  absolute right-0 w-60 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-xl
-                                  ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-9'}
-                                `}
-                              >
-                                <div className="px-2 py-1 text-[8px] font-black text-white/40 uppercase tracking-wider border-b border-white/5 flex items-center justify-between mb-1">
-                                  <span>Prévisions ({t.mois})</span>
-                                  <span className={isTxPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                                    {isTxPositive ? '+ Revenu' : '- Dépense'}
-                                  </span>
-                                </div>
-
-                                <button
-                                  onClick={async () => {
-                                    await updateCell(t.id, 'prevision_id', null);
-                                    setActivePrevisionDropdownId(null);
-                                  }}
-                                  className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                    !t.prevision_id ? 'bg-white/10 text-white' : 'text-white/40 hover:bg-white/5 hover:text-white'
-                                  }`}
-                                >
-                                  <span>✕</span> Aucune liaison
-                                </button>
-
-                                <div className="max-h-52 overflow-y-auto custom-scrollbar flex flex-col gap-1">
-                                  {previsionsDuMois.map((p) => {
-                                    const isLinked = t.prevision_id === p.id;
-                                    const nomAff = getCleanCategoryName(p.nom.replace(/^\[PRÉVI\]\s*/i, ''));
-                                    const mntPrv = Math.abs(parseFloat(p.montant) || 0);
-
-                                    return (
-                                      <button
-                                        key={p.id}
-                                        onClick={async () => {
-                                          await updateCell(t.id, 'prevision_id', p.id);
-                                          setActivePrevisionDropdownId(null);
-                                        }}
-                                        className={`w-full text-left p-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                                          isLinked ? 'bg-emerald-500/15 text-emerald-300' : 'hover:bg-white/5 text-white/70'
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-1.5 truncate">
-                                          <CategoryIcon name={p.categorie || p.nom} size={11} />
-                                          <span className="truncate">{nomAff} ({mntPrv.toFixed(0)}€)</span>
-                                        </div>
-                                        {isLinked && <span className="text-emerald-400 text-xs">✓</span>}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </td>
-
-                  {/* 8. ENVELOPPE */}
-                  <td className="py-2.5 px-2 border-b border-white/[0.04] w-20 text-center relative">
-                    <div className="flex items-center justify-center gap-1">
-                      {t.enveloppe ? (
-                        <span 
-                          title={`Alloué à : ${t.enveloppe}`}
-                          className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[var(--primary)]/15 border border-[var(--primary)]/20 text-[var(--primary)] uppercase max-w-[65px] truncate"
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
+                          }}
+                          className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
+                            activeDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
+                          }`}
                         >
-                          {t.enveloppe}
-                        </span>
-                      ) : (
-                        <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
-                          Aucune
-                        </span>
-                      )}
+                          <MoreHorizontal size={12} />
+                        </button>
 
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
-                        }}
-                        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-                          activeDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <MoreHorizontal size={12} />
-                      </button>
-
-                      {/* Popover Enveloppes */}
-                      {activeDropdownId === t.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-50 cursor-default" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveDropdownId(null);
-                            }}
-                          />
-
-                          <div className="absolute right-1 top-9 w-48 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-md">
-                            {/* Option : Aucune enveloppe */}
-                            <button
-                              onClick={async (e) => {
+                        {/* 🟢 POPOVER ENVELOPPES RESTAURÉ */}
+                        {activeDropdownId === t.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-50 cursor-default" 
+                              onClick={(e) => {
                                 e.stopPropagation();
-                                await updateCell(t.id, 'enveloppe', "");
                                 setActiveDropdownId(null);
                               }}
-                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                                !t.enveloppe 
-                                  ? 'bg-[var(--primary)]/15 text-[var(--primary)]' 
-                                  : 'text-white/40 hover:bg-white/5 hover:text-white'
-                              }`}
-                            >
-                              <X size={12} className="shrink-0 opacity-60" />
-                              <span>Aucune enveloppe</span>
-                            </button>
+                            />
 
-                            {/* Liste des enveloppes existantes */}
-                            {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => {
-                              const isSelected = t.enveloppe === projetNom;
-                              return (
-                                <button
-                                  key={projetNom}
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    await updateCell(t.id, 'enveloppe', projetNom);
-                                    setActiveDropdownId(null);
-                                  }}
-                                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                                    isSelected 
-                                      ? 'bg-emerald-500/15 text-emerald-400' 
-                                      : 'text-white/70 hover:bg-white/5 hover:text-white'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 truncate min-w-0">
-                                    <WalletCards size={12} className={`shrink-0 ${isSelected ? 'text-emerald-400' : 'text-white/40'}`} />
-                                    <span className="truncate">{projetNom}</span>
-                                  </div>
-                                  
-                                  {isSelected && (
-                                    <Check size={12} strokeWidth={3} className="shrink-0 text-emerald-400" />
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </td>
+                            <div className="absolute right-1 top-9 w-48 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-md">
+                              {/* Option : Aucune enveloppe */}
+                              <button
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await updateCell(t.id, 'enveloppe', "");
+                                  setActiveDropdownId(null);
+                                }}
+                                className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                                  !t.enveloppe 
+                                    ? 'bg-[var(--primary)]/15 text-[var(--primary)]' 
+                                    : 'text-white/40 hover:bg-white/5 hover:text-white'
+                                }`}
+                              >
+                                <X size={12} className="shrink-0 opacity-60" />
+                                <span>Aucune enveloppe</span>
+                              </button>
+
+                              {/* Liste des enveloppes existantes */}
+                              {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => {
+                                const isSelected = t.enveloppe === projetNom;
+                                return (
+                                  <button
+                                    key={projetNom}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      await updateCell(t.id, 'enveloppe', projetNom);
+                                      setActiveDropdownId(null);
+                                    }}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
+                                      isSelected 
+                                        ? 'bg-emerald-500/15 text-emerald-400' 
+                                        : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate min-w-0">
+                                      <WalletCards size={12} className={`shrink-0 ${isSelected ? 'text-emerald-400' : 'text-white/40'}`} />
+                                      <span className="truncate">{projetNom}</span>
+                                    </div>
+                                    
+                                    {isSelected && (
+                                      <Check size={12} strokeWidth={3} className="shrink-0 text-emerald-400" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+
+              {/* CALE D'ESPACEMENT DU BAS */}
+              {paddingBottom > 0 && (
+                <tr>
+                  <td colSpan={8} style={{ height: `${paddingBottom}px`, padding: 0, border: 0 }} />
                 </tr>
-              );
-            })
+              )}
+            </>
           ) : (
             <tr>
-              <td colSpan="8" className="py-16 text-center">
+              <td colSpan={8} className="py-16 text-center">
                 <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-3 mx-auto">
                   <span className="text-xl opacity-30">📂</span>
                 </div>
@@ -14234,6 +14223,18 @@ if (!user) {
       </main>
 
       </div>
+
+
+      {/* MODALE D'EXPORTATION COMPTABLE */}
+        <ExportModal 
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+          toutesLesTransactions={toutesLesTransactions}
+          comptes={comptes}
+          filters={filters}
+          recapAnnuelStats={recapAnnuelStats}
+          statsAnnuellesCategories={statsAnnuellesCategories}
+        />
 
 {activeTab === 'conges' && user?.toLowerCase() === 'theo' && (
   <CongesPage user={user} />

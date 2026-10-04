@@ -3,8 +3,12 @@ import { Plus, Trash2, Edit2, Smile, AlertCircle, CheckCircle } from 'lucide-rea
 import DatePicker from "react-datepicker";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { createPortal } from 'react-dom';
-import api from '../axios'; // 🟢 Requêtes Axios compatibles localhost et production
+import api from '../axios';
 import TricountMobile from '../TricountMobile';
+import { toLocalDateString, getTodayLocalDateString } from "../utils/dateUtils";
+
+// 🟢 Helper de conversion en centimes entiers (anti-erreur 0.1 + 0.2)
+const toCents = (val) => Math.round((parseFloat(val) || 0) * 100);
 
 export default function TricountManager({ userId }) {
   const [groupes, setGroupes] = useState([]);
@@ -29,9 +33,10 @@ export default function TricountManager({ userId }) {
     libelle: "",
     montant: 0,
     paye_par: userId,
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayLocalDateString(),
     details_montants: {}
   });
+
 
   const [notification, setNotification] = useState({ show: false, message: "", type: "error" });
   const [activeEmojiPicker, setActiveEmojiPicker] = useState(null);
@@ -348,31 +353,42 @@ export default function TricountManager({ userId }) {
     return match ? match.split(':')[1] : null;
   };
 
-  const totalReparti = Object.values(newTransaction.details_montants || {}).reduce((acc, curr) => acc + curr, 0);
-  const resteARepartir = (parseFloat(newTransaction.montant) || 0) - totalReparti;
-  const estEquilibre = Math.abs(resteARepartir) < 0.01;
+// 🟢 Calculs précis en centimes et ré-export de totalReparti en euros
+  const montantGlobalCents = toCents(newTransaction.montant);
+  const totalRepartiCents = Object.values(newTransaction.details_montants || {}).reduce(
+    (acc, curr) => acc + toCents(curr), 
+    0
+  );
+  
+  // ✅ Cette ligne manquait :
+  const totalReparti = totalRepartiCents / 100;
+  
+  const resteARepartirCents = montantGlobalCents - totalRepartiCents;
+  const resteARepartir = resteARepartirCents / 100;
+  const estEquilibre = resteARepartirCents === 0;
 
   const handleCreateTransaction = async () => {
-    const emojiPayeur = getEmojiForMember(newTransaction.paye_par) || "👤";
-    if (!newTransaction.libelle || newTransaction.libelle.trim() === "") {
-      showToast("Veuillez donner un nom à cette dépense", "error");
-      return;
-    }
-    const montantGlobal = parseFloat(newTransaction.montant);
-    if (!montantGlobal || montantGlobal <= 0) {
-      showToast("Le montant doit être supérieur à 0€", "error");
-      return;
-    }
-    const selectionnes = Object.keys(newTransaction.details_montants || {});
-    if (selectionnes.length === 0) {
-      showToast("Sélectionnez au moins une personne", "error");
-      return;
-    }
-    const ecart = Math.abs(montantGlobal - totalReparti);
-    if (ecart > 0.01) {
-      showToast(`Déséquilibre de ${ecart.toFixed(2)}€. Ajustez les parts.`, "error");
-      return;
-    }
+      const emojiPayeur = getEmojiForMember(newTransaction.paye_par) || "👤";
+      if (!newTransaction.libelle || newTransaction.libelle.trim() === "") {
+        showToast("Veuillez donner un nom à cette dépense", "error");
+        return;
+      }
+      const montantGlobal = parseFloat(newTransaction.montant);
+      if (!montantGlobal || montantGlobal <= 0) {
+        showToast("Le montant doit être supérieur à 0€", "error");
+        return;
+      }
+      const selectionnes = Object.keys(newTransaction.details_montants || {});
+      if (selectionnes.length === 0) {
+        showToast("Sélectionnez au moins une personne", "error");
+        return;
+      }
+
+      // ✅ Vérification stricte basée sur estEquilibre
+      if (!estEquilibre) {
+        showToast(`Déséquilibre de ${Math.abs(resteARepartir).toFixed(2)}€. Ajustez les parts.`, "error");
+        return;
+      }
 
     try {
       const parts = Object.entries(newTransaction.details_montants || {})
@@ -472,7 +488,7 @@ export default function TricountManager({ userId }) {
                       <DatePicker
                         selected={editingTransaction.date ? new Date(editingTransaction.date) : null}
                         onChange={(date) => {
-                          if (date) setEditingTransaction({ ...editingTransaction, date: date.toISOString().split('T')[0] });
+                          if (date) setEditingTransaction({ ...editingTransaction, date: toLocalDateString(date) });
                         }}
                         dateFormat="dd/MM/yyyy"
                         className="bg-transparent border-none outline-none text-[var(--text-main)] text-sm font-bold w-full cursor-pointer"

@@ -3,10 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/Kleea_2.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- 🟢 1. Viewport optimisé PWA (Gère les encoches d'écran / Dynamic Island sur smartphone) -->
+    <meta 
+      name="viewport" 
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" 
+    />
+    
     <title>Kleea</title>
+    <meta name="description" content="Kleea - Gestion de patrimoine privé, budgets et prévisions" />
 
-    <!-- 🟢 1. Empêche le flash blanc dès la toute première milliseconde -->
+    <!-- 🟢 2. CONFIGURATION PWA OFFICIELLE & COULEUR DU NAVIGATEUR -->
+    <meta name="theme-color" content="#152c48" />
+
+    <!-- 🍎 3. SUPPORT iOS & SAFARI (Plein écran sans les barres Safari lors de l'installation) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Kleea" />
+    <link rel="apple-touch-icon" href="/Kleea_2.png" />
+
+    <!-- 🟢 4. Empêche le flash blanc dès la toute première milliseconde -->
     <style>
       html, body, #root {
         background-color: #152c48 !important;
@@ -17,7 +34,7 @@
       }
     </style>
 
-    <!-- 🟢 2. Applique instantanément votre thème personnalisé en mémoire vive (0 ms) -->
+    <!-- 🟢 5. Applique instantanément votre thème personnalisé en mémoire vive (0 ms) -->
     <script>
       try {
         // Cache venant de la base de données
