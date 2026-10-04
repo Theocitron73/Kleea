@@ -6995,7 +6995,7 @@ useEffect(() => {
   const viewCount = parseInt(localStorage.getItem(patchKey)) || 0;
 
   // On l'affiche tant qu'on n'a pas atteint la limite (ici, 2 fois)
-  if (viewCount < 2) {
+  if (viewCount < 1) {
     const timer = setTimeout(() => {
       setShowPatchModal(true);
     }, 1500);
