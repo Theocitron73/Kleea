@@ -14906,7 +14906,7 @@ if (!user) {
             <Zap size={14} className="shrink-0 fill-current text-amber-300" />
             <span>Synchronisation Automatique</span>
           </span>
-          <span className="text-[8.5px] opacity-80 text-center leading-relaxed font-medium">
+          <span className="text-[10px] opacity-80 text-center leading-relaxed font-medium">
             Connexion bancaire avec mise à jour continue en arrière-plan (zéro action requise)
           </span>
         </button>
@@ -14921,7 +14921,7 @@ if (!user) {
             <FileUp size={14} className="shrink-0 text-white/60 group-hover:text-white transition-colors" />
             <span>Mode Manuel (Contrôle total)</span>
           </span>
-          <span className="text-[8.5px] text-white/50 group-hover:text-white/70 text-center leading-relaxed font-medium transition-colors">
+          <span className="text-[10px] text-white/50 group-hover:text-white/70 text-center leading-relaxed font-medium transition-colors">
             Vous décidez vous-même quand importer vos transactions : par <strong className="text-white">fichiers CSV</strong> ou en reliant <strong className="text-white">vos comptes bancaires réels</strong>
           </span>
         </button>
