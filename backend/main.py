@@ -42,6 +42,8 @@ socket.gethostname = get_ascii_hostname
 
 load_dotenv()
 
+
+
 # 2. Configuration Base de données
 engine = create_engine(
     os.getenv("DATABASE_URL"),
@@ -139,6 +141,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def read_root():
+    return {"status": "L'API de finances est en ligne"}
 
 # 8. Authentification & Rôles
 def create_access_token(data: dict):
@@ -3317,7 +3323,7 @@ def delete_scenario(username: str, scenario_name: str, current_user: str = Depen
         result = conn.execute(text("""
             DELETE FROM simulations_demenagement 
             WHERE LOWER(utilisateur) = :u 
-            AND (TRIM(scenario) = :sc OR REGEXP_REPLACE(scenario, '[\u00a0\s]+', ' ', 'g') = :sc)
+            AND (TRIM(scenario) = :sc OR REGEXP_REPLACE(scenario, '[\u00a0\\s]+', ' ', 'g') = :sc)
         """), {"u": current_user, "sc": decoded_scenario})
         
         if result.rowcount == 0:
