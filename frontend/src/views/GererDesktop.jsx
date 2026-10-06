@@ -7,12 +7,15 @@ import {
   Filter, User, Search, Calendar, Calendar1, Database, List, Brain, X, 
   Trash2, Plus, CreditCard, Tag, ArrowUpDown, Pencil, MoreHorizontal, 
   WalletCards, Check, Activity, ChevronRight, Edit3, Layers, Settings2, 
-  Eye, EyeOff, Edit2, Download, Target
+  Eye, EyeOff, Edit2, Download, Target,Scissors,RotateCcw  
 } from 'lucide-react';
 import { 
   CategoryIcon, getCleanCategoryName, LucideIconPicker, 
   getCategoryIconInfo, getCategoryGroup 
 } from '../categoryIcons';
+import SplitTransactionModal from '../components/SplitTransactionModal';
+import { toast } from 'sonner';
+import api from '../axios';
 
 // Badge date compact pour le tableau
 const CustomBadgeDate = forwardRef(({ t }, ref) => {
@@ -55,6 +58,7 @@ const CustomBadgeDate = forwardRef(({ t }, ref) => {
 export default function GererDesktop({
   filters,
   setFilters,
+  fetchTransactions,
   comptes,
   soldesTries,
   handleProfilChange,
@@ -119,6 +123,8 @@ export default function GererDesktop({
   handleAssignGroup,
   handleDeleteGroup
 }) {
+
+  const [splittingTx, setSplittingTx] = useState(null);
   // Gestion interne de la modale des catégories
   const [showListPopover, setShowListPopover] = useState(false);
   const [categorySearch, setCategorySearch] = useState('');
@@ -170,6 +176,40 @@ export default function GererDesktop({
     { v: "Novembre", l: "Nov." },
     { v: "Décembre", l: "Déc." }
   ];
+
+  // 🔄 Annulation directe de la Division
+  const handleQuickUnsplit = async (splitId) => {
+    if (!window.confirm("Voulez-vous annuler la Division et fusionner à nouveau cette transaction ?")) {
+      return;
+    }
+    try {
+      await api.post(`/transactions/unsplit/${splitId}`);
+      toast.success("Division annulée : transaction originale restaurée ! 🔄");
+      if (typeof fetchTransactions === 'function') {
+        fetchTransactions();
+      }
+    } catch (err) {
+      toast.error("Erreur lors de l'annulation de la Division.");
+    }
+  };
+
+  // 🟢 État de la modale de confirmation pour annuler la Division
+  const [unsplitModal, setUnsplitModal] = useState({ show: false, splitId: null, txName: '' });
+
+  // Exécution de l'annulation
+  const executeUnsplit = async () => {
+    if (!unsplitModal.splitId) return;
+    try {
+      await api.post(`/transactions/unsplit/${unsplitModal.splitId}`);
+      toast.success("Division annulée : écriture originale restaurée ! 🔄");
+      if (typeof fetchTransactions === 'function') {
+        fetchTransactions();
+      }
+      setUnsplitModal({ show: false, splitId: null, txName: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Erreur lors de l'annulation de la Division.");
+    }
+  };
 
   const handleAddNewGroup = () => {
     const clean = newGroupName.trim();
@@ -1323,55 +1363,102 @@ export default function GererDesktop({
                               </div>
                             </td>
 
+                            {/* 3. LIBELLÉ + BOUTON CISEAUX PERMANENT + BADGE VENTILÉE */}
                             <td className="py-2.5 px-2 border-b border-white/[0.04] min-w-[280px] max-w-[550px]">
-                              <div className={`flex flex-col border-l-4 pl-2.5 py-0.5 transition-colors ${
+                            <div className={`flex flex-col border-l-4 pl-2.5 py-0.5 transition-colors ${
                                 isTransfertInterne
-                                  ? "border-[var(--primary)]/50 group-hover:border-[var(--primary)]" 
-                                  : isRevenu 
+                                ? "border-[var(--primary)]/50 group-hover:border-[var(--primary)]" 
+                                : isRevenu 
                                     ? "border-emerald-500/50 group-hover:border-emerald-400" 
                                     : "border-rose-500/50 group-hover:border-rose-400"
-                              }`}>
+                            }`}>
+                                
+                                {/* Ligne 1 : Champ texte + Bouton Ciseaux permanent */}
                                 <div className="flex items-start gap-2">
-                                  <textarea
+                                <textarea
                                     key={t.id}
                                     rows="1"
                                     defaultValue={t.nom}
                                     onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
                                     onInput={(e) => {
-                                      e.target.style.height = "auto";
-                                      e.target.style.height = `${Math.max(26, e.target.scrollHeight)}px`;
+                                    e.target.style.height = "auto";
+                                    e.target.style.height = `${Math.max(26, e.target.scrollHeight)}px`;
                                     }}
                                     ref={(el) => {
-                                      if (el) {
+                                    if (el) {
                                         el.style.height = "auto";
                                         el.style.height = `${Math.max(26, el.scrollHeight)}px`;
-                                      }
+                                    }
                                     }}
                                     className="bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/60 text-[12px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1 px-2 rounded-lg transition-all break-words cursor-text"
                                     placeholder="Modifier le libellé..."
-                                  />
-                                  {/#\d+$/.test(t.nom) && (
-                                    <span className="shrink-0 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1">
-                                      {t.nom.match(/#\d+$/)[0]}
+                                />
+
+                                {/* Badge si doublon #2, #3 */}
+                                {/#\d+$/.test(t.nom) && (
+                                    <span 
+                                    title="Transaction similaire indexée"
+                                    className="shrink-0 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
+                                    >
+                                    {t.nom.match(/#\d+$/)[0]}
                                     </span>
-                                  )}
-                                  <div className="mt-1 shrink-0 opacity-30 group-hover:opacity-100 transition-opacity">
-                                    <Pencil size={11} className="text-white/40 hover:text-[var(--primary)] transition-colors" />
-                                  </div>
+                                )}
+
+                                {/* ✂️ BOUTON CISEAUX VISIBLE TOUT LE TEMPS */}
+                                <button
+                                    type="button"
+                                    onClick={() => setSplittingTx(t)}
+                                    className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 mt-0.5 flex items-center justify-center ${
+                                    t.split_id 
+                                        ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40 shadow-[0_0_10px_rgba(99,102,241,0.25)]' 
+                                        : 'bg-white/[0.04] text-white/50 border-white/10 hover:text-indigo-300 hover:border-indigo-500/40 hover:bg-indigo-500/10'
+                                    }`}
+                                    title={t.split_id ? "Transaction déjà Divisée (cliquer pour voir ou annuler)" : "Diviser cette transaction (Split)"}
+                                >
+                                    <Scissors size={12} strokeWidth={2.5} />
+                                </button>
+
+                                {/* Petite icône crayon d'indication */}
+                                <div className="mt-1.5 shrink-0 opacity-20 group-hover:opacity-60 transition-opacity" title="Cliquer pour modifier">
+                                    <Pencil size={10} className="text-white/40" />
+                                </div>
                                 </div>
                                 
-                                <div className="flex items-center gap-1.5 mt-0.5 pl-1">
-                                  <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase font-mono tracking-wider">{t.compte}</span>
-                                  <span className="text-white/10 text-[8px]">•</span>
-                                  <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
+                                {/* Ligne 2 : Compte + Type + BADGE [VENTILÉE] */}
+                                <div className="flex items-center gap-1.5 mt-0.5 pl-1 flex-wrap">
+                                <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase font-mono tracking-wider">
+                                    {t.compte}
+                                </span>
+                                <span className="text-white/10 text-[8px]">•</span>
+                                <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
                                     isTransfertInterne
-                                      ? "bg-[var(--primary)]/15 text-[var(--primary)]"
-                                      : isRevenu ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"
-                                  }`}>
+                                    ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                                    : isRevenu 
+                                        ? "bg-emerald-500/15 text-emerald-400" 
+                                        : "bg-rose-500/15 text-rose-400"
+                                }`}>
                                     {isTransfertInterne ? "Transfert" : isRevenu ? "Revenu" : "Dépense"}
-                                  </span>
+                                </span>
+
+                                {/* 🟢 BADGE [VENTILÉE] OUVRANT LA BELLE MODALE */}
+                                    {t.split_id && (
+                                        <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom });
+                                        }}
+                                        className="px-2 py-0.5 rounded-lg bg-indigo-500/20 hover:bg-rose-500/20 text-indigo-300 hover:text-rose-300 border border-indigo-500/30 hover:border-rose-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1 transition-all cursor-pointer group/badge shadow-sm"
+                                        title="Cliquer pour annuler la division et fusionner à nouveau"
+                                        >
+                                        <Scissors size={9} />
+                                        <span>Divisée</span>
+                                        <RotateCcw size={8} className="opacity-40 group-hover/badge:opacity-100 transition-opacity ml-0.5 text-rose-300" />
+                                        </button>
+                                    )}
                                 </div>
-                              </div>
+
+                            </div>
                             </td>
 
                             <td className="py-2.5 px-2 text-right border-b border-white/[0.04] w-28 whitespace-nowrap">
@@ -1639,6 +1726,74 @@ export default function GererDesktop({
         </div>
 
       </div>
+
+    {/* =========================================================================
+          🔄 MODALE SOMBRE DE CONFIRMATION D'ANNULATION (UNSPLIT)
+          ========================================================================= */}
+      {unsplitModal.show && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+          {/* Calque sombre et flouté */}
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => setUnsplitModal({ show: false, splitId: null, txName: '' })}
+          />
+          
+          {/* Boîte de dialogue Kleea */}
+          <div className="relative bg-[#121214] border border-white/10 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center">
+            
+            <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/10">
+              <RotateCcw size={24} />
+            </div>
+
+            <h3 className="text-base font-black text-white uppercase tracking-wider mb-2">
+              Annuler la Division ?
+            </h3>
+            
+            <p className="text-xs text-white/60 leading-relaxed mb-6">
+              Voulez-vous fusionner à nouveau les sous-parties de <strong className="text-white">"{unsplitModal.txName}"</strong> ? 
+              <br />
+              <span className="text-[10px] text-white/40 block mt-2">
+                Les lignes découpées seront supprimées et l'écriture originale sera restaurée dans votre historique.
+              </span>
+            </p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setUnsplitModal({ show: false, splitId: null, txName: '' })}
+                className="py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs font-black uppercase tracking-wider transition-all cursor-pointer"
+              >
+                Garder découpé
+              </button>
+              
+              <button
+                type="button"
+                onClick={executeUnsplit}
+                className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-indigo-600/25 transition-all cursor-pointer active:scale-95"
+              >
+                Fusionner
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODALE DE SPLIT TRANSACTION */}
+      <SplitTransactionModal
+        isOpen={Boolean(splittingTx)}
+        onClose={() => setSplittingTx(null)}
+        transaction={splittingTx}
+        categoriesVisibles={categoriesVisibles}
+        allocations={allocations}
+        onSuccess={() => {
+          if (typeof fetchTransactions === 'function') {
+            fetchTransactions(); // 👈 Actualise les données sans recharger la page
+          }
+        }}
+      />
     </div>
+
+    
   );
 }

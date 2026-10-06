@@ -31,10 +31,13 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
       
       const token = res.data.access_token;
       const username = res.data.user.toLowerCase();
+      const role = (res.data.role || 'user').toLowerCase(); // 👈 Récupération du rôle
 
       localStorage.setItem('token', token);
       localStorage.setItem('user', username);
-      onLoginSuccess(token, username);
+      localStorage.setItem('role', role); // 👈 Sauvegarde locale
+
+      onLoginSuccess(token, username, role);
     } catch (err) {
       if (err.response && err.response.status === 403) {
         const messageDetail = err.response.data?.detail || "Trop d'échecs. Votre adresse IP a été suspendue temporairement.";

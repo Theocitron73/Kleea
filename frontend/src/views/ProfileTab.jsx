@@ -27,7 +27,7 @@ export default function ProfileTab({
   const [disconnectLoading, setDisconnectLoading] = useState(false);
   const [connectLoading, setConnectLoading] = useState(false);
 
-  const isAdmin = user?.toLowerCase() === 'theo';
+  const isAdmin = profileData?.role === 'admin';
 
   const fetchProfileAndStats = async () => {
     try {
@@ -341,7 +341,7 @@ export default function ProfileTab({
 
           <div className="pt-2 border-t border-white/5 flex items-center justify-between">
             <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-            <span className="text-[10px] font-black text-white/60">Kleea v.4.2</span>
+            <span className="text-[10px] font-black text-white/60">Kleea v.4.3</span>
           </div>
         </div>
 

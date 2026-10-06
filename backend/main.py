@@ -429,11 +429,11 @@ def matches_keyword_boundary(keyword: str, text: str) -> bool:
 @app.get("/transactions")
 @app.get("/transactions/{username}")
 def get_transactions(username: Optional[str] = None, current_user: str = Depends(get_current_user)):
-    # Sécurité : on utilise toujours l'utilisateur garanti par le token
     u_cible = current_user
     
+    # 🟢 AJOUT DE 'split_id' DANS LE SELECT :
     query = text("""
-        SELECT id, date, nom, montant, categorie, utilisateur, mois, annee, compte, enveloppe, prevision_id 
+        SELECT id, date, nom, montant, categorie, utilisateur, mois, annee, compte, enveloppe, prevision_id, split_id 
         FROM transactions 
         WHERE LOWER(utilisateur) = :u
     """)
@@ -462,6 +462,7 @@ class Transaction(BaseModel):
     date: Optional[str] = None
     enveloppe: Optional[str] = None
     prevision_id: Optional[int] = None  # 👈 AJOUT ICI
+    split_id: Optional[str] = None  # 👈 AJOUTEZ CETTE LIGNE
 
 @app.post("/transactions")
 def add_transaction(t: Transaction, current_user: str = Depends(get_current_user)):
@@ -625,7 +626,7 @@ def login(req: LoginRequest, request: Request):
 
     # 2. Recherche normale de l'utilisateur
     query = text("""
-        SELECT username, password 
+        SELECT username, password, role 
         FROM users 
         WHERE LOWER(username) = :identifiant OR LOWER(email) = :identifiant
     """)
@@ -633,48 +634,32 @@ def login(req: LoginRequest, request: Request):
     with engine.connect() as conn:
         result = conn.execute(query, {"identifiant": identifiant_clean}).fetchone()
         
-        # Utilisateur introuvable -> Enregistre un échec
         if not result:
             is_banned, remaining = check_and_record_failed_attempt(client_ip)
             if is_banned:
-                raise HTTPException(status_code=403, detail="Trop de tentatives échouées. Votre adresse IP est suspendue pour 30 minutes.")
+                raise HTTPException(status_code=403, detail="Trop de tentatives. Votre IP est bloquée pour 30 minutes.")
             raise HTTPException(status_code=404, detail="Identifiant ou e-mail inconnu")
         
-        db_username, db_hashed_password = result
+        db_username, db_hashed_password, db_role = result # 👈 On extrait db_role
         
-        # Vérification du mot de passe
-        try:
-            is_valid = verify_password(req.password, db_hashed_password)
-        except Exception:
-            is_valid = (req.password == db_hashed_password)
-
-        # Mot de passe erroné -> Enregistre un échec
-        if not is_valid:
+        # Vérification mot de passe...
+        if not verify_password(req.password, db_hashed_password):
             is_banned, remaining = check_and_record_failed_attempt(client_ip)
             if is_banned:
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Trop d'échecs consécutifs. Votre adresse IP est suspendue pour 30 minutes."
-                )
-            
+                raise HTTPException(status_code=403, detail="Trop d'échecs consécutifs. Votre IP est suspendue pour 30 minutes.")
             pluriel = "s" if remaining > 1 else ""
-            raise HTTPException(
-                status_code=401, 
-                detail=f"Mot de passe incorrect. Il vous reste {remaining} tentative{pluriel} avant suspension."
-            )
+            raise HTTPException(status_code=401, detail=f"Mot de passe incorrect. Il vous reste {remaining} tentative{pluriel} avant suspension.")
             
-        # 🟢 Succès : Nettoie l'historique des échecs pour cette IP
-        with engine.begin() as cleanup_conn:
-            cleanup_conn.execute(text("DELETE FROM login_failed_attempts WHERE ip = :ip"), {"ip": client_ip})
-
-        # Création du Token JWT
-        token = create_access_token(data={"sub": db_username})
+        # Création du Token JWT en intégrant le rôle dans le payload
+        role_final = db_role if db_role else "user"
+        token = create_access_token(data={"sub": db_username, "role": role_final})
 
         return {
             "status": "success", 
             "access_token": token,
             "token_type": "bearer",
-            "user": db_username
+            "user": db_username,
+            "role": role_final # 👈 Renvoyé au client
         }
 
 
@@ -685,12 +670,11 @@ class ImportModeRequest(BaseModel):
 # --- ROUTE : RÉCUPÉRER LE PROFIL ---
 @app.get("/profile/{username}")
 def get_profile(username: str, current_user: str = Depends(get_current_user)):
-    # 🔒 Sécurité JWT
-    if username.lower() != current_user.lower():
+    if username.lower() != current_user:
         raise HTTPException(status_code=403, detail="Accès non autorisé à ce profil")
 
     query = text("""
-        SELECT username, email, name, import_mode 
+        SELECT username, email, name, import_mode, role 
         FROM users 
         WHERE LOWER(username) = LOWER(:username)
     """)
@@ -699,12 +683,13 @@ def get_profile(username: str, current_user: str = Depends(get_current_user)):
         if not result:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
         
-        db_username, db_email, db_name, db_mode = result
+        db_username, db_email, db_name, db_mode, db_role = result
         return {
             "username": db_username,
             "email": db_email,
             "name": db_name if db_name else db_username,
-            "import_mode": db_mode if db_mode else "manual"
+            "import_mode": db_mode if db_mode else "manual",
+            "role": db_role if db_role else "user" # 👈 Renvoyé au client
         }
 
 # --- ROUTE : CHANGER LE MODE D'IMPORT (AUTO / MANUAL) ---
@@ -4508,6 +4493,13 @@ def exec_sync_user_transactions(username: str):
           AND ABS(montant - :m) < 0.001 
           AND nom = :n 
           AND compte = :co 
+        UNION ALL
+        SELECT 1 FROM split_sources 
+        WHERE LOWER(utilisateur) = LOWER(:u) 
+          AND date = :d 
+          AND ABS(montant - :m) < 0.001 
+          AND nom = :n 
+          AND compte = :co 
         LIMIT 1
     """)
 
@@ -5312,3 +5304,162 @@ def generate_isa_conge_pdf(conge_id: int, current_user: str = Depends(get_curren
         'Access-Control-Expose-Headers': 'Content-Disposition'
     }
     return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
+
+
+# =========================================================================
+# ✂️ MODULE SPLIT TRANSACTION (VENTILATION COMPTABLE)
+# =========================================================================
+
+class SplitLine(BaseModel):
+    nom: str
+    montant: float
+    categorie: str
+    enveloppe: Optional[str] = None
+    prevision_id: Optional[int] = None
+
+class SplitRequest(BaseModel):
+    parts: List[SplitLine]
+
+@app.post("/transactions/{t_id}/split")
+def split_transaction(
+    t_id: int, 
+    req: SplitRequest, 
+    current_user: str = Depends(get_current_user)
+):
+    if not req.parts or len(req.parts) < 2:
+        raise HTTPException(status_code=400, detail="Une ventilation nécessite au moins 2 sous-catégories.")
+
+    with engine.begin() as conn:
+        # 1. Récupération de la transaction d'origine
+        query_get = text("""
+            SELECT id, date, nom, montant, categorie, utilisateur, mois, annee, compte 
+            FROM transactions 
+            WHERE id = :id AND LOWER(utilisateur) = :u
+        """)
+        original_tx = conn.execute(query_get, {"id": t_id, "u": current_user}).mappings().first()
+
+        if not original_tx:
+            raise HTTPException(status_code=404, detail="Transaction introuvable ou non autorisée.")
+
+        montant_total_origine = round(float(original_tx["montant"]), 2)
+        somme_parties = round(sum(p.montant for p in req.parts), 2)
+
+        # 2. Vérification d'équilibre strict au centime près
+        if abs(montant_total_origine - somme_parties) > 0.01:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Déséquilibre : la somme ventilée ({somme_parties}€) ne correspond pas au montant d'origine ({montant_total_origine}€)."
+            )
+
+        # 3. Génération d'un identifiant de groupe de ventilation
+        split_id = f"split_{uuid.uuid4().hex[:12]}"
+
+        # 4. Enregistrement de l'empreinte d'origine dans split_sources (bloque les réimports Powens)
+        conn.execute(text("""
+            INSERT INTO split_sources (utilisateur, date, nom, montant, compte, categorie, split_id)
+            VALUES (:u, :d, :n, :m, :co, :c, :sid)
+        """), {
+            "u": current_user,
+            "d": original_tx["date"],
+            "n": original_tx["nom"],
+            "m": montant_total_origine,
+            "co": original_tx["compte"],
+            "c": original_tx["categorie"], # 👈 Sauvegarde la catégorie d'origine
+            "sid": split_id
+        })
+
+        # 5. Suppression de la ligne parente unique
+        conn.execute(text("DELETE FROM transactions WHERE id = :id AND LOWER(utilisateur) = :u"), {
+            "id": t_id,
+            "u": current_user
+        })
+
+        # 6. Insertion des nouvelles écritures ventilées
+        insert_query = text("""
+            INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte, enveloppe, prevision_id, split_id)
+            VALUES (:d, :n, :m, :c, :u, :mo, :a, :co, :env, :prev_id, :sid)
+        """)
+
+        for part in req.parts:
+            conn.execute(insert_query, {
+                "d": original_tx["date"],
+                "n": part.nom.strip(),
+                "m": round(part.montant, 2),
+                "c": part.categorie.strip(),
+                "u": current_user,
+                "mo": original_tx["mois"],
+                "a": original_tx["annee"],
+                "co": original_tx["compte"],
+                "env": part.enveloppe,
+                "prev_id": part.prevision_id,
+                "sid": split_id
+            })
+
+    return {
+        "status": "success", 
+        "split_id": split_id, 
+        "message": f"Transaction ventilée avec succès en {len(req.parts)} écritures."
+    }
+
+@app.post("/transactions/unsplit/{split_id}")
+def unsplit_transaction(
+    split_id: str, 
+    current_user: str = Depends(get_current_user)
+):
+    with engine.begin() as conn:
+        # 1. Récupération sécurisée avec SELECT * (tolère l'absence de colonnes optionnelles)
+        query_source = text("""
+            SELECT * FROM split_sources 
+            WHERE split_id = :sid AND LOWER(utilisateur) = :u
+        """)
+        source = conn.execute(query_source, {"sid": split_id, "u": current_user}).mappings().first()
+
+        if not source:
+            raise HTTPException(status_code=404, detail="Historique de ventilation introuvable.")
+
+        # 2. Suppression propre de toutes les sous-parties ventilées
+        conn.execute(text("DELETE FROM transactions WHERE split_id = :sid AND LOWER(utilisateur) = :u"), {
+            "sid": split_id,
+            "u": current_user
+        })
+
+        # 3. Formatage infaillible de la date
+        raw_date = source["date"]
+        if isinstance(raw_date, str):
+            d_str = raw_date.split(" ")[0].split("T")[0]
+            d_obj = datetime.strptime(d_str, "%Y-%m-%d").date()
+        elif hasattr(raw_date, "year"):
+            d_obj = raw_date
+            d_str = d_obj.strftime("%Y-%m-%d")
+        else:
+            d_obj = date.today()
+            d_str = d_obj.strftime("%Y-%m-%d")
+
+        mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
+        mois_nom = mois_fr[d_obj.month - 1]
+        annee_val = int(d_obj.year)
+
+        # 4. Restauration de la transaction d'origine
+        cat_origine = source.get("categorie") if source.get("categorie") else "Autre"
+        
+        conn.execute(text("""
+            INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte, split_id)
+            VALUES (:d, :n, :m, :c, :u, :mo, :a, :co, NULL)
+        """), {
+            "d": d_str,
+            "n": source["nom"],
+            "m": float(source["montant"]),
+            "c": cat_origine,
+            "u": current_user,
+            "mo": mois_nom,
+            "a": annee_val,
+            "co": source["compte"]
+        })
+
+        # 5. Nettoyage de l'empreinte dans split_sources
+        conn.execute(text("DELETE FROM split_sources WHERE split_id = :sid AND LOWER(utilisateur) = :u"), {
+            "sid": split_id,
+            "u": current_user
+        })
+
+    return {"status": "success", "message": "Transaction originale restaurée."}

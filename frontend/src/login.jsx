@@ -10,7 +10,7 @@ import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
 import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
   Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
   FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen,Trophy,WalletCards,WifiOff,UserX,ShieldAlert
+  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen,Trophy,WalletCards,WifiOff,UserX,ShieldAlert,Scissors,Scale,RotateCcw 
 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
@@ -1122,6 +1122,8 @@ export function ImportPowensModal({
 
 function FinanceApp() {
 
+
+
 const [showExportModal, setShowExportModal] = useState(false);
   
 // Liste des mois pour le select
@@ -1147,7 +1149,8 @@ const moisListe = [
   const [itemToDelete, setItemToDelete] = useState(null); // Stocke le nom du projet à supprimer
   const [projets, setProjets] = useState([]);
   const [form2, setForm2] = useState({ nom: '', cout: '', capa: '', date: '2026-06-01' });
-  const [user, setUser] = useState(localStorage.getItem('user'))
+  const [user, setUser] = useState(localStorage.getItem('user'));
+  const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'user'); // 👈 Nouvel état
   const [loginName, setLoginName] = useState('')
   const [comptes, setComptes] = useState([]);
 
@@ -1831,9 +1834,9 @@ const visibleMenuItems = menuItems.filter(item => {
     return false;
   }
 
-  // 🟢 Réservé uniquement à Théo (inclus 'conges')
+  // 🟢 Pages réservées exclusivement aux administrateurs (Thème, Déménagement, Congés)
   if (item.id === 'theme' || item.id === 'demenagement' || item.id === 'conges') {
-    return user?.toLowerCase() === 'theo';
+    return userRole === 'admin'; // 👈 Fini 'theo', vérifie le vrai rôle !
   }
   
   return true;
@@ -5202,7 +5205,7 @@ const confirmerCalculAssistant = async () => {
 const [showPatchModal, setShowPatchModal] = useState(false);
 
 // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "4.2"; 
+const CURRENT_VERSION = "4.3"; 
 
 useEffect(() => {
   if (!user) return;
@@ -5929,20 +5932,27 @@ useEffect(() => {
   if (user) {
     fetchTransactions();
     fetchComptes();
-    fetchUserTheme("theo");
+    fetchUserTheme(user);
     fetchPowensConnections();
     api.get(`/note/${user}`).then(res => setNote(res.data.texte));
     
-    // 🟢 On attend la réponse officielle de la BDD sur le mode d'import avant toute décision
+    // 🟢 Récupération officielle du profil (mode d'import + rôle)
     api.get(`/profile/${user}`).then(res => {
+      // 1. Mise à jour du rôle utilisateur (admin / user)
+      if (res.data?.role) {
+        const roleCharge = res.data.role.toLowerCase();
+        setUserRole(roleCharge);
+        localStorage.setItem('role', roleCharge);
+      }
+
+      // 2. Gestion du mode d'import
       const modeBDD = res.data?.import_mode || 'manual';
       setImportMode(modeBDD);
 
-      // 🛑 On ne lance la synchro QUE si la BDD confirme formellement le mode 'auto' pour ce compte
       if (modeBDD === 'auto') {
         performBackgroundSyncIfNeeded('auto');
       }
-    });
+    }).catch(err => console.error("Erreur profil:", err));
   }
 }, [user, fetchPowensConnections]);
 
@@ -5952,7 +5962,10 @@ useEffect(() => {
 if (!user) {
     return (
       <AuthView 
-        onLoginSuccess={(token, loggedUser) => setUser(loggedUser)} 
+        onLoginSuccess={(token, loggedUser, role) => {
+          setUser(loggedUser);
+          setUserRole(role || 'user');
+        }} 
         userTheme={userTheme} 
       />
     );
@@ -6383,6 +6396,7 @@ if (!user) {
     <GererDesktop 
       filters={filters}
       setFilters={setFilters}
+      fetchTransactions={fetchTransactions}
       comptes={comptes}
       soldesTries={soldesTries}
       handleProfilChange={handleProfilChange}
@@ -6672,7 +6686,7 @@ if (!user) {
 )}
 
 
-{activeTab === 'theme' && user?.toLowerCase() === 'theo' && (
+{activeTab === 'theme' && userRole === 'admin' && (
   <ThemeStudioDesktop 
     user={user}
     updateThemeLive={updateThemeLive}
@@ -6697,7 +6711,7 @@ if (!user) {
 
 
 
-{activeTab === 'demenagement' && user === 'theo' && (
+{activeTab === 'demenagement' && userRole === 'admin' && (
   <DemenagementPage 
     user={user} 
     toutesLesCategories={toutesLesCategories} 
@@ -6744,7 +6758,7 @@ if (!user) {
           statsAnnuellesCategories={statsAnnuellesCategories}
         />
 
-{activeTab === 'conges' && user?.toLowerCase() === 'theo' && (
+{activeTab === 'conges' && userRole === 'admin' && (
   <CongesPage user={user} />
 )}
 
@@ -7136,157 +7150,94 @@ if (!user) {
 
 
 
-{/* POPUP FLASH : NOTES DE PATCH */}
+{/* =========================================================================
+    🎉 NOTES DE PATCH OFFICIELLES v4.3 : DIVISION DE TRANSACTIONS
+    ========================================================================= */}
 {showPatchModal && (
-  <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none">
     
-    {/* Conteneur de la modale */}
-    <div className="w-full max-w-xl bg-slate-900/95 border border-white/10 rounded-2xl p-6 shadow-2xl backdrop-blur-xl relative overflow-hidden transform transition-all scale-100">
+    <div className="w-full max-w-lg bg-[#121214] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
       
-      {/* Effets de lumière néon en tâche de fond */}
-      <div className="absolute -top-12 -right-12 w-24 h-24 bg-indigo-500/10 blur-2xl rounded-full" />
-      <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-emerald-500/10 blur-2xl rounded-full" />
-
-      {/* En-tête */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 flex items-center justify-center border border-white/10 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
-          <span className="text-xl">✨</span>
-        </div>
-        <div>
-          <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-            Mise à jour v{CURRENT_VERSION}
-          </span>
-          <h3 className="text-sm font-black text-[var(--text-main)] uppercase tracking-wider mt-1">
-            Nouveautés & Évolutions
-          </h3>
-        </div>
-      </div>
-
-      {/* Liste des changements */}
-      <div className="space-y-3 mb-6 max-h-[550px] overflow-y-auto pr-1 custom-scrollbar">
-        
-        {/* 🌟 NOUVEAUTÉ 1 : VISIBILITÉ DES PRÉVISIONS SUR LE DASHBOARD (PC & MOBILE) */}
-        <div className="p-3 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border border-emerald-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(16,185,129,0.06)] animate-in slide-in-from-top-2 duration-300">
-          <span className="text-base mt-0.5">📊</span>
-          <div>
-            <h4 className="text-[14px] font-black text-emerald-300 uppercase tracking-wide">
-              Visibilité des Prévisions sur le Dashboard (PC & Mobile)
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
-              Le tableau de bord fusionne désormais vos flux réels et vos projections financières :
-            </p>
-            <ul className="text-[11px] text-[var(--text-main)]/70 mt-1 space-y-1 list-disc list-inside leading-relaxed">
-              <li><strong className="text-emerald-400">Bilan Annuel enrichi :</strong> visualisation sous chaque mois des revenus prévus, dépenses restantes et patrimoine estimé en fin de mois.</li>
-              <li><strong className="text-emerald-400">Courbes prévisionnelles :</strong> projection en pointillés raccordée à votre historique réel sur les graphiques annuels.</li>
-              <li><strong className="text-emerald-400">Jauge d'épargne double-barre :</strong> affichage direct de l'épargne déjà acquise complétée par le relais hachuré de vos prévisions.</li>
-              <li><strong className="text-emerald-400">Parité Mobile :</strong> l'ensemble de ces analyses prévisionnelles et synthèses est disponible sur smartphone.</li>
-            </ul>
+      {/* 1. EN-TÊTE OFFICIEL DE LA MISE À JOUR */}
+      <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/5">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.2)] shrink-0">
+            <Sparkles size={18} />
           </div>
-        </div>
-
-        {/* NOUVEAUTÉ 2 : LIAISON TRANSACTIONS & PRÉVISIONS (RÉALISÉ VS PRÉVU) */}
-        <div className="p-3 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent border border-indigo-500/20 rounded-xl flex items-start gap-3 shadow-[0_0_20px_rgba(99,102,241,0.06)] animate-in slide-in-from-top-2 duration-300">
-          <span className="text-base mt-0.5">🎯</span>
           <div>
-            <h4 className="text-[14px] font-black text-indigo-300 uppercase tracking-wide">
-              Liaison des Transactions aux Prévisions
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/80 mt-0.5 leading-relaxed">
-              Associez d'un simple clic vos Transactions réelles à vos prévisions budgétaires ! L'application calcule en temps réel votre <strong className="text-indigo-400">avancement (consommé vs prévu)</strong> avec jauge de progression et alertes en cas de dépassement.
-              <br />
-              <span className="text-[11px] text-indigo-300/90 font-semibold mt-1 block">
-                ⚡ Zéro doublon : dès qu'une charge (loyer, assurance) ou un revenu (salaire) est payé et lié, la projection de fin de mois s'ajuste automatiquement sur le reste réel à venir.
+            <div className="flex items-center gap-2">
+              <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                Notes de version
               </span>
-            </p>
+              <span className="text-[9px] font-mono text-white/30 font-bold">v{CURRENT_VERSION}</span>
+            </div>
+            <h3 className="text-sm font-black text-white uppercase tracking-tight mt-0.5">
+              Nouveautés & Améliorations
+            </h3>
           </div>
         </div>
+      </div>
 
-        {/* NOUVEAUTÉ 3 : ICÔNES VECTORIELLES & COULEURS PERSONNALISABLES */}
-        <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl flex items-start gap-3">
-          <span className="text-base mt-0.5">🎨</span>
-          <div>
-            <h4 className="text-[14px] font-black text-white/90 uppercase tracking-wide">
-              Refonte Visuelle : Icônes Vectorielles & Nuancier
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Fini les anciens émojis pixelisés ! Les catégories adoptent désormais des <strong className="text-white">icônes vectorielles modernes et nettes</strong> sur l’ensemble de vos graphiques, barres de suivi et historiques avec personnalisation de l'icône et de la couleur.
-            </p>
-          </div>
+      <div className="space-y-3.5 mb-6 text-left">
+        
+        {/* 2. EXPLICATION DU CONTEXTE (POURQUOI CETTE MISE À JOUR ?) */}
+        <div className="space-y-1">
+          <h4 className="text-[11px] font-black uppercase text-white/90 tracking-wider">
+            Suivi budgétaire multi-catégories
+          </h4>
+          <p className="text-[11px] text-white/60 leading-relaxed font-medium">
+            Dans la vie quotidienne, un seul paiement en magasin regroupe souvent des achats de nature différente. Pour vous offrir une comptabilité ultra-précise, Kleea vous permet désormais de <strong>diviser une dépense unique en plusieurs sous-catégories</strong>.
+          </p>
         </div>
 
-        {/* NOUVEAUTÉ 4 : SYNCHRONISATION CONTINUE SANS EFFORT */}
-        <div className="p-3 bg-indigo-500/5 border border-indigo-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(99,102,241,0.03)]">
-          <span className="text-base mt-0.5">🔌</span>
-          <div>
-            <h4 className="text-[14px] font-black text-indigo-400 uppercase tracking-wide">
-              Synchronisation Automatique Continue
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Plus besoin d'importer manuellement vos fichiers CSV. Dès que votre banque réelle est connectée via Powens, vos transactions sont automatiquement récupérées à l'ouverture du site et synchronisées <strong className="text-indigo-400">toutes les 6 heures en arrière-plan</strong>.
-            </p>
+        {/* 3. EXEMPLE CONCRET D'APPLICATION */}
+        <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+          <div className="flex justify-between items-center text-[8px] font-black uppercase text-amber-300 tracking-wider">
+            <span>Exemple d'application</span>
+            <span className="text-white/40 font-mono">Paiement réel : 90,00 €</span>
           </div>
+
+          <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10.5px] font-bold">
+            <span className="text-white/80">Carrefour (90 €)</span>
+            <span className="text-indigo-400 font-black">➔</span>
+            <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
+              <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">60€ Alimentation</span>
+              <span className="text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30">30€ Maison</span>
+            </div>
+          </div>
+          
+          <p className="text-[9px] text-white/40 italic">
+            Vos soldes bancaires restent parfaitement exacts, tandis que vos graphiques et limites de budget reflètent la réalité de vos achats.
+          </p>
         </div>
 
-        {/* NOUVEAUTÉ 5 : CALCUL AUTOMATIQUE DU SOLDE INITIAL */}
-        <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(16,185,129,0.03)]">
-          <span className="text-base mt-0.5">⚖️</span>
-          <div>
-            <h4 className="text-[14px] font-black text-emerald-400 uppercase tracking-wide">
-              Ajustement Automatique des Soldes
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              L'application calcule automatiquement le <strong className="text-emerald-400">solde de départ exact</strong> de vos comptes virtuels Kleea. Votre solde global affiché sur le Dashboard correspond ainsi toujours en temps réel à l'argent présent sur votre banque.
-            </p>
+        {/* 4. CE QUI CHANGE POUR VOUS (CHANGELOG) */}
+        <div className="space-y-1.5 text-[10px] text-white/70">
+          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <Scissors size={13} className="text-indigo-400 shrink-0" />
+            <span><strong>Outil Ciseaux :</strong> Accessible directement sur chaque ligne dans l'onglet <strong>Gérer</strong>.</span>
           </div>
-        </div>
 
-        {/* NOUVEAUTÉ 6 : DÉTECTION CROISÉE DES VIREMENTS & IBAN */}
-        <div className="p-3 bg-cyan-500/5 border border-cyan-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(6,182,212,0.03)]">
-          <span className="text-base mt-0.5">🔄</span>
-          <div>
-            <h4 className="text-[14px] font-black text-cyan-400 uppercase tracking-wide">
-              Détection Intelligente des Virements Internes
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Grâce à l'analyse croisée des IBANs et numéros de comptes, les virements entre vos comptes (ex: <i>CCP vers Livret A / LEP</i>) sont <strong className="text-cyan-400">automatiquement catégorisés en transferts internes</strong>, sans fausser vos revenus ou vos dépenses.
-            </p>
+          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <Scale size={13} className="text-emerald-400 shrink-0" />
+            <span><strong>Équilibrage automatique :</strong> Ajuste automatiquement le reste à répartir au centime près.</span>
           </div>
-        </div>
 
-        {/* NOUVEAUTÉ 7 : GESTION DES DOUBLONS & INDEXATION (#2, #3) */}
-        <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(245,158,11,0.03)]">
-          <span className="text-base mt-0.5">🛡️</span>
-          <div>
-            <h4 className="text-[14px] font-black text-amber-400 uppercase tracking-wide">
-              Indexation Transparente des Transactions Identiques
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Plus aucun blocage lors de l'import : si plusieurs transactions identiques ont lieu le même jour, elles sont indexées avec <strong className="text-amber-400">#2, #3...</strong> et signalées visuellement pour vous permettre de les vérifier ou modifier à tout moment.
-            </p>
-          </div>
-        </div>
-
-        {/* NOUVEAUTÉ 8 : CONTRÔLE TOTAL DANS LE PROFIL */}
-        <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-xl flex items-start gap-3 shadow-[0_0_15px_rgba(168,85,247,0.03)]">
-          <span className="text-base mt-0.5">⚙️</span>
-          <div>
-            <h4 className="text-[14px] font-black text-purple-400 uppercase tracking-wide">
-              Liberté de Choix (Profil)
-            </h4>
-            <p className="text-[12px] font-medium text-[var(--text-main)]/70 mt-0.5 leading-relaxed">
-              Vous gardez le contrôle : basculez à tout instant entre le <strong className="text-purple-400">Mode Automatique</strong> et le <strong className="text-purple-400">Mode Manuel</strong> directement depuis la page de votre profil.
-            </p>
+          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+            <RotateCcw size={13} className="text-rose-400 shrink-0" />
+            <span><strong>Annulation en 1 clic :</strong> Cliquez sur le badge violet <strong>[Divisée]</strong> pour refusionner l'écriture originale.</span>
           </div>
         </div>
 
       </div>
 
-      {/* Bouton de fermeture */}
+      {/* 5. BOUTON DE FERMETURE */}
       <button
+        type="button"
         onClick={handleClosePatchModal}
-        className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-emerald-600 hover:from-indigo-500 hover:to-emerald-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-xl border border-white/10 shadow-lg shadow-indigo-500/10 active:scale-[0.98] transition-all duration-200 outline-none cursor-pointer"
+        className="w-full py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer"
       >
-        Découvrir les nouveautés !
+        Découvrir la mise à jour ! 🚀
       </button>
 
     </div>
