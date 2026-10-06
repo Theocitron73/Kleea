@@ -1572,83 +1572,197 @@ def save_masked_categories(user: str, categories: List[str] = Body(default=[]), 
 
 
 
+# =========================================================================
+# 📥 MOTEUR D'IMPORTATION UNIVERSEL : CSV, OFX, QIF & QFX
+# =========================================================================
+
+def clean_val_to_float(val) -> float:
+    if not val:
+        return 0.0
+    res = str(val).replace('+', '').replace('\xa0', '').replace(' ', '').replace('EUR', '').strip()
+    res = res.replace(',', '.')
+    try:
+        return float(res)
+    except ValueError:
+        return 0.0
+
+def parse_ofx_data(content: str):
+    """Parseur robuste pour les fichiers bancaires OFX 1.x (SGML) et OFX 2.x (XML)."""
+    transactions = []
+    # Isole chaque bloc <STMTTRN>...</STMTTRN>
+    blocks = re.findall(r'<STMTTRN>(.*?)(?:</STMTTRN>|(?=<STMTTRN>)|$)', content, flags=re.DOTALL | re.IGNORECASE)
+    
+    for block in blocks:
+        # Date : <DTPOSTED>20261005120000 ou <DTPOSTED>2026-10-05
+        date_match = re.search(r'<DTPOSTED>\s*([0-9\-\:\s]+)', block, re.IGNORECASE)
+        # Montant : <TRNAMT>-45.50
+        amount_match = re.search(r'<TRNAMT>\s*([\+\-0-9\.,\s]+)', block, re.IGNORECASE)
+        # Nom : <NAME>CARREFOUR
+        name_match = re.search(r'<NAME>\s*([^<\r\n]+)', block, re.IGNORECASE)
+        # Memo / Info : <MEMO>CB 04/10
+        memo_match = re.search(r'<MEMO>\s*([^<\r\n]+)', block, re.IGNORECASE)
+
+        if date_match and amount_match:
+            raw_date = date_match.group(1).strip()
+            # Nettoyage date OFX (format YYYYMMDD...)
+            if len(raw_date) >= 8 and raw_date[:8].isdigit():
+                date_str = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+            else:
+                date_str = raw_date[:10]
+
+            montant = clean_val_to_float(amount_match.group(1))
+            nom = name_match.group(1).strip() if name_match else ""
+            memo = memo_match.group(1).strip() if memo_match else ""
+            
+            libelle = f"{nom} {memo}".strip() if memo and memo != nom else (nom or memo or "Transaction OFX")
+            transactions.append({
+                "raw_date": date_str,
+                "nom": libelle,
+                "montant": montant
+            })
+    return transactions
+
+def parse_qif_data(content: str):
+    """Parseur officiel pour les fichiers Quicken QIF."""
+    transactions = []
+    # Sépare les enregistrements par le caractère '^'
+    records = content.split('^')
+    
+    for record in records:
+        lines = [l.strip() for l in record.splitlines() if l.strip()]
+        if not lines:
+            continue
+        
+        raw_date = None
+        montant = 0.0
+        payee = ""
+        memo = ""
+
+        for line in lines:
+            code = line[0].upper()
+            val = line[1:].strip()
+            
+            if code == 'D': # Date (ex: D05/10/2026 ou D05/10'26 ou D2026-10-05)
+                raw_date = val.replace("'", "/")
+            elif code == 'T': # Montant (ex: T-45.50)
+                montant = clean_val_to_float(val)
+            elif code == 'P': # Payee / Bénéficiaire
+                payee = val
+            elif code == 'M': # Memo / Description
+                memo = val
+
+        if raw_date and (payee or memo or montant != 0):
+            # Normalisation de la date QIF
+            dt = pd.to_datetime(raw_date, dayfirst=True, errors='coerce')
+            if pd.notna(dt):
+                date_str = dt.strftime('%Y-%m-%d')
+                libelle = f"{payee} {memo}".strip() if memo and memo != payee else (payee or memo or "Transaction QIF")
+                transactions.append({
+                    "raw_date": date_str,
+                    "nom": libelle,
+                    "montant": montant
+                })
+    return transactions
+
 @app.post("/import-csv")
-async def import_csv(
+@app.post("/import-file")
+async def import_file(
     compte: Optional[str] = None, 
     file: UploadFile = File(...),
-    utilisateur: Optional[str] = None, # Conservé pour rétrocompatibilité d'URL
-    current_user: str = Depends(get_current_user) # 👈 JWT forcé
+    utilisateur: Optional[str] = None,
+    current_user: str = Depends(get_current_user)
 ):
-    # L'utilisateur connecté écrase tout paramètre passé dans l'URL
     user_cible = current_user
     try:
         contents = await file.read()
         try:
             decoded = contents.decode('utf-8')
         except Exception:
-            decoded = contents.decode('latin-1')
+            try:
+                decoded = contents.decode('latin-1')
+            except Exception:
+                decoded = contents.decode('cp1252', errors='ignore')
             
-        lines = [l.strip() for l in decoded.splitlines() if l.strip()]
-        if not lines:
-            return []
-        
-        is_revolut = "Date de début" in lines[0] or "Type,Produit" in lines[0]
-        separator = ',' if is_revolut else ';'
-        
-        start_line = 0
-        for i, line in enumerate(lines[:20]):
-            l = line.lower()
-            if (any(k in l for k in ['date', 'le ']) and 
-                any(k in l for k in ['libell', 'montant', 'débit', 'crédit', 'description'])):
-                start_line = i
-                break
-        
-        csv_data = "\n".join(lines[start_line:])
-        df = pd.read_csv(io.StringIO(csv_data), sep=separator, engine='python', on_bad_lines='skip')
-        df.columns = [c.strip().lower() for c in df.columns]
+        filename = (file.filename or "").lower()
+        extracted_txs = []
 
-        col_date = next((c for c in df.columns if any(k in c for k in ['date de début', 'start date', 'date operation', 'date'])), None)
-        col_nom = next((c for c in df.columns if any(k in c for k in ['description', 'libelle simplifie', 'nom', 'libell'])), None)
-        col_montant = next((c for c in df.columns if any(k in c for k in ['montant', 'amount', 'valeur'])), None)
-        col_debit = next((c for c in df.columns if 'debit' in c or 'débit' in c), None)
-        col_credit = next((c for c in df.columns if 'credit' in c or 'crédit' in c), None)
-        col_etat = next((c for c in df.columns if any(k in c for k in ['état', 'status', 'state'])), None)
-        col_info = next((c for c in df.columns if any(k in c for k in ['informations complementaires', 'info'])), None)
+        # 1. Détection et extraction selon le format
+        if filename.endswith('.ofx') or filename.endswith('.qfx') or '<OFX>' in decoded.upper() or '<STMTTRN>' in decoded.upper():
+            extracted_txs = parse_ofx_data(decoded)
+        elif filename.endswith('.qif') or '!TYPE:BANK' in decoded.upper() or '!TYPE:CCARD' in decoded.upper():
+            extracted_txs = parse_qif_data(decoded)
+        else:
+            # Traitement CSV classique
+            lines = [l.strip() for l in decoded.splitlines() if l.strip()]
+            if not lines:
+                return []
+            
+            is_revolut = "Date de début" in lines[0] or "Type,Produit" in lines[0]
+            separator = ',' if is_revolut else ';'
+            
+            start_line = 0
+            for i, line in enumerate(lines[:20]):
+                l = line.lower()
+                if (any(k in l for k in ['date', 'le ']) and 
+                    any(k in l for k in ['libell', 'montant', 'débit', 'crédit', 'description'])):
+                    start_line = i
+                    break
+            
+            csv_data = "\n".join(lines[start_line:])
+            df = pd.read_csv(io.StringIO(csv_data), sep=separator, engine='python', on_bad_lines='skip')
+            df.columns = [c.strip().lower() for c in df.columns]
 
+            col_date = next((c for c in df.columns if any(k in c for k in ['date de début', 'start date', 'date operation', 'date'])), None)
+            col_nom = next((c for c in df.columns if any(k in c for k in ['description', 'libelle simplifie', 'nom', 'libell'])), None)
+            col_montant = next((c for c in df.columns if any(k in c for k in ['montant', 'amount', 'valeur'])), None)
+            col_debit = next((c for c in df.columns if 'debit' in c or 'débit' in c), None)
+            col_credit = next((c for c in df.columns if 'credit' in c or 'crédit' in c), None)
+            col_etat = next((c for c in df.columns if any(k in c for k in ['état', 'status', 'state'])), None)
+            col_info = next((c for c in df.columns if any(k in c for k in ['informations complementaires', 'info'])), None)
+
+            for _, row in df.iterrows():
+                if pd.isna(row.get(col_date)): continue
+                if col_etat and pd.notna(row.get(col_etat)):
+                    if str(row[col_etat]).upper() not in ['TERMINÉ', 'COMPLETED', 'FINI']:
+                        continue
+
+                montant_float = 0.0
+                if col_debit or col_credit:
+                    d_val = clean_val_to_float(row.get(col_debit)) if col_debit else 0.0
+                    c_val = clean_val_to_float(row.get(col_credit)) if col_credit else 0.0
+                    if d_val != 0.0: montant_float = -abs(d_val)
+                    elif c_val != 0.0: montant_float = abs(c_val)
+                elif col_montant:
+                    montant_float = clean_val_to_float(row.get(col_montant))
+
+                nom_t = str(row.get(col_nom, "")).strip()
+                info_t = str(row.get(col_info, "")) if col_info and pd.notna(row.get(col_info)) else ""
+                libelle_complet = f"{nom_t} {info_t}".strip() if info_t else nom_t
+
+                extracted_txs.append({
+                    "raw_date": str(row[col_date]).split(' ')[0],
+                    "nom": libelle_complet,
+                    "montant": montant_float
+                })
+
+        # 2. Intelligence, Mots-clés et Mémoire
         mots_cles_rules = get_mots_cles_rules(user_cible)
         memoire_rules = fetch_memoire_data(user_cible)
 
         transactions_pretes = []
         mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
 
-        for _, row in df.iterrows():
-            if pd.isna(row[col_date]): continue
-            if col_etat and pd.notna(row[col_etat]):
-                if str(row[col_etat]).upper() not in ['TERMINÉ', 'COMPLETED', 'FINI']:
-                    continue
-
+        for item in extracted_txs:
             try:
-                def clean_val(val):
-                    if pd.isna(val) or val == "": return "0"
-                    res = str(val).replace('+', '').replace('\xa0', '').replace(' ', '').strip()
-                    return res.replace(',', '.')
+                dt = pd.to_datetime(item["raw_date"], dayfirst=True, errors='coerce')
+                if pd.isna(dt): continue
 
-                montant_float = 0.0
-                if col_debit or col_credit:
-                    d_val = clean_val(row.get(col_debit)) if col_debit else "0"
-                    c_val = clean_val(row.get(col_credit)) if col_credit else "0"
-                    if d_val and d_val not in ["0", "0.00", "0.0"]: 
-                        montant_float = -abs(float(d_val)) 
-                    elif c_val and c_val not in ["0", "0.00", "0.0"]: 
-                        montant_float = abs(float(c_val))
-                elif col_montant:
-                    montant_float = float(clean_val(row[col_montant]))
-
-                nom_t = str(row[col_nom]).strip()
-                info_t = str(row[col_info]) if col_info and pd.notna(row[col_info]) else ""
+                montant_float = item["montant"]
+                nom_t = item["nom"]
                 nom_t_lower = nom_t.lower()
-                texte_integral_upper = (nom_t + " " + info_t).upper()
+                texte_integral_upper = nom_t.upper()
 
+                # A. Priorité 1 : Virements internes
                 cat = "Autre"
                 if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
                     types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
@@ -1658,6 +1772,7 @@ async def import_csv(
                     else:
                         cat = "Transfert Interne"
 
+                # B. Priorité 2 : Mémoire apprise
                 if cat == "Autre":
                     nom_t_normalise = " ".join(nom_t_lower.split())
                     for m in memoire_rules:
@@ -1666,6 +1781,7 @@ async def import_csv(
                             cat = m["categorie"]
                             break
 
+                # C. Priorité 3 : Mots-clés
                 if cat == "Autre":
                     for rule in mots_cles_rules:
                         matched = False
@@ -1686,10 +1802,6 @@ async def import_csv(
                                     break
                         if matched: break
 
-                date_str = str(row[col_date]).split(' ')[0]
-                dt = pd.to_datetime(date_str, dayfirst=True, errors='coerce')
-                if pd.isna(dt): continue
-                
                 transactions_pretes.append({
                     "date": dt.strftime('%Y-%m-%d'),
                     "nom": nom_t,
@@ -1702,9 +1814,9 @@ async def import_csv(
                 })
 
             except Exception as e:
-                print(f"Erreur sur une ligne : {e}")
+                print(f"Erreur parsing ligne : {e}")
                 continue
-            
+
         return transactions_pretes
 
     except Exception as e:

@@ -3511,32 +3511,38 @@ useEffect(() => {
 const [isDragging, setIsDragging] = useState(false);
 
 const onDragOver = (e) => {
-  e.preventDefault();
-  setIsDragging(true);
-};
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    setIsDragging(true);
+  };
 
-const onDragLeave = () => {
-  setIsDragging(false);
-};
+  const onDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
 
-const onDrop = (e) => {
-  e.preventDefault();
-  setIsDragging(false);
-  
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
+  const onDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer?.files?.[0];
+    if (!file) return;
 
-  // On vérifie l'extension .csv ou le type mime
-  const isCSV = file.name.toLowerCase().endsWith('.csv') || 
-                file.type === "text/csv" || 
-                file.type === "application/vnd.ms-excel";
+    // 🟢 Accepte désormais .csv, .ofx, .qif et .qfx
+    const validExtensions = ['.csv', '.ofx', '.qif', '.qfx'];
+    const isSupported = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext));
 
-  if (isCSV) {
-    handleFileUpload(file);
-  } else {
-    toast.error("Format invalide : déposez un fichier .csv");
-  }
-};
+    if (isSupported) {
+      handleFileUpload(file);
+    } else {
+      toast.error("Format non supporté : déposez un fichier .csv, .ofx ou .qif");
+    }
+  };
 
 
 

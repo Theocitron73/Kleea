@@ -439,28 +439,64 @@ export default function ImportDesktop({
               );
             })()}
 
-            {/* ACTION 3 : CSV */}
+            {/* ACTION 3 : GLISSER-DÉPOSER UN FICHIER (CSV, OFX, QIF) */}
             <div 
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
-              onDrop={(e) => { onDrop(e); const file = e.dataTransfer.files[0]; if (file) setFileName(file.name); }}
-              onClick={() => document.getElementById('csvInput').click()}
+              onDrop={onDrop}
+              onClick={() => document.getElementById('fileInputDesktop')?.click()}
               className={`
-                rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+                relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-300 cursor-pointer overflow-hidden min-h-[80px] select-none
                 ${isDragging 
-                  ? 'bg-[var(--primary)]/10 border-[var(--primary)] scale-[1.01]' 
+                  ? 'bg-indigo-500/20 border-indigo-400 scale-[1.02] shadow-[0_0_30px_rgba(99,102,241,0.3)]' 
                   : transactionsCalculees?.length > 0 
                     ? 'bg-emerald-500/5 border-emerald-500/30' 
-                    : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)]'}
+                    : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-white/20'}
               `}
             >
-              <input type="file" id="csvInput" className="hidden" accept=".csv" onChange={(e) => { const file = e.target.files[0]; if (file) { setFileName(file.name); handleFileUpload(file); } }} />
-              <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${transactionsCalculees?.length > 0 && !isDragging ? 'bg-emerald-500 text-black' : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--primary)]'}`}>
-                {transactionsCalculees?.length > 0 && !isDragging ? <Check size={18} strokeWidth={3} /> : <Upload size={18} />}
+              <input 
+                type="file" 
+                id="fileInputDesktop" 
+                className="hidden" 
+                accept=".csv,.ofx,.qif,.qfx" 
+                onChange={(e) => { 
+                  const file = e.target.files?.[0]; 
+                  if (file) handleFileUpload(file); 
+                }} 
+              />
+              
+              {/* Icône dynamique */}
+              <div className={`pointer-events-none p-3 rounded-xl transition-all duration-300 shrink-0 ${
+                transactionsCalculees?.length > 0 && !isDragging 
+                  ? 'bg-emerald-500 text-black' 
+                  : isDragging
+                    ? 'bg-indigo-500 text-white animate-bounce'
+                    : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--primary)]'
+              }`}>
+                {transactionsCalculees?.length > 0 && !isDragging ? (
+                  <Check size={18} strokeWidth={3} />
+                ) : (
+                  <Upload size={18} />
+                )}
               </div>
-              <div className="flex flex-col min-w-0">
-                <h3 className={`text-[11px] font-black uppercase tracking-[0.15em] ${transactionsCalculees?.length > 0 ? 'text-emerald-400' : 'text-[var(--text-main)]'}`}>Glisser le Fichier CSV</h3>
-                <p className="text-[8px] text-[var(--text-main)]/30 font-bold uppercase tracking-widest truncate">Import manuel</p>
+
+              {/* Textes explicites Drag & Drop */}
+              <div className="pointer-events-none flex flex-col min-w-0">
+                <h3 className={`text-[11px] font-black uppercase tracking-[0.15em] ${
+                  isDragging
+                    ? 'text-indigo-300'
+                    : transactionsCalculees?.length > 0 
+                      ? 'text-emerald-400' 
+                      : 'text-[var(--text-main)]'
+                }`}>
+                  {isDragging ? 'Déposez votre fichier ici !' : 'Glisser-Déposer ou Cliquer'}
+                </h3>
+                
+                <p className="text-[8px] text-[var(--text-main)]/40 font-bold uppercase tracking-widest truncate">
+                  {transactionsCalculees?.length > 0 
+                    ? 'Fichier chargé • Prêt pour validation' 
+                    : 'Fichiers CSV, OFX ou QIF'}
+                </p>
               </div>
             </div>
           </div>

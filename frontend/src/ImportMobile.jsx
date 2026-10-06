@@ -232,14 +232,14 @@ export default function ImportMobile(props) {
             </div>
 
             <div 
-              onClick={() => document.getElementById('csvInputMobile').click()}
+              onClick={() => document.getElementById('fileInputMobile').click()}
               className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
             >
               <input 
                 type="file" 
-                id="csvInputMobile" 
+                id="fileInputMobile" 
                 className="hidden" 
-                accept=".csv" 
+                accept=".csv,.ofx,.qif,.qfx" 
                 onChange={(e) => { 
                   const file = e.target.files[0]; 
                   if (file) { 
@@ -252,8 +252,8 @@ export default function ImportMobile(props) {
                 <Upload size={16} />
               </div>
               <div>
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Importer un fichier CSV</h4>
-                <p className="text-[8px] text-white/30 uppercase font-black">Importation et répartition</p>
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Importer un fichier</h4>
+                <p className="text-[8px] text-white/30 uppercase font-black">Formats CSV, OFX ou QIF</p>
               </div>
             </div>
           </div>
