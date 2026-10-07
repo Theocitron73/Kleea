@@ -3716,7 +3716,6 @@ const appliquerIntelligence = (transactions, config) => {
   if (!transactions || transactions.length === 0) return [];
   if (!config || config.length === 0) return transactions;
 
-  // 1. Extraire et nettoyer TOUS les mots-clés de TOUTES les catégories
   const allRules = [];
   config.forEach(cat => {
     (cat.mots_cles || []).forEach(rawKw => {
@@ -3726,19 +3725,13 @@ const appliquerIntelligence = (transactions, config) => {
       const kw = parts[0].replace(/["']/g, '').trim().toLowerCase();
       const sign = parts[1] ? parts[1].trim().toLowerCase() : 'both';
       if (kw) {
-        allRules.push({
-          keyword: kw,
-          sign: sign,
-          categorie: cat.categorie
-        });
+        allRules.push({ keyword: kw, sign: sign, categorie: cat.categorie });
       }
     });
   });
 
-  // 2. Trier du mot-clé le plus long au plus court (les plus précis ont priorité)
   allRules.sort((a, b) => b.keyword.length - a.keyword.length);
 
-  // 3. Détecteur de transferts internes (pour ne pas écraser les virements déjà reconnus)
   const isInternalTransfer = (cat) => {
     if (!cat) return false;
     const c = String(cat).toLowerCase();
@@ -3746,7 +3739,6 @@ const appliquerIntelligence = (transactions, config) => {
   };
 
   return transactions.map(t => {
-    // Si c'est déjà un virement interne, on le préserve
     if (isInternalTransfer(t.categorie)) {
       return t;
     }
@@ -3754,7 +3746,8 @@ const appliquerIntelligence = (transactions, config) => {
     const nomNettoye = (t.nom || "").toLowerCase().replace(/\s+/g, ' ').trim();
     const montant = parseFloat(t.montant) || 0;
 
-    let nouvelleCategorie = "Autre";
+    // 🟢 CONSERVE LA CATÉGORIE POWENS SI AUCUN MOT-CLÉ NE MATCHE
+    let nouvelleCategorie = t.categorie || "Autre";
 
     for (const rule of allRules) {
       if (matchesKeywordBoundary(rule.keyword, nomNettoye)) {
@@ -6472,6 +6465,7 @@ if (!user) {
     <div className="block lg:hidden">
       <GererMobile    
         toutesLesCategories={toutesLesCategories}
+        fetchTransactions={fetchTransactions}
         masquees={masquees}
         setMasquees={setMasquees}
         categoriesPerso={categoriesPerso}
@@ -6593,6 +6587,7 @@ if (!user) {
         isSyncingPowens={isSyncingPowens}
         handleConnectNewBank={handleConnectNewBank}
         isManualSyncing={isManualSyncing}
+        setIsManualSyncing={setIsManualSyncing} // 👈 Vérifiez cette ligne
         isSyncingData={isSyncingData}
         isCheckingSync={isCheckingSync}
         handleSyncPowens={handleSyncPowens}
@@ -6600,6 +6595,7 @@ if (!user) {
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         onDrop={onDrop}
+        isDragging={isDragging} // 👈 Vérifiez cette ligne
         setFileName={setFileName}
         handleFileUpload={handleFileUpload}
         transactionsCalculees={transactionsCalculees}
@@ -6616,6 +6612,7 @@ if (!user) {
         soldesTries={soldesTries}
         CustomSelect={CustomSelect} 
         categoriesVisibles={categoriesVisibles}
+        handleForceRefreshPowens={handleForceRefreshPowens}
       />
     </div>
   </>
@@ -6661,7 +6658,7 @@ if (!user) {
       handleConnectNewBank={handleConnectNewBank}
     />
 
-    {/* Version Mobile existante inchangée */}
+    {/* Version Mobile existante */}
     <div className="block lg:hidden">
       <ComptesMobile 
         comptes={comptes}
@@ -6686,6 +6683,9 @@ if (!user) {
         importMode={importMode}
         powensData={powensData}
         handleAssociateAccount={handleAssociateAccount}
+        creationPowensName={creationPowensName}
+        setCreationPowensName={setCreationPowensName}
+        handleConnectNewBank={handleConnectNewBank} // 👈 Vérifiez cette ligne
       />
     </div>
   </>

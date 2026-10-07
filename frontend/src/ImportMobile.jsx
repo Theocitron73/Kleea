@@ -3,21 +3,19 @@ import {
   Upload, Wallet, Building2, RefreshCw, Plus, Download, Check, 
   Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, Search, Tag, CreditCard
 } from 'lucide-react';
-import DatePicker from 'react-datepicker';
-import { CategoryIcon, getCleanCategoryName } from './categoryIcons';
+import { CategoryIcon, getCleanCategoryName } from './categoryIcons'; // 👈 Adaptez le chemin ('./categoryIcons' ou '../categoryIcons') selon l'emplacement
 
 export default function ImportMobile(props) {
   const {
     selectedCompte, setSelectedCompte, comptes,
     powensData, syncCountByAccount, handleAssociateAccount,
     isSyncingPowens, handleConnectNewBank,
-    isManualSyncing, isSyncingData, isCheckingSync, handleSyncPowens, hasPendingSync,
-    onDragOver, onDragLeave, onDrop, setFileName, handleFileUpload,
+    isManualSyncing, setIsManualSyncing, isSyncingData, isCheckingSync, handleSyncPowens, hasPendingSync,
+    onDragOver, onDragLeave, onDrop, isDragging, setFileName, handleFileUpload,
     transactionsCalculees, setTempTransactions, confirmBatchImport,
     categoriesPourIntelligence, intelSelectedCat, setIntelSelectedCat, activeCategoryData,
     handleRemoveKeyword, handleAddKeyword, signType, setSignType,
     CustomSelect, categoriesVisibles,
-    // 🟢 Récupération de la fonction d'actualisation forcée passée depuis le parent
     handleForceRefreshPowens
   } = props;
 
@@ -27,15 +25,36 @@ export default function ImportMobile(props) {
   const isExecutingSync = isManualSyncing || isSyncingData || isCheckingSync;
   const nouvellesLignes = transactionsCalculees ? transactionsCalculees.filter(t => !t.isAlreadyImported) : [];
 
-  // Helper pour reconnaître les virements internes
+  // Helper virements internes
   const isInternalTransfer = (cat) => {
     if (!cat) return false;
     const c = cat.toLowerCase();
     return c.includes("vers") || c.includes("transfert") || c.startsWith("🔄") || c.startsWith("virement :");
   };
 
+  // Liste des comptes avec transactions en attente
+  const unsyncedAccounts = Object.entries(syncCountByAccount || {}).filter(
+    ([_, data]) => {
+      const count = typeof data === 'object' ? data?.count : Number(data);
+      return count > 0;
+    }
+  );
+
+  // Déclencheur de synchronisation sécurisé sans argument d'événement
+  const handleClickSync = async () => {
+    if (isExecutingSync) return;
+    if (typeof setIsManualSyncing === 'function') setIsManualSyncing(true);
+    try {
+      if (handleSyncPowens) {
+        await handleSyncPowens();
+      }
+    } finally {
+      if (typeof setIsManualSyncing === 'function') setIsManualSyncing(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2 select-none">
       
       {/* 1. EN-TÊTE MOBILE */}
       <div className="mb-4 mt-2">
@@ -50,8 +69,9 @@ export default function ImportMobile(props) {
       {/* 2. ONGLETS MOBILES */}
       <div className="flex border-b border-white/5 mb-4 select-none">
         <button 
+          type="button"
           onClick={() => setMobileSubTab('sources')}
-          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             mobileSubTab === 'sources' 
               ? 'border-[var(--primary)] text-[var(--primary)]' 
               : 'border-transparent text-white/40'
@@ -59,9 +79,11 @@ export default function ImportMobile(props) {
         >
           Sources & Synchro
         </button>
+        
         <button 
+          type="button"
           onClick={() => setMobileSubTab('previsu')}
-          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 relative ${
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 relative cursor-pointer ${
             mobileSubTab === 'previsu' 
               ? 'border-[var(--primary)] text-[var(--primary)]' 
               : 'border-transparent text-white/40'
@@ -74,9 +96,11 @@ export default function ImportMobile(props) {
             </span>
           )}
         </button>
+        
         <button 
+          type="button"
           onClick={() => setMobileSubTab('intel')}
-          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             mobileSubTab === 'intel' 
               ? 'border-[var(--primary)] text-[var(--primary)]' 
               : 'border-transparent text-white/40'
@@ -86,7 +110,9 @@ export default function ImportMobile(props) {
         </button>
       </div>
 
-      {/* SECTION 1 : SOURCES */}
+      {/* =========================================================================
+          SECTION 1 : SOURCES DE SYNCHRONISATION
+          ========================================================================= */}
       {mobileSubTab === 'sources' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           
@@ -100,7 +126,7 @@ export default function ImportMobile(props) {
             className="p-2.5 rounded-xl text-[10px]"
           />
 
-          {/* ACCORDEON POWENS AVEC BOUTON D'ACTUALISATION RAPIDE */}
+          {/* ACCORDÉON DES COMPTES POWENS CONNECTÉS */}
           {powensData?.connections && powensData.connections.length > 0 && (
             <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl overflow-hidden">
               <div className="flex items-center justify-between p-2.5 pr-3">
@@ -113,10 +139,9 @@ export default function ImportMobile(props) {
                     <Building2 size={13} className="text-[var(--primary)] shrink-0" />
                     <span className="truncate">Associer vos comptes ({powensData?.accounts_count || 0})</span>
                   </span>
-                  <span className="text-[9px]">{powensPanelOpen ? '▲' : '▼'}</span>
+                  <span className={`text-[9px] transition-transform ${powensPanelOpen ? 'rotate-180' : ''}`}>▼</span>
                 </button>
 
-                {/* 🟢 Bouton d'actualisation forcée sur mobile */}
                 {handleForceRefreshPowens && (
                   <button
                     type="button"
@@ -164,13 +189,13 @@ export default function ImportMobile(props) {
 
                                 <div className="flex flex-col gap-2 pt-1 border-t border-white/5">
                                   <div className="flex items-center justify-between">
-                                    <span className="text-[8px] uppercase tracking-wider text-white/40 font-bold shrink-0">Status :</span>
+                                    <span className="text-[8px] uppercase tracking-wider text-white/40 font-bold shrink-0">Statut :</span>
                                     {!isAssociated ? (
                                       <span className="text-[7px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded font-black uppercase">Non lié</span>
                                     ) : isDesynced ? (
-                                      <span className="text-[7px] bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-black uppercase animate-pulse">Flux en attente</span>
+                                      <span className="text-[7px] bg-rose-500/15 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded font-black uppercase animate-pulse">Nouvelles transactions</span>
                                     ) : (
-                                      <span className="text-[7px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-black uppercase">Lié</span>
+                                      <span className="text-[7px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-black uppercase">Synchronisé</span>
                                     )}
                                   </div>
 
@@ -197,8 +222,10 @@ export default function ImportMobile(props) {
             </div>
           )}
 
-          {/* ACTIONS D'IMPORT */}
+          {/* ACTIONS D'IMPORTATION */}
           <div className="space-y-3">
+            
+            {/* ACTION 1 : NOUVELLE BANQUE */}
             <div 
               onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
               className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
@@ -208,32 +235,109 @@ export default function ImportMobile(props) {
               </div>
               <div>
                 <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Ajouter une banque</h4>
-                <p className="text-[8px] text-white/30 uppercase font-black">Liaison API via Powens</p>
+                <p className="text-[8px] text-white/30 uppercase font-black">Connexion API via Powens</p>
               </div>
             </div>
 
+            {/* 🟢 ACTION 2 : SYNCHRONISER AVEC LES NOMS DE COMPTES & COMPTEURS DE TRANSACTIONS */}
             <div 
-              onClick={isExecutingSync ? undefined : handleSyncPowens}
-              className={`p-4 border rounded-2xl flex items-center gap-3 transition-all cursor-pointer ${
-                hasPendingSync 
-                  ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg shadow-[var(--primary)]/5' 
-                  : 'bg-[var(--glass-bg)] border-white/10 active:bg-white/5'
-              }`}
+              onClick={handleClickSync}
+              className={`
+                relative rounded-2xl p-4 flex flex-col gap-2.5 border transition-all duration-300 cursor-pointer overflow-hidden
+                ${hasPendingSync 
+                  ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg shadow-[var(--primary)]/10' 
+                  : isExecutingSync 
+                    ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
+                    : 'bg-[var(--glass-bg)] border-white/10 active:bg-white/5'}
+              `}
             >
-              <div className={`p-3 rounded-xl shrink-0 ${isExecutingSync ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 text-[var(--primary)]'}`}>
-                <RefreshCw size={16} />
+              {/* Pastille clignotante si transactions en attente */}
+              {hasPendingSync && !isExecutingSync && (
+                <span className="absolute top-3.5 right-3.5 flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg" />
+                </span>
+              )}
+
+              <div className="flex items-center gap-3">
+                <div className={`p-3 rounded-xl transition-all duration-300 shrink-0 ${
+                  isExecutingSync 
+                    ? 'bg-[var(--primary)] text-black animate-spin' 
+                    : hasPendingSync 
+                      ? 'bg-[var(--primary)] text-black' 
+                      : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+                }`}>
+                  {isExecutingSync ? <RefreshCw size={16} /> : <Download size={16} />}
+                </div>
+
+                <div className="flex-1 min-w-0 pr-3">
+                  <h4 className="text-[11px] font-black uppercase tracking-wider text-white leading-tight">
+                    Synchroniser
+                  </h4>
+                  <p className={`text-[8.5px] font-black uppercase truncate mt-0.5 ${
+                    isExecutingSync 
+                      ? 'text-[var(--primary)] animate-pulse' 
+                      : hasPendingSync 
+                        ? 'text-rose-400 animate-pulse' 
+                        : 'text-emerald-400/80 font-bold'
+                  }`}>
+                    {isExecutingSync 
+                      ? 'Actualisation en cours...' 
+                      : hasPendingSync 
+                        ? 'Nouvelles transactions prêtes' 
+                        : 'Données Powens à jour'}
+                  </p>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Lancer la Synchronisation</h4>
-                <p className="text-[8px] font-black uppercase truncate mt-0.5 text-indigo-400">
-                  {isExecutingSync ? 'Synchronisation API en cours...' : hasPendingSync ? 'Nouvelles données prêtes' : 'Données Powens à jour'}
-                </p>
+
+              {/* 🟢 BADGES AVEC LE NOM DES COMPTES ET LE NOMBRE DE TRANSACTIONS NOUVELLES */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-white/5">
+                {isExecutingSync ? (
+                  <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-wider animate-pulse">
+                    Synchronisation API en direct...
+                  </span>
+                ) : hasPendingSync && unsyncedAccounts.length > 0 ? (
+                  unsyncedAccounts.map(([accName, data]) => {
+                    const count = typeof data === 'object' ? data.count : data;
+                    return (
+                      <span 
+                        key={accName} 
+                        className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-200 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 shadow-sm"
+                      >
+                        <span className="text-white font-black">{accName}</span>
+                        <span className="text-rose-200 font-black bg-rose-500/30 px-1 py-0.2 rounded text-[7px]">
+                          +{count} Nouvelles
+                        </span>
+                      </span>
+                    );
+                  })
+                ) : hasPendingSync ? (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[8px] font-black uppercase tracking-wider">
+                    Nouvelles transactions
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                    <span>Tous les comptes sont à jour</span>
+                  </span>
+                )}
               </div>
             </div>
 
+            {/* 🟢 ACTION 3 : GLISSER-DÉPOSER / SÉLECTION MULTI-FORMATS (CSV, OFX, QIF) */}
             <div 
-              onClick={() => document.getElementById('fileInputMobile').click()}
-              className="p-4 bg-[var(--glass-bg)] border border-white/10 active:bg-white/5 rounded-2xl flex items-center gap-3 transition-all cursor-pointer"
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              onClick={() => document.getElementById('fileInputMobile')?.click()}
+              className={`
+                relative rounded-2xl p-4 flex items-center gap-3 border transition-all duration-300 cursor-pointer overflow-hidden min-h-[80px] select-none
+                ${isDragging 
+                  ? 'bg-indigo-500/20 border-indigo-400 scale-[1.02] shadow-[0_0_25px_rgba(99,102,241,0.3)]' 
+                  : transactionsCalculees?.length > 0 
+                    ? 'bg-emerald-500/5 border-emerald-500/30' 
+                    : 'bg-[var(--glass-bg)] border-white/10 active:bg-white/5'}
+              `}
             >
               <input 
                 type="file" 
@@ -241,26 +345,53 @@ export default function ImportMobile(props) {
                 className="hidden" 
                 accept=".csv,.ofx,.qif,.qfx" 
                 onChange={(e) => { 
-                  const file = e.target.files[0]; 
+                  const file = e.target.files?.[0]; 
                   if (file) { 
-                    setFileName(file.name); 
+                    if (setFileName) setFileName(file.name); 
                     handleFileUpload(file); 
                   } 
                 }} 
               />
-              <div className="p-3 bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)] rounded-xl shrink-0">
-                <Upload size={16} />
+              
+              <div className={`pointer-events-none p-3 rounded-xl transition-all duration-300 shrink-0 ${
+                transactionsCalculees?.length > 0 && !isDragging 
+                  ? 'bg-emerald-500 text-black' 
+                  : isDragging
+                    ? 'bg-indigo-500 text-white animate-bounce'
+                    : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+              }`}>
+                {transactionsCalculees?.length > 0 && !isDragging ? (
+                  <Check size={16} strokeWidth={3} />
+                ) : (
+                  <Upload size={16} />
+                )}
               </div>
-              <div>
-                <h4 className="text-[10px] font-black uppercase tracking-wider text-white">Importer un fichier</h4>
-                <p className="text-[8px] text-white/30 uppercase font-black">Formats CSV, OFX ou QIF</p>
+
+              <div className="pointer-events-none flex flex-col min-w-0 flex-1">
+                <h4 className={`text-[10.5px] font-black uppercase tracking-wider ${
+                  isDragging 
+                    ? 'text-indigo-300' 
+                    : transactionsCalculees?.length > 0 
+                      ? 'text-emerald-400' 
+                      : 'text-white'
+                }`}>
+                  {isDragging ? 'Déposez votre fichier ici !' : 'Glisser-Déposer ou Cliquer'}
+                </h4>
+                <p className="text-[8px] text-white/40 uppercase font-bold tracking-widest truncate mt-0.5">
+                  {transactionsCalculees?.length > 0 
+                    ? 'Fichier chargé • Prêt à valider' 
+                    : 'Fichiers CSV, OFX ou QIF'}
+                </p>
               </div>
             </div>
+
           </div>
         </div>
       )}
 
-      {/* SECTION 2 : PRÉVISUALISATION */}
+      {/* =========================================================================
+          SECTION 2 : PRÉVISUALISATION DU LOT
+          ========================================================================= */}
       {mobileSubTab === 'previsu' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           {transactionsCalculees && transactionsCalculees.length > 0 && (
@@ -287,15 +418,17 @@ export default function ImportMobile(props) {
 
               <div className="flex gap-2 pt-2">
                 <button 
+                  type="button"
                   onClick={() => { setTempTransactions([]); setFileName(""); }}
                   className="flex-1 py-2.5 bg-white/5 text-white/50 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer"
                 >
                   Annuler
                 </button>
                 <button 
+                  type="button"
                   onClick={confirmBatchImport}
                   disabled={nouvellesLignes.length === 0}
-                  className="flex-1 py-2.5 bg-[var(--primary)] text-white rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 cursor-pointer"
+                  className="flex-1 py-2.5 bg-[var(--primary)] text-white rounded-xl text-[10px] font-black uppercase tracking-wider disabled:opacity-40 cursor-pointer shadow-lg shadow-[var(--primary)]/20"
                 >
                   Valider ({nouvellesLignes.length})
                 </button>
@@ -320,9 +453,9 @@ export default function ImportMobile(props) {
                       <div className="flex items-center gap-2">
                         <p className="text-xs font-bold text-white truncate max-w-[170px]">{t.nom}</p>
                         {isImported ? (
-                          <span className="text-[6px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">Importé</span>
+                          <span className="text-[6.5px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded font-black uppercase">Importé</span>
                         ) : (
-                          <span className="text-[6px] bg-rose-500/15 text-rose-300 px-1.5 py-0.5 rounded font-black uppercase">Nouveau</span>
+                          <span className="text-[6.5px] bg-rose-500/15 text-rose-300 px-1.5 py-0.5 rounded font-black uppercase">Nouveau</span>
                         )}
                       </div>
                       
@@ -357,7 +490,9 @@ export default function ImportMobile(props) {
         </div>
       )}
 
-      {/* SECTION 3 : INTELLIGENCE */}
+      {/* =========================================================================
+          SECTION 3 : INTELLIGENCE (LEXIQUE & APPRENTISSAGE)
+          ========================================================================= */}
       {mobileSubTab === 'intel' && (
         <div className="space-y-4 animate-in fade-in duration-200">
           <CustomSelect 
@@ -387,7 +522,7 @@ export default function ImportMobile(props) {
               </span>
             </div>
 
-            <div className="flex flex-wrap gap-1.5 max-h-150 overflow-y-auto pr-1">
+            <div className="flex flex-wrap gap-1.5 max-h-52 overflow-y-auto pr-1 custom-scrollbar">
               {activeCategoryData?.mots_cles && activeCategoryData.mots_cles.length > 0 ? (
                 activeCategoryData.mots_cles.map((keyword, kIdx) => {
                   const [keywordText, rawSign] = keyword.split(':');
@@ -400,14 +535,14 @@ export default function ImportMobile(props) {
                     >
                       <span className="flex items-center gap-1">
                         {keywordText.replace(/"/g, '')}
-                        {sign === "positive" && <span className="text-emerald-400">↗</span>}
-                        {sign === "negative" && <span className="text-rose-400">↙</span>}
+                        {sign === "positive" && <span className="text-emerald-400 font-black">↗</span>}
+                        {sign === "negative" && <span className="text-rose-400 font-black">↙</span>}
                         {sign === "both" && <span className="text-white/20">⇅</span>}
                       </span>
                       <button 
                         type="button"
                         onClick={() => handleRemoveKeyword(intelSelectedCat, keyword)} 
-                        className="text-white/30 hover:text-rose-400"
+                        className="text-white/30 hover:text-rose-400 cursor-pointer"
                       >
                         <X size={10} />
                       </button>
@@ -425,7 +560,7 @@ export default function ImportMobile(props) {
                 <button 
                   type="button"
                   onClick={() => setSignType("both")}
-                  className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all ${
+                  className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all cursor-pointer ${
                     signType === "both" 
                       ? "bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]" 
                       : "bg-transparent border-white/10 text-white/40"
@@ -436,7 +571,7 @@ export default function ImportMobile(props) {
                 <button 
                   type="button"
                   onClick={() => setSignType("positive")}
-                  className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all ${
+                  className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all cursor-pointer ${
                     signType === "positive" 
                       ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" 
                       : "bg-transparent border-white/10 text-white/40"
@@ -447,7 +582,7 @@ export default function ImportMobile(props) {
                 <button 
                   type="button"
                   onClick={() => setSignType("negative")}
-                  className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all ${
+                  className={`py-2 px-2 rounded-xl text-[8px] font-black uppercase border transition-all cursor-pointer ${
                     signType === "negative" 
                       ? "bg-rose-500/10 border-rose-500/50 text-rose-400" 
                       : "bg-transparent border-white/10 text-white/40"

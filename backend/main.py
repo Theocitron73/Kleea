@@ -3606,9 +3606,6 @@ def get_powens_accounts(user_token: str):
     ]
 
 def get_powens_transactions(user_token: str):
-    """
-    Récupère la liste des transactions brutes depuis l'API Powens.
-    """
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
@@ -3616,23 +3613,34 @@ def get_powens_transactions(user_token: str):
         domain = domain[:-3] + '/2.0'
 
     url = f"{domain}/users/me/transactions"
-    headers = {
-        "Authorization": f"Bearer {user_token}"
-    }
+    headers = {"Authorization": f"Bearer {user_token}"}
     
-    # 🟢 AJOUT DU PARAMÈTRE LIMIT
+    # 🟢 On demande explicitement l'expansion des catégories à Powens
     params = {
-        "limit": 1000  # Powens requiert obligatoirement d'expliciter ce paramètre
+        "limit": 1000,
+        "expand": "category,categories"  # 👈 Demande l'arbre complet de catégorisation ML
     }
 
     res = requests.get(url, headers=headers, params=params)
-
     if res.status_code != 200:
         raise Exception(f"Powens API Error ({res.status_code}): {res.text}")
 
     data = res.json()
-    # Powens renvoie généralement un objet { "transactions": [...] }
-    return data.get("transactions", [])
+    transactions = data.get("transactions", [])
+
+    # 🔍 TEST EN DIRECT : Affiche la première transaction brute dans votre terminal
+    if transactions:
+        first = transactions[0]
+        print("\n" + "="*50)
+        print("🔍 [TEST MACHINE LEARNING POWENS] Échantillon reçu :")
+        print(f"  Libellé brut: {first.get('original_wording') or first.get('raw_wording')}")
+        print(f"  Libellé nettoyé ML: {first.get('simplified_wording')}")
+        print(f"  Catégorie ML: {first.get('category')}")
+        print(f"  Categories ML: {first.get('categories')}")
+        print(f"  ID Catégorie: {first.get('id_category')}")
+        print("="*50 + "\n")
+
+    return transactions
 
 
 def normalize_powens_transactions(
@@ -3640,19 +3648,19 @@ def normalize_powens_transactions(
     utilisateur: str, 
     compte_nom: str, 
     target_account_id: str = None,
-    date_debut: str = None, # Format "YYYY-MM-DD"
-    date_fin: str = None   # Format "YYYY-MM-DD"
+    date_debut: str = None,  # Format "YYYY-MM-DD"
+    date_fin: str = None     # Format "YYYY-MM-DD"
 ):
-    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
+    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
     normalized = []
 
     target_id_str = str(target_account_id).strip() if target_account_id else None
 
-    # Conversion des bornes si fournies
+    # Conversion des bornes de dates si fournies
     dt_debut = datetime.strptime(date_debut, '%Y-%m-%d') if date_debut else None
     dt_fin = datetime.strptime(date_fin, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_fin else None
 
-    # Fallback par défaut : si aucune date n'est transmise, prendre le mois en cours
+    # Fallback par défaut : si aucune date n'est transmise, prendre les 60 derniers jours
     if not dt_debut and not dt_fin:
         aujourdhui = datetime.now()
         dt_debut = aujourdhui - timedelta(days=60)
@@ -3677,7 +3685,7 @@ def normalize_powens_transactions(
         if dt_fin and dt > dt_fin:
             continue
 
-        # Normalisation
+        # Normalisation montant et libellé
         montant_float = float(tx.get("value", 0.0))
         libelle = (
             tx.get("simplified_wording") or 
@@ -3685,6 +3693,24 @@ def normalize_powens_transactions(
             tx.get("raw_wording") or 
             "Transaction Inconnue"
         )
+
+       # Extraction de la catégorie ML de Powens
+        powens_cat = None
+
+        # 1. Format 'category' standard
+        cat_obj = tx.get("category")
+        if isinstance(cat_obj, dict):
+            powens_cat = cat_obj.get("name")
+        elif isinstance(cat_obj, str):
+            powens_cat = cat_obj
+
+        # 2. Format 'categories' alternatif (Powens Categorization API)
+        if not powens_cat:
+            categories_obj = tx.get("categories")
+            if isinstance(categories_obj, list) and len(categories_obj) > 0:
+                powens_cat = categories_obj[0].get("name") or categories_obj[0].get("description")
+            elif isinstance(categories_obj, dict):
+                powens_cat = categories_obj.get("name") or categories_obj.get("description")
 
         normalized.append({
             "date": dt.strftime('%Y-%m-%d'),
@@ -3694,7 +3720,8 @@ def normalize_powens_transactions(
             "utilisateur": utilisateur.lower(),
             "compte": compte_nom,
             "mois": mois_fr[dt.month - 1],
-            "annee": int(dt.year)
+            "annee": int(dt.year),
+            "raw_powens_category": powens_cat  # 👈 Transmis pour le mapping
         })
 
     return normalized
@@ -3735,22 +3762,32 @@ async def import_powens(
     account_id: str = None, 
     compte_nom: str = "Powens",
     date_debut: str = None,
-    date_fin: str = None
+    date_fin: str = None,
+    current_user: str = Depends(get_current_user)
 ):
     try:
+        user_clean = current_user.lower().strip()
         powens_raw = get_powens_transactions(user_token)
 
         transactions_brutes = normalize_powens_transactions(
             powens_raw, 
-            utilisateur, 
+            user_clean, 
             compte_nom, 
             target_account_id=account_id,
             date_debut=date_debut,
             date_fin=date_fin
         )
 
-        mots_cles_rules = get_mots_cles_rules(utilisateur)
-        memoire_rules = fetch_memoire_data(utilisateur)
+        mots_cles_rules = get_mots_cles_rules(user_clean)
+        memoire_rules = fetch_memoire_data(user_clean)
+
+        # 🟢 Récupération des catégories personnalisées + par défaut de l'utilisateur
+        with engine.connect() as conn:
+            cats_res = conn.execute(
+                text("SELECT nom FROM categories WHERE LOWER(utilisateur) = :u"),
+                {"u": user_clean}
+            ).fetchall()
+            user_categories = [r[0] for r in cats_res] + CATEGORIES_DEFAUT
 
         transactions_pretes = []
         
@@ -3762,23 +3799,19 @@ async def import_powens(
             texte_integral_upper = nom_t.upper()
             cat = "Autre"
 
-            # A. 💡 Priorité 1 : VIREMENTS INTERNES (Logique dynamique automatisée)
-            # 💡 DÉTECTION PROPRE DES VIREMENTS DANS MAIN.PY
+            # A. Priorité 1 : Virements internes
             if any(k in texte_integral_upper for k in ["VERS ", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
                 types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
-                type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
+                type_cible = next((typ for typ in types_epargne if typ in texte_integral_upper), None)
                 
                 if type_cible:
-                    # Virement interne entre CCP et Livret d'épargne
                     if montant_float < 0:
                         cat = f"Virement : CCP vers {type_cible}"
                     else:
                         cat = f"Virement : {type_cible} vers CCP"
                 elif "COMPTE COMMUN" in texte_integral_upper:
-                    # Virement vers/depuis le compte joint
                     cat = "Compte Commun"
                 else:
-                    # Virement externe classique vers/depuis un tiers
                     cat = "Virements Reçus" if montant_float > 0 else "Virements envoyé"
 
             # B. Priorité 2 : Mémoire Apprise
@@ -3790,7 +3823,7 @@ async def import_powens(
                         cat = m["categorie"]
                         break
 
-            # C. Priorité 3 : Mots-Clés (Intelligence)
+            # C. Priorité 3 : Mots-Clés configurés par l'utilisateur
             if cat == "Autre":
                 for rule in mots_cles_rules:
                     matched = False
@@ -3814,8 +3847,22 @@ async def import_powens(
                     if matched:
                         break
 
+            # 🟢 D. Priorité 4 : CATÉGORISATION NATIVE POWENS (0 TOKEN IA)
+            if cat == "Autre" and t.get("raw_powens_category"):
+                cat = match_powens_to_user_category(t["raw_powens_category"], user_categories)
+
+            # E. Fallback virement tiers si toujours non classé
+            if cat == "Autre":
+                if any(k in texte_integral_upper for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
+                    cat = "Virements Reçus" if montant_float > 0 else "Virements envoyé"
+
             t["categorie"] = cat
+            # Nettoyage de la clé temporaire
+            t.pop("raw_powens_category", None)
             transactions_pretes.append(t)
+            # 🟢 Diagnostic dans la console
+        if t.get("raw_powens_category"):
+            print(f"🔍 [POWENS] '{nom_t[:30]}' -> Catégorie brute: '{t.get('raw_powens_category')}' -> Kleea: '{cat}'")
 
         return transactions_pretes
 
@@ -4442,7 +4489,7 @@ def exec_sync_user_transactions(username: str):
     user_clean = username.lower().strip()
     is_test_user = (user_clean == "test")
 
-    # 1. Récupération du token Powens
+    # 1. Récupération du token Powens et configuration des comptes
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
@@ -4452,6 +4499,13 @@ def exec_sync_user_transactions(username: str):
         
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
+
+        # 🟢 Récupération des catégories actives de l'utilisateur pour le matching
+        cats_res = conn.execute(
+            text("SELECT nom FROM categories WHERE LOWER(utilisateur) = :u"),
+            {"u": user_clean}
+        ).fetchall()
+        user_categories = [r[0] for r in cats_res] + CATEGORIES_DEFAUT
 
     decrypted_config_rows = [
         (row[0], decrypt_iban(row[1]) if row[1] else None)
@@ -4477,7 +4531,7 @@ def exec_sync_user_transactions(username: str):
     if not acc_id_to_kleea:
         return {"status": "success", "added": 0, "message": "Aucun compte configuré avec un lien Powens."}
 
-    # Bâtir les tables d'IBANs et numéros de comptes
+    # Tables d'IBANs et numéros de comptes
     iban_to_local_name = {}
     number_to_local_name = {}
     for acc in powens_accounts:
@@ -4491,13 +4545,12 @@ def exec_sync_user_transactions(username: str):
 
     mots_cles_rules = get_mots_cles_rules(user_clean)
     memoire_rules = fetch_memoire_data(user_clean)
-    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"]
+    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
     batch_occurrence_tracker = {}
 
     now = datetime.now()
     window_limit = (now - timedelta(days=90)).strftime("%Y-%m-%d")
 
-    # 🟢 1. INITIALISATION DU TABLEAU DES CANDIDATS (en mémoire vive)
     transactions_to_save = []
 
     for tx in powens_raw:
@@ -4521,12 +4574,13 @@ def exec_sync_user_transactions(username: str):
             
             nom_final = base_nom if occurrence_in_batch == 1 else f"{base_nom} #{occurrence_in_batch}"
 
-            # Logique de Catégorisation
+            # --- DÉTERMINATION DE LA CATÉGORIE ---
             cat = "Autre"
             libelle_lower = libelle_brut.lower()
             libelle_compact = libelle_brut.upper().replace(" ", "")
             autre_compte_local = None
 
+            # Priorité 1.A : Virement interne vers un compte identifié
             for target_iban, local_name in iban_to_local_name.items():
                 if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
                     autre_compte_local = local_name
@@ -4549,19 +4603,21 @@ def exec_sync_user_transactions(username: str):
 
             if not autre_compte_local and any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
                 types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
-                type_cible = next((t for t in types_epargne if t in libelle_brut.upper()), None)
+                type_cible = next((typ for typ in types_epargne if typ in libelle_brut.upper()), None)
                 if type_cible: 
                     autre_compte_local = type_cible
 
             if autre_compte_local:
                 cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
 
+            # Priorité 2 : Mémoire apprise
             if cat == "Autre":
                 for m in memoire_rules:
                     if m["nom"].lower() in libelle_lower:
                         cat = m["categorie"]
                         break
                         
+            # Priorité 3 : Mots-clés définis par l'utilisateur
             if cat == "Autre":
                 for rule in mots_cles_rules:
                     for raw_k in rule["keywords"]:
@@ -4573,6 +4629,19 @@ def exec_sync_user_transactions(username: str):
                                 cat = rule["categorie"]
                                 break
 
+            # 🟢 Priorité 4 : CATÉGORISATION NATIVE AUTOMATIQUE POWENS (ZÉRO TOKEN IA)
+            if cat == "Autre":
+                cat_obj = tx.get("category")
+                powens_cat_name = None
+                if isinstance(cat_obj, dict):
+                    powens_cat_name = cat_obj.get("name")
+                elif isinstance(cat_obj, str):
+                    powens_cat_name = cat_obj
+
+                if powens_cat_name:
+                    cat = match_powens_to_user_category(powens_cat_name, user_categories)
+
+            # Priorité 5 : Fallback transferts tiers
             if cat == "Autre":
                 is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
                 if is_transfer:
@@ -4580,7 +4649,6 @@ def exec_sync_user_transactions(username: str):
 
             dt = datetime.strptime(raw_date, "%Y-%m-%d")
 
-            # 🟢 On ajoute la transaction préparée au tableau
             transactions_to_save.append({
                 "d": raw_date,
                 "n": nom_final,
@@ -4596,7 +4664,7 @@ def exec_sync_user_transactions(username: str):
             print(f"⚠️ Erreur analyse ligne brute : {parse_err}")
             continue
 
-    # 🟢 2. ÉCRITURE ATOMIQUE EN BASE (Une seule transaction pour tout le lot)
+    # Écriture atomique en base avec détection anti-doublon (incluant split_sources)
     success_count = 0
     check_existing_query = text("""
         SELECT 1 FROM transactions 
@@ -5575,3 +5643,81 @@ def unsplit_transaction(
         })
 
     return {"status": "success", "message": "Transaction originale restaurée."}
+
+
+# =========================================================================
+# 🏦 MAPPING DES CATÉGORIES NATIVES POWENS VERS LES CATÉGORIES UTILISATEUR
+# =========================================================================
+
+# Dictionnaire de correspondance : chaque catégorie Powens pointe vers une liste de candidats Kleea par ordre de préférence
+POWENS_CATEGORY_MAPPING = {
+    # Alimentation & Supermarchés
+    "supermarché / hypermarché": ["Alimentation", "Courses"],
+    "alimentation": ["Alimentation", "Courses"],
+    "boulangerie": ["Alimentation"],
+    "restaurant": ["Restaurants", "Alimentation"],
+    "restaurants / bars": ["Restaurants", "Alimentation"],
+    "restauration rapide": ["Fast Food", "Restaurants", "Alimentation"],
+
+    # Shopping, Bazar & Paiements en ligne (Paypal, Vinted, Normal...)
+    "achats en ligne": ["Shopping"],
+    "paiement en ligne": ["Shopping", "Autre"],
+    "commerce électronique": ["Shopping"],
+    "magasins / bazar": ["Shopping", "Alimentation"],
+    "hygiène / beauté": ["Shopping", "Pharmacie"],
+    "habillement / mode": ["Habillement", "Shopping"],
+    "shopping": ["Shopping"],
+
+    # Frais & Forfaits bancaires (Essentiel LBP, Cotisations...)
+    "frais bancaires": ["Frais Bancaires"],
+    "cotisation bancaire": ["Frais Bancaires"],
+    "services bancaires": ["Frais Bancaires"],
+    "banque": ["Frais Bancaires"],
+
+    # Carburant & Transports
+    "carburant": ["Carburant", "Auto", "Transports"],
+    "station-service": ["Carburant", "Auto"],
+    "péage": ["Péage", "Auto"],
+    "stationnement / parking": ["Auto", "Transports"],
+    "transports en commun": ["Transports"],
+    "train": ["Transports"],
+
+    # Logement & Factures
+    "loyer": ["Loyer", "Logement"],
+    "électricité": ["Électricité", "Logement"],
+    "gaz": ["Gaz", "Énergie"],
+    "eau": ["Eau"],
+    "assurance habitation": ["Assurance Habitation"],
+    "télécom / internet": ["Internet", "Abonnements"],
+
+    # Virements & Revenus de tiers
+    "virements reçus": ["Virement Reçu", "Remboursements"],
+    "virement reçu": ["Virement Reçu", "Remboursements"],
+    "salaire": ["Salaire"],
+    "remboursement": ["Remboursements"]
+}
+
+def match_powens_to_user_category(powens_cat_raw: str, user_available_cats: list) -> str:
+    # 🟢 Si Powens renvoie son code d'inconnu 9998 ou le texte 'Indéfini', on rejette
+    if not powens_cat_raw or powens_cat_raw.lower().strip() in ["indéfini", "indefini", "9998", "none"]:
+        return "Autre"
+
+    p_clean = powens_cat_raw.lower().strip()
+    user_cats_map = {c.lower().strip(): c for c in user_available_cats}
+
+    # 1. Correspondance exacte
+    if p_clean in user_cats_map:
+        return user_cats_map[p_clean]
+
+    # 2. Recherche dans le dictionnaire de mapping
+    candidates = POWENS_CATEGORY_MAPPING.get(p_clean, [])
+    for candidate in candidates:
+        if candidate.lower().strip() in user_cats_map:
+            return user_cats_map[candidate.lower().strip()]
+
+    # 3. Ressemblance
+    for user_cat_clean, real_name in user_cats_map.items():
+        if user_cat_clean in p_clean or p_clean in user_cat_clean:
+            return real_name
+
+    return "Autre"

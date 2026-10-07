@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Pencil, Trash2, Wand2, Plus, X, Wallet, CreditCard, Building2 } from 'lucide-react';
+import { 
+  Pencil, Trash2, Wand2, Plus, X, Wallet, CreditCard, Building2, 
+  Sparkles, ShieldCheck, Lock, FileUp, Landmark 
+} from 'lucide-react';
 import { SketchPicker } from 'react-color';
 
 export default function ComptesMobile(props) {
   const {
-    comptes, setComptes, handleAddCompte,
+    comptes = [], setComptes, handleAddCompte,
     selectedType, setSelectedType, typeOptions,
     compteName, setCompteName,
     newCompteColor, setNewCompteColor,
@@ -15,9 +18,9 @@ export default function ComptesMobile(props) {
     importMode, powensData, handleAssociateAccount,
     creationPowensName: propCreationPowensName,
     setCreationPowensName: propSetCreationPowensName,
+    handleConnectNewBank
   } = props;
 
-  // États locaux de navigation mobile
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [localCreationPowensName, setLocalCreationPowensName] = useState("");
 
@@ -25,53 +28,61 @@ export default function ComptesMobile(props) {
   const setCreationPowensName = propSetCreationPowensName || setLocalCreationPowensName;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
+    <div className="flex flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2 select-none">
       
-      {/* HEADER & COMPTEUR MOBILE */}
+      {/* 1. EN-TÊTE & COMPTEUR MOBILE */}
       <div className="flex items-center justify-between mb-4 mt-2 shrink-0">
         <div>
           <h1 className="text-xl font-black tracking-tight">Mes Comptes</h1>
-          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Configuration des soldes</p>
+          <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">
+            Configuration des soldes
+          </p>
         </div>
         <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-400 text-[9px] font-black rounded-xl uppercase tracking-widest border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
           {comptes.length} actifs
         </span>
       </div>
 
-      {/* BOUTON D'OUVERTURE DE LA MODALE DE CRÉATION */}
+      {/* 2. BOUTON D'OUVERTURE DE LA MODALE DE CRÉATION */}
       <button
+        type="button"
         onClick={() => setIsCreateModalOpen(true)}
-        className="w-full py-3.5 bg-[var(--primary)] hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[var(--primary)]/20 active:scale-98 transition-all shrink-0 mb-4"
+        className="w-full py-3.5 bg-[var(--primary)] hover:bg-indigo-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[var(--primary)]/20 active:scale-95 transition-all shrink-0 mb-4 cursor-pointer"
       >
         <Plus size={14} strokeWidth={3} />
         <span>Créer un nouveau compte</span>
       </button>
 
-      {/* MODALE DE CRÉATION DE COMPTE */}
+      {/* =========================================================================
+          3. MODALE MOBILE DE CRÉATION DE COMPTE (AVEC TOUTES LES OPTIONS DESKTOP)
+          ========================================================================= */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsCreateModalOpen(false)} />
 
           <div 
-            className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 overflow-visible max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* En-tête */}
+            {/* Header de la modale */}
             <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">Nouveau compte</h4>
-                <p className="text-[9px] text-white/30 uppercase font-bold tracking-wider mt-1">Saisie des informations de départ</p>
+                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">
+                  Nouveau compte
+                </h4>
+                <p className="text-[9px] text-white/30 uppercase font-bold tracking-wider mt-1">
+                  Saisie des informations de départ
+                </p>
               </div>
               <button 
                 type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
+                className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white cursor-pointer"
               >
                 <X size={16} />
               </button>
             </div>
 
-            {/* Formulaire de création */}
             <form 
               onSubmit={(e) => {
                 handleAddCompte(e);
@@ -79,7 +90,7 @@ export default function ComptesMobile(props) {
               }} 
               className="space-y-3.5"
             >
-              {/* 1. SÉLECTION DU TYPE DE COMPTE */}
+              {/* Type de compte */}
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Type de compte</label>
                 <CustomSelect 
@@ -87,16 +98,14 @@ export default function ComptesMobile(props) {
                   options={typeOptions}
                   onChange={(type) => {
                     setSelectedType(type);
-                    if (type) {
-                      setCompteName("");
-                    }
+                    if (type) setCompteName("");
                   }}
                   icon={CreditCard}
                   className="p-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest cursor-pointer bg-black/40 border-white/10"
                 />
               </div>
 
-              {/* 2. DÉSIGNATION DU COMPTE */}
+              {/* Désignation */}
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation du compte</label>
                 <div className="flex items-center w-full h-[38px] bg-black/40 px-3 rounded-xl border border-white/10 focus-within:border-white/30 transition-colors">
@@ -108,7 +117,7 @@ export default function ComptesMobile(props) {
                   <input 
                     type="text" 
                     name="compteName"
-                    placeholder={selectedType ? "Ex: COURANT, PRINCIPAL..." : "NOM DU COMPTE..."} 
+                    placeholder={selectedType ? "Ex: PRINCIPAL, COURANT..." : "NOM DU COMPTE..."} 
                     value={compteName}
                     onChange={(e) => setCompteName(e.target.value)}
                     className="w-full bg-transparent border-none outline-none text-xs font-bold text-white uppercase placeholder:text-white/30" 
@@ -117,14 +126,14 @@ export default function ComptesMobile(props) {
                 </div>
               </div>
 
-              {/* 3. GROUPE & SOLDE INITIAL */}
+              {/* Groupe & Solde */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Groupe</label>
                   <input 
                     type="text" 
                     name="compteGroupe"
-                    placeholder="Ex: PERSO, COMMUN..." 
+                    placeholder="PERSO, COMMUN..." 
                     className="w-full h-[38px] bg-black/40 border border-white/10 rounded-xl px-3 text-xs font-bold text-white uppercase outline-none placeholder:text-white/30" 
                     required 
                   />
@@ -155,7 +164,7 @@ export default function ComptesMobile(props) {
                 })()}
               </div>
 
-              {/* 4. TAUX D'INTÉRÊTS & TEINTE CARTE */}
+              {/* Taux d'intérêt & Teinte */}
               <div className={`grid gap-3 items-end ${selectedType !== 'CCP' ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {selectedType !== 'CCP' && (
                   <div>
@@ -175,13 +184,12 @@ export default function ComptesMobile(props) {
                   </div>
                 )}
 
-                {/* Teinte de la carte */}
                 <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-xl p-2 h-[38px] justify-between relative">
                   <span className="text-[8px] font-black text-white/40 uppercase pl-1">Teinte carte</span>
                   <button
                     type="button"
                     onClick={() => setShowAddPicker(!showAddPicker)}
-                    className="p-0.5 bg-white/10 rounded-lg border border-white/20 active:scale-95 transition-transform"
+                    className="p-0.5 bg-white/10 rounded-lg border border-white/20 active:scale-95 transition-transform cursor-pointer"
                   >
                     <div className="w-8 h-5 rounded shadow-inner" style={{ backgroundColor: newCompteColor }} />
                   </button>
@@ -197,8 +205,8 @@ export default function ComptesMobile(props) {
                 </div>
               </div>
 
-              {/* 5. LIAISON COMPTE RÉEL / POWENS EN MODE AUTO */}
-              {importMode === 'auto' && (
+              {/* Liaison Compte Réel / Powens / IBAN */}
+              {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_user_token'))) && (
                 <div className="space-y-2 pt-2 border-t border-white/5">
                   <label className="text-[9px] uppercase font-black text-white/40 block">
                     Liaison Compte Réel / Powens (Optionnel)
@@ -233,10 +241,9 @@ export default function ComptesMobile(props) {
                 </div>
               )}
 
-              {/* BOUTON ACTION */}
               <button 
                 type="submit" 
-                className="w-full py-3.5 bg-white text-black hover:bg-emerald-500 hover:text-white rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-98 transition-all mt-3 shadow-lg"
+                className="w-full py-3.5 bg-white text-black hover:bg-emerald-500 hover:text-white rounded-xl font-black uppercase text-[10px] tracking-widest active:scale-95 transition-all mt-3 shadow-lg cursor-pointer"
               >
                 Confirmer et Créer
               </button>
@@ -245,24 +252,25 @@ export default function ComptesMobile(props) {
         </div>
       )}
 
-      {/* GRILLE DES COMPTES EXISTANTS */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-24">
+      {/* =========================================================================
+          4. LISTE DES COMPTES OU GUIDES COMPLETS (EXACT DUPLICATA DU DESKTOP)
+          ========================================================================= */}
+      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar pb-12">
         {comptes.length > 0 ? (
           <div className="grid grid-cols-1 gap-3">
             {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => {
-              // 🟢 Détection des CCP
               const isCCP = (c.compte || "").toUpperCase().includes("CCP");
 
               return (
                 <div 
                   key={c.compte} 
-                  className="relative p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col gap-3.5 backdrop-blur-md transition-all duration-300 focus-within:z-40"
+                  className="relative p-4 rounded-2xl border border-white/10 shadow-lg flex flex-col gap-3.5 backdrop-blur-md transition-all duration-300"
                   style={{ 
-                    backgroundColor: `${c.couleur}60`,
-                    zIndex: showPicker === i ? 100 : (comptes.length - i) * 5
+                    backgroundColor: `${c.couleur}80`,
+                    zIndex: showPicker === i ? 100 : 10
                   }}
                 >
-                  {/* LIGNE 1 : INFOS ET ACTIONS */}
+                  {/* Ligne 1 : Nom, Groupe, Teinte, Suppression */}
                   <div className="flex justify-between items-start relative">
                     <div className="flex-1 min-w-0 pr-2">
                       <h3 className="text-xs font-black text-white uppercase truncate tracking-tight mb-1">{c.compte}</h3>
@@ -283,11 +291,11 @@ export default function ComptesMobile(props) {
                     </div>
 
                     <div className="flex gap-2 items-center shrink-0">
-                      {/* Bouton de teinte */}
                       <div className="relative">
                         <button 
+                          type="button"
                           onClick={() => setShowPicker(showPicker === i ? null : i)}
-                          className="w-6 h-6 rounded-lg border border-white/50 shadow-md active:scale-90 transition-all"
+                          className="w-6 h-6 rounded-lg border border-white/50 shadow-md active:scale-90 transition-all cursor-pointer"
                           style={{ backgroundColor: c.couleur }}
                         />
                         {showPicker === i && (
@@ -300,33 +308,47 @@ export default function ComptesMobile(props) {
                         )}
                       </div>
 
-                      {/* Bouton Supprimer */}
                       <button 
+                        type="button"
                         onClick={() => openDeleteModal(c.compte)} 
-                        className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-500/20 active:scale-95"
+                        className="p-2 rounded-xl bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-500/20 active:scale-95 cursor-pointer"
                       >
                         <Trash2 size={14} />
                       </button>
                     </div>
                   </div>
 
-                  {/* LIGNE 2 : MÉTRIQUES (1 COLONNE POUR CCP, 3 COLONNES POUR LES AUTRES) */}
+                  {/* Ligne 2 : Métriques (1 colonne si CCP, 3 colonnes sinon) */}
                   <div className={`grid gap-2 text-center ${isCCP ? 'grid-cols-1' : 'grid-cols-3'}`}>
                     
-                    {/* SOLDE INITIAL (Prend toute la largeur si c'est un CCP) */}
+                    {/* Solde Initial */}
+                    {/* 🟢 NOUVEAU SOLDE INITIAL : AJUSTEMENT DESIGN INTELLIGENT */}
                     <div className="bg-black/40 p-2 rounded-xl border border-white/5 flex flex-col justify-between">
-                      <div className="flex justify-between items-center mb-1">
-                        <p className="text-[7.5px] font-black text-white/40 uppercase">Solde initial</p>
+                      <div className="flex items-center justify-between mb-1 gap-1">
+                        <span className="text-[7.5px] font-black text-white/40 uppercase tracking-wider truncate">
+                          Solde initial
+                        </span>
                         
+                        {/* Bouton adaptatif : icône seule en 3 colonnes, icône + texte en pleine largeur */}
                         <button 
+                          type="button"
                           onClick={() => openCalculateurAssistant(c)} 
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-[var(--primary)]/40 border border-[var(--primary)] text-[var(--text-main)] hover:scale-105 active:scale-95 transition-all text-[8px] font-black uppercase tracking-wider cursor-pointer"
-                          title="Ajuster selon un solde à date"
+                          className={`flex items-center gap-1 rounded-md transition-all active:scale-95 cursor-pointer shrink-0 ${
+                            isCCP 
+                              ? 'px-2 py-0.5 bg-white/5 hover:bg-white/10 border border-white/10 text-indigo-300 hover:text-white' 
+                              : 'p-1 bg-white/5 hover:bg-white/10 border border-white/10 text-indigo-300 hover:text-white'
+                          }`}
+                          title="Ajuster avec l'assistant de solde"
                         >
-                          <Wand2 size={10} strokeWidth={2.5} />
-                          <span>Ajuster</span>
+                          <Wand2 size={isCCP ? 9 : 10} className="text-indigo-400 shrink-0" />
+                          {isCCP && (
+                            <span className="text-[7.5px] font-bold uppercase tracking-wider">
+                              Ajuster
+                            </span>
+                          )}
                         </button>
                       </div>
+
                       <div className="flex items-center justify-center">
                         <input 
                           type="text"
@@ -361,10 +383,9 @@ export default function ComptesMobile(props) {
                       </div>
                     </div>
                     
-                    {/* OBJECTIF & INTÉRÊT (MASQUÉS POUR LES CCP) */}
+                    {/* Objectif & Intérêts (masqués si CCP) */}
                     {!isCCP && (
                       <>
-                        {/* OBJECTIF */}
                         <div className="bg-white/5 p-1.5 rounded-xl border border-white/5 flex flex-col justify-between">
                           <p className="text-[7px] font-black text-white/40 uppercase mb-1">Objectif</p>
                           <div className="flex items-center justify-center">
@@ -383,7 +404,6 @@ export default function ComptesMobile(props) {
                           </div>
                         </div>
 
-                        {/* RENDEMENT D'INTÉRÊT */}
                         <div className="bg-black/20 p-1.5 rounded-xl border border-white/5 flex flex-col justify-between">
                           <p className="text-[7px] font-black text-white/40 uppercase mb-1">Intérêt %</p>
                           <div className="flex items-center justify-center">
@@ -409,8 +429,8 @@ export default function ComptesMobile(props) {
 
                   </div>
 
-                  {/* LIGNE 3 : LIAISON COMPTE RÉEL / IBAN EN MODE AUTO */}
-                  {importMode === 'auto' && (
+                  {/* Ligne 3 : Liaison bancaire / Powens / IBAN */}
+                  {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(c.powens_name)) && (
                     <div className="pt-2 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
                       <div className="flex justify-between items-center px-1">
                         <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
@@ -419,15 +439,11 @@ export default function ComptesMobile(props) {
                       </div>
 
                       {(() => {
-                        // 1. Est-il lié à un compte Powens connecté ?
                         const isLinkedToPowens = (powensData?.accounts || []).some(
                           acc => acc.name.trim().toUpperCase() === (c.powens_name || "").trim().toUpperCase()
                         );
-
-                        // 2. Est-il lié via un IBAN manuel ?
                         const isManualIban = !isLinkedToPowens && Boolean(c.powens_name);
 
-                        // CAS 1 : Compte connecté via Powens
                         if (isLinkedToPowens) {
                           return (
                             <div className="flex items-center justify-between p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
@@ -442,7 +458,6 @@ export default function ComptesMobile(props) {
                                   </span>
                                 </div>
                               </div>
-                              
                               <button
                                 type="button"
                                 onClick={() => handleAssociateAccount("", c.compte)}
@@ -454,7 +469,6 @@ export default function ComptesMobile(props) {
                           );
                         }
 
-                        // CAS 2 : Compte avec IBAN manuel enregistré
                         if (isManualIban) {
                           return (
                             <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
@@ -469,7 +483,6 @@ export default function ComptesMobile(props) {
                                   </span>
                                 </div>
                               </div>
-                              
                               <button
                                 type="button"
                                 onClick={() => {
@@ -484,7 +497,6 @@ export default function ComptesMobile(props) {
                           );
                         }
 
-                        // CAS 3 : Non lié -> Choix Powens ou IBAN
                         return (
                           <div className="flex flex-col gap-1.5 pt-0.5">
                             {powensData?.accounts?.length > 0 && (
@@ -537,12 +549,135 @@ export default function ComptesMobile(props) {
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-white/5 rounded-2xl bg-white/[0.01]">
-            <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center mb-3">
-              <Wallet size={20} className="text-white/40" />
+          /* =========================================================================
+              5. GUIDES EXPLICATIFS COMPLETS (EXACT DUPLICATA DU DESKTOP POUR MOBILE)
+              ========================================================================= */
+          importMode === 'auto' ? (
+            <div className="flex flex-col items-center justify-center text-center p-5 bg-indigo-500/[0.03] border border-indigo-500/20 rounded-2xl backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)]">
+                <Sparkles size={24} className="text-indigo-400 animate-pulse" />
+              </div>
+
+              <div>
+                <h3 className="text-white font-black text-sm uppercase tracking-wider">
+                  Configuration de vos comptes virtuels
+                </h3>
+                <p className="text-[8.5px] text-white/40 uppercase font-bold tracking-wider mt-0.5">
+                  Synchronisation bancaire & bilans annuels
+                </p>
+              </div>
+
+              {/* Pourquoi un compte miroir ? */}
+              <div className="w-full text-left p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-1">
+                <h4 className="text-[9px] font-black uppercase text-white/90 tracking-wider">
+                  Pourquoi créer un compte virtuel ?
+                </h4>
+                <p className="text-[10px] text-white/70 leading-relaxed">
+                  Même si votre banque réelle est connectée, Kleea a besoin d’un <strong className="text-white">compte virtuel local</strong> (ex : <i>« CCP »</i> ou <i>« Livret A »</i>) pour stocker vos écritures et calculer vos bilans.
+                </p>
+              </div>
+
+              {/* Étape 1 : CCP */}
+              <div className="w-full text-left p-3.5 rounded-xl bg-gradient-to-r from-indigo-500/15 via-indigo-500/5 to-transparent border border-indigo-500/30 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-black uppercase text-indigo-300 tracking-wider">
+                    1. Lier votre compte courant (CCP)
+                  </h4>
+                  <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 text-[7px] font-black uppercase">
+                    1 clic
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/80 leading-relaxed">
+                  Sélectionnez simplement votre compte bancaire dans la liste déroulante Powens lors de la création du compte.
+                </p>
+              </div>
+
+              {/* Étape 2 : Livrets IBAN */}
+              <div className="w-full text-left p-3.5 rounded-xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[10px] font-black uppercase text-emerald-300 tracking-wider">
+                    2. Pour vos livrets d'épargne (Livret A, LEP...)
+                  </h4>
+                  <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[7px] font-black uppercase">
+                    IBAN chiffré
+                  </span>
+                </div>
+                <p className="text-[10px] text-white/80 leading-relaxed">
+                  Collez simplement l'IBAN ou numéro de compte de votre livret : Kleea classera automatiquement les virements en <strong className="text-white">transferts internes</strong>.
+                </p>
+                <div className="flex items-center gap-1.5 pt-1 border-t border-emerald-500/20 text-[8px] text-emerald-200/70">
+                  <Lock size={10} className="text-emerald-400 shrink-0" />
+                  <span>Chiffrement Fernet de bout en bout.</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="w-full py-3 bg-[var(--primary)] text-white font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg active:scale-95 cursor-pointer"
+              >
+                Créer mon premier compte
+              </button>
             </div>
-            <h3 className="text-white/40 font-black text-[10px] uppercase tracking-widest">Aucun compte</h3>
-          </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center text-center p-5 bg-white/[0.02] border border-white/10 rounded-2xl backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg">
+                <Wallet size={24} className="text-[var(--primary)]" />
+              </div>
+
+              <div>
+                <h3 className="text-white font-black text-sm uppercase tracking-wider">
+                  Pourquoi créer vos comptes Kleea ?
+                </h3>
+                <p className="text-[8.5px] text-white/40 uppercase font-bold tracking-wider mt-0.5">
+                  Le socle pour analyser vos finances et projeter votre épargne
+                </p>
+              </div>
+
+              <p className="text-[10px] text-white/70 leading-relaxed text-left bg-black/30 p-3.5 rounded-xl border border-white/5">
+                Kleea fonctionne avec des <strong className="text-white">comptes virtuels</strong> (ex: <i>« Compte Courant »</i>, <i>« Livret A »</i>) nécessaires pour rattacher vos opérations et calculer vos bilans.
+              </p>
+
+              <div className="grid grid-cols-1 gap-2.5 w-full text-left">
+                <div className="p-3 rounded-xl bg-black/20 border border-white/5 space-y-1">
+                  <h4 className="text-[9px] font-black uppercase text-white/90 tracking-wider">
+                    Option 1 : 100% Fichiers CSV
+                  </h4>
+                  <p className="text-[9.5px] text-white/50 leading-relaxed">
+                    Créez vos comptes, puis téléchargez vos fichiers CSV depuis votre banque pour les importer dans l'onglet <i>Importer</i>.
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 space-y-1">
+                  <h4 className="text-[9px] font-black uppercase text-[var(--primary)] tracking-wider">
+                    Option 2 : Zéro téléchargement
+                  </h4>
+                  <p className="text-[9.5px] text-white/70 leading-relaxed">
+                    Connectez votre banque en direct pour récupérer vos transactions automatiquement sans jamais manipuler de fichiers CSV.
+                  </p>
+                  
+                  {handleConnectNewBank && (
+                    <button
+                      type="button"
+                      onClick={handleConnectNewBank}
+                      className="w-full py-2 bg-[var(--primary)] text-black font-black uppercase text-[8.5px] tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                    >
+                      <Plus size={12} strokeWidth={3} />
+                      <span>Connecter mes comptes bancaires</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsCreateModalOpen(true)}
+                className="w-full py-3 bg-white text-black font-black text-[9px] uppercase tracking-widest rounded-xl shadow-lg active:scale-95 cursor-pointer"
+              >
+                Créer mon premier compte
+              </button>
+            </div>
+          )
         )}
       </div>
 

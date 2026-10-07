@@ -4,13 +4,15 @@ import {
   Brain, X, Plus, Settings2, ChevronRight, Eye, EyeOff, Trash2, 
   Target, Activity, Check, Edit3, Filter, User, Search, Calendar, 
   Database, List, CreditCard, Tag, MoreHorizontal, Pencil, ArrowUpDown, Wallet,
-  Edit2, Sparkles, Layers 
+  Edit2, Sparkles, Layers,Scissors,RotateCcw 
 } from 'lucide-react';
 import DatePicker from 'react-datepicker';
 import { SketchPicker } from 'react-color';
 import { CategoryIcon, getCleanCategoryName, LucideIconPicker, getCategoryIconInfo, getCategoryGroup } from './categoryIcons';
 import { toast } from 'sonner';
 import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
+import api from './axios';
+import SplitTransactionModal from './components/SplitTransactionModal';
 
 // 🟢 Normalisation des mois sans accents
 const cleanMonth = (m) => {
@@ -39,6 +41,25 @@ export default function GererMobile(props) {
     CustomSelect,
     handleProfilChange, handleCompteChange
   } = props;
+
+  // 🟢 États pour le Split et l'Unsplit sur Mobile
+  const [splittingTx, setSplittingTx] = useState(null);
+  const [unsplitModal, setUnsplitModal] = useState({ show: false, splitId: null, txName: '' });
+
+  // Exécution de l'annulation (fusion)
+  const executeUnsplitMobile = async () => {
+    if (!unsplitModal.splitId) return;
+    try {
+      await api.post(`/transactions/unsplit/${unsplitModal.splitId}`);
+      toast.success("Ventilation annulée : écriture originale restaurée ! 🔄");
+      if (typeof props.fetchTransactions === 'function') {
+        props.fetchTransactions();
+      }
+      setUnsplitModal({ show: false, splitId: null, txName: '' });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Erreur lors de l'annulation de la ventilation.");
+    }
+  };
 
   const [activeSection, setActiveSection] = useState('transactions'); // 'transactions' | 'tools' | 'budgets'
   const [showFilters, setShowFilters] = useState(false);
@@ -435,7 +456,7 @@ export default function GererMobile(props) {
                       }}
                       className="pb-2"
                     >
-                      <div className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all cursor-pointer select-none">
+<div className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all cursor-pointer select-none">
                         
                         {/* Ligne gauche : barre de couleur + Libellé + Badges */}
                         <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
@@ -467,12 +488,29 @@ export default function GererMobile(props) {
                                   <span className="truncate">{getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, ''))}</span>
                                 </span>
                               )}
+
+                              {/* 🟢 BADGE [VENTILÉE] MOBILE CLIQUABLE POUR ANNULER */}
+                              {t.split_id && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation(); // Évite d'ouvrir l'édition de la ligne
+                                    setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom });
+                                  }}
+                                  className="px-1.5 py-0.5 rounded bg-indigo-500/20 active:bg-rose-500/20 text-indigo-300 active:text-rose-300 border border-indigo-500/30 text-[7px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1 shadow-sm"
+                                  title="Annuler la ventilation"
+                                >
+                                  <Scissors size={8} />
+                                  <span>Ventilée</span>
+                                  <RotateCcw size={7} className="text-rose-300 ml-0.5" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
 
-                        {/* Montant + Date */}
-                        <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
+                        {/* Côté droit : Montant + Date + BOUTON CISEAUX */}
+                        <div className="text-right shrink-0 ml-2 flex items-center gap-2">
                           <div>
                             <span className={`text-xs font-mono font-black ${
                               isTransfertInterne 
@@ -490,9 +528,22 @@ export default function GererMobile(props) {
                             </p>
                           </div>
                           
-                          <div className="p-1.5 bg-white/[0.02] border border-white/5 rounded-lg text-white/20">
-                            <Pencil size={10} />
-                          </div>
+                          {/* ✂️ BOUTON CISEAUX MOBILE VISIBLE TOUT LE TEMPS */}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation(); // Évite d'ouvrir la modale d'édition générale
+                              setSplittingTx(t);
+                            }}
+                            className={`p-2 rounded-xl border transition-all shrink-0 cursor-pointer ${
+                              t.split_id
+                                ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40 shadow-sm'
+                                : 'bg-white/[0.04] text-white/50 border-white/10 active:bg-indigo-500/20 active:text-indigo-300'
+                            }`}
+                            title="Ventiler cette transaction"
+                          >
+                            <Scissors size={12} strokeWidth={2.5} />
+                          </button>
                         </div>
 
                       </div>
@@ -1270,7 +1321,72 @@ export default function GererMobile(props) {
           </div>
         </div>
       )}
+{/* =========================================================================
+          ✂️ MODALE DE VENTILATION MOBILE (SPLIT)
+          ========================================================================= */}
+      <SplitTransactionModal
+        isOpen={Boolean(splittingTx)}
+        onClose={() => setSplittingTx(null)}
+        transaction={splittingTx}
+        categoriesVisibles={categoriesVisibles}
+        allocations={allocations}
+        onSuccess={() => {
+          if (typeof props.fetchTransactions === 'function') {
+            props.fetchTransactions();
+          }
+        }}
+      />
 
+      {/* =========================================================================
+          🔄 MODALE SOMBRE D'ANNULATION (UNSPLIT MOBILE)
+          ========================================================================= */}
+      {unsplitModal.show && (
+        <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+            onClick={() => setUnsplitModal({ show: false, splitId: null, txName: '' })}
+          />
+          
+          <div className="relative bg-[#121214] border border-white/10 rounded-3xl p-6 max-w-xs w-full shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center select-none">
+            
+            <div className="w-12 h-12 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-500/10">
+              <RotateCcw size={22} />
+            </div>
+
+            <h3 className="text-sm font-black text-white uppercase tracking-wider mb-1">
+              Annuler la ventilation ?
+            </h3>
+            
+            <p className="text-[11px] text-white/60 leading-relaxed mb-5">
+              Voulez-vous fusionner à nouveau <strong className="text-white">"{unsplitModal.txName}"</strong> ? 
+              <br />
+              <span className="text-[9px] text-white/40 block mt-1">
+                L'écriture d'origine sera restaurée.
+              </span>
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setUnsplitModal({ show: false, splitId: null, txName: '' })}
+                className="py-2.5 rounded-xl bg-white/5 text-white/60 text-[9px] font-black uppercase tracking-wider"
+              >
+                Garder
+              </button>
+              
+              <button
+                type="button"
+                onClick={executeUnsplitMobile}
+                className="py-2.5 rounded-xl bg-indigo-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-indigo-600/25 active:scale-95"
+              >
+                Fusionner
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+      
     </div>
   );
 }
