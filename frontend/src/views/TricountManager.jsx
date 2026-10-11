@@ -423,7 +423,7 @@ export default function TricountManager({ userId }) {
     }
   };
 
-  if (loading) return <div className="flex justify-center p-10"></div>;
+
 
   return (
     <>
@@ -1197,15 +1197,16 @@ export default function TricountManager({ userId }) {
 
             </div>
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-20 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10">
-            <div className="w-20 h-20 bg-[var(--primary)]/20 text-[var(--primary)] rounded-[var(--radius)] flex items-center justify-center mb-6 shadow-inner">
-              <Plus size={40} strokeWidth={3} />
-            </div>
-            <h3 className="text-xl font-black text-[var(--text-main)] uppercase tracking-tighter mb-2">Aucun groupe actif</h3>
-            <p className="text-[var(--text-main)]/30 text-[10px] font-bold uppercase tracking-widest">Initialisez un projet pour commencer</p>
+        ) : !loading ? (
+        /* Affiché uniquement si le chargement est fini ET qu'il n'y a aucun groupe */
+        <div className="flex flex-col items-center justify-center p-20 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10">
+          <div className="w-20 h-20 bg-[var(--primary)]/20 text-[var(--primary)] rounded-[var(--radius)] flex items-center justify-center mb-6 shadow-inner">
+            <Plus size={40} strokeWidth={3} />
           </div>
-        )}
+          <h3 className="text-xl font-black text-[var(--text-main)] uppercase tracking-tighter mb-2">Aucun groupe actif</h3>
+          <p className="text-[var(--text-main)]/30 text-[10px] font-bold uppercase tracking-widest">Initialisez un projet pour commencer</p>
+        </div>
+      ) : null}
       </div>
 
       {/* ==========================================================

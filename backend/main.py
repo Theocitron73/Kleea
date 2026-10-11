@@ -3431,6 +3431,50 @@ def delete_scenario(username: str, scenario_name: str, current_user: str = Depen
             raise HTTPException(status_code=404, detail="Scénario introuvable")
             
     return {"status": "success", "message": f"{result.rowcount} lignes supprimées."}
+
+
+# =========================================================================
+# 📦 DUPLICATION DE SCÉNARIO DÉMÉNAGEMENT
+# =========================================================================
+
+class DuplicateScenarioRequest(BaseModel):
+    scenario_source: str
+    nouveau_scenario: str
+
+@app.post("/api/simulation-demenagement/duplicate")
+def duplicate_scenario(req: DuplicateScenarioRequest, current_user: str = Depends(get_current_user)):
+    old_sc = req.scenario_source.strip()
+    new_sc = req.nouveau_scenario.strip()
+    
+    if not new_sc or not old_sc:
+        raise HTTPException(status_code=400, detail="Noms de scénarios invalides.")
+
+    with engine.begin() as conn:
+        # Vérifie que le nouveau nom n'existe pas déjà
+        check = conn.execute(text("""
+            SELECT 1 FROM simulations_demenagement 
+            WHERE LOWER(utilisateur) = :u AND scenario = :new_sc LIMIT 1
+        """), {"u": current_user, "new_sc": new_sc}).fetchone()
+        
+        if check:
+            raise HTTPException(status_code=400, detail="Un scénario portant ce nom existe déjà.")
+
+        # Clone toutes les lignes du scénario source en 1 seule requête SQL atomique
+        conn.execute(text("""
+            INSERT INTO simulations_demenagement (utilisateur, scenario, titre, flux_type, categorie, montant, frequence, cible)
+            SELECT utilisateur, :new_sc, titre, flux_type, categorie, montant, frequence, cible
+            FROM simulations_demenagement
+            WHERE LOWER(utilisateur) = :u AND scenario = :old_sc
+        """), {"u": current_user, "old_sc": old_sc, "new_sc": new_sc})
+
+        # Renvoie la liste complète mise à jour
+        rows = conn.execute(text("""
+            SELECT id, scenario, titre, flux_type, categorie, montant, frequence, cible 
+            FROM simulations_demenagement 
+            WHERE LOWER(utilisateur) = :u
+        """), {"u": current_user}).mappings().all()
+
+    return {"status": "success", "new_scenario": new_sc, "data": [dict(r) for r in rows]}
     
 
 class NoteUpdate(BaseModel):
