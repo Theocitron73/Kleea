@@ -6701,6 +6701,8 @@ if (!user) {
     setHiddenPages={setHiddenPages}
     activeTab={activeTab}
     setActiveTab={setActiveTab}
+    userTheme={userTheme}       // 👈 Vérifiez cette ligne
+    setUserTheme={setUserTheme}   // 👈 Vérifiez cette ligne
   />
 )}
        

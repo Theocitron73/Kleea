@@ -33,7 +33,7 @@ from cryptography.fernet import Fernet
 import jwt
 import bcrypt
 from contextlib import asynccontextmanager
-
+import base64
 # 1. Patch Hostname
 def get_ascii_hostname():
     return "localhost"
@@ -1119,17 +1119,14 @@ class UserColorUpdate(BaseModel):
 
 @app.post("/save-user-theme")
 def save_user_theme(c: UserColorUpdate):
-    # Cette requête met à jour la couleur si le couple (user, element) existe déjà
-    # Sinon, elle l'insère.
     query = text("""
-        INSERT INTO theme ("user", element, "Couleur")
+        INSERT INTO theme ("user", element, couleur)
         VALUES (:u, :e, :c)
         ON CONFLICT ("user", element) DO UPDATE 
-        SET "Couleur" = :c
+        SET couleur = :c
     """)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(query, {"u": c.user.lower(), "e": c.element, "c": c.couleur})
-        conn.commit()
     return {"status": "success"}
 
 
@@ -5721,3 +5718,91 @@ def match_powens_to_user_category(powens_cat_raw: str, user_available_cats: list
             return real_name
 
     return "Autre"
+
+
+# =========================================================================
+# 🎨 GESTION DES PRESETS DE THÈMES (UNIQUEMENT L'HABILLAGE DU SITE)
+# =========================================================================
+
+class ThemePresetIn(BaseModel):
+    nom: str
+    bg_site: str
+    primary_color: str
+    text_main: str
+    radius: str
+    glass_blur: str
+    glass_bg: str
+
+@app.get("/api/themes/presets")
+def get_theme_presets(current_user: str = Depends(get_current_user)):
+    with engine.connect() as conn:
+        res = conn.execute(text("""
+            SELECT id, nom, bg_site, primary_color, text_main, glass_bg, glass_blur, radius, is_active
+            FROM theme_presets 
+            WHERE LOWER(utilisateur) = :u
+            ORDER BY id ASC
+        """), {"u": current_user}).mappings().all()
+        return [dict(r) for r in res]
+
+@app.post("/api/themes/presets")
+def save_theme_preset(p: ThemePresetIn, current_user: str = Depends(get_current_user)):
+    clean_nom = p.nom.strip()
+    if not clean_nom:
+        raise HTTPException(status_code=400, detail="Le nom du thème est obligatoire")
+    
+    with engine.begin() as conn:
+        query = text("""
+            INSERT INTO theme_presets (utilisateur, nom, bg_site, primary_color, text_main, glass_bg, glass_blur, radius)
+            VALUES (:u, :nom, :bg, :pri, :tm, :gb, :gblur, :rad)
+            ON CONFLICT (utilisateur, nom) DO UPDATE 
+            SET bg_site = EXCLUDED.bg_site,
+                primary_color = EXCLUDED.primary_color,
+                text_main = EXCLUDED.text_main,
+                glass_bg = EXCLUDED.glass_bg,
+                glass_blur = EXCLUDED.glass_blur,
+                radius = EXCLUDED.radius
+            RETURNING id
+        """)
+        res = conn.execute(query, {
+            "u": current_user, "nom": clean_nom, "bg": p.bg_site, "pri": p.primary_color,
+            "tm": p.text_main, "gb": p.glass_bg, "gblur": p.glass_blur, "rad": p.radius
+        })
+        new_id = res.scalar()
+    return {"status": "success", "id": new_id, "nom": clean_nom}
+
+@app.post("/api/themes/presets/{preset_id}/apply")
+def apply_theme_preset(preset_id: int, current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        preset = conn.execute(text("""
+            SELECT * FROM theme_presets WHERE id = :id AND LOWER(utilisateur) = :u
+        """), {"id": preset_id, "u": current_user}).mappings().first()
+        
+        if not preset:
+            raise HTTPException(status_code=404, detail="Thème introuvable")
+
+        # 1. Marque le thème comme actif
+        conn.execute(text("UPDATE theme_presets SET is_active = FALSE WHERE LOWER(utilisateur) = :u"), {"u": current_user})
+        conn.execute(text("UPDATE theme_presets SET is_active = TRUE WHERE id = :id"), {"id": preset_id})
+
+        # 2. Met à jour user_theme (rechargé au boot du site)
+        conn.execute(text("""
+            INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius, glass_blur, glass_bg)
+            VALUES (:u, :bg, :p, :tm, :r, :gb, :gg)
+            ON CONFLICT (utilisateur) DO UPDATE 
+            SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r, glass_blur = :gb, glass_bg = :gg
+        """), {
+            "u": current_user, "bg": preset["bg_site"], "p": preset["primary_color"],
+            "tm": preset["text_main"], "r": preset["radius"], "gb": preset["glass_blur"], "gg": preset["glass_bg"]
+        })
+
+    return {"status": "success", "preset": dict(preset)}
+
+@app.delete("/api/themes/presets/{preset_id}")
+def delete_theme_preset(preset_id: int, current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        res = conn.execute(text("""
+            DELETE FROM theme_presets WHERE id = :id AND LOWER(utilisateur) = :u
+        """), {"id": preset_id, "u": current_user})
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Thème introuvable")
+    return {"status": "success"}
