@@ -21,7 +21,8 @@ import unicodedata
 import json
 from google import genai
 from google.genai import types
-from urllib.parse import unquote, quote
+from urllib.parse import unquote, quote, urlparse
+import html
 import httpx
 import requests
 import traceback
@@ -5850,3 +5851,407 @@ def delete_theme_preset(preset_id: int, current_user: str = Depends(get_current_
         if res.rowcount == 0:
             raise HTTPException(status_code=404, detail="Thème introuvable")
     return {"status": "success"}
+
+
+# =========================================================================
+# 🏠 ROUTES CRUD POUR LES ANNONCES DE DÉMÉNAGEMENT
+# =========================================================================
+
+# 1. Modèle Pydantic des annonces
+class AnnonceModel(BaseModel):
+    titre: str
+    url: Optional[str] = ""
+    source: Optional[str] = "Autre"
+    loyer: Optional[float] = 0.0
+    charges: Optional[float] = 0.0
+    surface: Optional[float] = 0.0
+    pieces: Optional[int] = 0
+    ville: Optional[str] = ""
+    photos: Optional[List[str]] = []
+    dossier_envoye: Optional[bool] = False
+    date_dossier: Optional[str] = None
+    visite_effectuee: Optional[bool] = False
+    date_visite: Optional[str] = None
+    statut_reponse: Optional[str] = "en_attente"
+    notes: Optional[str] = ""
+    favori: Optional[bool] = False
+
+# 2. Récupérer toutes les annonces de l'utilisateur
+@app.get("/api/demenagement/annonces/{username}")
+def get_user_annonces(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    with engine.connect() as conn:
+        res = conn.execute(
+            text("""
+                SELECT id, titre, url, source, loyer, charges, surface, pieces, ville,
+                       photos, dossier_envoye, date_dossier, visite_effectuee, date_visite,
+                       statut_reponse, notes, favori, created_at
+                FROM annonces_logement 
+                WHERE LOWER(utilisateur) = :u 
+                ORDER BY favori DESC, created_at DESC
+            """),
+            {"u": current_user.lower().strip()}
+        ).mappings().all()
+
+        annonces = []
+        for r in res:
+            item = dict(r)
+            if item.get("photos"):
+                try:
+                    item["photos"] = json.loads(item["photos"])
+                except Exception:
+                    item["photos"] = [item["photos"]]
+            else:
+                item["photos"] = []
+            annonces.append(item)
+        return annonces
+
+# 3. Créer une nouvelle annonce (Celle qui provoquait le 404 !)
+@app.post("/api/demenagement/annonces")
+@app.post("/api/demenagement/annonces/")
+def add_annonce(a: AnnonceModel, current_user: str = Depends(get_current_user)):
+    photos_json = json.dumps(a.photos or [])
+    query = text("""
+        INSERT INTO annonces_logement (
+            utilisateur, titre, url, source, loyer, charges, surface, pieces,
+            ville, photos, dossier_envoye, date_dossier, visite_effectuee,
+            date_visite, statut_reponse, notes, favori
+        ) VALUES (
+            :u, :titre, :url, :source, :loyer, :charges, :surface, :pieces,
+            :ville, :photos, :dossier, :date_dossier, :visite, :date_visite,
+            :statut, :notes, :favori
+        ) RETURNING id
+    """)
+    with engine.begin() as conn:
+        res = conn.execute(query, {
+            "u": current_user.lower().strip(),
+            "titre": a.titre.strip(),
+            "url": a.url.strip() if a.url else "",
+            "source": a.source or "Autre",
+            "loyer": a.loyer or 0.0,
+            "charges": a.charges or 0.0,
+            "surface": a.surface or 0.0,
+            "pieces": a.pieces or 0,
+            "ville": a.ville or "",
+            "photos": photos_json,
+            "dossier": a.dossier_envoye or False,
+            "date_dossier": a.date_dossier,
+            "visite": a.visite_effectuee or False,
+            "date_visite": a.date_visite,
+            "statut": a.statut_reponse or "en_attente",
+            "notes": a.notes or "",
+            "favori": a.favori or False
+        })
+        new_id = res.fetchone()[0]
+    return {"status": "success", "id": new_id}
+
+# 4. Modifier une annonce existante (statuts, notes, favori, etc.)
+@app.put("/api/demenagement/annonces/{annonce_id}")
+def update_annonce(annonce_id: int, a: AnnonceModel, current_user: str = Depends(get_current_user)):
+    photos_json = json.dumps(a.photos or [])
+    query = text("""
+        UPDATE annonces_logement SET
+            titre = :titre, url = :url, source = :source, loyer = :loyer,
+            charges = :charges, surface = :surface, pieces = :pieces, ville = :ville,
+            photos = :photos, dossier_envoye = :dossier, date_dossier = :date_dossier,
+            visite_effectuee = :visite, date_visite = :date_visite,
+            statut_reponse = :statut, notes = :notes, favori = :favori
+        WHERE id = :id AND LOWER(utilisateur) = :u
+    """)
+    with engine.begin() as conn:
+        res = conn.execute(query, {
+            "id": annonce_id,
+            "u": current_user.lower().strip(),
+            "titre": a.titre.strip(),
+            "url": a.url.strip() if a.url else "",
+            "source": a.source or "Autre",
+            "loyer": a.loyer or 0.0,
+            "charges": a.charges or 0.0,
+            "surface": a.surface or 0.0,
+            "pieces": a.pieces or 0,
+            "ville": a.ville or "",
+            "photos": photos_json,
+            "dossier": a.dossier_envoye or False,
+            "date_dossier": a.date_dossier,
+            "visite": a.visite_effectuee or False,
+            "date_visite": a.date_visite,
+            "statut": a.statut_reponse or "en_attente",
+            "notes": a.notes or "",
+            "favori": a.favori or False
+        })
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Annonce introuvable")
+    return {"status": "success"}
+
+# 5. Supprimer une annonce
+@app.delete("/api/demenagement/annonces/{annonce_id}")
+def delete_annonce(annonce_id: int, current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        res = conn.execute(
+            text("DELETE FROM annonces_logement WHERE id = :id AND LOWER(utilisateur) = :u"),
+            {"id": annonce_id, "u": current_user.lower().strip()}
+        )
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Annonce introuvable")
+    return {"status": "deleted"}
+
+# 1. Déclaration du modèle
+class ScrapeUrlRequest(BaseModel):
+    url: str
+
+# 2. Route FastAPI
+@app.post("/api/demenagement/scrape-listing")
+async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_current_user)):
+    url = req.url.strip()
+    if not url.startswith("http"):
+        url = "https://" + url
+
+    parsed = urlparse(url)
+    domain = parsed.netloc.lower()
+    
+    source = "Autre"
+    if "leboncoin" in domain:
+        source = "Leboncoin"
+    elif "seloger" in domain:
+        source = "SeLoger"
+    elif "pap.fr" in domain:
+        source = "PAP"
+    elif "bienici" in domain:
+        source = "Bien'ici"
+    elif "jinka" in domain:
+        source = "Jinka"
+    elif "ouestfrance" in domain:
+        source = "OuestFrance"
+    elif "logic-immo" in domain:
+        source = "Logic-Immo"
+    elif "orpi" in domain:
+        source = "Orpi"
+    elif "century21" in domain:
+        source = "Century 21"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
+    }
+
+    html_text = ""
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True, headers=headers) as client:
+            resp = await client.get(url)
+            html_text = resp.text
+    except Exception as e:
+        print(f"⚠️ Erreur requête scrape : {e}")
+
+    titre = ""
+    description = ""
+    loyer = 0.0
+    charges = 0.0
+    surface = 0.0
+    pieces = 0
+    ville = ""
+    photos = []
+
+    # 1. Parsing LeBonCoin __NEXT_DATA__
+    if "__NEXT_DATA__" in html_text:
+        try:
+            m_next = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html_text, re.DOTALL)
+            if m_next:
+                data_next = json.loads(m_next.group(1))
+                page_props = data_next.get("props", {}).get("pageProps", {})
+                ad = page_props.get("ad") or page_props.get("listing") or page_props.get("item") or {}
+                
+                if ad:
+                    titre = ad.get("subject") or ""
+                    description = ad.get("body") or ""
+                    
+                    p_val = ad.get("price")
+                    if isinstance(p_val, list) and p_val:
+                        loyer = clean_val_to_float(p_val[0])
+                    elif p_val is not None:
+                        loyer = clean_val_to_float(p_val)
+
+                    for attr in ad.get("attributes", []):
+                        k = attr.get("key")
+                        v = attr.get("value")
+                        if k == "square" and v:
+                            surface = clean_val_to_float(v)
+                        elif k == "rooms" and v:
+                            try:
+                                pieces = int(clean_val_to_float(v))
+                            except Exception:
+                                pass
+                        elif k in ("charges", "charges_amount") and v:
+                            charges = clean_val_to_float(v)
+
+                    loc = ad.get("location", {})
+                    c_name = loc.get("city") or ""
+                    c_zip = loc.get("zipcode") or ""
+                    if c_name:
+                        ville = f"{c_name} ({c_zip[:2]})" if c_zip else c_name
+                    elif c_zip:
+                        ville = c_zip
+
+                    imgs = ad.get("images", {})
+                    urls_list = imgs.get("urls_large") or imgs.get("urls") or []
+                    for u_img in urls_list:
+                        if isinstance(u_img, str) and u_img.startswith("http") and u_img not in photos:
+                            photos.append(u_img)
+        except Exception as e_next:
+            print(f"⚠️ Erreur parsing __NEXT_DATA__ : {e_next}")
+
+    # 2. Parsing JSON-LD pour SeLoger, PAP, Bien'ici, etc.
+    if not loyer or not surface or not description:
+        ld_matches = re.findall(r'<script type="application/ld\+json">(.*?)</script>', html_text, re.DOTALL)
+        for ld_raw in ld_matches:
+            try:
+                ld_obj = json.loads(ld_raw.strip())
+                items = ld_obj if isinstance(ld_obj, list) else [ld_obj]
+                
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if "@graph" in item and isinstance(item["@graph"], list):
+                        items.extend(item["@graph"])
+
+                    if not titre:
+                        titre = item.get("name") or item.get("headline") or ""
+
+                    if not description:
+                        description = item.get("description") or ""
+
+                    if not loyer:
+                        offers = item.get("offers")
+                        if isinstance(offers, dict):
+                            loyer = clean_val_to_float(offers.get("price"))
+                        elif isinstance(offers, list) and offers and isinstance(offers[0], dict):
+                            loyer = clean_val_to_float(offers[0].get("price"))
+                        elif item.get("price"):
+                            loyer = clean_val_to_float(item.get("price"))
+
+                    if not surface:
+                        fs = item.get("floorSize")
+                        if isinstance(fs, dict):
+                            surface = clean_val_to_float(fs.get("value"))
+                        elif fs is not None:
+                            surface = clean_val_to_float(fs)
+
+                    if not pieces:
+                        nbr = item.get("numberOfRooms") or item.get("numberOfBedrooms")
+                        if nbr is not None:
+                            try:
+                                pieces = int(clean_val_to_float(nbr))
+                            except Exception:
+                                pass
+
+                    if not ville:
+                        addr = item.get("address")
+                        if isinstance(addr, dict):
+                            city = addr.get("addressLocality") or ""
+                            zip_code = addr.get("postalCode") or ""
+                            if city:
+                                ville = f"{city} ({zip_code[:2]})" if zip_code else city
+
+                    img_item = item.get("image")
+                    if isinstance(img_item, list):
+                        for im in img_item:
+                            im_url = im if isinstance(im, str) else (im.get("url") if isinstance(im, dict) else "")
+                            if im_url and im_url.startswith("http") and im_url not in photos:
+                                photos.append(im_url)
+                    elif isinstance(img_item, str) and img_item.startswith("http") and img_item not in photos:
+                        photos.append(img_item)
+            except Exception:
+                continue
+
+    # 3. Meta OpenGraph Fallback
+    def get_meta(prop_name):
+        m = re.search(rf'<meta\s+(?:property|name)=["\'](?:og:|twitter:)?{re.escape(prop_name)}["\']\s+content=["\']([^"\']+)["\']', html_text, re.IGNORECASE)
+        if not m:
+            m = re.search(rf'<meta\s+content=["\']([^"\']+)["\']\s+(?:property|name)=["\'](?:og:|twitter:)?{re.escape(prop_name)}["\']', html_text, re.IGNORECASE)
+        return html.unescape(m.group(1).strip()) if m else ""
+
+    if not titre:
+        titre = get_meta("title")
+        if not titre:
+            title_tag = re.search(r'<title>(.*?)</title>', html_text, re.IGNORECASE | re.DOTALL)
+            titre = html.unescape(title_tag.group(1).strip()) if title_tag else f"Logement {source}"
+
+    if not description:
+        description = get_meta("description")
+
+    if not photos:
+        og_img = get_meta("image")
+        if og_img and og_img.startswith("http"):
+            photos.append(og_img)
+
+        for img_match in re.finditer(r'<meta\s+(?:property|name)=["\'](?:og:image|twitter:image)["\']\s+content=["\'](https?://[^"\']+)["\']', html_text, re.IGNORECASE):
+            img_u = img_match.group(1)
+            if img_u not in photos and not any(ext in img_u.lower() for ext in ['.svg', 'logo', 'favicon', 'icon']):
+                photos.append(img_u)
+
+    # 4. Fallback Regex
+    text_corpus = html.unescape(f"{titre}\n{description}\n{html_text[:15000]}")
+
+    if not loyer:
+        m_loyer = re.search(r'(?:loyer|prix|loyer\s*mensuel|loyer\s*cc)[^\d€]{0,25}(\d[\d\s\u00a0\.,]{2,7})\s*(?:€|euros?)', text_corpus, re.IGNORECASE)
+        if not m_loyer:
+            m_loyer = re.search(r'(\d[\d\s\u00a0\.,]{2,7})\s*€\s*(?:\/|\s*par|\s*mensuel|\s*cc|\s*charges|\s*mois)', text_corpus, re.IGNORECASE)
+        if not m_loyer:
+            for p_cand in re.finditer(r'(\d[\d\s\u00a0]{2,6})\s*€', text_corpus):
+                val_c = clean_val_to_float(p_cand.group(1))
+                if 250 <= val_c <= 6000:
+                    loyer = val_c
+                    break
+        else:
+            loyer = clean_val_to_float(m_loyer.group(1))
+
+    if not surface:
+        m_surf = re.search(r'(\d+[\.,]?\d*)\s*(?:m²|m2|mètres\s*carrés?|metres\s*carres?|m&#178;|m&sup2;)', text_corpus, re.IGNORECASE)
+        if m_surf:
+            val_s = clean_val_to_float(m_surf.group(1))
+            if 8 <= val_s <= 500:
+                surface = val_s
+
+    if not pieces:
+        m_pcs = re.search(r'(\d+)\s*(?:pièces?|pieces?|\bpi[eè]ce\b)', text_corpus, re.IGNORECASE)
+        if not m_pcs:
+            m_pcs = re.search(r'\b(?:T|F|P)\s*(\d)\b', text_corpus, re.IGNORECASE)
+        if m_pcs:
+            try:
+                pieces = int(m_pcs.group(1))
+            except Exception:
+                pass
+
+    if not ville:
+        m_city = re.search(r'\b(\d{5})\s+([A-Za-zÀ-ÿ\-]{3,25})\b', text_corpus)
+        if m_city:
+            ville = f"{m_city.group(2).capitalize()} ({m_city.group(1)[:2]})"
+
+    titre = re.sub(r'\s*[\-|–|\|]\s*(?:Leboncoin|SeLoger|PAP|Bien\'ici|Jinka|OuestFrance).*$', '', titre, flags=re.IGNORECASE).strip()
+    if description:
+        description = re.sub(r'<[^>]+>', '', description)
+        description = re.sub(r'\s+', ' ', description).strip()
+
+    return {
+        "success": True,
+        "titre": titre or f"Logement {source}",
+        "description": description[:1200],
+        "url": url,
+        "source": source,
+        "loyer": loyer,
+        "charges": charges,
+        "surface": surface,
+        "pieces": pieces,
+        "ville": ville,
+        "photos": photos[:10]
+    }

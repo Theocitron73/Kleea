@@ -3,7 +3,8 @@ import {
   Layers, Calculator, User, Wallet, Landmark, Tag, 
   Plus, Calendar, Trash2, FileText, Copy, X, Check,
   Scale, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, 
-  Sparkles, Award, ArrowRight, ShieldCheck 
+  Sparkles, Award, ArrowRight, ShieldCheck, Home, ExternalLink,
+  Camera, Eye, Star, Clock, MapPin, ChevronLeft, ChevronRight, Edit3, AlignLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
@@ -11,10 +12,10 @@ import CustomSelect from '../components/CustomSelect';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 
 export default function DemenagementPage({ user, toutesLesCategories = [], comptes = [] }) {
-  // Mode d'affichage : 'simulator' (Édition détaillée) ou 'compare' (Comparatif Stratégique)
+  // Mode d'affichage : 'simulator' | 'compare' | 'annonces'
   const [viewMode, setViewMode] = useState('simulator');
 
-  // --- 1. ÉTATS (STATES) ---
+  // --- 1. ÉTATS DU SIMULATEUR ---
   const [notesHtml, setNotesHtml] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
@@ -23,16 +24,14 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const [currentScenario, setCurrentScenario] = useState('Scénario de base');
   const [nouveauScenarioNom, setNouveauScenarioNom] = useState('');
 
-  // Modale de duplication
+  // Modale de duplication de scénario
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [duplicateName, setDuplicateName] = useState('');
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  // Salaires
+  // Salaires & Dépenses persos
   const [salaireLui, setSalaireLui] = useState('');
   const [salaireElle, setSalaireElle] = useState('');
-
-  // Dépenses personnelles
   const [depensePersoLui, setDepensePersoLui] = useState('');
   const [depensePersoElle, setDepensePersoElle] = useState('');
 
@@ -45,6 +44,38 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const saveTimeoutRef = useRef(null);
   const editorRef = useRef(null);
 
+  // --- 2. ÉTATS DU MODULE ANNONCES ---
+  const [annonces, setAnnonces] = useState([]);
+  const [loadingAnnonces, setLoadingAnnonces] = useState(false);
+  const [isAnnonceModalOpen, setIsAnnonceModalOpen] = useState(false);
+  const [scrapingUrl, setScrapingUrl] = useState('');
+  const [isScraping, setIsScraping] = useState(false);
+  const [annonceFilter, setAnnonceFilter] = useState('all'); // 'all', 'favoris', 'dossier', 'visite', 'accepte'
+  
+  // États d'affichage pour les cartes (carrousel photo + dépliage description)
+  const [activePhotoIdx, setActivePhotoIdx] = useState({});
+  const [expandedDesc, setExpandedDesc] = useState({});
+
+  const [annonceForm, setAnnonceForm] = useState({
+    id: null,
+    titre: '',
+    url: '',
+    source: 'Autre',
+    loyer: '',
+    charges: '',
+    surface: '',
+    pieces: '',
+    ville: '',
+    photos: [],
+    dossier_envoye: false,
+    date_dossier: '',
+    visite_effectuee: false,
+    date_visite: '',
+    statut_reponse: 'en_attente',
+    notes: '',
+    favori: false
+  });
+
   const diviseursFrequence = {
     'mensuel': 1,
     'trimestriel': 3,
@@ -54,14 +85,13 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
 
   const getLigneId = (ligne) => ligne?.id || ligne?._id;
 
-  // --- 2. EFFETS (CHARGEMENT & SYNCHRONISATION DU BLOC-NOTES) ---
+  // --- 3. CHARGEMENT INITIAL (NOTES, SCÉNARIOS, ANNONCES) ---
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, []);
 
-  // Chargement initial des notes depuis la BDD
   useEffect(() => {
     const fetchNotes = async () => {
       try {
@@ -69,18 +99,15 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
         if (res.data) {
           const contenu = res.data.contenu || "";
           setNotesHtml(contenu);
-          if (editorRef.current) {
-            editorRef.current.innerHTML = contenu;
-          }
+          if (editorRef.current) editorRef.current.innerHTML = contenu;
         }
       } catch (err) {
-        console.error("Erreur chargement notes :", err);
+        console.error("Erreur notes :", err);
       }
     };
     if (user) fetchNotes();
   }, [user]);
 
-  // Restauration de sécurité du contenu HTML si le composant est remonté
   useEffect(() => {
     if (editorRef.current && !editorRef.current.innerHTML && notesHtml) {
       editorRef.current.innerHTML = notesHtml;
@@ -101,10 +128,26 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
           }
         }
       } catch (err) {
-        console.error("Erreur chargement simulations :", err);
+        console.error("Erreur simulations :", err);
       }
     };
     if (user) loadData();
+  }, [user]);
+
+  const fetchAnnonces = async () => {
+    try {
+      setLoadingAnnonces(true);
+      const res = await api.get(`/api/demenagement/annonces/${user}`);
+      setAnnonces(res.data || []);
+    } catch (err) {
+      console.error("Erreur annonces :", err);
+    } finally {
+      setLoadingAnnonces(false);
+    }
+  };
+
+  useEffect(() => {
+    if (user) fetchAnnonces();
   }, [user]);
 
   useEffect(() => {
@@ -122,7 +165,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     setMontantCommunForfaitaire(mntGlobal ? mntGlobal.montant.toString() : '');
   }, [currentScenario, lignes]);
 
-  // --- 3. GESTION DU BLOC-NOTES ET DES CHECKBOXES AMÉLIORÉES ---
+  // --- 4. GESTION DU BLOC-NOTES & TÂCHES ---
   const handleInput = () => {
     if (!editorRef.current) return;
     const currentHtml = editorRef.current.innerHTML;
@@ -141,7 +184,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     }, 1000);
   };
 
-  // Insertion propre de case à cocher sans bug de curseur
   const insererCheckbox = () => {
     if (!editorRef.current) return;
     editorRef.current.focus();
@@ -149,14 +191,12 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     const taskContainer = document.createElement('div');
     taskContainer.className = "task-item flex items-start gap-2.5 my-1.5 group/task relative select-none";
     taskContainer.contentEditable = "false";
-
     taskContainer.innerHTML = `
       <input type="checkbox" class="task-checkbox w-4 h-4 mt-0.5 rounded accent-indigo-500 cursor-pointer shrink-0" />
       <span class="task-text text-xs text-white/90 outline-none flex-1 font-medium leading-relaxed" contenteditable="true" placeholder="Nouvelle tâche..."></span>
       <button type="button" class="task-delete text-white/20 hover:text-rose-400 opacity-0 group-hover/task:opacity-100 transition-opacity px-1 text-xs cursor-pointer" title="Supprimer">✕</button>
     `;
 
-    // Insertion à l'endroit du curseur ou à la fin
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
       const range = sel.getRangeAt(0);
@@ -166,16 +206,11 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       editorRef.current.appendChild(taskContainer);
     }
 
-    // Focus immédiat sur le texte de la tâche
     const spanText = taskContainer.querySelector('.task-text');
-    if (spanText) {
-      setTimeout(() => spanText.focus(), 10);
-    }
-
+    if (spanText) setTimeout(() => spanText.focus(), 10);
     handleInput();
   };
 
-  // Gestion des touches Clavier : Entrée = tâche suivante, Backspace = suppression
   const handleKeyDown = (e) => {
     const target = e.target;
     const isTaskText = target?.classList?.contains('task-text');
@@ -184,41 +219,27 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     if (isTaskText && parentTask) {
       if (e.key === 'Enter') {
         e.preventDefault();
-        // Si la tâche est vide : appuyer sur Entrée quitte le mode tâche
         if (!target.textContent.trim()) {
           parentTask.remove();
           const p = document.createElement('div');
           p.innerHTML = '<br>';
           editorRef.current.appendChild(p);
-          const range = document.createRange();
-          const sel = window.getSelection();
-          range.setStart(p, 0);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
           handleInput();
           return;
         }
-
-        // Sinon : crée directement la tâche suivante en dessous !
         insererCheckbox();
         return;
       }
-
       if (e.key === 'Backspace' && !target.textContent) {
         e.preventDefault();
         parentTask.remove();
         handleInput();
-        return;
       }
     }
   };
 
-  // Clic sur une case à cocher ou sur la croix de suppression
   const handleEditorClick = (e) => {
     const target = e.target;
-
-    // Coche / décoche d'une tâche
     if (target && target.classList?.contains('task-checkbox')) {
       const taskText = target.parentElement?.querySelector('.task-text');
       if (target.checked) {
@@ -230,8 +251,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       }
       handleInput();
     }
-
-    // Suppression d'une tâche via ✕
     if (target && target.classList?.contains('task-delete')) {
       const parentTask = target.closest('.task-item');
       if (parentTask) {
@@ -241,7 +260,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     }
   };
 
-  // --- 4. GESTION DES LIGNES & CALCULS ---
+  // --- 5. LOGIQUE DES LIGNES DU SIMULATEUR ---
   const upsertLigne = async (titre, fluxType, cat, mnt, freq = 'mensuel') => {
     const existante = lignes.find(l => l.scenario === currentScenario && l.titre === titre);
     const parsedMontant = parseFloat(mnt) || 0;
@@ -369,13 +388,129 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     }
   };
 
+  // --- 6. GESTION DES ANNONCES & SCRAPING ---
+  const handleScrape = async () => {
+    if (!scrapingUrl.trim()) return;
+    setIsScraping(true);
+    try {
+      const res = await api.post('/api/demenagement/scrape-listing', { url: scrapingUrl });
+      const d = res.data;
+      if (d) {
+        setAnnonceForm(prev => ({
+          ...prev,
+          url: d.url || scrapingUrl,
+          source: d.source || 'Autre',
+          titre: d.titre || prev.titre || 'Appartement',
+          loyer: d.loyer > 0 ? d.loyer.toString() : prev.loyer,
+          charges: d.charges > 0 ? d.charges.toString() : prev.charges,
+          surface: d.surface > 0 ? d.surface.toString() : prev.surface,
+          pieces: d.pieces > 0 ? d.pieces.toString() : prev.pieces,
+          ville: d.ville || prev.ville,
+          photos: d.photos && d.photos.length > 0 ? d.photos : prev.photos,
+          notes: d.description || prev.notes || ''
+        }));
+        toast.success("Informations de l'annonce extraites avec succès ! ✨");
+      }
+    } catch (err) {
+      toast.warning("Lien enregistré, vous pouvez compléter les champs ci-dessous.");
+      setAnnonceForm(prev => ({ ...prev, url: scrapingUrl }));
+    } finally {
+      setIsScraping(false);
+    }
+  };
+
+  const handleSaveAnnonce = async (e) => {
+    e.preventDefault();
+    if (!annonceForm.titre.trim()) {
+      toast.error("Veuillez renseigner un titre ou un descriptif.");
+      return;
+    }
+
+    const payload = {
+      ...annonceForm,
+      loyer: parseFloat(annonceForm.loyer) || 0,
+      charges: parseFloat(annonceForm.charges) || 0,
+      surface: parseFloat(annonceForm.surface) || 0,
+      pieces: parseInt(annonceForm.pieces) || 0
+    };
+
+    try {
+      if (annonceForm.id) {
+        await api.put(`/api/demenagement/annonces/${annonceForm.id}`, payload);
+        toast.success("Annonce mise à jour !");
+      } else {
+        await api.post('/api/demenagement/annonces', payload);
+        toast.success("Annonce ajoutée au comparateur ! 🏡");
+      }
+      setIsAnnonceModalOpen(false);
+      setScrapingUrl('');
+      fetchAnnonces();
+    } catch (err) {
+      toast.error("Erreur lors de l'enregistrement de l'annonce.");
+    }
+  };
+
+  const handleDeleteAnnonce = async (id) => {
+    if (!window.confirm("Supprimer cette annonce du comparateur ?")) return;
+    try {
+      await api.delete(`/api/demenagement/annonces/${id}`);
+      setAnnonces(prev => prev.filter(a => a.id !== id));
+      toast.success("Annonce supprimée.");
+    } catch (err) {
+      toast.error("Erreur lors de la suppression.");
+    }
+  };
+
+  const handleToggleFavori = async (annonce) => {
+    const updated = !annonce.favori;
+    try {
+      await api.put(`/api/demenagement/annonces/${annonce.id}`, { ...annonce, favori: updated });
+      setAnnonces(prev => prev.map(a => a.id === annonce.id ? { ...a, favori: updated } : a));
+    } catch (err) {
+      toast.error("Erreur modification favori.");
+    }
+  };
+
+  const handleQuickStatusChange = async (annonce, field, value) => {
+    const payload = { ...annonce, [field]: value };
+    try {
+      await api.put(`/api/demenagement/annonces/${annonce.id}`, payload);
+      setAnnonces(prev => prev.map(a => a.id === annonce.id ? payload : a));
+      toast.success("Statut mis à jour !");
+    } catch (err) {
+      toast.error("Erreur de mise à jour.");
+    }
+  };
+
+  const handleApplyLoyerToScenario = (loyer) => {
+    upsertLigne("Loyer", "depenses", "Logement", loyer, "mensuel");
+    setViewMode('simulator');
+    toast.success(`Loyer de ${loyer} € appliqué au scénario "${currentScenario}" ! 🎯`);
+  };
+
+  // Carrousel de photos sur chaque carte
+  const handleNextPhoto = (e, annonceId, totalPhotos) => {
+    e.stopPropagation();
+    setActivePhotoIdx(prev => ({
+      ...prev,
+      [annonceId]: ((prev[annonceId] || 0) + 1) % totalPhotos
+    }));
+  };
+
+  const handlePrevPhoto = (e, annonceId, totalPhotos) => {
+    e.stopPropagation();
+    setActivePhotoIdx(prev => ({
+      ...prev,
+      [annonceId]: ((prev[annonceId] || 0) - 1 + totalPhotos) % totalPhotos
+    }));
+  };
+
+  // --- 7. CALCULS STATISTIQUES SIMULATEUR ---
   const calculs = useMemo(() => {
     const duScenario = lignes.filter(l => l.scenario === currentScenario);
-    
     const mntLui = parseFloat(salaireLui) || 0;
     const mntElle = parseFloat(salaireElle) || 0;
     const totalSalaires = mntLui + mntElle;
-
     const pLui = parseFloat(depensePersoLui) || 0;
     const pElle = parseFloat(depensePersoElle) || 0;
 
@@ -421,7 +556,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     };
   }, [lignes, currentScenario, salaireLui, salaireElle, depensePersoLui, depensePersoElle, montantCommunForfaitaire]);
 
-  // Comparaison stratégique de tous les scénarios
   const comparaisonTousScenarios = useMemo(() => {
     return scenarios.map(sc => {
       const duScenario = lignes.filter(l => l.scenario === sc);
@@ -458,7 +592,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       const resteCouple = resteLui + resteElle;
 
       const tauxEffort = totalSalaires > 0 ? (alimentationCompte / totalSalaires) * 100 : 0;
-
       const loyerItem = duScenario.find(l => l.titre.toLowerCase().includes('loyer') || l.categorie.toLowerCase().includes('loyer'));
       const montantLoyer = loyerItem ? parseFloat(loyerItem.montant) || 0 : 0;
 
@@ -534,17 +667,27 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     return { meilleur, moinsBon, ecartMensuel, ecartAnnuel };
   }, [comparaisonTousScenarios]);
 
+  const annoncesFiltrees = useMemo(() => {
+    return annonces.filter(a => {
+      if (annonceFilter === 'favoris') return a.favori;
+      if (annonceFilter === 'dossier') return a.dossier_envoye;
+      if (annonceFilter === 'visite') return a.visite_effectuee;
+      if (annonceFilter === 'accepte') return a.statut_reponse === 'accepte';
+      return true;
+    });
+  }, [annonces, annonceFilter]);
+
   return (
     <div className="flex flex-col gap-6 p-6 min-h-screen text-white bg-[var(--main-bg)] select-none">
       
-      {/* 1. EN-TÊTE PRINCIPAL & COMMUTATEUR DE VUE */}
+      {/* 1. EN-TÊTE PRINCIPAL & COMMUTATEUR DE VUES */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div>
           <h1 className="text-lg font-black uppercase tracking-wider flex items-center gap-2">
-            <Layers size={18} className="text-indigo-400" /> Simulateur de Déménagement & Budget Couple
+            <Layers size={18} className="text-indigo-400" /> Logement, Budget Couple & Comparateur
           </h1>
           <p className="text-[9px] text-white/40 uppercase font-bold tracking-widest mt-0.5">
-            Prorata de revenus, charges communes lissées et comparatif stratégique
+            Prorata de revenus, charges communes lissées et comparatif des annonces immobilières
           </p>
         </div>
 
@@ -552,7 +695,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
           <button
             type="button"
             onClick={() => setViewMode('simulator')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
               viewMode === 'simulator'
                 ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
                 : 'text-white/40 hover:text-white hover:bg-white/5'
@@ -565,28 +708,409 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
           <button
             type="button"
             onClick={() => setViewMode('compare')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
               viewMode === 'compare'
                 ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/25'
                 : 'text-white/40 hover:text-white hover:bg-white/5'
             }`}
           >
             <Scale size={13} />
-            <span>Comparateur Stratégique ({scenarios.length})</span>
+            <span>Scénarios ({scenarios.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode('annonces')}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              viewMode === 'annonces'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/25'
+                : 'text-white/40 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            <Home size={13} />
+            <span>Annonces & Visites ({annonces.length})</span>
           </button>
         </div>
       </div>
 
       {/* =========================================================================
-          2. STRUCTURE CENTRALE : GAUCHE (SIMULATEUR OU COMPARATEUR) + DROITE (BLOC-NOTES FIXE)
+          2. STRUCTURE CENTRALE : GAUCHE (VUES) + DROITE (BLOC-NOTES FIXE)
           ========================================================================= */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         
-        {/* COLONNE GAUCHE (LARGE) : COMMUTABLE EN TOUTE TRANSPARENCE */}
+        {/* COLONNE GAUCHE (LARGE) */}
         <div className="flex-1 min-w-0 w-full space-y-6">
-          
-          {viewMode === 'compare' ? (
-            /* --- VUE COMPARATEUR STRATÉGIQUE --- */
+
+          {/* =====================================================================
+              🌟 VUE 3 : COMPARATEUR D'ANNONCES (NOUVELLE MISE EN PAGE AÉRÉE)
+              ===================================================================== */}
+          {viewMode === 'annonces' && (
+            <div className="space-y-6 animate-in fade-in duration-300">
+              
+              {/* Barre de filtres & Bouton Ajouter */}
+              <div className="p-4 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xl">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: 'all', label: `Toutes (${annonces.length})` },
+                    { id: 'favoris', label: `⭐ Favoris (${annonces.filter(a => a.favori).length})` },
+                    { id: 'dossier', label: `📁 Dossier envoyé (${annonces.filter(a => a.dossier_envoye).length})` },
+                    { id: 'visite', label: `🗓️ Visité (${annonces.filter(a => a.visite_effectuee).length})` },
+                    { id: 'accepte', label: `🎉 Accepté (${annonces.filter(a => a.statut_reponse === 'accepte').length})` }
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setAnnonceFilter(f.id)}
+                      className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        annonceFilter === f.id
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'bg-black/30 text-white/40 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnnonceForm({
+                      id: null,
+                      titre: '',
+                      url: '',
+                      source: 'Autre',
+                      loyer: '',
+                      charges: '',
+                      surface: '',
+                      pieces: '',
+                      ville: '',
+                      photos: [],
+                      dossier_envoye: false,
+                      date_dossier: '',
+                      visite_effectuee: false,
+                      date_visite: '',
+                      statut_reponse: 'en_attente',
+                      notes: '',
+                      favori: false
+                    });
+                    setScrapingUrl('');
+                    setIsAnnonceModalOpen(true);
+                  }}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-[9.5px] uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/20 active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+                >
+                  <Plus size={13} strokeWidth={3} />
+                  <span>Ajouter une annonce</span>
+                </button>
+              </div>
+
+              {/* Grille des annonces (1 col sur petit écran, 2 cols spacieuses sur grand écran) */}
+              {annoncesFiltrees.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                  {annoncesFiltrees.map(a => {
+                    const prixM2 = a.surface > 0 && a.loyer > 0 ? (a.loyer / a.surface).toFixed(1) : null;
+                    const totalPhotos = a.photos?.length || 0;
+                    const currentPhotoIdx = activePhotoIdx[a.id] || 0;
+                    const photoAffichee = totalPhotos > 0 ? a.photos[currentPhotoIdx] : null;
+                    const isDescExpanded = Boolean(expandedDesc[a.id]);
+
+                    return (
+                      <div 
+                        key={a.id}
+                        className={`rounded-3xl border overflow-hidden flex flex-col justify-between transition-all bg-black/50 backdrop-blur-xl shadow-2xl ${
+                          a.favori ? 'border-amber-500/50 shadow-amber-500/5' : 'border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        {/* 1. VISUEL PHOTO : HAUTEUR DÉDIÉE + CARROUSEL FLUIDE */}
+                        <div className="relative h-64 sm:h-72 w-full bg-slate-950 overflow-hidden group select-none">
+                          {photoAffichee ? (
+                            <img 
+                              src={photoAffichee} 
+                              alt={a.titre}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                            />
+                          ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-2">
+                              <Camera size={36} />
+                              <span className="text-[9px] uppercase font-bold tracking-widest">Aucune photo</span>
+                            </div>
+                          )}
+
+                          {/* Flèches de navigation photo (si plus d'1 photo) */}
+                          {totalPhotos > 1 && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => handlePrevPhoto(e, a.id, totalPhotos)}
+                                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
+                                title="Photo précédente"
+                              >
+                                <ChevronLeft size={16} />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => handleNextPhoto(e, a.id, totalPhotos)}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
+                                title="Photo suivante"
+                              >
+                                <ChevronRight size={16} />
+                              </button>
+                            </>
+                          )}
+
+                          {/* Badges haut gauche : Source */}
+                          <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
+                            <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/15 text-[8.5px] font-black uppercase text-purple-300 shadow-md">
+                              {a.source || 'Annonce'}
+                            </span>
+                          </div>
+
+                          {/* Badges haut droite : Favori + Supprimer */}
+                          <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+                            <button
+                              type="button"
+                              onClick={() => handleToggleFavori(a)}
+                              className={`p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer ${
+                                a.favori ? 'bg-amber-500 text-black border-amber-400' : 'bg-black/60 text-white/60 border-white/10 hover:text-white'
+                              }`}
+                              title={a.favori ? "Retirer des favoris" : "Ajouter aux favoris"}
+                            >
+                              <Star size={13} fill={a.favori ? "currentColor" : "none"} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteAnnonce(a.id)}
+                              className="p-2 rounded-xl bg-black/60 hover:bg-rose-500 text-white/60 hover:text-white backdrop-blur-md border border-white/10 transition-all cursor-pointer"
+                              title="Supprimer l'annonce"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+
+                          {/* Compteur photo bas droite */}
+                          {totalPhotos > 1 && (
+                            <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[8px] font-mono text-white/80 z-10">
+                              📷 {currentPhotoIdx + 1} / {totalPhotos}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 2. CORPS DE LA CARTE : INFOS STRUCTURÉES ET AÉRÉES */}
+                        <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
+                          
+                          <div className="space-y-3">
+                            {/* Ligne Prix & Loyer */}
+                            <div className="flex items-baseline justify-between gap-2 pb-2 border-b border-white/5">
+                              <div>
+                                <span className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                                  {a.loyer > 0 ? `${a.loyer.toFixed(0)} €` : 'Loyer NC'}
+                                </span>
+                                <span className="text-[9px] text-white/40 uppercase font-bold ml-1.5">
+                                  / mois {a.charges > 0 ? `(dont ${a.charges}€ ch.)` : 'CC'}
+                                </span>
+                              </div>
+
+                              {prixM2 && (
+                                <span className="text-[10px] font-bold text-white/60 font-mono bg-white/5 px-2.5 py-1 rounded-xl border border-white/5">
+                                  {prixM2} € / m²
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Spécifications en pastilles nettes */}
+                            <div className="flex flex-wrap items-center gap-2">
+                              {a.surface > 0 && (
+                                <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
+                                  📐 <strong>{a.surface} m²</strong>
+                                </span>
+                              )}
+
+                              {a.pieces > 0 && (
+                                <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
+                                  🚪 <strong>{a.pieces} pièce{a.pieces > 1 ? 's' : ''}</strong>
+                                </span>
+                              )}
+
+                              {a.ville && (
+                                <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] text-white/90 font-bold flex items-center gap-1">
+                                  <MapPin size={11} className="text-purple-400" /> {a.ville}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Titre avec lien vers l'annonce */}
+                            <div className="flex items-start justify-between gap-2 pt-1">
+                              <h3 className="text-sm font-black uppercase text-white leading-snug line-clamp-2 flex-1">
+                                {a.titre}
+                              </h3>
+                              {a.url && (
+                                <a 
+                                  href={a.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="p-2 bg-white/5 hover:bg-purple-600 rounded-xl text-white/50 hover:text-white transition-all shrink-0"
+                                  title="Ouvrir l'annonce sur le site"
+                                >
+                                  <ExternalLink size={14} />
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Description dépliable */}
+                            {a.notes && (
+                              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 space-y-1.5">
+                                <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-white/40">
+                                  <span className="flex items-center gap-1">
+                                    <AlignLeft size={10} /> Description de l'annonce
+                                  </span>
+                                  {a.notes.length > 140 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedDesc(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                                      className="text-purple-400 hover:text-purple-300 cursor-pointer"
+                                    >
+                                      {isDescExpanded ? 'Réduire ▲' : 'Lire la suite ▼'}
+                                    </button>
+                                  )}
+                                </div>
+                                <p className={`text-[10px] text-white/70 leading-relaxed font-medium ${
+                                  isDescExpanded ? '' : 'line-clamp-2'
+                                }`}>
+                                  {a.notes}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 3. PIPELINE DE SUIVI (DOSSIER, VISITE, RÉPONSE) */}
+                          <div className="space-y-2.5 pt-3 border-t border-white/5">
+                            <span className="text-[8px] font-black uppercase tracking-wider text-white/30 block">
+                              Suivi des démarches
+                            </span>
+
+                            {/* Boutons d'étape Dossier & Visite */}
+                            <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                              <button
+                                type="button"
+                                onClick={() => handleQuickStatusChange(a, 'dossier_envoye', !a.dossier_envoye)}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                                  a.dossier_envoye 
+                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
+                                    : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                <span className="font-bold flex items-center gap-1.5">
+                                  <span>📁</span> Dossier envoyé
+                                </span>
+                                <span className="font-mono">{a.dossier_envoye ? '✓' : '—'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleQuickStatusChange(a, 'visite_effectuee', !a.visite_effectuee)}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                                  a.visite_effectuee 
+                                    ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300' 
+                                    : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
+                                }`}
+                              >
+                                <span className="font-bold flex items-center gap-1.5">
+                                  <span>🗓️</span> Visite effectuée
+                                </span>
+                                <span className="font-mono">{a.visite_effectuee ? '✓' : '—'}</span>
+                              </button>
+                            </div>
+
+                            {/* Statut de la réponse */}
+                            <div className="flex items-center justify-between gap-1 p-1 bg-black/40 rounded-xl border border-white/5">
+                              {[
+                                { id: 'en_attente', label: '⏳ En attente' },
+                                { id: 'accepte', label: '🎉 Accepté' },
+                                { id: 'refuse', label: '❌ Refusé' },
+                                { id: 'sans_reponse', label: '👻 Sans suite' }
+                              ].map(st => (
+                                <button
+                                  key={st.id}
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(a, 'statut_reponse', st.id)}
+                                  className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded-lg transition-all cursor-pointer text-center ${
+                                    a.statut_reponse === st.id
+                                      ? 'bg-white/10 text-white shadow-sm'
+                                      : 'text-white/30 hover:text-white'
+                                  }`}
+                                >
+                                  {st.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Bouton pour tester ce loyer dans le simulateur */}
+                            {a.loyer > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleApplyLoyerToScenario(a.loyer)}
+                                className="w-full py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mt-1"
+                              >
+                                <Calculator size={12} />
+                                <span>Tester ce loyer ({a.loyer} €) dans le simulateur</span>
+                              </button>
+                            )}
+                          </div>
+
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-12 text-center bg-black/20 rounded-3xl border border-dashed border-white/10 space-y-3">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto">
+                    <Home size={24} />
+                  </div>
+                  <h3 className="text-sm font-black uppercase text-white tracking-wider">
+                    Aucune annonce enregistrée
+                  </h3>
+                  <p className="text-[10px] text-white/40 max-w-sm mx-auto">
+                    Collez vos liens d'annonces Leboncoin, SeLoger ou PAP pour extraire automatiquement les photos, loyer et surface.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnnonceForm({
+                        id: null,
+                        titre: '',
+                        url: '',
+                        source: 'Autre',
+                        loyer: '',
+                        charges: '',
+                        surface: '',
+                        pieces: '',
+                        ville: '',
+                        photos: [],
+                        dossier_envoye: false,
+                        date_dossier: '',
+                        visite_effectuee: false,
+                        date_visite: '',
+                        statut_reponse: 'en_attente',
+                        notes: '',
+                        favori: false
+                      });
+                      setIsAnnonceModalOpen(true);
+                    }}
+                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
+                  >
+                    + Ajouter votre première annonce
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* =====================================================================
+              VUE 2 : COMPARATEUR STRATÉGIQUE (SCÉNARIOS)
+              ===================================================================== */}
+          {viewMode === 'compare' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               {statsArbitrage && statsArbitrage.ecartMensuel > 0 && (
                 <div className="p-5 rounded-3xl bg-gradient-to-r from-emerald-500/15 via-indigo-500/10 to-transparent border border-emerald-500/30 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
@@ -837,8 +1361,12 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 ))}
               </div>
             </div>
-          ) : (
-            /* --- VUE SIMULATEUR DÉTAILLÉ --- */
+          )}
+
+          {/* =====================================================================
+              VUE 1 : SIMULATEUR DÉTAILLÉ
+              ===================================================================== */}
+          {viewMode === 'simulator' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
               {/* Onglets scénarios & Création */}
@@ -883,7 +1411,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                       setDuplicateName(`${currentScenario} (Copie)`);
                       setIsDuplicateModalOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
                     title={`Dupliquer "${currentScenario}"`}
                   >
                     <Copy size={11} />
@@ -1051,7 +1579,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 </div>
               </div>
 
-              {/* Ajout rapide de charge */}
+              {/* Ajout rapide de charge commune */}
               <form onSubmit={handleAjouterCategorie} className="bg-white/[0.01] border border-white/5 rounded-xl p-3 flex flex-wrap items-end gap-4">
                 <div className="flex-1 min-w-[200px] flex flex-col gap-1">
                   <label className="text-[10px] font-black text-white/40 uppercase">Sélectionner une catégorie</label>
@@ -1191,22 +1719,21 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 type="button"
                 onClick={insererCheckbox}
                 className="flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white px-2.5 py-1 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer"
-                title="Ajouter une tâche (appuyez sur Entrée pour enchaîner)"
+                title="Ajouter une tâche"
               >
                 <Plus size={11} strokeWidth={3} />
                 <span>checkbox</span>
               </button>
             </div>
             
-            {/* 🟢 Éditeur avec écouteurs d'événements clavier et souris robustes */}
             <div
               ref={editorRef}
               contentEditable
               onInput={handleInput}
               onClick={handleEditorClick}
               onKeyDown={handleKeyDown}
-              placeholder="Écrivez vos remarques ici... Cliquez sur '+ checkbox' pour créer des listes de tâches. Appuyez sur Entrée pour passer à la tâche suivante !"
-              className="flex-1 w-full bg-black/40 border border-white/10 rounded-2xl p-3.5 text-xs text-white/80 outline-none overflow-y-auto focus:border-indigo-500/50 leading-relaxed font-medium editor-placeholder custom-scrollbar"
+              placeholder="Écrivez vos remarques, contacts d'agences..."
+              className="flex-1 w-full bg-black/40 border border-white/10 rounded-2xl p-3.5 text-xs text-white/80 outline-none overflow-y-auto focus:border-indigo-500/50 leading-relaxed font-medium custom-scrollbar"
               style={{ minHeight: '120px' }}
             />
             
@@ -1214,7 +1741,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
               {isSaving ? (
                 <span className="text-amber-400 animate-pulse">Sauvegarde en cours...</span>
               ) : (
-                <span className="text-white/30">Sauvegarde automatique active</span>
+                <span className="text-white/30">Sauvegarde automatique</span>
               )}
             </div>
           </div>
@@ -1222,7 +1749,9 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
 
       </div>
 
-      {/* MODALE DE DUPLICATION */}
+      {/* =========================================================================
+          MODALE DE DUPLICATION DE SCÉNARIO
+          ========================================================================= */}
       {isDuplicateModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsDuplicateModalOpen(false)} />
@@ -1284,6 +1813,204 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                   className="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-indigo-600/20 active:scale-95 cursor-pointer disabled:opacity-40"
                 >
                   {isDuplicating ? "Copie en cours..." : "Dupliquer"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          MODALE D'AJOUT & SCRAPING D'ANNONCE IMMOBILIÈRE
+          ========================================================================= */}
+      {isAnnonceModalOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setIsAnnonceModalOpen(false)} />
+
+          <div 
+            className="relative w-full max-w-lg bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-white/5">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-purple-500/15 border border-purple-500/30 text-purple-400 rounded-xl">
+                  <Home size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase text-white tracking-widest leading-none">
+                    {annonceForm.id ? "Modifier l'annonce" : "Nouvelle annonce"}
+                  </h4>
+                  <p className="text-[9px] text-white/30 uppercase font-bold mt-1">
+                    Leboncoin, SeLoger, PAP, Bien'ici ou saisie manuelle
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setIsAnnonceModalOpen(false)} className="p-1 text-white/40 hover:text-white cursor-pointer">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Zone d'extraction automatique */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-transparent border border-purple-500/20 space-y-2">
+              <label className="text-[8.5px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                <Sparkles size={12} /> Coller le lien de l'annonce (Extraction automatique)
+              </label>
+
+              <div className="flex gap-2">
+                <input 
+                  type="url"
+                  placeholder="https://www.leboncoin.fr/ad/locations/..."
+                  value={scrapingUrl}
+                  onChange={(e) => setScrapingUrl(e.target.value)}
+                  className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleScrape}
+                  disabled={isScraping || !scrapingUrl.trim()}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 shrink-0"
+                >
+                  {isScraping ? "Analyse..." : "Extraire"}
+                </button>
+              </div>
+            </div>
+
+            {/* Formulaire des champs */}
+            <form onSubmit={handleSaveAnnonce} className="space-y-3.5">
+              <div>
+                <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Titre de l'annonce</label>
+                <input 
+                  type="text"
+                  required
+                  placeholder="Ex: T3 lumineux avec balcon centre-ville"
+                  value={annonceForm.titre}
+                  onChange={(e) => setAnnonceForm({ ...annonceForm, titre: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Loyer (€ CC / mois)</label>
+                  <input 
+                    type="number"
+                    step="0.01"
+                    placeholder="850"
+                    value={annonceForm.loyer}
+                    onChange={(e) => setAnnonceForm({ ...annonceForm, loyer: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Surface (m²)</label>
+                  <input 
+                    type="number"
+                    step="0.1"
+                    placeholder="65"
+                    value={annonceForm.surface}
+                    onChange={(e) => setAnnonceForm({ ...annonceForm, surface: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Nombre de pièces</label>
+                  <input 
+                    type="number"
+                    placeholder="3"
+                    value={annonceForm.pieces}
+                    onChange={(e) => setAnnonceForm({ ...annonceForm, pieces: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Ville / Quartier</label>
+                  <input 
+                    type="text"
+                    placeholder="Rennes (Thabor)"
+                    value={annonceForm.ville}
+                    onChange={(e) => setAnnonceForm({ ...annonceForm, ville: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+
+              {/* Source & Lien */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Plateforme</label>
+                  <select
+                    value={annonceForm.source}
+                    onChange={(e) => setAnnonceForm({ ...annonceForm, source: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none"
+                  >
+                    <option value="Leboncoin">Leboncoin</option>
+                    <option value="SeLoger">SeLoger</option>
+                    <option value="PAP">PAP</option>
+                    <option value="Bien'ici">Bien'ici</option>
+                    <option value="Jinka">Jinka</option>
+                    <option value="OuestFrance">OuestFrance</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">Lien de l'annonce</label>
+                  <input 
+                    type="url"
+                    placeholder="https://..."
+                    value={annonceForm.url}
+                    onChange={(e) => setAnnonceForm({ ...annonceForm, url: e.target.value })}
+                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Photos */}
+              <div>
+                <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">
+                  URL de la photo principale
+                </label>
+                <input 
+                  type="url"
+                  placeholder="https://image.jpg..."
+                  value={annonceForm.photos && annonceForm.photos.length > 0 ? annonceForm.photos[0] : ''}
+                  onChange={(e) => {
+                    const val = e.target.value.trim();
+                    setAnnonceForm({ ...annonceForm, photos: val ? [val] : [] });
+                  }}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Description de l'annonce */}
+              <div>
+                <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">
+                  Description / Notes de l'annonce
+                </label>
+                <textarea 
+                  rows="3"
+                  placeholder="Description complète extraite de l'annonce ou vos remarques personnelles..."
+                  value={annonceForm.notes}
+                  onChange={(e) => setAnnonceForm({ ...annonceForm, notes: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 leading-relaxed"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAnnonceModalOpen(false)}
+                  className="py-2.5 rounded-xl bg-white/5 text-white/60 text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-purple-600/20 active:scale-95 cursor-pointer"
+                >
+                  {annonceForm.id ? "Mettre à jour" : "Ajouter l'annonce"}
                 </button>
               </div>
             </form>
