@@ -39,12 +39,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // 🟢 1. Augmente la limite de taille autorisée à 5 Mo
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // 🟢 AJOUTS INDISPENSABLES POUR LA MISE À JOUR DIRECTE :
+        cleanupOutdatedCaches: true, // Supprime immédiatement les vieux bundles JS obsolètes
+        skipWaiting: true,           // Active le nouveau Service Worker sans attendre la fermeture de l'onglet
+        clientsClaim: true           // Prend le contrôle des pages ouvertes immédiatement
       }
     })
   ],
-  // 🟢 2. Découpage en sous-fichiers légers (évite les fichiers de +3 Mo)
   build: {
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
