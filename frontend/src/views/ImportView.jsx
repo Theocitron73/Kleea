@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Upload, Wallet, Building2, RefreshCw, Plus, Download, Check, 
   Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, HelpCircle, 
-  ChevronRight, Landmark, ArrowRightLeft as ArrowRightLeftIcon 
+  ChevronRight, Landmark, Tag
 } from 'lucide-react';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 
-// Guide d'export CSV par banque
+// Guide d'export CSV par banque (100% d'origine)
 function HelpPopover() {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedBank, setSelectedBank] = useState(null);
@@ -54,6 +54,7 @@ function HelpPopover() {
                   {bankGuides.map((bank) => (
                     <button
                       key={bank.id}
+                      type="button"
                       onClick={() => setSelectedBank(bank)}
                       className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-[var(--glass-bg)] transition-colors group/item text-left cursor-pointer"
                     >
@@ -65,6 +66,7 @@ function HelpPopover() {
               ) : (
                 <div className="p-2 animate-in slide-in-from-right-2 duration-300">
                   <button 
+                    type="button"
                     onClick={() => setSelectedBank(null)}
                     className="text-[8px] font-black text-[var(--primary)] uppercase mb-4 flex items-center gap-2 hover:opacity-70 cursor-pointer"
                   >
@@ -86,12 +88,14 @@ function HelpPopover() {
   );
 }
 
-export default function ImportDesktop({
+export default function ImportView({
   importCompte,
   setImportCompte,
-  comptes,
+  selectedCompte,
+  setSelectedCompte,
+  comptes = [],
   powensData,
-  syncCountByAccount,
+  syncCountByAccount = {},
   handleAssociateAccount,
   isRefreshingPowens,
   isCheckingSync,
@@ -109,12 +113,12 @@ export default function ImportDesktop({
   isDragging,
   setFileName,
   handleFileUpload,
-  transactionsCalculees,
+  transactionsCalculees = [],
   setTempTransactions,
   confirmBatchImport,
   intelSelectedCat,
   setIntelSelectedCat,
-  categoriesPourIntelligence,
+  categoriesPourIntelligence = [],
   activeCategoryData,
   handleRemoveKeyword,
   handleAddKeyword,
@@ -123,6 +127,10 @@ export default function ImportDesktop({
   CustomSelect
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [mobileSubTab, setMobileSubTab] = useState('sources');
+
+  const targetCompte = importCompte || selectedCompte || comptes[0]?.compte;
+  const setTargetCompte = setImportCompte || setSelectedCompte;
 
   const isInternalTransfer = (cat) => {
     if (!cat) return false;
@@ -137,14 +145,68 @@ export default function ImportDesktop({
 
   const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
 
+  useEffect(() => {
+    if (transactionsCalculees && transactionsCalculees.length > 0) {
+      setMobileSubTab('previsu');
+    }
+  }, [transactionsCalculees?.length]);
+
   return (
-    <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
-      <div className="flex flex-col lg:flex-row gap-8 items-stretch">
+    <div className="flex flex-col animate-in fade-in duration-500 min-h-screen lg:min-h-0 lg:h-[calc(100vh-120px)] px-4 pb-24 lg:pb-0 select-none">
+      
+      {/* 1. ONGLETS MOBILE (hidden sur grand écran) */}
+      <div className="flex lg:hidden border-b border-white/5 mb-4 shrink-0">
+        <button 
+          type="button"
+          onClick={() => setMobileSubTab('sources')}
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
+            mobileSubTab === 'sources' 
+              ? 'border-[var(--primary)] text-[var(--primary)]' 
+              : 'border-transparent text-white/40'
+          }`}
+        >
+          Sources & Synchro
+        </button>
+        <button 
+          type="button"
+          onClick={() => setMobileSubTab('previsu')}
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 relative cursor-pointer ${
+            mobileSubTab === 'previsu' 
+              ? 'border-[var(--primary)] text-[var(--primary)]' 
+              : 'border-transparent text-white/40'
+          }`}
+        >
+          Prévisualiser
+          {transactionsCalculees?.length > 0 && (
+            <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[8px] font-bold animate-pulse">
+              {transactionsCalculees.length}
+            </span>
+          )}
+        </button>
+        <button 
+          type="button"
+          onClick={() => setMobileSubTab('intel')}
+          className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
+            mobileSubTab === 'intel' 
+              ? 'border-[var(--primary)] text-[var(--primary)]' 
+              : 'border-transparent text-white/40'
+          }`}
+        >
+          Intelligence
+        </button>
+      </div>
+
+      {/* 2. DISPOSITION GLOBALE */}
+      <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-stretch flex-1 min-h-0">
         
-        {/* COLONNE GAUCHE : IMPORTATION & RÉCAPITULATIF */}
-        <div className="flex-1 flex flex-col gap-6 min-w-0">
+        {/* =====================================================================
+            COLONNE GAUCHE (SOURCES + PREVIEW)
+            ===================================================================== */}
+        <div className={`flex-1 flex flex-col gap-6 min-w-0 ${
+          mobileSubTab === 'intel' ? 'hidden lg:flex' : 'flex'
+        }`}>
           
-          {/* Header Section */}
+          {/* Header Section Desktop */}
           <div className="flex items-center gap-3 px-2 shrink-0">
             <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
               <Upload size={16} className="text-[var(--primary)]" />
@@ -159,22 +221,24 @@ export default function ImportDesktop({
             </div>
           </div>
 
-          {/* 1. Zone de configuration & Sélecteur */}
-          <div className="flex flex-col gap-3 shrink-0 max-w-2xl">
+          {/* Configuration & Sélecteur */}
+          <div className={`flex flex-col gap-3 shrink-0 max-w-2xl ${
+            mobileSubTab === 'previsu' ? 'hidden lg:flex' : 'flex'
+          }`}>
             <div className="flex items-end gap-3">
               <div className="flex-1 min-w-[200px]">
                 <CustomSelect 
                   label="Compte de destination"
-                  value={importCompte || comptes[0]?.compte} 
+                  value={targetCompte} 
                   icon={Wallet} 
                   options={comptes.map(c => ({ v: c.compte, l: c.compte }))} 
-                  onChange={(val) => setImportCompte(val)} 
+                  onChange={(val) => setTargetCompte && setTargetCompte(val)} 
                 />
               </div>
               <HelpPopover />
             </div>
 
-            {/* Association Powens pliable */}
+            {/* Accordéon Powens */}
             {powensData?.connections && powensData.connections.length > 0 && (
               <div className="relative z-50 space-y-2">
                 <div className="flex items-center gap-2">
@@ -304,8 +368,11 @@ export default function ImportDesktop({
             )}
           </div>
 
-          {/* 2. BLOC D'IMPORTATION : 3 BOUTONS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+          {/* Les 3 boutons d'importation */}
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 ${
+            mobileSubTab === 'previsu' ? 'hidden lg:grid' : 'grid'
+          }`}>
+            
             {/* ACTION 1 : NOUVELLE BANQUE */}
             <div 
               onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
@@ -326,24 +393,22 @@ export default function ImportDesktop({
               </div>
             </div>
 
-            {/* ACTION 2 : SYNCHRONISER (LAYOUT GAUCHE / DROITE EXACT D'ORIGINE) */}
+            {/* ACTION 2 : SYNCHRONISER */}
             {(() => {
-              const unsyncedAccounts = Object.entries(syncCountByAccount || {}).filter(
+              const unsyncedAccs = Object.entries(syncCountByAccount || {}).filter(
                 ([_, data]) => {
                   const count = typeof data === 'object' ? data?.count : Number(data);
                   return count > 0;
                 }
               );
 
-              const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
+              const isExecutingNow = isManualSyncing || isSyncingData || isCheckingSync;
 
               const handleClick = async () => {
-                if (isExecuting) return;
+                if (isExecutingNow) return;
                 if (setIsManualSyncing) setIsManualSyncing(true);
                 try {
-                  if (handleSyncPowens) {
-                    await handleSyncPowens(); // 👈 Appel sans argument (évite d'injecter l'événement React)
-                  }
+                  if (handleSyncPowens) await handleSyncPowens();
                 } finally {
                   if (setIsManualSyncing) setIsManualSyncing(false);
                 }
@@ -356,31 +421,28 @@ export default function ImportDesktop({
                     relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[85px]
                     ${hasPendingSync 
                       ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
-                      : isExecuting 
+                      : isExecutingNow 
                         ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
                         : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
                   `}
                 >
-                  {/* Pastille clignotante */}
-                  {hasPendingSync && !isExecuting && (
+                  {hasPendingSync && !isExecutingNow && (
                     <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500 shadow-lg" />
                     </span>
                   )}
 
-                  {/* Icône animée */}
                   <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${
-                    isExecuting 
+                    isExecutingNow 
                       ? 'bg-[var(--primary)] text-black animate-spin' 
                       : hasPendingSync 
                         ? 'bg-[var(--primary)] text-black' 
                         : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
                   }`}>
-                    {isExecuting ? <RefreshCw size={18} /> : <Download size={18} />}
+                    {isExecutingNow ? <RefreshCw size={18} /> : <Download size={18} />}
                   </div>
 
-                  {/* Conteneur gauche / droite */}
                   <div className="flex items-center justify-between gap-3 min-w-0 flex-1 pr-1">
                     <div className="flex flex-col shrink-0">
                       <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)] leading-tight">
@@ -388,13 +450,13 @@ export default function ImportDesktop({
                       </h3>
                       
                       <p className={`text-[8px] font-bold uppercase tracking-widest mt-0.5 ${
-                        isExecuting 
+                        isExecutingNow 
                           ? 'text-[var(--primary)] font-black animate-pulse'
                           : hasPendingSync 
                             ? 'text-rose-400 font-black animate-pulse' 
                             : 'text-emerald-400/80 font-bold'
                       }`}>
-                        {isExecuting 
+                        {isExecutingNow 
                           ? 'En cours...' 
                           : hasPendingSync 
                             ? 'Nouvelles Transactions' 
@@ -403,12 +465,12 @@ export default function ImportDesktop({
                     </div>
 
                     <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 pl-3 flex-1">
-                      {isExecuting ? (
+                      {isExecutingNow ? (
                         <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-wider animate-pulse">
                           Actualisation...
                         </span>
-                      ) : hasPendingSync && unsyncedAccounts.length > 0 ? (
-                        unsyncedAccounts.map(([accName, data]) => {
+                      ) : hasPendingSync && unsyncedAccs.length > 0 ? (
+                        unsyncedAccs.map(([accName, data]) => {
                           const count = typeof data === 'object' ? data.count : data;
                           return (
                             <span 
@@ -439,7 +501,7 @@ export default function ImportDesktop({
               );
             })()}
 
-            {/* ACTION 3 : GLISSER-DÉPOSER UN FICHIER (CSV, OFX, QIF) */}
+            {/* ACTION 3 : GLISSER-DÉPOSER UN FICHIER */}
             <div 
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
@@ -465,7 +527,6 @@ export default function ImportDesktop({
                 }} 
               />
               
-              {/* Icône dynamique */}
               <div className={`pointer-events-none p-3 rounded-xl transition-all duration-300 shrink-0 ${
                 transactionsCalculees?.length > 0 && !isDragging 
                   ? 'bg-emerald-500 text-black' 
@@ -480,7 +541,6 @@ export default function ImportDesktop({
                 )}
               </div>
 
-              {/* Textes explicites Drag & Drop */}
               <div className="pointer-events-none flex flex-col min-w-0">
                 <h3 className={`text-[11px] font-black uppercase tracking-[0.15em] ${
                   isDragging
@@ -501,9 +561,11 @@ export default function ImportDesktop({
             </div>
           </div>
 
-          {/* 3. RÉCAPITULATIF & TABLEAU DE PRÉVISUALISATION */}
+          {/* Prévisualisation */}
           {transactionsCalculees && transactionsCalculees.length > 0 && (
-            <div className="flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative">
+            <div className={`flex flex-col gap-4 animate-in slide-in-from-top-2 duration-500 min-h-0 relative ${
+              mobileSubTab === 'sources' ? 'hidden lg:flex' : 'flex'
+            }`}>
               <div className="absolute -inset-4 bg-[var(--primary)]/20 blur-[80px] rounded-full pointer-events-none z-0" />
 
               <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
@@ -512,7 +574,7 @@ export default function ImportDesktop({
                     <Wallet size={10} className="text-[var(--primary)]" />
                     <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
                     <span className="text-[10px] font-black text-[var(--primary)] uppercase">
-                      {importCompte || comptes[0]?.compte}
+                      {targetCompte}
                     </span>
                   </div>
 
@@ -567,7 +629,6 @@ export default function ImportDesktop({
                 </div>
               </div>
 
-              {/* TABLEAU DE PRÉVISUALISATION */}
               <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
                 <div className="max-h-[420px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
@@ -665,8 +726,13 @@ export default function ImportDesktop({
           )}
         </div>
 
-        {/* COLONNE DROITE : PANNEAU INTELLIGENCE */}
-        <div className="w-full lg:w-150 flex flex-col gap-4 shrink-0">
+        {/* =====================================================================
+            COLONNE DROITE : PANNEAU INTELLIGENCE & LEXIQUE
+            (Adaptation responsive : spacieux sur PC, sans débordement sur Mobile)
+            ===================================================================== */}
+        <div className={`w-full lg:w-150 flex flex-col gap-3 lg:gap-4 shrink-0 ${
+          mobileSubTab !== 'intel' ? 'hidden lg:flex' : 'flex'
+        }`}>
           <div className="flex flex-col gap-1 px-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
@@ -674,109 +740,131 @@ export default function ImportDesktop({
               </div>
               <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">Intelligence</h3>
             </div>
-            <p className="text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-1 italic">
+            <p className="text-[11px] lg:text-[12px] text-[var(--text-main)]/30 font-medium leading-relaxed mt-0.5 italic">
               Configuration des mots-clés pour la catégorisation automatique.
             </p>
           </div>
 
+          {/* 🟢 Rétablissement des icônes dans le CustomSelect avec isCategory={true} */}
           <div className="px-1">
             <CustomSelect 
               label="Cible d'apprentissage"
               value={intelSelectedCat}
-              icon={Landmark}
+              icon={Tag}
+              isCategory={true}
               options={categoriesPourIntelligence.map(cat => ({ v: cat, l: cat }))}
               onChange={(val) => setIntelSelectedCat(val)}
             />
           </div>
 
-          <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[3rem] p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-[480px]">
+          {/* Carte Lexique : p-4 sm:p-6 lg:p-8, rounded-3xl lg:rounded-[3rem] */}
+          <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-3xl lg:rounded-[3rem] p-4 sm:p-6 lg:p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-0 lg:min-h-[480px]">
             <div className="absolute -top-24 -left-24 w-64 h-64 bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
             
             <div className="flex flex-col h-full animate-in fade-in duration-500 relative z-10">
-              <div className="flex justify-between items-start mb-8">
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em]">Lexique</span>
-                  <span className="text-[11px] text-[var(--text-main)]/60 font-bold uppercase truncate pr-4">{intelSelectedCat}</span>
+              
+              {/* 🟢 En-tête de la carte avec CategoryIcon */}
+              <div className="flex justify-between items-center mb-4 lg:mb-8">
+                <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                  <CategoryIcon name={intelSelectedCat} size={18} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[9px] lg:text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] leading-none">
+                      Lexique
+                    </span>
+                    <span className="text-[11px] lg:text-xs text-[var(--text-main)]/80 font-bold uppercase truncate mt-0.5">
+                      {getCleanCategoryName(intelSelectedCat)}
+                    </span>
+                  </div>
                 </div>
-                <div className="bg-[var(--glass-bg)] border border-white/10 px-3 py-1.5 rounded-xl">
-                  <span className="text-[12px] font-black text-[var(--primary)]">
+
+                <div className="bg-[var(--glass-bg)] border border-white/10 px-2.5 py-1 rounded-xl shrink-0">
+                  <span className="text-[11px] lg:text-[12px] font-black text-[var(--primary)] font-mono">
                     {activeCategoryData?.mots_cles?.length || 0}
                   </span>
                 </div>
               </div>
 
-              {/* LISTE DES MOTS-CLÉS */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-8">
-                <div className="flex flex-wrap gap-2.5">
-                  {activeCategoryData?.mots_cles?.map((keyword, kIdx) => {
-                    const [keywordText, rawSign] = keyword.split(':');
-                    const sign = rawSign || 'both';
+              {/* 🟢 LISTE DES MOTS-CLÉS AVEC ICÔNE DE CATÉGORIE + FLÈCHES POLARITÉ */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 lg:pr-2 mb-4 lg:mb-8 max-h-60 lg:max-h-none">
+                <div className="flex flex-wrap gap-2 lg:gap-2.5">
+                  {activeCategoryData?.mots_cles && activeCategoryData.mots_cles.length > 0 ? (
+                    activeCategoryData.mots_cles.map((keyword, kIdx) => {
+                      const [keywordText, rawSign] = keyword.split(':');
+                      const sign = rawSign || 'both';
 
-                    return (
-                      <div 
-                        key={kIdx} 
-                        className="group flex items-center gap-3 px-4 py-2 bg-white/[0.05] border border-white/10 rounded-2xl text-[10px] font-bold text-[var(--text-main)]/70 uppercase hover:bg-[var(--primary)] hover:text-black transition-all"
-                      >
-                        <span className="flex items-center gap-2">
-                          {keywordText.replace(/"/g, '')}
-                          {sign === "positive" && <ArrowUpRight size={12} className="text-emerald-500 stroke-[3px]" title="Crédits uniquement" />}
-                          {sign === "negative" && <ArrowDownLeft size={12} className="text-rose-500 stroke-[3px]" title="Débits uniquement" />}
-                          {sign === "both" && <ArrowRightLeft size={11} className="text-[var(--text-main)]/40 stroke-[3px]" title="Tous montants" />}
-                        </span>
-                        <button 
-                          onClick={() => handleRemoveKeyword(intelSelectedCat, keyword)} 
-                          className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer"
+                      return (
+                        <div 
+                          key={kIdx} 
+                          className="group flex items-center gap-2 px-3 py-1.5 lg:px-4 lg:py-2 bg-white/[0.05] border border-white/10 rounded-xl lg:rounded-2xl text-[9.5px] lg:text-[10px] font-bold text-[var(--text-main)]/80 uppercase hover:bg-[var(--primary)] hover:text-black transition-all"
                         >
-                          <X size={12} />
-                        </button>
-                      </div>
-                    );
-                  })}
+                          <CategoryIcon name={intelSelectedCat} size={12} showBg={false} />
+                          <span className="flex items-center gap-1.5">
+                            <span>{keywordText.replace(/"/g, '')}</span>
+                            {sign === "positive" && <ArrowUpRight size={12} className="text-emerald-500 stroke-[3px]" title="Crédits uniquement" />}
+                            {sign === "negative" && <ArrowDownLeft size={12} className="text-rose-500 stroke-[3px]" title="Débits uniquement" />}
+                            {sign === "both" && <ArrowRightLeft size={11} className="text-[var(--text-main)]/40 stroke-[2.5px]" title="Tous montants" />}
+                          </span>
+                          <button 
+                            type="button"
+                            onClick={() => handleRemoveKeyword(intelSelectedCat, keyword)} 
+                            className="opacity-40 hover:opacity-100 transition-opacity cursor-pointer p-0.5 ml-0.5"
+                            title="Supprimer ce mot-clé"
+                          >
+                            <X size={11} />
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-[9px] text-white/30 uppercase font-black py-8 w-full text-center italic">
+                      Aucun mot-clé pour cette catégorie
+                    </p>
+                  )}
                 </div>
               </div>
 
-              {/* AJOUT DE MOT-CLÉ */}
-              <div className="mt-auto flex flex-col gap-4 relative">
-                <div className="flex flex-col gap-2">
-                  <span className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.15em] pl-1">
+              {/* Formulaire d'ajout de mot-clé (py-3 sur mobile, py-5 sur PC) */}
+              <div className="mt-auto flex flex-col gap-3 lg:gap-4 relative pt-2 border-t border-white/5">
+                <div className="flex flex-col gap-1.5 lg:gap-2">
+                  <span className="text-[8px] lg:text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-[0.15em] pl-1">
                     Filtrer l'apprentissage sur :
                   </span>
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5 lg:gap-2">
                     <button 
                       type="button"
                       onClick={() => setSignType("both")}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 lg:py-2 px-2 lg:px-3 rounded-xl border text-[9px] lg:text-[10px] font-bold uppercase transition-all cursor-pointer ${
                         signType === "both" 
-                          ? "bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]" 
+                          ? "bg-[var(--primary)]/15 border-[var(--primary)] text-[var(--primary)] font-black" 
                           : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
                       }`}
                     >
                       <ArrowRightLeft size={11} className="stroke-[2.5px]" />
-                      Tous montants
+                      <span>Tous</span>
                     </button>
                     <button 
                       type="button"
                       onClick={() => setSignType("positive")}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 lg:py-2 px-2 lg:px-3 rounded-xl border text-[9px] lg:text-[10px] font-bold uppercase transition-all cursor-pointer ${
                         signType === "positive" 
-                          ? "bg-emerald-500/10 border-emerald-500/50 text-emerald-400" 
+                          ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-400 font-black" 
                           : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
                       }`}
                     >
                       <ArrowUpRight size={11} className="stroke-[2.5px]" />
-                      Positifs
+                      <span>Crédits</span>
                     </button>
                     <button 
                       type="button"
                       onClick={() => setSignType("negative")}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl border text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 lg:py-2 px-2 lg:px-3 rounded-xl border text-[9px] lg:text-[10px] font-bold uppercase transition-all cursor-pointer ${
                         signType === "negative" 
-                          ? "bg-rose-500/10 border-rose-500/50 text-rose-400" 
+                          ? "bg-rose-500/15 border-rose-500/50 text-rose-400 font-black" 
                           : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
                       }`}
                     >
                       <ArrowDownLeft size={11} className="stroke-[2.5px]" />
-                      Négatifs
+                      <span>Débits</span>
                     </button>
                   </div>
                 </div>
@@ -785,7 +873,7 @@ export default function ImportDesktop({
                   <input 
                     type="text"
                     placeholder="Nouvel apprentissage..."
-                    className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[1.5rem] pl-6 pr-14 py-5 text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/10"
+                    className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-xl lg:rounded-[1.5rem] pl-4 lg:pl-6 pr-12 lg:pr-14 py-3 lg:py-5 text-xs lg:text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/20"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && e.target.value.trim()) {
                         handleAddKeyword(intelSelectedCat, e.target.value);
@@ -793,11 +881,12 @@ export default function ImportDesktop({
                       }
                     }}
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-[var(--primary)]/10 rounded-xl pointer-events-none">
-                    <Plus size={16} className="text-[var(--primary)]" />
+                  <div className="absolute right-3.5 lg:right-4 top-1/2 -translate-y-1/2 p-1.5 lg:p-2 bg-[var(--primary)]/10 rounded-xl pointer-events-none">
+                    <Plus size={15} className="text-[var(--primary)]" />
                   </div>
                 </div>
               </div>
+
             </div>
           </div>
         </div>

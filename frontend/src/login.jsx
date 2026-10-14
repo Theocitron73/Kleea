@@ -25,12 +25,6 @@ import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut d
 import { createPortal } from 'react-dom';
 import api from './axios';
 import ReactMarkdown from 'react-markdown';
-import GererMobile from './GererMobile';
-import ImportMobile from './ImportMobile';
-import PrevisionsMobile from './previsionsMobile';
-import DashboardMobile from './DashboardMobile';
-import ComptesMobile from './ComptesMobile';
-import TricountMobile from './TricountMobile';
 import GuideView from './GuideView';
 import { Link as RouterLink } from 'react-router-dom';
 import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap,getCategoryIconInfo,getCategoryGroup } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
@@ -41,22 +35,16 @@ import DemenagementPage from './views/DemenagementPage';
 import GestionEpargneProjet from './views/GestionEpargneProjet';
 import CongesPage from './views/Congespage';
 import AuthView from './views/AuthView';
-import ComptesDesktop from './views/ComptesDesktop';
+import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
-import ImportDesktop from './views/ImportDesktop';
-import GererDesktop from './views/GererDesktop';
-import PrevisionsDesktop, { PrevisionsChartView } from './views/PrevisionsDesktop';
-import DashboardDesktop, { AnnualCategoriesChart, generateGradientStep, TransactionCard, CategoriesView, VariationsView, FlashInsightsView, CalendarSection, WrappedSection} from './views/DashboardDesktop';
+import ImportView from './views/ImportView';
+import GererView from './views/GererView';
+import PrevisionsView, { PrevisionsChartView } from './views/PrevisionsView';
+import DashboardView, { AnnualCategoriesChart, generateGradientStep, TransactionCard, CategoriesView, VariationsView, FlashInsightsView, CalendarSection, WrappedSection } from './views/DashboardView';
 import { toast } from 'sonner'
 import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import ExportModal from './components/ExportModal';
-
-
-
-
-
-
 
 
 
@@ -6151,471 +6139,248 @@ if (!user) {
 
 
 {activeTab === 'dashboard' && (
-  <>
-    <DashboardDesktop 
-      filters={filters}
-      setFilters={setFilters}
-      moisListe={moisListe}
-      availablePeriods={availablePeriods}
-      groupesDisponibles={groupesDisponibles}
-      handleWheelProfil={handleWheelProfil}
-      handleWheelMois={handleWheelMois}
-      handleWheelAnnee={handleWheelAnnee}
-      handleWheelTabActive={handleWheelTabActive}
-      handleWheelAnnualTab={handleWheelAnnualTab}
-      handleWheelRightTab={handleWheelRightTab}
-      userTheme={userTheme}
-      soldeGlobal={soldeGlobal}
-      soldesTries={soldesTries}
-      sensors={sensors}
-      handleDragEnd={handleDragEnd}
-      SortableAccountCard={SortableAccountCard}
-      TAB_CONFIG={TAB_CONFIG}
-      tabActive={tabActive}
-      setTabActive={setTabActive}
-      searchTerm={searchTerm}
-      setSearchTerm={setSearchTerm}
-      financeData={financeData}
-      statsCategories={statsCategories}
-      chartData={chartData}
-      hiddenCategories={hiddenCategories}
-      toggleCategory={toggleCategory}
-      user={user}
-      budgetGauges={budgetGauges}
-      carouselRef={carouselRef}
-      handleScroll={handleScroll}
-      totalDots={totalDots}
-      activeIndex={activeIndex}
-      navigateCarousel={navigateCarousel}
-      scrollToPage={scrollToPage}
-      setActiveTab={setActiveTab}
-      annualTab={annualTab}
-      setAnnualTab={setAnnualTab}
-      soldePremierJanvier={soldePremierJanvier}
-      recapAnnuelStats={recapAnnuelStats}
-      statsAnnuellesCategories={statsAnnuellesCategories}
-      toutesLesTransactions={toutesLesTransactions}
-      comptesDuProfil={comptesDuProfil}
-      isCompact={isCompact}
-      totalTab={totalTab}
-      setTotalTab={setTotalTab}
-      estPeriode={estPeriode}
-      moisDebut={moisDebut}
-      setMoisDebut={setMoisDebut}
-      moisFin={moisFin}
-      setMoisFin={setMoisFin}
-      donneesAffichees={donneesAffichees}
-      activeRightTab={activeRightTab}
-      setActiveRightTab={setActiveRightTab}
-      objectifAnnuelGlobal={objectifAnnuelGlobal}
-      epargneReelleCumulee={epargneReelleCumulee}
-      epargneProjeteeTotale={epargneProjeteeTotale}
-      pctReel={pctReel}
-      pctProjete={pctProjete}
-      visibleAnnuel={visibleAnnuel}
-      setVisibleAnnuel={setVisibleAnnuel}
-      comptes={comptes}
-      hiddenComptes={hiddenComptes}
-      setHiddenComptes={setHiddenComptes}
-      allocations={allocations}
-      setAllocations={setAllocations}
-      projets={projets}
-      setProjets={setProjets}
-      epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
-      api={api}
-      fetchAllocations={fetchAllocations}
-      CustomSelect={CustomSelect}
-    />
-
-    {/* Version Mobile existante inchangée */}
-    <div className="block lg:hidden">
-      <DashboardMobile 
-        filters={filters}
-        setFilters={setFilters}
-        comptes={comptes}
-        moisListe={moisListe}
-        availablePeriods={availablePeriods}
-        userTheme={userTheme}
-        soldeGlobal={soldeGlobal}
-        soldesTries={soldesTries}
-        sensors={sensors}
-        handleDragEnd={handleDragEnd}
-        tabActive={tabActive}
-        setTabActive={setTabActive}
-        TAB_CONFIG={TAB_CONFIG}
-        financeData={financeData}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        statsCategories={statsCategories}
-        chartData={chartData}
-        hiddenCategories={hiddenCategories}
-        toggleCategory={toggleCategory}
-        CategoriesView={CategoriesView}
-        VariationsView={VariationsView}
-        FlashInsightsView={FlashInsightsView}
-        TransactionCard={TransactionCard}
-        budgetGauges={budgetGauges}
-        activeIndex={activeIndex}
-        totalDots={totalDots}
-        navigateCarousel={navigateCarousel}
-        carouselRef={carouselRef}
-        handleScroll={handleScroll}
-        scrollToPage={scrollToPage}
-        soldePremierJanvier={soldePremierJanvier}
-        annualTab={annualTab}
-        setAnnualTab={setAnnualTab}
-        recapAnnuelStats={recapAnnuelStats}
-        statsAnnuellesCategories={statsAnnuellesCategories}
-        CalendarSection={CalendarSection}
-        WrappedSection={WrappedSection}
-        toutesLesTransactions={toutesLesTransactions}
-        comptesDuProfil={comptesDuProfil}
-        totalTab={totalTab}
-        setTotalTab={setTotalTab}
-        estPeriode={estPeriode}
-        moisDebut={moisDebut}
-        setMoisDebut={setMoisDebut}
-        moisFin={moisFin}
-        setMoisFin={setMoisFin}
-        donneesAffichees={donneesAffichees}
-        activeRightTab={activeRightTab}
-        setActiveRightTab={setActiveRightTab}
-        objectifAnnuelGlobal={objectifAnnuelGlobal}
-        epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
-        pourcentageAnnuel={pourcentageAnnuel}
-        visibleAnnuel={visibleAnnuel}
-        setVisibleAnnuel={setVisibleAnnuel}
-        hiddenComptes={hiddenComptes}
-        setHiddenComptes={setHiddenComptes}
-        GestionEpargneProjet={GestionEpargneProjet}
-        allocations={allocations}
-        setAllocations={setAllocations}
-        projets={projets}
-        setProjets={setProjets}
-        user={user}
-        api={api}
-        fetchAllocations={fetchAllocations}
-        categoriesVisibles={categoriesVisibles}
-        updateCell={updateCell}
-        SortableAccountCard={SortableAccountCard}
-        AnnualCategoriesChart={AnnualCategoriesChart}
-        generateGradientStep={generateGradientStep}
-      />
-    </div>
-  </>
+  <DashboardView 
+    filters={filters}
+    setFilters={setFilters}
+    moisListe={moisListe}
+    availablePeriods={availablePeriods}
+    groupesDisponibles={groupesDisponibles}
+    handleWheelProfil={handleWheelProfil}
+    handleWheelMois={handleWheelMois}
+    handleWheelAnnee={handleWheelAnnee}
+    handleWheelTabActive={handleWheelTabActive}
+    handleWheelAnnualTab={handleWheelAnnualTab}
+    handleWheelRightTab={handleWheelRightTab}
+    userTheme={userTheme}
+    soldeGlobal={soldeGlobal}
+    soldesTries={soldesTries}
+    sensors={sensors}
+    handleDragEnd={handleDragEnd}
+    SortableAccountCard={SortableAccountCard}
+    TAB_CONFIG={TAB_CONFIG}
+    tabActive={tabActive}
+    setTabActive={setTabActive}
+    searchTerm={searchTerm}
+    setSearchTerm={setSearchTerm}
+    financeData={financeData}
+    statsCategories={statsCategories}
+    chartData={chartData}
+    hiddenCategories={hiddenCategories}
+    toggleCategory={toggleCategory}
+    user={user}
+    budgetGauges={budgetGauges}
+    carouselRef={carouselRef}
+    handleScroll={handleScroll}
+    totalDots={totalDots}
+    activeIndex={activeIndex}
+    navigateCarousel={navigateCarousel}
+    scrollToPage={scrollToPage}
+    setActiveTab={setActiveTab}
+    annualTab={annualTab}
+    setAnnualTab={setAnnualTab}
+    soldePremierJanvier={soldePremierJanvier}
+    recapAnnuelStats={recapAnnuelStats}
+    statsAnnuellesCategories={statsAnnuellesCategories}
+    toutesLesTransactions={toutesLesTransactions}
+    comptesDuProfil={comptesDuProfil}
+    isCompact={isCompact}
+    totalTab={totalTab}
+    setTotalTab={setTotalTab}
+    estPeriode={estPeriode}
+    moisDebut={moisDebut}
+    setMoisDebut={setMoisDebut}
+    moisFin={moisFin}
+    setMoisFin={setMoisFin}
+    donneesAffichees={donneesAffichees}
+    activeRightTab={activeRightTab}
+    setActiveRightTab={setActiveRightTab}
+    objectifAnnuelGlobal={objectifAnnuelGlobal}
+    epargneReelleCumulee={epargneReelleCumulee}
+    epargneProjeteeTotale={epargneProjeteeTotale}
+    pctReel={pctReel}
+    pctProjete={pctProjete}
+    visibleAnnuel={visibleAnnuel}
+    setVisibleAnnuel={setVisibleAnnuel}
+    comptes={comptes}
+    hiddenComptes={hiddenComptes}
+    setHiddenComptes={setHiddenComptes}
+    allocations={allocations}
+    setAllocations={setAllocations}
+    projets={projets}
+    setProjets={setProjets}
+    epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
+    pourcentageAnnuel={pourcentageAnnuel}
+    api={api}
+    fetchAllocations={fetchAllocations}
+    CustomSelect={CustomSelect}
+    categoriesVisibles={categoriesVisibles}
+    updateCell={updateCell}
+  />
 )}
 
 
 {activeTab === 'previsionnel' && (
-  <>
-    <PrevisionsDesktop 
-      filters={filters}
-      setFilters={setFilters}
-      groupesDisponibles={groupesDisponibles}
-      handleWheelProfil={handleWheelProfil}
-      handleWheelMois={handleWheelMois}
-      handleWheelAnnee={handleWheelAnnee}
-      moisListe={moisListe}
-      availablePeriods={availablePeriods}
-      soldeGlobalProjete={soldeGlobalProjete}
-      soldesPrevisionnels={soldesPrevisionnels}
-      userTheme={userTheme}
-      sensors={sensors}
-      handleDragEnd={handleDragEnd}
-      SortableAccountCard={SortableAccountCard}
-      newPrevi={newPrevi}
-      setNewPrevi={setNewPrevi}
-      handleAddPrevision={handleAddPrevision}
-      selectedIds2={selectedIds2}
-      handleTryPropagateYear={handleTryPropagateYear}
-      handleTryDuplicate={handleTryDuplicate}
-      previsionsFiltrees={previsionsFiltrees}
-      toggleAll2={toggleAll2}
-      toggleSelect2={toggleSelect2}
-      updatePrevision={updatePrevision}
-      categoriesVisibles={categoriesVisibles}
-      optionsComptes={optionsComptes}
-      toutesLesTransactions={toutesLesTransactions}
-      previsionsTracking={previsionsTracking}
-      chartDataPrevisions={chartDataPrevisions}
-      moisDisponibles={moisDisponibles}
-      excludedMonths={excludedMonths}
-      setExcludedMonths={setExcludedMonths}
-      recapPrevisionsStats={recapPrevisionsStats}
-      objectifAnnuelGlobal={objectifAnnuelGlobal}
-      statsEpargnePrevisionnelle={statsEpargnePrevisionnelle}
-      CustomSelect={CustomSelect}
-      isCompact={isCompact}
-    />
-
-    {/* Version Mobile existante inchangée */}
-    <div className="block lg:hidden">
-      <PrevisionsMobile 
-        user={user}
-        filters={filters}
-        setFilters={setFilters}
-        comptes={comptes}
-        moisListe={moisListe}
-        availablePeriods={availablePeriods}
-        soldeGlobalProjete={soldeGlobalProjete}
-        soldesPrevisionnels={soldesPrevisionnels}
-        userTheme={userTheme}
-        newPrevi={newPrevi}
-        setNewPrevi={setNewPrevi}
-        handleAddPrevision={handleAddPrevision}
-        handleTryDuplicate={handleTryDuplicate}
-        selectedIds2={selectedIds2}
-        previsionsFiltrees={previsionsFiltrees}
-        updatePrevision={updatePrevision}
-        toggleSelect2={toggleSelect2}
-        toggleAll2={toggleAll2}
-        categoriesVisibles={categoriesVisibles}
-        optionsComptes={optionsComptes}
-        chartDataPrevisions={chartDataPrevisions}
-        PrevisionsChartView={PrevisionsChartView}
-        moisDisponibles={moisDisponibles}
-        excludedMonths={excludedMonths}
-        setExcludedMonths={setExcludedMonths}
-        recapPrevisionsStats={recapPrevisionsStats}
-        objectifAnnuelGlobal={objectifAnnuelGlobal}
-        statsEpargnePrevisionnelle={statsEpargnePrevisionnelle}
-        pourcentageAnnuel={pourcentageAnnuel}
-        CustomSelect={CustomSelect}
-        SortableAccountCard={SortableAccountCard}
-        toutesLesTransactions={toutesLesTransactions}
-      />
-    </div>
-  </>
+  <PrevisionsView 
+    user={user}
+    filters={filters}
+    setFilters={setFilters}
+    comptes={comptes}
+    groupesDisponibles={groupesDisponibles}
+    handleWheelProfil={handleWheelProfil}
+    handleWheelMois={handleWheelMois}
+    handleWheelAnnee={handleWheelAnnee}
+    moisListe={moisListe}
+    availablePeriods={availablePeriods}
+    soldeGlobalProjete={soldeGlobalProjete}
+    soldesPrevisionnels={soldesPrevisionnels}
+    userTheme={userTheme}
+    sensors={sensors}
+    handleDragEnd={handleDragEnd}
+    SortableAccountCard={SortableAccountCard}
+    newPrevi={newPrevi}
+    setNewPrevi={setNewPrevi}
+    handleAddPrevision={handleAddPrevision}
+    selectedIds2={selectedIds2}
+    handleTryPropagateYear={handleTryPropagateYear}
+    handleTryDuplicate={handleTryDuplicate}
+    previsionsFiltrees={previsionsFiltrees}
+    toggleAll2={toggleAll2}
+    toggleSelect2={toggleSelect2}
+    updatePrevision={updatePrevision}
+    categoriesVisibles={categoriesVisibles}
+    optionsComptes={optionsComptes}
+    toutesLesTransactions={toutesLesTransactions}
+    previsionsTracking={previsionsTracking}
+    chartDataPrevisions={chartDataPrevisions}
+    moisDisponibles={moisDisponibles}
+    excludedMonths={excludedMonths}
+    setExcludedMonths={setExcludedMonths}
+    recapPrevisionsStats={recapPrevisionsStats}
+    objectifAnnuelGlobal={objectifAnnuelGlobal}
+    statsEpargnePrevisionnelle={statsEpargnePrevisionnelle}
+    pourcentageAnnuel={pourcentageAnnuel}
+    CustomSelect={CustomSelect}
+    isCompact={isCompact}
+  />
 )}
 
 
 
  {activeTab === 'gerer' && (
-  <>
-    <GererDesktop 
-      filters={filters}
-      setFilters={setFilters}
-      fetchTransactions={fetchTransactions}
-      comptes={comptes}
-      soldesTries={soldesTries}
-      handleProfilChange={handleProfilChange}
-      handleCompteChange={handleCompteChange}
-      selectedCompte={selectedCompte}
-      moisListe={moisListe}
-      availablePeriods={availablePeriods}
-      statsFiltrées={statsFiltrées}
-      isApprendreActive={isApprendreActive}
-      setIsApprendreActive={setIsApprendreActive}
-      showLearningList={showLearningList}
-      setShowLearningList={setShowLearningList}
-      elementsAppris={elementsAppris}
-      fetchMemoire={fetchMemoire}
-      handleDeleteMemory={handleDeleteMemory}
-      newTx={newTx}
-      setNewTx={setNewTx}
-      selectedDate={selectedDate}
-      setSelectedDate={setSelectedDate}
-      submitQuickTransaction={submitQuickTransaction}
-      setShowExportModal={setShowExportModal}
-      searchTerm={searchTerm}
-      setSearchTerm={setSearchTerm}
-      transactionsFiltrees={transactionsFiltrees}
-      selectedIds={selectedIds}
-      toggleAll={toggleAll}
-      toggleSelect={toggleSelect}
-      handleSort={handleSort}
-      sortConfig={sortConfig}
-      updateCell={updateCell}
-      categoriesVisibles={categoriesVisibles}
-      toutesLesCategories={toutesLesCategories}
-      categoriesPerso={categoriesPerso}
-      masquees={masquees}
-      setMasquees={setMasquees}
-      addCategory={addCategory}
-      handleUpdateCategory={handleUpdateCategory}
-      removeCategory={removeCategory}
-      toggleVisibility={toggleVisibility}
-      allPrevisionsAnnee={allPrevisionsAnnee}
-      allocations={allocations}
-      budgets={budgets}
-      formBudget={formBudget}
-      setFormBudget={setFormBudget}
-      handleAddBudget={handleAddBudget}
-      showBudgetDetails={showBudgetDetails}
-      setShowBudgetDetails={setShowBudgetDetails}
-      selectedBudgetYear={selectedBudgetYear}
-      setSelectedBudgetYear={setSelectedBudgetYear}
-      optionsAnnees={optionsAnnees}
-      listeMoisDisponibles={listeMoisDisponibles}
-      selectedBudgetMonth={selectedBudgetMonth}
-      setSelectedBudgetMonth={setSelectedBudgetMonth}
-      editingBudget={editingBudget}
-      setEditingBudget={setEditingBudget}
-      handleUpdateBudget={handleUpdateBudget}
-      confirmDelete2={confirmDelete2}
-      CustomSelect={CustomSelect}
-      toutesLesTransactions={toutesLesTransactions}
-      userManagedGroups={userManagedGroups}
-      setUserManagedGroups={setUserManagedGroups}
-      handleAssignGroup={handleAssignGroup}
-      handleDeleteGroup={handleDeleteGroup}
-    />
-
-    {/* Version Mobile existante inchangée */}
-    <div className="block lg:hidden">
-      <GererMobile    
-        toutesLesCategories={toutesLesCategories}
-        fetchTransactions={fetchTransactions}
-        masquees={masquees}
-        setMasquees={setMasquees}
-        categoriesPerso={categoriesPerso}
-        categoriesVisibles={categoriesVisibles}
-        addCategory={addCategory}
-        handleUpdateCategory={handleUpdateCategory}
-        removeCategory={removeCategory}
-        toggleVisibility={toggleVisibility}
-        budgets={budgets}
-        formBudget={formBudget}
-        setFormBudget={setFormBudget}
-        handleAddBudget={handleAddBudget}
-        showBudgetDetails={showBudgetDetails}
-        setShowBudgetDetails={setShowBudgetDetails}
-        selectedBudgetYear={selectedBudgetYear}
-        setSelectedBudgetYear={setSelectedBudgetYear}
-        optionsAnnees={optionsAnnees}
-        listeMoisDisponibles={listeMoisDisponibles}
-        selectedBudgetMonth={selectedBudgetMonth}
-        setSelectedBudgetMonth={setSelectedBudgetMonth}
-        editingBudget={editingBudget}
-        setEditingBudget={setEditingBudget}
-        handleUpdateBudget={handleUpdateBudget}
-        confirmDelete2={confirmDelete2}
-        filters={filters}
-        comptes={comptes}
-        setFilters={setFilters}
-        selectedCompte={selectedCompte}
-        setSelectedCompte={setSelectedCompte}
-        handleProfilChange={handleProfilChange}
-        handleCompteChange={handleCompteChange}
-        availablePeriods={availablePeriods}
-        moisListe={moisListe}
-        statsFiltrées={statsFiltrées}
-        isApprendreActive={isApprendreActive}
-        setIsApprendreActive={setIsApprendreActive}
-        showLearningList={showLearningList}
-        setShowLearningList={setShowLearningList}
-        fetchMemoire={fetchMemoire}
-        elementsAppris={elementsAppris}
-        handleDeleteMemory={handleDeleteMemory}
-        newTx={newTx}
-        setNewTx={setNewTx}
-        selectedDate={selectedDate}
-        setSelectedDate={setSelectedDate}
-        submitQuickTransaction={submitQuickTransaction}
-        searchTerm={searchTerm}
-        setSearchTerm={setSearchTerm}
-        transactionsFiltrees={transactionsFiltrees}
-        transactionsAAfficher={transactionsAAfficher}
-        selectedIds={selectedIds}
-        toggleAll={toggleAll}
-        toggleSelect={toggleSelect}
-        updateCell={updateCell}
-        allocations={allocations}
-        activeTab={activeTab}
-        soldesTries={soldesTries}
-        allPrevisionsAnnee={allPrevisionsAnnee}
-        toutesLesTransactions={toutesLesTransactions}
-        CustomSelect={CustomSelect}
-        user={user}
-        api={api}
-        fetchCategories={fetchCategories}
-      />
-    </div>
-  </>
+  <GererView 
+    filters={filters}
+    setFilters={setFilters}
+    fetchTransactions={fetchTransactions}
+    comptes={comptes}
+    soldesTries={soldesTries}
+    handleProfilChange={handleProfilChange}
+    handleCompteChange={handleCompteChange}
+    selectedCompte={selectedCompte}
+    setSelectedCompte={setSelectedCompte}
+    moisListe={moisListe}
+    availablePeriods={availablePeriods}
+    statsFiltrées={statsFiltrées}
+    isApprendreActive={isApprendreActive}
+    setIsApprendreActive={setIsApprendreActive}
+    showLearningList={showLearningList}
+    setShowLearningList={setShowLearningList}
+    elementsAppris={elementsAppris}
+    fetchMemoire={fetchMemoire}
+    handleDeleteMemory={handleDeleteMemory}
+    newTx={newTx}
+    setNewTx={setNewTx}
+    selectedDate={selectedDate}
+    setSelectedDate={setSelectedDate}
+    submitQuickTransaction={submitQuickTransaction}
+    setShowExportModal={setShowExportModal}
+    searchTerm={searchTerm}
+    setSearchTerm={setSearchTerm}
+    transactionsFiltrees={transactionsFiltrees}
+    selectedIds={selectedIds}
+    toggleAll={toggleAll}
+    toggleSelect={toggleSelect}
+    handleSort={handleSort}
+    sortConfig={sortConfig}
+    updateCell={updateCell}
+    categoriesVisibles={categoriesVisibles}
+    toutesLesCategories={toutesLesCategories}
+    categoriesPerso={categoriesPerso}
+    masquees={masquees}
+    setMasquees={setMasquees}
+    addCategory={addCategory}
+    handleUpdateCategory={handleUpdateCategory}
+    removeCategory={removeCategory}
+    toggleVisibility={toggleVisibility}
+    allPrevisionsAnnee={allPrevisionsAnnee}
+    allocations={allocations}
+    budgets={budgets}
+    formBudget={formBudget}
+    setFormBudget={setFormBudget}
+    handleAddBudget={handleAddBudget}
+    showBudgetDetails={showBudgetDetails}
+    setShowBudgetDetails={setShowBudgetDetails}
+    selectedBudgetYear={selectedBudgetYear}
+    setSelectedBudgetYear={setSelectedBudgetYear}
+    optionsAnnees={optionsAnnees}
+    listeMoisDisponibles={listeMoisDisponibles}
+    selectedBudgetMonth={selectedBudgetMonth}
+    setSelectedBudgetMonth={setSelectedBudgetMonth}
+    editingBudget={editingBudget}
+    setEditingBudget={setEditingBudget}
+    handleUpdateBudget={handleUpdateBudget}
+    confirmDelete2={confirmDelete2}
+    CustomSelect={CustomSelect}
+    toutesLesTransactions={toutesLesTransactions}
+    userManagedGroups={userManagedGroups}
+    setUserManagedGroups={setUserManagedGroups}
+    handleAssignGroup={handleAssignGroup}
+    handleDeleteGroup={handleDeleteGroup}
+    user={user}
+    fetchCategories={fetchCategories}
+  />
 )}
 
 
 
 {activeTab === 'importer' && (
-  <>
-    <ImportDesktop 
-      importCompte={importCompte}
-      setImportCompte={setImportCompte}
-      comptes={comptes}
-      powensData={powensData}
-      syncCountByAccount={syncCountByAccount}
-      handleAssociateAccount={handleAssociateAccount}
-      isRefreshingPowens={isRefreshingPowens}
-      isCheckingSync={isCheckingSync}
-      handleForceRefreshPowens={handleForceRefreshPowens}
-      isSyncingPowens={isSyncingPowens}
-      handleConnectNewBank={handleConnectNewBank}
-      isManualSyncing={isManualSyncing}
-      setIsManualSyncing={setIsManualSyncing}
-      isSyncingData={isSyncingData}
-      handleSyncPowens={handleSyncPowens}
-      hasPendingSync={hasPendingSync}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-      isDragging={isDragging}
-      setFileName={setFileName}
-      handleFileUpload={handleFileUpload}
-      transactionsCalculees={transactionsCalculees}
-      setTempTransactions={setTempTransactions}
-      confirmBatchImport={confirmBatchImport}
-      intelSelectedCat={intelSelectedCat}
-      setIntelSelectedCat={setIntelSelectedCat}
-      categoriesPourIntelligence={categoriesPourIntelligence}
-      activeCategoryData={activeCategoryData}
-      handleRemoveKeyword={handleRemoveKeyword}
-      handleAddKeyword={handleAddKeyword}
-      signType={signType}
-      setSignType={setSignType}
-      CustomSelect={CustomSelect}
-    />
-
-    {/* Version Mobile existante inchangée */}
-    <div className="block lg:hidden">
-      <ImportMobile 
-        selectedCompte={selectedCompte}
-        setSelectedCompte={setSelectedCompte}
-        comptes={comptes}
-        powensData={powensData}
-        syncCountByAccount={syncCountByAccount}
-        handleAssociateAccount={handleAssociateAccount}
-        isSyncingPowens={isSyncingPowens}
-        handleConnectNewBank={handleConnectNewBank}
-        isManualSyncing={isManualSyncing}
-        setIsManualSyncing={setIsManualSyncing} // 👈 Vérifiez cette ligne
-        isSyncingData={isSyncingData}
-        isCheckingSync={isCheckingSync}
-        handleSyncPowens={handleSyncPowens}
-        hasPendingSync={hasPendingSync}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onDrop={onDrop}
-        isDragging={isDragging} // 👈 Vérifiez cette ligne
-        setFileName={setFileName}
-        handleFileUpload={handleFileUpload}
-        transactionsCalculees={transactionsCalculees}
-        setTempTransactions={setTempTransactions}
-        confirmBatchImport={confirmBatchImport}
-        categoriesPourIntelligence={categoriesPourIntelligence}
-        intelSelectedCat={intelSelectedCat}
-        setIntelSelectedCat={setIntelSelectedCat}
-        activeCategoryData={activeCategoryData}
-        handleRemoveKeyword={handleRemoveKeyword}
-        handleAddKeyword={handleAddKeyword}
-        signType={signType}
-        setSignType={setSignType}
-        soldesTries={soldesTries}
-        CustomSelect={CustomSelect} 
-        categoriesVisibles={categoriesVisibles}
-        handleForceRefreshPowens={handleForceRefreshPowens}
-      />
-    </div>
-  </>
+  <ImportView 
+    importCompte={importCompte}
+    setImportCompte={setImportCompte}
+    selectedCompte={selectedCompte}
+    setSelectedCompte={setSelectedCompte}
+    comptes={comptes}
+    powensData={powensData}
+    syncCountByAccount={syncCountByAccount}
+    handleAssociateAccount={handleAssociateAccount}
+    isRefreshingPowens={isRefreshingPowens}
+    isCheckingSync={isCheckingSync}
+    handleForceRefreshPowens={handleForceRefreshPowens}
+    isSyncingPowens={isSyncingPowens}
+    handleConnectNewBank={handleConnectNewBank}
+    isManualSyncing={isManualSyncing}
+    setIsManualSyncing={setIsManualSyncing}
+    isSyncingData={isSyncingData}
+    handleSyncPowens={handleSyncPowens}
+    hasPendingSync={hasPendingSync}
+    onDragOver={onDragOver}
+    onDragLeave={onDragLeave}
+    onDrop={onDrop}
+    isDragging={isDragging}
+    setFileName={setFileName}
+    handleFileUpload={handleFileUpload}
+    transactionsCalculees={transactionsCalculees}
+    setTempTransactions={setTempTransactions}
+    confirmBatchImport={confirmBatchImport}
+    intelSelectedCat={intelSelectedCat}
+    setIntelSelectedCat={setIntelSelectedCat}
+    categoriesPourIntelligence={categoriesPourIntelligence}
+    activeCategoryData={activeCategoryData}
+    handleRemoveKeyword={handleRemoveKeyword}
+    handleAddKeyword={handleAddKeyword}
+    signType={signType}
+    setSignType={setSignType}
+    CustomSelect={CustomSelect}
+  />
 )}
 
 
@@ -6629,66 +6394,33 @@ if (!user) {
 
 
 {activeTab === 'comptes' && (
-  <>
-    <ComptesDesktop 
-      comptes={comptes}
-      setComptes={setComptes}
-      handleAddCompte={handleAddCompte}
-      selectedType={selectedType}
-      setSelectedType={setSelectedType}
-      typeOptions={typeOptions}
-      compteName={compteName}
-      setCompteName={setCompteName}
-      newCompteColor={newCompteColor}
-      setNewCompteColor={setNewCompteColor}
-      showAddPicker={showAddPicker}
-      setShowAddPicker={setShowAddPicker}
-      showPicker={showPicker}
-      setShowPicker={setShowPicker}
-      handleBlurUpdate={handleBlurUpdate}
-      openDeleteModal={openDeleteModal}
-      openCalculateurAssistant={openCalculateurAssistant}
-      handleColorChange={handleColorChange}
-      CustomSelect={CustomSelect}
-      importMode={importMode}
-      powensData={powensData}
-      handleAssociateAccount={handleAssociateAccount}
-      creationPowensName={creationPowensName}
-      setCreationPowensName={setCreationPowensName}
-      handleConnectNewBank={handleConnectNewBank}
-    />
-
-    {/* Version Mobile existante */}
-    <div className="block lg:hidden">
-      <ComptesMobile 
-        comptes={comptes}
-        setComptes={setComptes}
-        handleAddCompte={handleAddCompte}
-        selectedType={selectedType}
-        setSelectedType={setSelectedType}
-        typeOptions={typeOptions}
-        compteName={compteName}
-        setCompteName={setCompteName}
-        newCompteColor={newCompteColor}
-        setNewCompteColor={setNewCompteColor}
-        showAddPicker={showAddPicker}
-        setShowAddPicker={setShowAddPicker}
-        showPicker={showPicker}
-        setShowPicker={setShowPicker}
-        handleBlurUpdate={handleBlurUpdate}
-        openDeleteModal={openDeleteModal}
-        openCalculateurAssistant={openCalculateurAssistant}
-        handleColorChange={handleColorChange}
-        CustomSelect={CustomSelect}
-        importMode={importMode}
-        powensData={powensData}
-        handleAssociateAccount={handleAssociateAccount}
-        creationPowensName={creationPowensName}
-        setCreationPowensName={setCreationPowensName}
-        handleConnectNewBank={handleConnectNewBank} // 👈 Vérifiez cette ligne
-      />
-    </div>
-  </>
+  <ComptesView 
+    comptes={comptes}
+    setComptes={setComptes}
+    handleAddCompte={handleAddCompte}
+    selectedType={selectedType}
+    setSelectedType={setSelectedType}
+    typeOptions={typeOptions}
+    compteName={compteName}
+    setCompteName={setCompteName}
+    newCompteColor={newCompteColor}
+    setNewCompteColor={setNewCompteColor}
+    showAddPicker={showAddPicker}
+    setShowAddPicker={setShowAddPicker}
+    showPicker={showPicker}
+    setShowPicker={setShowPicker}
+    handleBlurUpdate={handleBlurUpdate}
+    openDeleteModal={openDeleteModal}
+    openCalculateurAssistant={openCalculateurAssistant}
+    handleColorChange={handleColorChange}
+    CustomSelect={CustomSelect}
+    importMode={importMode}
+    powensData={powensData}
+    handleAssociateAccount={handleAssociateAccount}
+    creationPowensName={creationPowensName}
+    setCreationPowensName={setCreationPowensName}
+    handleConnectNewBank={handleConnectNewBank}
+  />
 )}
 
 
@@ -6772,8 +6504,6 @@ if (!user) {
 
 {activeTab === 'tricount' && (
   <div className="w-full"> 
-    {/* 💡 Nous laissons le composant se charger sur tous les écrans. 
-        C'est lui qui choisira en interne d'afficher la version PC ou Mobile. */}
     <TricountManager userId={user} />
   </div>
 )}
