@@ -4,7 +4,8 @@ import {
   Plus, Calendar, Trash2, FileText, Copy, X, Check,
   Scale, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, 
   Sparkles, Award, ArrowRight, ShieldCheck, Home, ExternalLink,
-  Camera, Eye, Star, Clock, MapPin, ChevronLeft, ChevronRight, Edit3, AlignLeft
+  Camera, Eye, Star, Clock, MapPin, ChevronLeft, ChevronRight,
+  ClipboardPaste, AlignLeft, Edit2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
@@ -29,9 +30,11 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const [duplicateName, setDuplicateName] = useState('');
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  // Salaires & Dépenses persos
+  // Salaires
   const [salaireLui, setSalaireLui] = useState('');
   const [salaireElle, setSalaireElle] = useState('');
+
+  // Dépenses personnelles
   const [depensePersoLui, setDepensePersoLui] = useState('');
   const [depensePersoElle, setDepensePersoElle] = useState('');
 
@@ -50,9 +53,14 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const [isAnnonceModalOpen, setIsAnnonceModalOpen] = useState(false);
   const [scrapingUrl, setScrapingUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
-  const [annonceFilter, setAnnonceFilter] = useState('all'); // 'all', 'favoris', 'dossier', 'visite', 'accepte'
+  const [annonceFilter, setAnnonceFilter] = useState('all');
   
-  // États d'affichage pour les cartes (carrousel photo + dépliage description)
+  // Analyse par texte/partage (IA)
+  const [showSmartPaste, setShowSmartPaste] = useState(false);
+  const [pastedAdText, setPastedAdText] = useState('');
+  const [isParsingText, setIsParsingText] = useState(false);
+
+  // Carrousel photo et accordéon description
   const [activePhotoIdx, setActivePhotoIdx] = useState({});
   const [expandedDesc, setExpandedDesc] = useState({});
 
@@ -85,7 +93,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
 
   const getLigneId = (ligne) => ligne?.id || ligne?._id;
 
-  // --- 3. CHARGEMENT INITIAL (NOTES, SCÉNARIOS, ANNONCES) ---
+  // --- 3. CHARGEMENTS ---
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -165,7 +173,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     setMontantCommunForfaitaire(mntGlobal ? mntGlobal.montant.toString() : '');
   }, [currentScenario, lignes]);
 
-  // --- 4. GESTION DU BLOC-NOTES & TÂCHES ---
+  // --- 4. BLOC-NOTES & TÂCHES ---
   const handleInput = () => {
     if (!editorRef.current) return;
     const currentHtml = editorRef.current.innerHTML;
@@ -388,7 +396,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     }
   };
 
-  // --- 6. GESTION DES ANNONCES & SCRAPING ---
+  // --- 6. GESTION DES ANNONCES (URL & SMART PASTE IA) ---
   const handleScrape = async () => {
     if (!scrapingUrl.trim()) return;
     setIsScraping(true);
@@ -409,20 +417,53 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
           photos: d.photos && d.photos.length > 0 ? d.photos : prev.photos,
           notes: d.description || prev.notes || ''
         }));
-        toast.success("Informations de l'annonce extraites avec succès ! ✨");
+
+        if (d.blocked) {
+          toast.info("Protection du site détectée : certains champs peuvent être complétés ci-dessous.");
+        } else {
+          toast.success("Informations de l'annonce extraites ! ✨");
+        }
       }
     } catch (err) {
-      toast.warning("Lien enregistré, vous pouvez compléter les champs ci-dessous.");
+      toast.warning("Lien enregistré, vous pouvez compléter les champs manuellement.");
       setAnnonceForm(prev => ({ ...prev, url: scrapingUrl }));
     } finally {
       setIsScraping(false);
     }
   };
 
+  const handleSmartParseText = async () => {
+    if (!pastedAdText.trim()) return;
+    setIsParsingText(true);
+    try {
+      const res = await api.post('/api/demenagement/parse-text', { text: pastedAdText });
+      const d = res.data;
+      if (d) {
+        setAnnonceForm(prev => ({
+          ...prev,
+          titre: d.titre || prev.titre,
+          loyer: d.loyer > 0 ? d.loyer.toString() : prev.loyer,
+          charges: d.charges > 0 ? d.charges.toString() : prev.charges,
+          surface: d.surface > 0 ? d.surface.toString() : prev.surface,
+          pieces: d.pieces > 0 ? d.pieces.toString() : prev.pieces,
+          ville: d.ville || prev.ville,
+          notes: d.description || prev.notes || pastedAdText
+        }));
+        setShowSmartPaste(false);
+        setPastedAdText('');
+        toast.success("Texte analysé avec succès par l'IA ! 🎯");
+      }
+    } catch (err) {
+      toast.error("Impossible d'extraire les informations de ce texte.");
+    } finally {
+      setIsParsingText(false);
+    }
+  };
+
   const handleSaveAnnonce = async (e) => {
     e.preventDefault();
     if (!annonceForm.titre.trim()) {
-      toast.error("Veuillez renseigner un titre ou un descriptif.");
+      toast.error("Veuillez renseigner un titre pour l'annonce.");
       return;
     }
 
@@ -467,7 +508,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       await api.put(`/api/demenagement/annonces/${annonce.id}`, { ...annonce, favori: updated });
       setAnnonces(prev => prev.map(a => a.id === annonce.id ? { ...a, favori: updated } : a));
     } catch (err) {
-      toast.error("Erreur modification favori.");
+      toast.error("Erreur favori.");
     }
   };
 
@@ -488,7 +529,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     toast.success(`Loyer de ${loyer} € appliqué au scénario "${currentScenario}" ! 🎯`);
   };
 
-  // Carrousel de photos sur chaque carte
   const handleNextPhoto = (e, annonceId, totalPhotos) => {
     e.stopPropagation();
     setActivePhotoIdx(prev => ({
@@ -505,12 +545,14 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     }));
   };
 
-  // --- 7. CALCULS STATISTIQUES SIMULATEUR ---
+  // --- 7. CALCULS DU SIMULATEUR DU SCÉNARIO COURANT (RÉTABLI !) ---
   const calculs = useMemo(() => {
     const duScenario = lignes.filter(l => l.scenario === currentScenario);
+    
     const mntLui = parseFloat(salaireLui) || 0;
     const mntElle = parseFloat(salaireElle) || 0;
     const totalSalaires = mntLui + mntElle;
+
     const pLui = parseFloat(depensePersoLui) || 0;
     const pElle = parseFloat(depensePersoElle) || 0;
 
@@ -556,6 +598,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     };
   }, [lignes, currentScenario, salaireLui, salaireElle, depensePersoLui, depensePersoElle, montantCommunForfaitaire]);
 
+  // Comparaison stratégique de tous les scénarios
   const comparaisonTousScenarios = useMemo(() => {
     return scenarios.map(sc => {
       const duScenario = lignes.filter(l => l.scenario === sc);
@@ -566,7 +609,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
 
       const persLui = parseFloat(duScenario.find(l => l.titre === "Dépenses Perso (Lui)")?.montant) || 0;
       const persElle = parseFloat(duScenario.find(l => l.titre === "Dépenses Perso (Elle)")?.montant) || 0;
-
       const forfaitaire = parseFloat(duScenario.find(l => l.titre === "Objectif Compte Commun")?.montant) || 0;
 
       const chargesLissees = duScenario
@@ -742,7 +784,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
         <div className="flex-1 min-w-0 w-full space-y-6">
 
           {/* =====================================================================
-              🌟 VUE 3 : COMPARATEUR D'ANNONCES (NOUVELLE MISE EN PAGE AÉRÉE)
+              🌟 VUE 3 : COMPARATEUR D'ANNONCES
               ===================================================================== */}
           {viewMode === 'annonces' && (
             <div className="space-y-6 animate-in fade-in duration-300">
@@ -804,9 +846,9 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 </button>
               </div>
 
-              {/* Grille des annonces (1 col sur petit écran, 2 cols spacieuses sur grand écran) */}
+              {/* Grille des annonces */}
               {annoncesFiltrees.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {annoncesFiltrees.map(a => {
                     const prixM2 = a.surface > 0 && a.loyer > 0 ? (a.loyer / a.surface).toFixed(1) : null;
                     const totalPhotos = a.photos?.length || 0;
@@ -821,7 +863,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                           a.favori ? 'border-amber-500/50 shadow-amber-500/5' : 'border-white/10 hover:border-white/20'
                         }`}
                       >
-                        {/* 1. VISUEL PHOTO : HAUTEUR DÉDIÉE + CARROUSEL FLUIDE */}
+                        {/* 1. PHOTO PROPRE & CARROUSEL */}
                         <div className="relative h-64 sm:h-72 w-full bg-slate-950 overflow-hidden group select-none">
                           {photoAffichee ? (
                             <img 
@@ -836,7 +878,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                             </div>
                           )}
 
-                          {/* Flèches de navigation photo (si plus d'1 photo) */}
                           {totalPhotos > 1 && (
                             <>
                               <button
@@ -859,14 +900,12 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                             </>
                           )}
 
-                          {/* Badges haut gauche : Source */}
                           <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
                             <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/15 text-[8.5px] font-black uppercase text-purple-300 shadow-md">
                               {a.source || 'Annonce'}
                             </span>
                           </div>
 
-                          {/* Badges haut droite : Favori + Supprimer */}
                           <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
                             <button
                               type="button"
@@ -888,7 +927,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                             </button>
                           </div>
 
-                          {/* Compteur photo bas droite */}
                           {totalPhotos > 1 && (
                             <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[8px] font-mono text-white/80 z-10">
                               📷 {currentPhotoIdx + 1} / {totalPhotos}
@@ -896,9 +934,8 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                           )}
                         </div>
 
-                        {/* 2. CORPS DE LA CARTE : INFOS STRUCTURÉES ET AÉRÉES */}
+                        {/* 2. INFOS STRUCTURÉES (Sous la photo) */}
                         <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
-                          
                           <div className="space-y-3">
                             {/* Ligne Prix & Loyer */}
                             <div className="flex items-baseline justify-between gap-2 pb-2 border-b border-white/5">
@@ -918,7 +955,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                               )}
                             </div>
 
-                            {/* Spécifications en pastilles nettes */}
+                            {/* Spécifications en pastilles */}
                             <div className="flex flex-wrap items-center gap-2">
                               {a.surface > 0 && (
                                 <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
@@ -939,7 +976,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                               )}
                             </div>
 
-                            {/* Titre avec lien vers l'annonce */}
+                            {/* Titre */}
                             <div className="flex items-start justify-between gap-2 pt-1">
                               <h3 className="text-sm font-black uppercase text-white leading-snug line-clamp-2 flex-1">
                                 {a.titre}
@@ -989,7 +1026,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                               Suivi des démarches
                             </span>
 
-                            {/* Boutons d'étape Dossier & Visite */}
                             <div className="grid grid-cols-2 gap-2 text-[9.5px]">
                               <button
                                 type="button"
@@ -1022,7 +1058,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                               </button>
                             </div>
 
-                            {/* Statut de la réponse */}
                             <div className="flex items-center justify-between gap-1 p-1 bg-black/40 rounded-xl border border-white/5">
                               {[
                                 { id: 'en_attente', label: '⏳ En attente' },
@@ -1045,7 +1080,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                               ))}
                             </div>
 
-                            {/* Bouton pour tester ce loyer dans le simulateur */}
                             {a.loyer > 0 && (
                               <button
                                 type="button"
@@ -1072,32 +1106,11 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                     Aucune annonce enregistrée
                   </h3>
                   <p className="text-[10px] text-white/40 max-w-sm mx-auto">
-                    Collez vos liens d'annonces Leboncoin, SeLoger ou PAP pour extraire automatiquement les photos, loyer et surface.
+                    Collez vos liens d'annonces ou le texte de vos annonces Leboncoin, SeLoger ou PAP pour les comparer.
                   </p>
                   <button
                     type="button"
-                    onClick={() => {
-                      setAnnonceForm({
-                        id: null,
-                        titre: '',
-                        url: '',
-                        source: 'Autre',
-                        loyer: '',
-                        charges: '',
-                        surface: '',
-                        pieces: '',
-                        ville: '',
-                        photos: [],
-                        dossier_envoye: false,
-                        date_dossier: '',
-                        visite_effectuee: false,
-                        date_visite: '',
-                        statut_reponse: 'en_attente',
-                        notes: '',
-                        favori: false
-                      });
-                      setIsAnnonceModalOpen(true);
-                    }}
+                    onClick={() => setIsAnnonceModalOpen(true)}
                     className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
                   >
                     + Ajouter votre première annonce
@@ -1308,7 +1321,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                         </p>
                       </div>
 
-                      {/* Les + */}
                       <div className="space-y-1">
                         <span className="text-[8.5px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                           <CheckCircle2 size={11} /> Les Plus (+)
@@ -1321,7 +1333,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                         ))}
                       </div>
 
-                      {/* Les - */}
                       <div className="space-y-1 pt-1">
                         <span className="text-[8.5px] font-black uppercase tracking-wider text-rose-400 flex items-center gap-1">
                           <AlertTriangle size={11} /> Les Moins (-)
@@ -1554,24 +1565,24 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 {/* Restes à vivre */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-white/5 pt-4">
                   <div className="bg-emerald-500/[0.02] border border-emerald-500/10 rounded-xl p-3 flex justify-between items-center">
-                    <div className="flex flex-col">
+                    <div>
                       <span className="text-[10px] font-black text-white/40 uppercase tracking-wider">Reste net Lui</span>
                       <p className="text-[9px] text-emerald-400/60 font-medium">Après joint et dépenses persos</p>
                     </div>
                     <div className="text-right">
-                      <span className={`text-base font-black font-mono ${calculs.resteLui >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span className="text-base font-black font-mono text-emerald-400">
                         {calculs.resteLui.toFixed(2)} €
                       </span>
                     </div>
                   </div>
 
                   <div className="bg-emerald-500/[0.02] border border-emerald-500/10 rounded-xl p-3 flex justify-between items-center">
-                    <div className="flex flex-col">
+                    <div>
                       <span className="text-[10px] font-black text-white/40 uppercase tracking-wider">Reste net Elle</span>
                       <p className="text-[9px] text-emerald-400/60 font-medium">Après joint et dépenses persos</p>
                     </div>
                     <div className="text-right">
-                      <span className={`text-base font-black font-mono ${calculs.resteElle >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span className="text-base font-black font-mono text-emerald-400">
                         {calculs.resteElle.toFixed(2)} €
                       </span>
                     </div>
@@ -1706,7 +1717,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
 
         </div>
 
-        {/* 🟢 COLONNE DROITE PERMANENTE : BLOC-NOTES & TÂCHES (NE DISPARAÎT JAMAIS !) */}
+        {/* 🟢 COLONNE DROITE PERMANENTE : BLOC-NOTES & TÂCHES */}
         <div className="w-full lg:w-80 xl:w-96 shrink-0 flex flex-col">
           <div className="bg-white/[0.01] border border-white/5 rounded-3xl p-5 sticky top-6 flex flex-col h-[580px] gap-3 shadow-xl backdrop-blur-xl">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
@@ -1741,7 +1752,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
               {isSaving ? (
                 <span className="text-amber-400 animate-pulse">Sauvegarde en cours...</span>
               ) : (
-                <span className="text-white/30">Sauvegarde automatique</span>
+                <span className="text-white/30">Sauvegarde automatique active</span>
               )}
             </div>
           </div>
@@ -1821,7 +1832,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       )}
 
       {/* =========================================================================
-          MODALE D'AJOUT & SCRAPING D'ANNONCE IMMOBILIÈRE
+          MODALE D'AJOUT & SCRAPING D'ANNONCE IMMOBILIÈRE (AVEC SMART PASTE IA)
           ========================================================================= */}
       {isAnnonceModalOpen && (
         <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -1841,7 +1852,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                     {annonceForm.id ? "Modifier l'annonce" : "Nouvelle annonce"}
                   </h4>
                   <p className="text-[9px] text-white/30 uppercase font-bold mt-1">
-                    Leboncoin, SeLoger, PAP, Bien'ici ou saisie manuelle
+                    Leboncoin, SeLoger, PAP ou saisie instantanée
                   </p>
                 </div>
               </div>
@@ -1850,29 +1861,81 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
               </button>
             </div>
 
-            {/* Zone d'extraction automatique */}
-            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-transparent border border-purple-500/20 space-y-2">
-              <label className="text-[8.5px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
-                <Sparkles size={12} /> Coller le lien de l'annonce (Extraction automatique)
-              </label>
-
-              <div className="flex gap-2">
-                <input 
-                  type="url"
-                  placeholder="https://www.leboncoin.fr/ad/locations/..."
-                  value={scrapingUrl}
-                  onChange={(e) => setScrapingUrl(e.target.value)}
-                  className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500"
-                />
+            {/* Commutateur de saisie : Lien URL ou Texte copié (IA) */}
+            <div className="space-y-2">
+              <div className="flex bg-black/40 p-1 rounded-2xl border border-white/5">
                 <button
                   type="button"
-                  onClick={handleScrape}
-                  disabled={isScraping || !scrapingUrl.trim()}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 shrink-0"
+                  onClick={() => setShowSmartPaste(false)}
+                  className={`flex-1 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    !showSmartPaste ? 'bg-purple-600 text-white shadow-md' : 'text-white/40 hover:text-white'
+                  }`}
                 >
-                  {isScraping ? "Analyse..." : "Extraire"}
+                  🔗 Par Lien URL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSmartPaste(true)}
+                  className={`flex-1 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                    showSmartPaste ? 'bg-purple-600 text-white shadow-md' : 'text-white/40 hover:text-white'
+                  }`}
+                >
+                  <Sparkles size={11} className="text-amber-400" />
+                  <span>📋 Texte copié / Partage (IA)</span>
                 </button>
               </div>
+
+              {!showSmartPaste ? (
+                <div className="p-3.5 rounded-2xl bg-purple-500/10 border border-purple-500/20 space-y-2">
+                  <label className="text-[8.5px] font-black uppercase text-purple-300 tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={12} /> Coller le lien de l'annonce
+                  </label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="url"
+                      placeholder="https://www.leboncoin.fr/ad/locations/..."
+                      value={scrapingUrl}
+                      onChange={(e) => setScrapingUrl(e.target.value)}
+                      className="flex-1 bg-black/50 border border-white/10 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-purple-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleScrape}
+                      disabled={isScraping || !scrapingUrl.trim()}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 shrink-0"
+                    >
+                      {isScraping ? "Analyse..." : "Extraire"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent border border-indigo-500/30 space-y-2.5">
+                  <label className="text-[8.5px] font-black uppercase text-indigo-300 tracking-wider flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <ClipboardPaste size={12} /> Collez le texte ou le message de partage de l'annonce
+                    </span>
+                    <span className="text-[7.5px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-200 font-mono">
+                      Anti-blocage 100%
+                    </span>
+                  </label>
+                  <textarea 
+                    rows="3"
+                    placeholder="Collez ici le texte de l'annonce Leboncoin ou le message généré par le bouton Partager de l'app mobile..."
+                    value={pastedAdText}
+                    onChange={(e) => setPastedAdText(e.target.value)}
+                    className="w-full bg-black/50 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-indigo-500 placeholder:text-white/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSmartParseText}
+                    disabled={isParsingText || !pastedAdText.trim()}
+                    className="w-full py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-md"
+                  >
+                    <Sparkles size={12} />
+                    <span>{isParsingText ? "Analyse par Gemini..." : "Extraire les infos par IA"}</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Formulaire des champs */}
@@ -1951,7 +2014,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                     <option value="PAP">PAP</option>
                     <option value="Bien'ici">Bien'ici</option>
                     <option value="Jinka">Jinka</option>
-                    <option value="OuestFrance">OuestFrance</option>
                     <option value="Autre">Autre</option>
                   </select>
                 </div>
@@ -1984,14 +2046,14 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 />
               </div>
 
-              {/* Description de l'annonce */}
+              {/* Description */}
               <div>
                 <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">
-                  Description / Notes de l'annonce
+                  Description / Remarques
                 </label>
                 <textarea 
                   rows="3"
-                  placeholder="Description complète extraite de l'annonce ou vos remarques personnelles..."
+                  placeholder="Cuisine équipée, 2e étage sans ascenseur, parking souterrain..."
                   value={annonceForm.notes}
                   onChange={(e) => setAnnonceForm({ ...annonceForm, notes: e.target.value })}
                   className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 leading-relaxed"
