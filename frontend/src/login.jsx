@@ -45,7 +45,7 @@ import { toast } from 'sonner'
 import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import ExportModal from './components/ExportModal';
-
+import DashboardSkeleton from './components/DashboardSkeleton';
 
 
 
@@ -6139,7 +6139,10 @@ if (!user) {
 
 
 {activeTab === 'dashboard' && (
-  <DashboardView 
+  loading ? (
+        <DashboardSkeleton userTheme={userTheme} filters={filters} />
+  ) : (
+    <DashboardView 
     filters={filters}
     setFilters={setFilters}
     moisListe={moisListe}
@@ -6215,7 +6218,8 @@ if (!user) {
     CustomSelect={CustomSelect}
     categoriesVisibles={categoriesVisibles}
     updateCell={updateCell}
-  />
+    />
+  )
 )}
 
 

@@ -411,39 +411,7 @@ const moisCritiques = useMemo(() => {
           </div>
         </div>
 
-        {/* 🟢 AJOUTEZ LE BANDEAU D'ALERTE DESKTOP ICI : */}
-        {moisCritiques.decouverts.length > 0 ? (
-          <div className="shrink-0 mb-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 shadow-[0_0_20px_rgba(244,63,94,0.15)] animate-pulse">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/40">
-                <AlertTriangle size={16} />
-              </div>
-              <div>
-                <h4 className="text-xs font-black uppercase text-rose-300 tracking-wider">
-                  Alerte Découvert Prévu ({moisCritiques.decouverts.length} mois)
-                </h4>
-                <p className="text-[10px] text-white/60">
-                  Solde débiteur estimé en : <strong className="text-rose-300">{moisCritiques.decouverts.map(m => `${m.nom} (${Math.round(m.montant)}€)`).join(', ')}</strong>
-                </p>
-              </div>
-            </div>
-            <span className="px-2.5 py-1 rounded-lg bg-rose-500 text-white text-[8px] font-black uppercase tracking-widest shrink-0">
-              Action Requise
-            </span>
-          </div>
-        ) : moisCritiques.deficits.length > 0 ? (
-          <div className="shrink-0 mb-3 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2 min-w-0">
-              <AlertTriangle size={15} className="text-amber-400 shrink-0" />
-              <span className="text-[10.5px] font-bold text-amber-200 truncate">
-                Attention : dépenses prévues supérieures aux revenus en {moisCritiques.deficits.map(m => m.nom).join(', ')}.
-              </span>
-            </div>
-            <span className="text-[8px] font-black uppercase tracking-wider text-amber-400/80 shrink-0">
-              Déficit mensuel
-            </span>
-          </div>
-        ) : null}
+
 
         {/* SECTION CARTES ALIGNÉES */}
         <div className="shrink-0 grid grid-cols-12 gap-4 mb-2 items-stretch">
@@ -875,8 +843,9 @@ const moisCritiques = useMemo(() => {
 
           {/* COLONNE DROITE : PROJECTIONS ANNUELLES */}
           <div className="flex-[1.2] min-w-[380px] max-w-[410px] flex flex-col bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 backdrop-blur-[var(--glass-blur)] p-4 shadow-2xl relative overflow-hidden h-full shrink-0 select-none">
-            <div className="flex items-center justify-between mb-3.5 px-2 shrink-0">
-              <div className="flex items-center gap-3">
+            {/* EN-TÊTE PROJECTIONS AVEC L'ALERTE ALIGNÉE À DROITE DU TITRE */}
+            <div className="flex items-center justify-between mb-3.5 px-1 shrink-0 gap-2">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <div className="p-1.5 bg-emerald-500/15 border border-emerald-500/30 rounded-xl text-emerald-400">
                   <TrendingUp size={13} />
                 </div>
@@ -885,6 +854,39 @@ const moisCritiques = useMemo(() => {
                   <p className="text-[7.5px] text-[var(--text-main)]/30 font-black uppercase tracking-widest mt-1 italic">Année {filters.annee}</p>
                 </div>
               </div>
+
+              {/* 🟢 ALERTE DÉCOUVERT / DÉFICIT PLACÉE À CÔTÉ DU TITRE */}
+              {moisCritiques.decouverts.length > 0 ? (
+                <div 
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.15)] animate-pulse min-w-0"
+                  title={`Solde débiteur estimé en : ${moisCritiques.decouverts.map(m => `${m.nom} (${Math.round(m.montant)}€)`).join(', ')}`}
+                >
+                  <AlertTriangle size={13} className="text-rose-400 shrink-0" />
+                  <div className="flex flex-col text-right leading-none min-w-0">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-rose-300 truncate">
+                      Découvert ({moisCritiques.decouverts.length} mois)
+                    </span>
+                    <span className="text-[7px] text-white/60 font-mono mt-0.5 truncate">
+                      {moisCritiques.decouverts.map(m => m.nom.substring(0, 4)).join(', ')}
+                    </span>
+                  </div>
+                </div>
+              ) : moisCritiques.deficits.length > 0 ? (
+                <div 
+                  className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 shadow-sm min-w-0"
+                  title={`Dépenses prévues supérieures aux revenus en : ${moisCritiques.deficits.map(m => m.nom).join(', ')}`}
+                >
+                  <AlertTriangle size={13} className="text-amber-400 shrink-0" />
+                  <div className="flex flex-col text-right leading-none min-w-0">
+                    <span className="text-[8px] font-black uppercase tracking-wider text-amber-300 truncate">
+                      Déficit ({moisCritiques.deficits.length} mois)
+                    </span>
+                    <span className="text-[7px] text-white/60 font-mono mt-0.5 truncate">
+                      {moisCritiques.deficits.map(m => m.nom.substring(0, 4)).join(', ')}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             {/* Boutons d'exclusion de mois */}
