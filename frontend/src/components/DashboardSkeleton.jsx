@@ -1,10 +1,7 @@
 import React from 'react';
-import { 
-  Trophy, ArrowUpCircle, ArrowDownCircle, RefreshCw, TrendingUp, 
-  Zap, Search, List, PieChart, CalendarDays, Sparkles 
-} from 'lucide-react';
+import { Trophy, Search, List, PieChart, CalendarDays, Sparkles,ArrowUpCircle,ArrowDownCircle,RefreshCw,TrendingUp,Zap } from 'lucide-react';
 
-export default function DashboardSkeleton({ userTheme = {}, filters = {} }) {
+export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadingOut = false }) {
   const moisAbreges = ['JAN', 'FEV', 'MAR', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOUT', 'SEPT', 'OCT', 'NOV', 'DEC'];
   const moisComplets = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -14,7 +11,7 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {} }) {
   const anneeAffichee = filters?.annee || new Date().getFullYear();
 
   return (
-    <div className="w-full flex flex-col gap-4 select-none px-4 md:px-8 pt-1 pb-24 lg:pb-4 lg:h-[calc(99vh-100px)] lg:overflow-hidden">
+    <div className={`w-full flex flex-col gap-4 select-none px-4 md:px-8 pt-1 pb-24 lg:pb-4 lg:h-[calc(99vh-100px)] lg:overflow-hidden transition-opacity duration-300 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>
       
       {/* 1. BARRE DE FILTRES : TITRES ET BOUTONS VISIBLES */}
       <div className="shrink-0 flex flex-wrap items-center gap-4 mb-2 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">

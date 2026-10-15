@@ -47,7 +47,40 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import ExportModal from './components/ExportModal';
 import DashboardSkeleton from './components/DashboardSkeleton';
 
+function DelayedDashboardLoader({ loading, userTheme, filters, children }) {
+  const [showSkeleton, setShowSkeleton] = useState(loading);
+  const [isFadingOut, setIsFadingOut] = useState(false);
 
+  useEffect(() => {
+    if (!loading) {
+      // Lance le fondu sortant du squelette
+      setIsFadingOut(true);
+      const timer = setTimeout(() => {
+        setShowSkeleton(false);
+      }, 300); // Durée de la transition en millisecondes
+      return () => clearTimeout(timer);
+    } else {
+      setShowSkeleton(true);
+      setIsFadingOut(false);
+    }
+  }, [loading]);
+
+  return (
+    <div className="relative w-full h-full">
+      {/* Le vrai dashboard est monté en arrière-plan pour que Recharts et le DOM se calent instantanément */}
+      <div className={`w-full h-full transition-opacity duration-300 ${showSkeleton ? 'opacity-0 absolute inset-0 pointer-events-none' : 'opacity-100 relative'}`}>
+        {children}
+      </div>
+
+      {/* Le squelette par-dessus qui s'efface doucement */}
+      {showSkeleton && (
+        <div className={`absolute inset-0 z-50 bg-[var(--bg-site)] transition-opacity duration-300 ${isFadingOut ? 'opacity-0' : 'opacity-100'}`}>
+          <DashboardSkeleton userTheme={userTheme} filters={filters} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 const HelpPopover = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -6139,87 +6172,85 @@ if (!user) {
 
 
 {activeTab === 'dashboard' && (
-  loading ? (
-        <DashboardSkeleton userTheme={userTheme} filters={filters} />
-  ) : (
+  <DelayedDashboardLoader loading={loading} userTheme={userTheme} filters={filters}>
     <DashboardView 
-    filters={filters}
-    setFilters={setFilters}
-    moisListe={moisListe}
-    availablePeriods={availablePeriods}
-    groupesDisponibles={groupesDisponibles}
-    handleWheelProfil={handleWheelProfil}
-    handleWheelMois={handleWheelMois}
-    handleWheelAnnee={handleWheelAnnee}
-    handleWheelTabActive={handleWheelTabActive}
-    handleWheelAnnualTab={handleWheelAnnualTab}
-    handleWheelRightTab={handleWheelRightTab}
-    userTheme={userTheme}
-    soldeGlobal={soldeGlobal}
-    soldesTries={soldesTries}
-    sensors={sensors}
-    handleDragEnd={handleDragEnd}
-    SortableAccountCard={SortableAccountCard}
-    TAB_CONFIG={TAB_CONFIG}
-    tabActive={tabActive}
-    setTabActive={setTabActive}
-    searchTerm={searchTerm}
-    setSearchTerm={setSearchTerm}
-    financeData={financeData}
-    statsCategories={statsCategories}
-    chartData={chartData}
-    hiddenCategories={hiddenCategories}
-    toggleCategory={toggleCategory}
-    user={user}
-    budgetGauges={budgetGauges}
-    carouselRef={carouselRef}
-    handleScroll={handleScroll}
-    totalDots={totalDots}
-    activeIndex={activeIndex}
-    navigateCarousel={navigateCarousel}
-    scrollToPage={scrollToPage}
-    setActiveTab={setActiveTab}
-    annualTab={annualTab}
-    setAnnualTab={setAnnualTab}
-    soldePremierJanvier={soldePremierJanvier}
-    recapAnnuelStats={recapAnnuelStats}
-    statsAnnuellesCategories={statsAnnuellesCategories}
-    toutesLesTransactions={toutesLesTransactions}
-    comptesDuProfil={comptesDuProfil}
-    isCompact={isCompact}
-    totalTab={totalTab}
-    setTotalTab={setTotalTab}
-    estPeriode={estPeriode}
-    moisDebut={moisDebut}
-    setMoisDebut={setMoisDebut}
-    moisFin={moisFin}
-    setMoisFin={setMoisFin}
-    donneesAffichees={donneesAffichees}
-    activeRightTab={activeRightTab}
-    setActiveRightTab={setActiveRightTab}
-    objectifAnnuelGlobal={objectifAnnuelGlobal}
-    epargneReelleCumulee={epargneReelleCumulee}
-    epargneProjeteeTotale={epargneProjeteeTotale}
-    pctReel={pctReel}
-    pctProjete={pctProjete}
-    visibleAnnuel={visibleAnnuel}
-    setVisibleAnnuel={setVisibleAnnuel}
-    comptes={comptes}
-    hiddenComptes={hiddenComptes}
-    setHiddenComptes={setHiddenComptes}
-    allocations={allocations}
-    setAllocations={setAllocations}
-    projets={projets}
-    setProjets={setProjets}
-    epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
-    pourcentageAnnuel={pourcentageAnnuel}
-    api={api}
-    fetchAllocations={fetchAllocations}
-    CustomSelect={CustomSelect}
-    categoriesVisibles={categoriesVisibles}
-    updateCell={updateCell}
+      filters={filters}
+      setFilters={setFilters}
+      moisListe={moisListe}
+      availablePeriods={availablePeriods}
+      groupesDisponibles={groupesDisponibles}
+      handleWheelProfil={handleWheelProfil}
+      handleWheelMois={handleWheelMois}
+      handleWheelAnnee={handleWheelAnnee}
+      handleWheelTabActive={handleWheelTabActive}
+      handleWheelAnnualTab={handleWheelAnnualTab}
+      handleWheelRightTab={handleWheelRightTab}
+      userTheme={userTheme}
+      soldeGlobal={soldeGlobal}
+      soldesTries={soldesTries}
+      sensors={sensors}
+      handleDragEnd={handleDragEnd}
+      SortableAccountCard={SortableAccountCard}
+      TAB_CONFIG={TAB_CONFIG}
+      tabActive={tabActive}
+      setTabActive={setTabActive}
+      searchTerm={searchTerm}
+      setSearchTerm={setSearchTerm}
+      financeData={financeData}
+      statsCategories={statsCategories}
+      chartData={chartData}
+      hiddenCategories={hiddenCategories}
+      toggleCategory={toggleCategory}
+      user={user}
+      budgetGauges={budgetGauges}
+      carouselRef={carouselRef}
+      handleScroll={handleScroll}
+      totalDots={totalDots}
+      activeIndex={activeIndex}
+      navigateCarousel={navigateCarousel}
+      scrollToPage={scrollToPage}
+      setActiveTab={setActiveTab}
+      annualTab={annualTab}
+      setAnnualTab={setAnnualTab}
+      soldePremierJanvier={soldePremierJanvier}
+      recapAnnuelStats={recapAnnuelStats}
+      statsAnnuellesCategories={statsAnnuellesCategories}
+      toutesLesTransactions={toutesLesTransactions}
+      comptesDuProfil={comptesDuProfil}
+      isCompact={isCompact}
+      totalTab={totalTab}
+      setTotalTab={setTotalTab}
+      estPeriode={estPeriode}
+      moisDebut={moisDebut}
+      setMoisDebut={setMoisDebut}
+      moisFin={moisFin}
+      setMoisFin={setMoisFin}
+      donneesAffichees={donneesAffichees}
+      activeRightTab={activeRightTab}
+      setActiveRightTab={setActiveRightTab}
+      objectifAnnuelGlobal={objectifAnnuelGlobal}
+      epargneReelleCumulee={epargneReelleCumulee}
+      epargneProjeteeTotale={epargneProjeteeTotale}
+      pctReel={pctReel}
+      pctProjete={pctProjete}
+      visibleAnnuel={visibleAnnuel}
+      setVisibleAnnuel={setVisibleAnnuel}
+      comptes={comptes}
+      hiddenComptes={hiddenComptes}
+      setHiddenComptes={setHiddenComptes}
+      allocations={allocations}
+      setAllocations={setAllocations}
+      projets={projets}
+      setProjets={setProjets}
+      epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
+      pourcentageAnnuel={pourcentageAnnuel}
+      api={api}
+      fetchAllocations={fetchAllocations}
+      CustomSelect={CustomSelect}
+      categoriesVisibles={categoriesVisibles}
+      updateCell={updateCell}
     />
-  )
+  </DelayedDashboardLoader>
 )}
 
 
@@ -7298,6 +7329,8 @@ if (!user) {
     to { width: 0%; }
   }
 `}} />
+
+
 
 
     </div>  
