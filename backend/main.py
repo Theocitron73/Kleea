@@ -6061,7 +6061,59 @@ async def parse_ad_text(req: ParseTextRequest, current_user: str = Depends(get_c
             "description": raw_text[:800]
         }
 
-# 2. Route de Scraping URL améliorée (multi-sources + fallback Jina Reader)
+def extract_valid_photos(html_text: str, source: str) -> List[str]:
+    photos = []
+    seen = set()
+
+    # 🟢 COUPE STRICTE : On jette tout ce qui se trouve après les sections de recommandations
+    cutoff_patterns = [
+        r'(?i)ces\s+annonces\s+peuvent\s+vous\s+int[eé]resser',
+        r'(?i)annonces\s+similaires',
+        r'(?i)vous\s+aimerez\s+aussi',
+        r'(?i)autres\s+annonces\s+de',
+        r'(?i)recommandations',
+        r'(?i)similar[-_]ads',
+        r'(?i)data-qa-id=["\']similar[-_]ads["\']'
+    ]
+    
+    html_ad_only = html_text
+    for pat in cutoff_patterns:
+        parts = re.split(pat, html_ad_only, maxsplit=1)
+        if len(parts) > 1:
+            html_ad_only = parts[0]
+            break
+
+    if source == "Leboncoin":
+        pattern = r'https?://img\.leboncoin\.fr/api/v1/lbcpb1/images/[a-f0-9/]+(?:\.jpg|\.webp|\.png)'
+        matches = re.findall(pattern, html_ad_only, re.IGNORECASE)
+        for m in matches:
+            if any(bad in m.lower() for bad in ['avatar', 'user', 'logo', 'icon', 'banner', 'adinsertion']):
+                continue
+            base_url = m.split('?')[0]
+            if base_url not in seen:
+                seen.add(base_url)
+                photos.append(f"{base_url}?rule=ad-large")
+
+    elif source == "SeLoger":
+        pattern = r'https?://(?:sl\.sl-resources\.com|photo\.seloger\.com|v\.seloger\.com)/[^\s"\'\)\>]+(?:\.jpg|\.webp|\.png)'
+        for m in re.findall(pattern, html_ad_only, re.IGNORECASE):
+            if not any(bad in m.lower() for bad in ['logo', 'icon', 'avatar', 'placeholder']):
+                if m not in seen:
+                    seen.add(m)
+                    photos.append(m)
+
+    elif source == "Bien'ici":
+        pattern = r'https?://(?:photos\.bienici\.com|media\.bienici\.com)/[^\s"\'\)\>]+(?:\.jpg|\.webp|\.png)'
+        for m in re.findall(pattern, html_ad_only, re.IGNORECASE):
+            if m not in seen:
+                seen.add(m)
+                photos.append(m)
+
+    return photos[:10]
+
+
+
+
 @app.post("/api/demenagement/scrape-listing")
 async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_current_user)):
     url = req.url.strip()
@@ -6096,7 +6148,6 @@ async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_
     html_text = ""
     is_blocked = False
 
-    # Tentative directe
     try:
         async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, headers=headers) as c:
             resp = await c.get(url)
@@ -6116,93 +6167,86 @@ async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_
     ville = ""
     photos = []
 
-    # Fallback si le serveur cloud est bloqué par DataDome
+    # Fallback si le serveur est sous DataDome
     if is_blocked or not html_text:
         try:
-            # Relais Jina Reader (convertit l'annonce en Markdown propre)
             jina_url = f"https://r.jina.ai/{url}"
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as jina_client:
                 j_res = await jina_client.get(jina_url)
                 if j_res.status_code == 200:
-                    md_text = j_res.text
-                    # Récupération des images Markdown ![](http...)
-                    img_urls = re.findall(r'!\[.*?\]\((https?://[^\s\)]+)\)', md_text)
-                    for im in img_urls:
-                        if im not in photos and not any(ext in im.lower() for ext in ['logo', 'icon', 'svg']):
-                            photos.append(im)
-                    html_text = md_text
-        except Exception as e_jina:
-            print(f"⚠️ Erreur relais Jina : {e_jina}")
+                    html_text = j_res.text
+        except Exception:
+            pass
 
-    # Extraction des données Next.js ou JSON-LD
-    if html_text:
-        if "__NEXT_DATA__" in html_text:
+    # Dans scrape_listing :
+    # 1. TENTATIVE VIA __NEXT_DATA__ (Leboncoin)
+    if "__NEXT_DATA__" in html_text:
+        try:
+            m_next = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html_text, re.DOTALL)
+            if m_next:
+                ad = json.loads(m_next.group(1)).get("props", {}).get("pageProps", {}).get("ad", {})
+                if ad:
+                    titre = ad.get("subject") or titre
+                    description = ad.get("body") or description
+                    p_val = ad.get("price")
+                    loyer = clean_val_to_float(p_val[0] if isinstance(p_val, list) and p_val else p_val)
+
+                    for attr in ad.get("attributes", []):
+                        k, v = attr.get("key"), attr.get("value")
+                        if k == "square" and v: surface = clean_val_to_float(v)
+                        elif k == "rooms" and v: pieces = int(clean_val_to_float(v))
+                        elif k in ("charges", "charges_amount") and v: charges = clean_val_to_float(v)
+
+                    loc = ad.get("location", {})
+                    if loc.get("city"):
+                        ville = f"{loc.get('city')} ({str(loc.get('zipcode', ''))[:2]})" if loc.get("zipcode") else loc.get("city")
+
+                    # 🟢 Récupère STRICTEMENT les photos de CETTE annonce
+                    ad_imgs = ad.get("images", {}).get("urls_large") or ad.get("images", {}).get("urls") or []
+                    for u in ad_imgs:
+                        if u and u not in photos:
+                            photos.append(f"{u.split('?')[0]}?rule=ad-large")
+        except Exception:
+            pass
+
+    # 2. Si aucune photo n'a été trouvée dans __NEXT_DATA__, on utilise le scraper nettoyé (sans annonces similaires)
+    if not photos and html_text:
+        photos = extract_valid_photos(html_text, source)
+
+    # 3. Fallback JSON-LD
+    if not loyer or not surface or not description:
+        for ld_raw in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html_text, re.DOTALL):
             try:
-                m_next = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html_text, re.DOTALL)
-                if m_next:
-                    ad = json.loads(m_next.group(1)).get("props", {}).get("pageProps", {}).get("ad", {})
-                    if ad:
-                        titre = ad.get("subject") or titre
-                        description = ad.get("body") or description
-                        p_val = ad.get("price")
-                        loyer = clean_val_to_float(p_val[0] if isinstance(p_val, list) and p_val else p_val)
-                        
-                        for attr in ad.get("attributes", []):
-                            k, v = attr.get("key"), attr.get("value")
-                            if k == "square" and v: surface = clean_val_to_float(v)
-                            elif k == "rooms" and v: pieces = int(clean_val_to_float(v))
-                            elif k in ("charges", "charges_amount") and v: charges = clean_val_to_float(v)
+                ld_obj = json.loads(ld_raw.strip())
+                items = ld_obj if isinstance(ld_obj, list) else [ld_obj]
+                for item in items:
+                    if not isinstance(item, dict): continue
+                    if "@graph" in item and isinstance(item["@graph"], list): items.extend(item["@graph"])
 
-                        loc = ad.get("location", {})
-                        if loc.get("city"):
-                            ville = f"{loc.get('city')} ({str(loc.get('zipcode', ''))[:2]})" if loc.get("zipcode") else loc.get("city")
+                    titre = titre or item.get("name") or item.get("headline") or ""
+                    description = description or item.get("description") or ""
 
-                        for u_img in (ad.get("images", {}).get("urls_large") or ad.get("images", {}).get("urls") or []):
-                            if u_img and u_img not in photos: photos.append(u_img)
+                    if not loyer:
+                        offers = item.get("offers")
+                        if isinstance(offers, dict): loyer = clean_val_to_float(offers.get("price"))
+                        elif isinstance(offers, list) and offers: loyer = clean_val_to_float(offers[0].get("price"))
+                        elif item.get("price"): loyer = clean_val_to_float(item.get("price"))
+
+                    if not surface:
+                        fs = item.get("floorSize")
+                        surface = clean_val_to_float(fs.get("value") if isinstance(fs, dict) else fs)
+
+                    if not pieces:
+                        nbr = item.get("numberOfRooms") or item.get("numberOfBedrooms")
+                        if nbr: pieces = int(clean_val_to_float(nbr))
+
+                    if not ville and isinstance(item.get("address"), dict):
+                        c, zp = item["address"].get("addressLocality"), item["address"].get("postalCode")
+                        if c: ville = f"{c} ({str(zp)[:2]})" if zp else c
             except Exception:
-                pass
+                continue
 
-        # JSON-LD Schema.org
-        if not loyer or not surface or not description:
-            for ld_raw in re.findall(r'<script type="application/ld\+json">(.*?)</script>', html_text, re.DOTALL):
-                try:
-                    ld_obj = json.loads(ld_raw.strip())
-                    items = ld_obj if isinstance(ld_obj, list) else [ld_obj]
-                    for item in items:
-                        if not isinstance(item, dict): continue
-                        if "@graph" in item and isinstance(item["@graph"], list): items.extend(item["@graph"])
-
-                        titre = titre or item.get("name") or item.get("headline") or ""
-                        description = description or item.get("description") or ""
-
-                        if not loyer:
-                            offers = item.get("offers")
-                            if isinstance(offers, dict): loyer = clean_val_to_float(offers.get("price"))
-                            elif isinstance(offers, list) and offers: loyer = clean_val_to_float(offers[0].get("price"))
-                            elif item.get("price"): loyer = clean_val_to_float(item.get("price"))
-
-                        if not surface:
-                            fs = item.get("floorSize")
-                            surface = clean_val_to_float(fs.get("value") if isinstance(fs, dict) else fs)
-
-                        if not pieces:
-                            nbr = item.get("numberOfRooms") or item.get("numberOfBedrooms")
-                            if nbr: pieces = int(clean_val_to_float(nbr))
-
-                        if not ville and isinstance(item.get("address"), dict):
-                            c, zp = item["address"].get("addressLocality"), item["address"].get("postalCode")
-                            if c: ville = f"{c} ({str(zp)[:2]})" if zp else c
-
-                        img = item.get("image")
-                        if isinstance(img, list):
-                            for im in img:
-                                if isinstance(im, str) and im.startswith("http") and im not in photos: photos.append(im)
-                        elif isinstance(img, str) and img.startswith("http") and img not in photos:
-                            photos.append(img)
-                except Exception:
-                    continue
-
-    # Fallback Regex Textuel
+    # 4. Fallback Regex Textuel
     text_corpus = html.unescape(f"{titre}\n{description}\n{html_text[:15000]}")
     if not loyer:
         m_p = re.search(r'(?:loyer|prix|cc)[^\d€]{0,25}(\d[\d\s\u00a0\.,]{2,6})\s*(?:€|euros?)', text_corpus, re.IGNORECASE)
@@ -6222,11 +6266,6 @@ async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_
         m_ct = re.search(r'\b(\d{5})\s+([A-Za-zÀ-ÿ\-]{3,25})\b', text_corpus)
         if m_ct: ville = f"{m_ct.group(2).capitalize()} ({m_ct.group(1)[:2]})"
 
-    # Images OpenGraph de secours
-    for im_match in re.finditer(r'<meta\s+(?:property|name)=["\'](?:og:image|twitter:image)["\']\s+content=["\'](https?://[^"\']+)["\']', html_text, re.IGNORECASE):
-        u_im = im_match.group(1)
-        if u_im not in photos: photos.append(u_im)
-
     titre = re.sub(r'\s*[\-|–|\|]\s*(?:Leboncoin|SeLoger|PAP|Bien\'ici|Jinka|OuestFrance).*$', '', titre, flags=re.IGNORECASE).strip()
     if description:
         description = re.sub(r'<[^>]+>', '', description)
@@ -6243,6 +6282,5 @@ async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_
         "surface": surface,
         "pieces": pieces,
         "ville": ville,
-        "photos": photos[:10],
-        "blocked": is_blocked
+        "photos": photos[:10]
     }

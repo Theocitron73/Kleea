@@ -6224,6 +6224,7 @@ if (!user) {
     user={user}
     filters={filters}
     setFilters={setFilters}
+    allPrevisionsAnnee={allPrevisionsAnnee}
     comptes={comptes}
     groupesDisponibles={groupesDisponibles}
     handleWheelProfil={handleWheelProfil}

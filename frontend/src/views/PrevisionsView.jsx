@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Plus, Calendar, Tag, Wallet, Eye, EyeOff, 
   PieChart as PieChartIcon, TrendingUp, X, Copy,
-  ChevronLeft, ChevronRight, Check
+  ChevronLeft, ChevronRight, Check,AlertTriangle 
 } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
@@ -233,6 +233,7 @@ export default function PrevisionsView(props) {
     filters,
     setFilters,
     comptes = [],
+    allPrevisionsAnnee = [],
     groupesDisponibles = [],
     handleWheelProfil,
     handleWheelMois,
@@ -292,6 +293,38 @@ export default function PrevisionsView(props) {
     await updatePrevision(editingTx.id, 'date', editingTx.date);
     setEditingTx(null);
   };
+
+  const cleanMonth = (m) => {
+  if (!m) return "";
+  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+};
+
+// 🟢 Détection stricte : JAMAIS les mois passés, et JAMAIS les mois sans prévisions
+// 🟢 Alerte UNIQUEMENT sur les mois actuels/futurs qui ont de VRAIES prévisions
+const moisCritiques = useMemo(() => {
+  const decouverts = [];
+  const deficits = [];
+
+  (recapPrevisionsStats || []).forEach(m => {
+    // 1. On ignore TOUJOURS les mois passés (type === 'réel')
+    if (m.type === 'réel') return;
+
+    // 2. Un mois a des prévisions SEULEMENT s'il a des revenus ou des dépenses prévus
+    const aDesPrevisions = (m.revenus > 0 || m.depenses > 0 || (m.epargne !== null && m.epargne !== 0));
+    if (!aDesPrevisions) return;
+
+    // 3. Alerte Découvert : solde final négatif
+    if (m.soldeTotal !== null && m.soldeTotal < 0) {
+      decouverts.push({ nom: m.nom, montant: m.soldeTotal });
+    }
+    // 4. Alerte Déficit : dépenses supérieures aux rentrées
+    else if (m.epargne !== null && m.epargne < 0) {
+      deficits.push({ nom: m.nom, montant: m.epargne });
+    }
+  });
+
+  return { decouverts, deficits };
+}, [recapPrevisionsStats]);
 
   return (
     <div className="w-full select-none">
@@ -377,6 +410,40 @@ export default function PrevisionsView(props) {
               ))}
           </div>
         </div>
+
+        {/* 🟢 AJOUTEZ LE BANDEAU D'ALERTE DESKTOP ICI : */}
+        {moisCritiques.decouverts.length > 0 ? (
+          <div className="shrink-0 mb-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 shadow-[0_0_20px_rgba(244,63,94,0.15)] animate-pulse">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/40">
+                <AlertTriangle size={16} />
+              </div>
+              <div>
+                <h4 className="text-xs font-black uppercase text-rose-300 tracking-wider">
+                  Alerte Découvert Prévu ({moisCritiques.decouverts.length} mois)
+                </h4>
+                <p className="text-[10px] text-white/60">
+                  Solde débiteur estimé en : <strong className="text-rose-300">{moisCritiques.decouverts.map(m => `${m.nom} (${Math.round(m.montant)}€)`).join(', ')}</strong>
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-lg bg-rose-500 text-white text-[8px] font-black uppercase tracking-widest shrink-0">
+              Action Requise
+            </span>
+          </div>
+        ) : moisCritiques.deficits.length > 0 ? (
+          <div className="shrink-0 mb-3 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+              <span className="text-[10.5px] font-bold text-amber-200 truncate">
+                Attention : dépenses prévues supérieures aux revenus en {moisCritiques.deficits.map(m => m.nom).join(', ')}.
+              </span>
+            </div>
+            <span className="text-[8px] font-black uppercase tracking-wider text-amber-400/80 shrink-0">
+              Déficit mensuel
+            </span>
+          </div>
+        ) : null}
 
         {/* SECTION CARTES ALIGNÉES */}
         <div className="shrink-0 grid grid-cols-12 gap-4 mb-2 items-stretch">
@@ -874,19 +941,34 @@ export default function PrevisionsView(props) {
 
               <div className="flex-1 grid grid-rows-12 gap-1 min-h-0 h-full w-full overflow-hidden select-none">
                 {recapPrevisionsStats.map((m, i) => {
+                  const estPasse = m.type === 'réel';
                   const estInteractif = m.type === 'projeté' || m.type === 'mixte';
                   const safeRevenus = m.revenus || 0;
                   const safeDepenses = m.depenses || 0;
                   const safeEpargne = m.epargne || 0;
+
+                  // 🟢 Vrai test : le mois a des prévisions UNIQUEMENT s'il y a des montants prévus (pas les tirets --)
+                  const aDesPrevisions = (safeRevenus > 0 || safeDepenses > 0 || (m.epargne !== null && m.epargne !== 0));
+
+                  // 🟢 L'alerte ne s'applique STRICTEMENT QUE si :
+                  // 1. Ce n'est PAS un mois passé
+                  // 2. Le mois a de vraies prévisions
+                  // 3. Le solde est négatif ou l'épargne est en déficit
+                  const estAlerteDecouvert = !estPasse && aDesPrevisions && m.soldeTotal !== null && m.soldeTotal < 0;
+                  const estAlerteDeficit = !estPasse && aDesPrevisions && !estAlerteDecouvert && m.epargne !== null && m.epargne < 0;
 
                   return (
                     <div 
                       key={i} 
                       className={`
                         grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-200 group h-full min-h-0
-                        ${estInteractif 
-                          ? 'bg-black/20 border-white/5 hover:bg-white/[0.04]' 
-                          : 'bg-white/[0.01] border-transparent opacity-40'
+                        ${estPasse 
+                          ? 'bg-white/[0.01] border-transparent opacity-40' 
+                          : estAlerteDecouvert
+                            ? 'bg-rose-500/[0.08] border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.15)]'
+                            : estAlerteDeficit
+                              ? 'bg-amber-500/[0.05] border-amber-500/30'
+                              : 'bg-black/20 border-white/5 hover:bg-white/[0.04]'
                         }
                         ${m.isMasque ? 'grayscale opacity-20' : ''} 
                       `}
@@ -948,7 +1030,9 @@ export default function PrevisionsView(props) {
                         <span 
                           className="font-mono font-black tracking-tighter leading-none whitespace-nowrap" 
                           style={{ 
-                            color: estInteractif ? userTheme.color_patrimoine : 'rgba(255,255,255,0.2)',
+                            color: m.soldeTotal !== null && m.soldeTotal < 0 
+                              ? (userTheme?.color_depenses || '#f43f5e') // 🟢 Passe en ROUGE si négatif
+                              : (estInteractif ? userTheme.color_patrimoine : 'rgba(255,255,255,0.2)'),
                             fontSize: isCompact ? '12px' : '12px'
                           }}
                         >
@@ -1110,6 +1194,40 @@ export default function PrevisionsView(props) {
             ))}
           </div>
         </div>
+
+        {/* BANDEAU D'ALERTE QUAND DES MOIS SONT EN NÉGATIF */}
+          {moisCritiques.decouverts.length > 0 ? (
+            <div className="mb-3 p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between gap-3 shadow-[0_0_20px_rgba(244,63,94,0.15)] animate-pulse">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 border border-rose-500/40">
+                  <AlertTriangle size={16} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase text-rose-300 tracking-wider">
+                    Alerte Découvert Prévu ({moisCritiques.decouverts.length} mois)
+                  </h4>
+                  <p className="text-[10px] text-white/60">
+                    Solde débiteur estimé en : {moisCritiques.decouverts.map(m => `${m.nom} (${Math.round(m.montant)}€)`).join(', ')}
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-lg bg-rose-500 text-white text-[8px] font-black uppercase tracking-widest shrink-0">
+                Action Requise
+              </span>
+            </div>
+          ) : moisCritiques.deficits.length > 0 ? (
+            <div className="mb-3 p-2.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertTriangle size={15} className="text-amber-400 shrink-0" />
+                <span className="text-[10.5px] font-bold text-amber-200 truncate">
+                  Attention : dépenses supérieures aux revenus en {moisCritiques.deficits.map(m => m.nom).join(', ')}.
+                </span>
+              </div>
+              <span className="text-[8px] font-black uppercase tracking-wider text-amber-400/80 shrink-0">
+                Déficit mensuel
+              </span>
+            </div>
+          ) : null}
 
         {/* LISTE HORIZONTALE DES COMPTES */}
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 shrink-0 select-none">
@@ -1465,13 +1583,22 @@ export default function PrevisionsView(props) {
 
             <div className="space-y-2">
               {recapPrevisionsStats.map((m, i) => {
-                const estInteractif = m.type === 'projeté' || m.type === 'mixte';
-                
+                const estPasse = m.type === 'réel';
+                const aDesPrevisions = (m.revenus > 0 || m.depenses > 0 || (m.epargne !== null && m.epargne !== 0));
+                const estAlerteDecouvert = !estPasse && aDesPrevisions && m.soldeTotal !== null && m.soldeTotal < 0;
+                const estAlerteDeficit = !estPasse && aDesPrevisions && !estAlerteDecouvert && m.epargne !== null && m.epargne < 0;
+
                 return (
                   <div 
                     key={i} 
                     className={`p-3 bg-[var(--glass-bg)] border rounded-2xl flex flex-col gap-2 transition-all ${
-                      estInteractif ? 'border-white/5 opacity-100' : 'border-transparent opacity-40'
+                      estPasse 
+                        ? 'border-transparent opacity-40' 
+                        : estAlerteDecouvert
+                          ? 'border-rose-500/50 bg-rose-500/[0.05]'
+                          : estAlerteDeficit
+                            ? 'border-amber-500/40 bg-amber-500/[0.03]'
+                            : 'border-white/5 opacity-100'
                     } ${m.isMasque ? 'grayscale opacity-20' : ''}`}
                   >
                     <div className="flex items-center justify-between pb-1 border-b border-white/[0.03]">
@@ -1481,7 +1608,9 @@ export default function PrevisionsView(props) {
                       </div>
 
                       <div className="text-right">
-                        <span className="text-xs font-mono font-black text-emerald-400">
+                        <span className={`text-xs font-mono font-black ${
+                          m.soldeTotal !== null && m.soldeTotal < 0 ? 'text-rose-400' : 'text-emerald-400'
+                        }`}>
                           {m.soldeTotal?.toLocaleString('fr-FR')} €
                         </span>
                       </div>

@@ -150,6 +150,26 @@ export default function ImportView({
       setMobileSubTab('previsu');
     }
   }, [transactionsCalculees?.length]);
+  // Ajoutez ces états dans ImportView :
+  const [selectedTextSnippet, setSelectedTextSnippet] = useState({ text: '', category: '', x: 0, y: 0 });
+  const [activeWordSplitTxId, setActiveWordSplitTxId] = useState(null);
+
+  // Détection de surlignage de texte à la souris :
+  const handleMouseUpLabel = (e) => {
+    const selection = window.getSelection().toString().trim();
+    if (selection && selection.length >= 2) {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const categorieCible = intelSelectedCat || 'Autre';
+      setSelectedTextSnippet({
+        text: selection,
+        category: categorieCible,
+        x: e.clientX,
+        y: rect.top - 36
+      });
+    } else {
+      setSelectedTextSnippet({ text: '', category: '', x: 0, y: 0 });
+    }
+  };
 
   return (
     <div className="flex flex-col animate-in fade-in duration-500 min-h-screen lg:min-h-0 lg:h-[calc(100vh-120px)] px-4 pb-24 lg:pb-0 select-none">
@@ -662,29 +682,60 @@ export default function ImportView({
                               {t.date}
                             </td>
                             
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                <div className={`text-[10px] font-black uppercase max-w-[460px] ${
-                                  isTransfert ? 'text-violet-200' : 'text-[var(--text-main)]'
-                                }`}>
-                                  {t.nom}
+                            <td className="p-4 relative">
+                              <div 
+                                className="flex flex-col gap-1"
+                                onMouseUp={(e) => handleMouseUpLabel(e, t)}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[10px] font-black uppercase max-w-[440px] truncate select-text ${
+                                    isTransfert ? 'text-violet-200' : 'text-[var(--text-main)]'
+                                  }`}>
+                                    {t.nom}
+                                  </span>
+
+                                  {/* Bouton pour découper le libellé en mots cliquables */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveWordSplitTxId(activeWordSplitTxId === i ? null : i)}
+                                    className="p-1 rounded bg-white/5 hover:bg-indigo-500/20 text-white/40 hover:text-indigo-300 transition-colors cursor-pointer"
+                                    title="Cliquer pour ajouter des mots directement aux mots-clés"
+                                  >
+                                    <Tag size={11} />
+                                  </button>
+
+                                  {t.isPotentialDuplicate && (
+                                    <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                      Doublon #{t.duplicateIndex || 2}
+                                    </span>
+                                  )}
                                 </div>
 
-                                {t.isPotentialDuplicate && (
-                                  <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                                    Doublon #{t.duplicateIndex || 2}
-                                  </span>
-                                )}
-
-                                {isImported ? (
-                                  <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0">
-                                    Déjà importé
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded text-[7px] font-black uppercase tracking-widest bg-rose-500/10 text-rose-300 border border-rose-500/20 shrink-0 flex items-center gap-1">
-                                    <span className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
-                                    Nouveau
-                                  </span>
+                                {/* Puces de mots cliquables en 1 clic */}
+                                {activeWordSplitTxId === i && (
+                                  <div className="flex flex-wrap gap-1 pt-1 animate-in fade-in duration-150">
+                                    <span className="text-[7.5px] uppercase font-bold text-white/30 mr-1 self-center">Ajouter :</span>
+                                    {t.nom.split(/\s+/).map((word, wIdx) => {
+                                      const cleanW = word.replace(/[^a-zA-Z0-9À-ÿ]/g, '').trim();
+                                      if (cleanW.length < 2) return null;
+                                      return (
+                                        <button
+                                          key={wIdx}
+                                          type="button"
+                                          onClick={() => {
+                                            const categorieCible = intelSelectedCat || t.categorie;
+                                            handleAddKeyword(categorieCible, cleanW);
+                                            toast.success(`Mot-clé "${cleanW}" ajouté à ${getCleanCategoryName(categorieCible)} ! ✨`);
+                                            setActiveWordSplitTxId(null);
+                                          }}
+                                          className="px-1.5 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-500 text-indigo-200 hover:text-white border border-indigo-500/30 text-[8px] font-black uppercase transition-all cursor-pointer active:scale-95"
+                                          title={`Ajouter à ${getCleanCategoryName(intelSelectedCat || t.categorie)}`}
+                                        >
+                                          + {cleanW}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 )}
                               </div>
                             </td>
@@ -892,6 +943,23 @@ export default function ImportView({
         </div>
 
       </div>
+
+      {/* Bulle flottante apparaissant lors du surlignage d'un mot à la souris */}
+      {selectedTextSnippet.text && (
+        <div 
+          className="fixed z-[10000] bg-indigo-600 text-white px-3 py-1.5 rounded-xl shadow-2xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 animate-in zoom-in-95 cursor-pointer hover:bg-indigo-500"
+          style={{ top: `${selectedTextSnippet.y}px`, left: `${selectedTextSnippet.x}px` }}
+          onClick={() => {
+            const categorieCible = intelSelectedCat || selectedTextSnippet.category;
+            handleAddKeyword(categorieCible, selectedTextSnippet.text);
+            toast.success(`"${selectedTextSnippet.text}" ajouté aux mots-clés de ${getCleanCategoryName(categorieCible)} ! ✨`);
+            setSelectedTextSnippet({ text: '', category: '', x: 0, y: 0 });
+          }}
+        >
+          <Plus size={11} strokeWidth={3} />
+          <span>Ajouter « {selectedTextSnippet.text} » à {getCleanCategoryName(intelSelectedCat || selectedTextSnippet.category)}</span>
+        </div>
+      )}
     </div>
   );
 }
