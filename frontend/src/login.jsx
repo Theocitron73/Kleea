@@ -46,6 +46,7 @@ import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import ExportModal from './components/ExportModal';
 import DashboardSkeleton from './components/DashboardSkeleton';
+import LandingPage from './views/LandingPage';
 
 function DelayedDashboardLoader({ loading, userTheme, filters, children }) {
   const [showSkeleton, setShowSkeleton] = useState(loading);
@@ -1171,6 +1172,7 @@ const moisListe = [
   const [projets, setProjets] = useState([]);
   const [form2, setForm2] = useState({ nom: '', cout: '', capa: '', date: '2026-06-01' });
   const [user, setUser] = useState(localStorage.getItem('user'));
+  const [authViewMode, setAuthViewMode] = useState(null); // null = Landing Page, 'login' ou 'register' = Formulaire
   const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'user'); // 👈 Nouvel état
   const [loginName, setLoginName] = useState('')
   const [comptes, setComptes] = useState([]);
@@ -3820,80 +3822,6 @@ const transactionsCalculees = useMemo(() => {
 
 const [fileName, setFileName] = useState("");
 
-// 🟢 PARSING CSV AVEC NUMÉROTATION DES DOUBLONS (#2, #3...) ET DÉTECTION
-const handleFileUpload = async (file) => {
-  if (!file) return;
-  setFileName(file.name);
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-
-  try {
-    const response = await api.post(
-      `/import-csv?utilisateur=${nomUtilisateur}`, 
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
-    );
-    
-    const lignesBrutes = response.data;
-    const trackerOccurrences = {};
-    let nbDoublonsDetectes = 0;
-
-    // Répertoire des transactions existantes en BDD pour comparer
-    const existingDbSet = new Set(
-      (toutesLesTransactions || []).map(t => 
-        `${t.date}_${roundNum(t.montant)}_${t.nom.trim().toUpperCase()}`
-      )
-    );
-
-    function roundNum(val) {
-      return Number(parseFloat(val) || 0).toFixed(2);
-    }
-
-    const lignesTraitees = lignesBrutes.map((t) => {
-      const baseNom = t.nom.trim();
-      const cleGroupe = `${t.date}_${roundNum(t.montant)}_${baseNom.toUpperCase()}`;
-      
-      const occurrence = (trackerOccurrences[cleGroupe] || 0) + 1;
-      trackerOccurrences[cleGroupe] = occurrence;
-
-      let nomAjuste = baseNom;
-      let isDuplicate = false;
-
-      if (occurrence > 1) {
-        nomAjuste = `${baseNom} #${occurrence}`;
-        isDuplicate = true;
-        nbDoublonsDetectes++;
-      } else if (existingDbSet.has(cleGroupe)) {
-        // Déjà existant en base de données
-        isDuplicate = true;
-        nbDoublonsDetectes++;
-      }
-
-      return {
-        ...t,
-        nom: nomAjuste,
-        isPotentialDuplicate: isDuplicate,
-        duplicateIndex: occurrence
-      };
-    });
-
-    setTempTransactions(lignesTraitees);
-
-    if (nbDoublonsDetectes > 0) {
-      toast.info( 
-        `ℹ️ ${nbDoublonsDetectes} transaction(s) similaire(s) détectée(s) et indexée(s) (#2, #3...). Vérifiez le tableau avant import.` 
-         );
-      
-    }
-
-  } catch (error) {
-    console.error("Erreur import:", error);
-    toast.error("Erreur lors de l'analyse du CSV");
-    setFileName("");
-  }
-};
 
 // 🟢 ENVOI EXCLUSIF DES NOUVELLES TRANSACTIONS
 const confirmBatchImport = async () => {
@@ -4150,52 +4078,245 @@ const handleSyncPowens = async (overrideMode = null) => {
   }
 };
 
-// 🟢 VERSION CORRIGÉE : N'INDEXE COMME "DÉJÀ IMPORTÉ" QUE CE QUI EST RÉELLEMENT EN BDD
+// =========================================================================
+// 🟢 MODULE UNIVERSEL DE DÉDOUBLONNAGE (RÉCONCILIATION STRICTE & TOLÉRANTE)
+// =========================================================================
+
+const BANQUE_STOP_WORDS = new Set([
+  "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
+  "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
+  "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
+  "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre"
+]);
+
+const cleanBankingLabel = (label) => {
+  if (!label) return "";
+  return label
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\b\d{2}[\/\.-]\d{2}([\/\.-]\d{2,4})?\b/g, " ")
+    .replace(/\b\d{1,2}h\d{2}\b/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length >= 2 && !BANQUE_STOP_WORDS.has(w) && !/^\d+$/.test(w))
+    .join(" ");
+};
+
+const areLabelsSimilar = (labelA, labelB) => {
+  const cleanA = cleanBankingLabel(labelA);
+  const cleanB = cleanBankingLabel(labelB);
+  if (!cleanA || !cleanB) return false;
+  if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) return true;
+
+  const tokensA = cleanA.split(" ").filter(w => w.length >= 3);
+  const tokensB = new Set(cleanB.split(" ").filter(w => w.length >= 3));
+  return tokensA.some(t => tokensB.has(t));
+};
+
+// 🟢 Parser universel : supporte YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY
+const parseDateOnly = (dStr) => {
+  if (!dStr) return null;
+  const s = String(dStr).split('T')[0].split(' ')[0].trim();
+
+  // YYYY-MM-DD ou YYYY/MM/DD
+  if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) {
+    const [y, m, d] = s.split(/[-/]/).map(Number);
+    return new Date(y, m - 1, d);
+  }
+  // DD-MM-YYYY ou DD/MM/YYYY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
+    const [d, m, y] = s.split(/[-/]/).map(Number);
+    return new Date(y, m - 1, d);
+  }
+  // DD/MM/YY
+  if (/^\d{1,2}[-/]\d{1,2}[-/]\d{2}$/.test(s)) {
+    const [d, m, y] = s.split(/[-/]/).map(Number);
+    return new Date(2000 + y, m - 1, d);
+  }
+
+  const d = new Date(dStr);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// 🟢 Rapprochement ultra-fiable
+const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set()) => {
+  const incMontant = parseFloat(incomingTx.montant) || 0;
+  const incDate = parseDateOnly(incomingTx.date);
+  if (!incDate) return null;
+
+  const incCompte = (incomingTx.compte || "").trim().toUpperCase();
+
+  for (const exist of existingList) {
+    if (claimedIds.has(exist.id)) continue;
+
+    // 1. MONTANT : comparaison sur la valeur absolue au centime près
+    // (Gère le cas où le CSV a mis le montant en positif et Powens en négatif)
+    const existMontant = parseFloat(exist.montant) || 0;
+    if (Math.abs(Math.abs(incMontant) - Math.abs(existMontant)) > 0.01) {
+      continue;
+    }
+
+    // 2. COMPTE : tolérance intelligente (ex: "CCP" correspond à "CCP Principal")
+    const existCompte = (exist.compte || "").trim().toUpperCase();
+    if (incCompte && existCompte) {
+      const c1 = incCompte.replace(/[^A-Z0-9]/g, '');
+      const c2 = existCompte.replace(/[^A-Z0-9]/g, '');
+      const isLivret1 = c1.includes('LIVRET') || c1.includes('LEP') || c1.includes('LDDS');
+      const isLivret2 = c2.includes('LIVRET') || c2.includes('LEP') || c2.includes('LDDS');
+
+      // Si l'un est un livret d'épargne et l'autre un compte courant, on ne mélange pas
+      if (isLivret1 !== isLivret2) continue;
+    }
+
+    // 3. DATE : tolérance étendue jusqu'à 3 jours (pour couvrir les paiements carte du week-end)
+    const existDate = parseDateOnly(exist.date);
+    if (!existDate) continue;
+
+    const diffDays = Math.abs((incDate.getTime() - existDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 3.5) {
+      continue;
+    }
+
+    // 4. VALIDATION DU DOUBLON :
+    // A. Même jour exact (diffDays < 1.0) : même montant sur le même compte le même jour = 100% DOUBLON
+    if (diffDays < 1.0) {
+      claimedIds.add(exist.id);
+      return exist;
+    }
+
+    // B. Décalage de 1 à 3 jours (week-end / date de valeur banque) :
+    // On valide si un mot-clé correspond OU si c'est un montant précis (non rond)
+    const labelsMatch = areLabelsSimilar(incomingTx.nom, exist.nom);
+    const isPreciseAmount = (Math.abs(incMontant) % 1) !== 0; // Ex: 47,82 € n'arrive pas par hasard à 48h d'intervalle
+
+    if (labelsMatch || isPreciseAmount || diffDays <= 1.5) {
+      claimedIds.add(exist.id);
+      return exist;
+    }
+  }
+
+  return null;
+};
+
+// =========================================================================
+// 🟢 1. IMPORT FICHIER CSV (DÉDOUBLONNÉ AVEC POWENS & BDD)
+// =========================================================================
+// 🟢 IMPORT CSV AVEC DÉTECTION INTELLIGENTE DES DOUBLONS & ASSIGNATION DE isAlreadyImported
+const handleFileUpload = async (file) => {
+  if (!file) return;
+  setFileName(file.name);
+
+  const formData = new FormData();
+  formData.append('file', file);
+  const nomUtilisateur = typeof user === 'object' ? user.nom : user;
+  const targetCompte = importCompte || selectedCompte || comptes[0]?.compte;
+
+  try {
+    const response = await api.post(
+      `/import-csv?utilisateur=${nomUtilisateur}`, 
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+
+    const lignesBrutes = response.data;
+    const batchOccurrences = {};
+    const claimedDbIds = new Set();
+    let nbDoublonsDetectes = 0;
+
+    console.log("🔍 [DIAGNOSTIC CSV] Lignes CSV reçues :", lignesBrutes.length);
+    console.log("🔍 [DIAGNOSTIC BDD] Transactions en BDD (Powens) :", (toutesLesTransactions || []).length);
+
+    const lignesTraitees = lignesBrutes.map((t) => {
+      const baseNom = (t.nom || "Transaction").trim();
+      const dateStr = t.date ? String(t.date).trim() : "";
+      const montantNum = parseFloat(t.montant) || 0;
+
+      const groupKey = `${dateStr}_${montantNum.toFixed(2)}_${baseNom.toUpperCase()}`;
+      const occurrence = (batchOccurrences[groupKey] || 0) + 1;
+      batchOccurrences[groupKey] = occurrence;
+
+      let nomFinal = baseNom;
+      if (occurrence > 1 && !/#\d+$/.test(nomFinal)) {
+        nomFinal = `${baseNom} #${occurrence}`;
+      }
+
+      // Rapprochement avec les transactions Powens déjà en base
+      const duplicateFound = findDuplicateTransaction(
+        { ...t, nom: nomFinal, compte: targetCompte },
+        toutesLesTransactions || [],
+        claimedDbIds
+      );
+
+      const alreadyInDb = Boolean(duplicateFound);
+      if (alreadyInDb) nbDoublonsDetectes++;
+
+      return {
+        ...t,
+        nom: nomFinal,
+        isAlreadyImported: alreadyInDb, // 👈 Marqué TRUE si Powens l'a déjà importé
+        isPotentialDuplicate: alreadyInDb || occurrence > 1,
+        duplicateIndex: occurrence,
+        matchedWith: duplicateFound ? `${duplicateFound.nom} (${duplicateFound.date})` : null
+      };
+    });
+
+    setTempTransactions(lignesTraitees);
+
+    if (nbDoublonsDetectes > 0) {
+      toast.info(`ℹ️ ${nbDoublonsDetectes} / ${lignesBrutes.length} transaction(s) déjà importée(s) par Powens ont été détectées et ignorées.`);
+    } else {
+      toast.warning("Aucun doublon détecté : vérifiez si le compte cible dans la liste correspond au compte des transactions Powens.");
+    }
+
+  } catch (error) {
+    console.error("Erreur import:", error);
+    toast.error("Erreur lors de l'analyse du CSV");
+    setFileName("");
+  }
+};
+
+// =========================================================================
+// 🟢 2. IMPORT POWENS MANUEL (DÉDOUBLONNÉ AVEC CSV & BDD)
+// =========================================================================
 const handlePowensImportSuccess = (transactions, accountName) => {
   if (!transactions || transactions.length === 0) {
     toast.warning(`Aucune transaction trouvée pour le compte ${accountName}.`);
     return;
   }
 
-  const normalize = (str) => (str || "").trim().toUpperCase().replace(/\s+/g, ' ');
-  const roundNum = (val) => Number(parseFloat(val) || 0).toFixed(2);
-
-  // 1. Répertoire des transactions déjà enregistrées en base de données avec leur libellé exact
-  const existingDbKeys = new Set(
-    (toutesLesTransactions || []).map(t => 
-      `${t.date}_${roundNum(t.montant)}_${normalize(t.nom)}`
-    )
-  );
-
-  // 2. Compteur d'occurrences pour le lot entrant
   const batchOccurrences = {};
+  const claimedDbIds = new Set();
 
   const transactionsMarquees = transactions.map(t => {
     const baseNom = (t.nom || t.libelle || "Transaction").trim();
     const dateStr = t.date ? String(t.date).trim() : "";
-    const montantStr = roundNum(t.montant);
+    const montantNum = parseFloat(t.montant) || 0;
 
-    // Clé de groupe pour compter les répétitions au sein de ce même import
-    const groupKey = `${dateStr}_${montantStr}_${normalize(baseNom)}`;
-    const occurence = (batchOccurrences[groupKey] || 0) + 1;
-    batchOccurrences[groupKey] = occurence;
+    const groupKey = `${dateStr}_${montantNum.toFixed(2)}_${baseNom.toUpperCase()}`;
+    const occurrence = (batchOccurrences[groupKey] || 0) + 1;
+    batchOccurrences[groupKey] = occurrence;
 
-    // Si c'est une 2e ou 3e écriture identique dans le lot, on ajoute le suffixe #2, #3
     let nomFinal = baseNom;
-    if (occurence > 1 && !/#\d+$/.test(nomFinal)) {
-      nomFinal = `${baseNom} #${occurence}`;
+    if (occurrence > 1 && !/#\d+$/.test(nomFinal)) {
+      nomFinal = `${baseNom} #${occurrence}`;
     }
 
-    // 🟢 VÉRIFICATION STRICTE EN BDD : Est-ce que CE nom (avec son # si doublon) est déjà en base ?
-    const exactKey = `${dateStr}_${montantStr}_${normalize(nomFinal)}`;
-    const alreadyInDb = existingDbKeys.has(exactKey);
+    // 🟢 Rapprochement intelligent avec la BDD existante (même si importé par CSV !)
+    const duplicateFound = findDuplicateTransaction(
+      { ...t, nom: nomFinal, compte: accountName },
+      toutesLesTransactions || [],
+      claimedDbIds
+    );
+
+    const isDuplicate = Boolean(duplicateFound) || occurrence > 1;
 
     return {
       ...t,
       nom: nomFinal,
-      isAlreadyImported: alreadyInDb, // 🟢 Ne vaut true QUE si réellement présent en base de données
-      isPotentialDuplicate: occurence > 1 || alreadyInDb,
-      duplicateIndex: occurence
+      isAlreadyImported: Boolean(duplicateFound), // 🟢 Crucial : décoché d'office
+      isPotentialDuplicate: isDuplicate,
+      duplicateIndex: occurrence,
+      matchedWith: duplicateFound ? duplicateFound.nom : null
     };
   });
 
@@ -4206,12 +4327,11 @@ const handlePowensImportSuccess = (transactions, accountName) => {
   setTempTransactions(transactionsMarquees);
 
   toast.success(
-   `${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s) à importer, ${nbDejaImportees} déjà en base).`
-     
+    `${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s) à importer, ${nbDejaImportees} déjà en base via CSV/Banque).`
   );
 
   fetchPowensConnections();
-  checkNewTransactions()
+  checkNewTransactions();
 };
 
 
@@ -5980,13 +6100,31 @@ useEffect(() => {
 
 
 if (!user) {
+    if (authViewMode) {
+      return (
+        <div className="relative">
+          {/* Bouton retour vers la landing page */}
+          <button
+            onClick={() => setAuthViewMode(null)}
+            className="fixed top-6 left-6 z-50 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-md cursor-pointer transition-all"
+          >
+            ← Retour à l'accueil
+          </button>
+          
+          <AuthView 
+            onLoginSuccess={(token, loggedUser, role) => {
+              setUser(loggedUser);
+            }} 
+            userTheme={userTheme} 
+          />
+        </div>
+      );
+    }
+
+    // Affichage de la One Page de présentation par défaut
     return (
-      <AuthView 
-        onLoginSuccess={(token, loggedUser, role) => {
-          setUser(loggedUser);
-          setUserRole(role || 'user');
-        }} 
-        userTheme={userTheme} 
+      <LandingPage 
+        onOpenAuth={(mode) => setAuthViewMode(mode)} 
       />
     );
   }

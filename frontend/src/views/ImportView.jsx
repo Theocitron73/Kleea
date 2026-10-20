@@ -688,11 +688,38 @@ export default function ImportView({
                                 onMouseUp={(e) => handleMouseUpLabel(e, t)}
                               >
                                 <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-black uppercase max-w-[440px] truncate select-text ${
-                                    isTransfert ? 'text-violet-200' : 'text-[var(--text-main)]'
+                                  <span className={`text-[10px] font-black uppercase max-w-[400px] truncate select-text ${
+                                    isImported 
+                                      ? 'text-white/40 line-through' 
+                                      : isTransfert 
+                                        ? 'text-violet-200' 
+                                        : 'text-[var(--text-main)]'
                                   }`}>
                                     {t.nom}
                                   </span>
+
+                                  {/* 🟢 1. ÉCRITURE EXPLICITE DU STATUT */}
+                                  {isImported ? (
+                                    <span 
+                                      className="px-2 py-0.5 rounded-md text-[7.5px] font-black uppercase tracking-wider bg-rose-500/15 text-rose-300 border border-rose-500/30 shrink-0 flex items-center gap-1 shadow-sm"
+                                      title={t.matchedWith ? `Correspond en BDD à : "${t.matchedWith}"` : "Déjà enregistré en base"}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                      Déjà importé (Ignoré)
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 shrink-0 flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                      Nouveau
+                                    </span>
+                                  )}
+
+                                  {/* 2. Badge index doublon si plusieurs fois dans le même lot */}
+                                  {t.isPotentialDuplicate && !isImported && (
+                                    <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                      Doublon #{t.duplicateIndex || 2}
+                                    </span>
+                                  )}
 
                                   {/* Bouton pour découper le libellé en mots cliquables */}
                                   <button
@@ -703,12 +730,6 @@ export default function ImportView({
                                   >
                                     <Tag size={11} />
                                   </button>
-
-                                  {t.isPotentialDuplicate && (
-                                    <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
-                                      Doublon #{t.duplicateIndex || 2}
-                                    </span>
-                                  )}
                                 </div>
 
                                 {/* Puces de mots cliquables en 1 clic */}

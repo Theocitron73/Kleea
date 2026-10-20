@@ -1760,17 +1760,21 @@ async def import_file(
                 nom_t_lower = nom_t.lower()
                 texte_integral_upper = nom_t.upper()
 
-                # A. Priorité 1 : Virements internes
+                # =========================================================
+                # 🟢 CLASSIFICATION RÉVISÉE DES VIREMENTS & FLUX
+                # =========================================================
                 cat = "Autre"
-                if any(k in texte_integral_upper for k in ["VERS", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
-                    types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
-                    type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
-                    if type_cible:
-                        cat = f"Virement : CCP vers {type_cible}" if montant_float < 0 else f"Virement : {type_cible} vers CCP"
-                    else:
-                        cat = "Transfert Interne"
 
-                # B. Priorité 2 : Mémoire apprise
+                # A. Priorité 1 : VRAIS Virements internes (uniquement vers vos livrets ou compte commun)
+                types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL", "PEA"]
+                type_cible = next((t for t in types_epargne if t in texte_integral_upper), None)
+
+                if type_cible and any(k in texte_integral_upper for k in ["VERS", "VIR", "VIREMENT", "TO "]):
+                    cat = f"Virement : CCP vers {type_cible}" if montant_float < 0 else f"Virement : {type_cible} vers CCP"
+                elif "COMPTE COMMUN" in texte_integral_upper and any(k in texte_integral_upper for k in ["VERS", "VIR", "VIREMENT"]):
+                    cat = "Compte Commun"
+
+                # B. Priorité 2 : Mémoire apprise (prioritaire sur les catégories génériques)
                 if cat == "Autre":
                     nom_t_normalise = " ".join(nom_t_lower.split())
                     for m in memoire_rules:
@@ -1779,7 +1783,7 @@ async def import_file(
                             cat = m["categorie"]
                             break
 
-                # C. Priorité 3 : Mots-clés
+                # C. Priorité 3 : Mots-clés définis par l'utilisateur (ex: si le virement s'appelle "Virement Salaire")
                 if cat == "Autre":
                     for rule in mots_cles_rules:
                         matched = False
@@ -1799,6 +1803,12 @@ async def import_file(
                                     cat = rule["categorie"]
                                     break
                         if matched: break
+
+                # 🟢 D. Priorité 4 : Virements externes vers/depuis des tiers (NON internes)
+                # Si après la mémoire et les mots-clés, la transaction contient "virement" ou "vir" :
+                if cat == "Autre":
+                    if any(k in texte_integral_upper for k in ["VIREMENT", "VIR ", "VIR.", "SEPA"]):
+                        cat = "Virement Reçu" if montant_float > 0 else "Virement Envoyé"
 
                 transactions_pretes.append({
                     "date": dt.strftime('%Y-%m-%d'),
@@ -3843,15 +3853,13 @@ async def import_powens(
 
             # A. Priorité 1 : Virements internes
             if any(k in texte_integral_upper for k in ["VERS ", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
-                types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL"]
+                # A. Priorité 1 : Vrais virements internes vers vos livrets d'épargne
+                types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL", "PEA"]
                 type_cible = next((typ for typ in types_epargne if typ in texte_integral_upper), None)
                 
-                if type_cible:
-                    if montant_float < 0:
-                        cat = f"Virement : CCP vers {type_cible}"
-                    else:
-                        cat = f"Virement : {type_cible} vers CCP"
-                elif "COMPTE COMMUN" in texte_integral_upper:
+                if type_cible and any(k in texte_integral_upper for k in ["VERS", "VIR", "VIREMENT", "TO "]):
+                    cat = f"Virement : CCP vers {type_cible}" if montant_float < 0 else f"Virement : {type_cible} vers CCP"
+                elif "COMPTE COMMUN" in texte_integral_upper and any(k in texte_integral_upper for k in ["VERS", "VIR", "VIREMENT"]):
                     cat = "Compte Commun"
                 else:
                     cat = "Virements Reçus" if montant_float > 0 else "Virements envoyé"
@@ -4526,6 +4534,93 @@ def decrypt_iban(val: str) -> str:
         return val
 
 
+# =========================================================================
+# 🟢 MODULE ANTI-DOUBLON INTELLIGENT (CSV <-> POWENS)
+# =========================================================================
+
+BANQUE_STOP_WORDS = {
+    "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
+    "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
+    "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
+    "operation", "interbancaire", "bancaire", "vers", "pour", "par"
+}
+
+def clean_banking_label_py(label: str) -> set:
+    if not label:
+        return set()
+    text = label.lower()
+    text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+    text = re.sub(r'\b\d{2}[/.-]\d{2}([/.-]\d{2,4})?\b', ' ', text)
+    text = re.sub(r'\b\d{1,2}h\d{2}\b', ' ', text)
+    text = re.sub(r'[^a-z0-9\s]', ' ', text)
+    words = text.split()
+    return {w for w in words if len(w) >= 3 and w not in BANQUE_STOP_WORDS and not w.isdigit()}
+
+def is_duplicate_py(new_tx: dict, existing_tx_list: list, claimed_ids: set) -> bool:
+    """
+    Rapproche une transaction Powens avec les transactions CSV déjà en BDD
+    en ignorant les différences de libellés et les décalages de date de valeur (0 à 2 jours).
+    """
+    try:
+        new_amount = float(new_tx.get('montant', 0) if new_tx.get('montant') is not None else new_tx.get('m', 0))
+    except (ValueError, TypeError):
+        return False
+
+    raw_date = str(new_tx.get('date') or new_tx.get('d') or '')[:10]
+    try:
+        new_date = datetime.strptime(raw_date, '%Y-%m-%d').date()
+    except ValueError:
+        return False
+
+    new_compte = (new_tx.get('compte') or new_tx.get('co') or "").strip().upper()
+    new_nom = new_tx.get('nom') or new_tx.get('n') or ""
+    new_tokens = clean_banking_label_py(new_nom)
+
+    for exist in existing_tx_list:
+        exist_id = exist.get('id')
+        if exist_id and exist_id in claimed_ids:
+            continue
+
+        # 1. Vérification du compte bancaire
+        exist_compte = (exist.get('compte') or "").strip().upper()
+        if new_compte and exist_compte and new_compte != exist_compte:
+            continue
+
+        # 2. Montant exact au centime près et même signe
+        try:
+            exist_amount = float(exist.get('montant', 0))
+        except (ValueError, TypeError):
+            continue
+
+        if abs(abs(new_amount) - abs(exist_amount)) > 0.01:
+            continue
+        if (new_amount > 0) != (exist_amount > 0):
+            continue
+
+        # 3. Écart de date (tolérance de 0 à 2 jours max pour les dates de valeur)
+        exist_raw_date = str(exist.get('date', ''))[:10]
+        try:
+            exist_date = datetime.strptime(exist_raw_date, '%Y-%m-%d').date()
+        except ValueError:
+            continue
+
+        diff_days = abs((new_date - exist_date).days)
+        if diff_days > 2:
+            continue
+
+        # 4. Mots-clés du libellé (ex: "carrefour" présent dans "CARREFOUR MARKET" et "Carrefour")
+        exist_tokens = clean_banking_label_py(exist.get('nom', ''))
+        tokens_match = bool(new_tokens.intersection(exist_tokens))
+
+        # Match si même jour sans texte complexe OU si mot-clé commun détecté
+        if (diff_days == 0 and (tokens_match or not new_tokens or not exist_tokens)) or tokens_match:
+            if exist_id:
+                claimed_ids.add(exist_id)
+            return True
+
+    return False
+
+
 # 🟢 FONCTION MÉTIER ATOMIQUE (Appelable par l'API et par les tâches de fond)
 def exec_sync_user_transactions(username: str):
     user_clean = username.lower().strip()
@@ -4542,7 +4637,6 @@ def exec_sync_user_transactions(username: str):
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
 
-        # 🟢 Récupération des catégories actives de l'utilisateur pour le matching
         cats_res = conn.execute(
             text("SELECT nom FROM categories WHERE LOWER(utilisateur) = :u"),
             {"u": user_clean}
@@ -4622,7 +4716,6 @@ def exec_sync_user_transactions(username: str):
             libelle_compact = libelle_brut.upper().replace(" ", "")
             autre_compte_local = None
 
-            # Priorité 1.A : Virement interne vers un compte identifié
             for target_iban, local_name in iban_to_local_name.items():
                 if local_name.upper() != local_account_name.upper() and target_iban in libelle_compact:
                     autre_compte_local = local_name
@@ -4652,14 +4745,12 @@ def exec_sync_user_transactions(username: str):
             if autre_compte_local:
                 cat = f"Virement : {local_account_name} vers {autre_compte_local}" if montant < 0 else f"Virement : {autre_compte_local} vers {local_account_name}"
 
-            # Priorité 2 : Mémoire apprise
             if cat == "Autre":
                 for m in memoire_rules:
                     if m["nom"].lower() in libelle_lower:
                         cat = m["categorie"]
                         break
                         
-            # Priorité 3 : Mots-clés définis par l'utilisateur
             if cat == "Autre":
                 for rule in mots_cles_rules:
                     for raw_k in rule["keywords"]:
@@ -4671,7 +4762,6 @@ def exec_sync_user_transactions(username: str):
                                 cat = rule["categorie"]
                                 break
 
-            # 🟢 Priorité 4 : CATÉGORISATION NATIVE AUTOMATIQUE POWENS (ZÉRO TOKEN IA)
             if cat == "Autre":
                 cat_obj = tx.get("category")
                 powens_cat_name = None
@@ -4683,7 +4773,6 @@ def exec_sync_user_transactions(username: str):
                 if powens_cat_name:
                     cat = match_powens_to_user_category(powens_cat_name, user_categories)
 
-            # Priorité 5 : Fallback transferts tiers
             if cat == "Autre":
                 is_transfer = (tx.get("type") == "transfer") or any(k in libelle_brut.upper() for k in ["VERS ", "VIR ", "VIREMENT", "TO "])
                 if is_transfer:
@@ -4706,23 +4795,18 @@ def exec_sync_user_transactions(username: str):
             print(f"⚠️ Erreur analyse ligne brute : {parse_err}")
             continue
 
-    # Écriture atomique en base avec détection anti-doublon (incluant split_sources)
+    # =========================================================================
+    # 🟢 DÉDOUBLONNAGE INTELLIGENT AVANT INSERTION EN BASE DE DONNÉES
+    # =========================================================================
     success_count = 0
-    check_existing_query = text("""
-        SELECT 1 FROM transactions 
-        WHERE LOWER(utilisateur) = LOWER(:u) 
-          AND date = :d 
-          AND ABS(montant - :m) < 0.001 
-          AND nom = :n 
-          AND compte = :co 
+
+    # 1. On charge l'historique récent de l'utilisateur (issu du CSV ou de précédents imports)
+    query_existing = text("""
+        SELECT id, date, montant, nom, compte FROM transactions 
+        WHERE LOWER(utilisateur) = :u AND date >= :limit_date
         UNION ALL
-        SELECT 1 FROM split_sources 
-        WHERE LOWER(utilisateur) = LOWER(:u) 
-          AND date = :d 
-          AND ABS(montant - :m) < 0.001 
-          AND nom = :n 
-          AND compte = :co 
-        LIMIT 1
+        SELECT id, date, montant, nom, compte FROM split_sources 
+        WHERE LOWER(utilisateur) = :u AND date >= :limit_date
     """)
 
     insert_query = text("""
@@ -4733,18 +4817,73 @@ def exec_sync_user_transactions(username: str):
     """)
 
     with engine.begin() as conn:
+        existing_rows = conn.execute(query_existing, {
+            "u": user_clean,
+            "limit_date": window_limit
+        }).mappings().all()
+
+        existing_db_list = [dict(r) for r in existing_rows]
+        claimed_ids = set()
+
         for tx_data in transactions_to_save:
-            already_in_db = conn.execute(check_existing_query, tx_data).fetchone()
-            if already_in_db:
+            tx_check_dict = {
+                "date": tx_data["d"],
+                "montant": tx_data["m"],
+                "nom": tx_data["n"],
+                "compte": tx_data["co"]
+            }
+
+            # 🟢 Si la transaction existe déjà (via CSV avec un libellé différent ou un décalage de date), ON L'IGNORE !
+            if is_duplicate_py(tx_check_dict, existing_db_list, claimed_ids):
                 continue
 
             res_insert = conn.execute(insert_query, tx_data)
             if res_insert.fetchone():
                 success_count += 1
+                # On ajoute aussi cette ligne dans existing_db_list pour éviter les doublons au sein du même lot
+                existing_db_list.append(tx_check_dict)
             
     print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
     return {"status": "success", "added": success_count}
 
+
+# =========================================================================
+# 🧹 ROUTE DE NETTOYAGE DES DOUBLONS DÉJÀ CRÉÉS EN BASE
+# =========================================================================
+@app.post("/transactions/clean-duplicates/{username}")
+def clean_existing_duplicates(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+    
+    user_clean = current_user.lower().strip()
+
+    with engine.begin() as conn:
+        rows = conn.execute(text("""
+            SELECT id, date, montant, nom, compte 
+            FROM transactions 
+            WHERE LOWER(utilisateur) = :u 
+            ORDER BY date DESC, id DESC
+        """), {"u": user_clean}).mappings().all()
+
+        seen_txs = []
+        to_delete_ids = []
+        claimed_ids = set()
+
+        for r in rows:
+            tx_dict = dict(r)
+            # Si cette ligne est identique à une ligne plus récente déjà vue, on la marque pour suppression
+            if is_duplicate_py(tx_dict, seen_txs, claimed_ids):
+                to_delete_ids.append(tx_dict["id"])
+            else:
+                seen_txs.append(tx_dict)
+
+        if to_delete_ids:
+            conn.execute(
+                text("DELETE FROM transactions WHERE id = ANY(:ids)"),
+                {"ids": to_delete_ids}
+            )
+
+    return {"status": "success", "deleted_duplicates_count": len(to_delete_ids)}
 
 # 🟢 ROUTE API SÉCURISÉE AVEC JWT (Sans paramètre inutilisé)
 @app.post("/powens/sync-user/{username}")
