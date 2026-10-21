@@ -963,8 +963,9 @@ export function ImportPowensModal({
       onSuccess(res.data, targetLocalAccountName);
       onClose();
     } catch (err) {
-      console.error("Erreur import Powens:", err);
-      toast.error("Erreur lors de l'importation");
+      console.error("Erreur import Powens détaillée :", err);
+      const detailServeur = err.response?.data?.detail;
+      toast.error(detailServeur || "Erreur lors de l'importation Powens");
     } finally {
       setImporting(false);
     }
@@ -4079,56 +4080,80 @@ const handleSyncPowens = async (overrideMode = null) => {
 };
 
 // =========================================================================
-// 🟢 MODULE UNIVERSEL DE DÉDOUBLONNAGE (RÉCONCILIATION STRICTE & TOLÉRANTE)
+// 🟢 MODULE DÉDOUBLONNAGE V3 (FILTRAGE FAMILLE, PRÉNOMS & CODES BANCAIRES)
 // =========================================================================
 
-const BANQUE_STOP_WORDS = new Set([
-  "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
-  "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
-  "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
-  "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre"
-]);
+// 1. Découpage et extraction des mots-clés uniques
+const getSignificantTokens = (label) => {
+  if (!label) return [];
+  const BANQUE_STOP_WORDS = new Set([
+    "de", "du", "des", "le", "la", "les", "a", "au", "aux", "en", "un", "une",
+    "mme", "mr", "m", "monsieur", "madame", "mlle", "mademoiselle",
+    "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
+    "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
+    "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
+    "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre",
+    "instantane", "recu", "emis", "motif"
+  ]);
 
-const cleanBankingLabel = (label) => {
-  if (!label) return "";
-  return label
-    .toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/\b\d{2}[\/\.-]\d{2}([\/\.-]\d{2,4})?\b/g, " ")
-    .replace(/\b\d{1,2}h\d{2}\b/g, " ")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(w => w.length >= 2 && !BANQUE_STOP_WORDS.has(w) && !/^\d+$/.test(w))
-    .join(" ");
+  return Array.from(new Set(
+    label
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .replace(/\b\d{2}[\/\.-]\d{2}([\/\.-]\d{2,4})?\b/g, " ")
+      .replace(/\b\d{1,2}h\d{2}\b/g, " ")
+      .replace(/\b[a-z0-9_-]*\d{4,}[a-z0-9_-]*\b/gi, " ")
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter(w => w.length >= 3 && !BANQUE_STOP_WORDS.has(w) && !/^\d+$/.test(w))
+  ));
 };
 
+// 2. Comparaison des libellés (Jaccard)
 const areLabelsSimilar = (labelA, labelB) => {
-  const cleanA = cleanBankingLabel(labelA);
-  const cleanB = cleanBankingLabel(labelB);
-  if (!cleanA || !cleanB) return false;
-  if (cleanA.includes(cleanB) || cleanB.includes(cleanA)) return true;
+  const tokensA = getSignificantTokens(labelA);
+  const tokensB = getSignificantTokens(labelB);
 
-  const tokensA = cleanA.split(" ").filter(w => w.length >= 3);
-  const tokensB = new Set(cleanB.split(" ").filter(w => w.length >= 3));
-  return tokensA.some(t => tokensB.has(t));
+  if (tokensA.length === 0 && tokensB.length === 0) return true;
+  if (tokensA.length === 0 || tokensB.length === 0) return false;
+
+  const setA = new Set(tokensA);
+  const setB = new Set(tokensB);
+
+  const intersection = tokensA.filter(t => setB.has(t));
+  if (intersection.length === 0) {
+    const strA = tokensA.join("");
+    const strB = tokensB.join("");
+    if (strA.length >= 4 && strB.length >= 4 && (strA.includes(strB) || strB.includes(strA))) {
+      return true;
+    }
+    return false;
+  }
+
+  const isSubset = tokensA.every(t => setB.has(t)) || tokensB.every(t => setA.has(t));
+  if (isSubset && intersection.some(t => t.length >= 4)) {
+    return true;
+  }
+
+  const union = new Set([...tokensA, ...tokensB]);
+  return (intersection.length / union.size) >= 0.5;
 };
 
-// 🟢 Parser universel : supporte YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DD/MM/YY
+// 🟢 3. PARSER DE DATES UNIVERSEL
 const parseDateOnly = (dStr) => {
   if (!dStr) return null;
+  if (dStr instanceof Date) return isNaN(dStr.getTime()) ? null : dStr;
+
   const s = String(dStr).split('T')[0].split(' ')[0].trim();
 
-  // YYYY-MM-DD ou YYYY/MM/DD
   if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) {
     const [y, m, d] = s.split(/[-/]/).map(Number);
     return new Date(y, m - 1, d);
   }
-  // DD-MM-YYYY ou DD/MM/YYYY
   if (/^\d{1,2}[-/]\d{1,2}[-/]\d{4}$/.test(s)) {
     const [d, m, y] = s.split(/[-/]/).map(Number);
     return new Date(y, m - 1, d);
   }
-  // DD/MM/YY
   if (/^\d{1,2}[-/]\d{1,2}[-/]\d{2}$/.test(s)) {
     const [d, m, y] = s.split(/[-/]/).map(Number);
     return new Date(2000 + y, m - 1, d);
@@ -4138,7 +4163,7 @@ const parseDateOnly = (dStr) => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-// 🟢 Rapprochement ultra-fiable
+// 4. Détecteur anti-doublon
 const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set()) => {
   const incMontant = parseFloat(incomingTx.montant) || 0;
   const incDate = parseDateOnly(incomingTx.date);
@@ -4149,47 +4174,32 @@ const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set
   for (const exist of existingList) {
     if (claimedIds.has(exist.id)) continue;
 
-    // 1. MONTANT : comparaison sur la valeur absolue au centime près
-    // (Gère le cas où le CSV a mis le montant en positif et Powens en négatif)
+    // A. Même montant
     const existMontant = parseFloat(exist.montant) || 0;
-    if (Math.abs(Math.abs(incMontant) - Math.abs(existMontant)) > 0.01) {
-      continue;
-    }
+    if (Math.abs(Math.abs(incMontant) - Math.abs(existMontant)) > 0.01) continue;
+    if ((incMontant > 0) !== (existMontant > 0)) continue;
 
-    // 2. COMPTE : tolérance intelligente (ex: "CCP" correspond à "CCP Principal")
+    // B. Même compte
     const existCompte = (exist.compte || "").trim().toUpperCase();
     if (incCompte && existCompte) {
       const c1 = incCompte.replace(/[^A-Z0-9]/g, '');
       const c2 = existCompte.replace(/[^A-Z0-9]/g, '');
       const isLivret1 = c1.includes('LIVRET') || c1.includes('LEP') || c1.includes('LDDS');
       const isLivret2 = c2.includes('LIVRET') || c2.includes('LEP') || c2.includes('LDDS');
-
-      // Si l'un est un livret d'épargne et l'autre un compte courant, on ne mélange pas
       if (isLivret1 !== isLivret2) continue;
     }
 
-    // 3. DATE : tolérance étendue jusqu'à 3 jours (pour couvrir les paiements carte du week-end)
+    // C. Date (max 3.5 jours)
     const existDate = parseDateOnly(exist.date);
     if (!existDate) continue;
 
     const diffDays = Math.abs((incDate.getTime() - existDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays > 3.5) {
-      continue;
-    }
+    if (diffDays > 3.5) continue;
 
-    // 4. VALIDATION DU DOUBLON :
-    // A. Même jour exact (diffDays < 1.0) : même montant sur le même compte le même jour = 100% DOUBLON
-    if (diffDays < 1.0) {
-      claimedIds.add(exist.id);
-      return exist;
-    }
-
-    // B. Décalage de 1 à 3 jours (week-end / date de valeur banque) :
-    // On valide si un mot-clé correspond OU si c'est un montant précis (non rond)
+    // D. Comparaison du libellé
     const labelsMatch = areLabelsSimilar(incomingTx.nom, exist.nom);
-    const isPreciseAmount = (Math.abs(incMontant) % 1) !== 0; // Ex: 47,82 € n'arrive pas par hasard à 48h d'intervalle
 
-    if (labelsMatch || isPreciseAmount || diffDays <= 1.5) {
+    if (labelsMatch) {
       claimedIds.add(exist.id);
       return exist;
     }

@@ -3667,32 +3667,19 @@ def get_powens_transactions(user_token: str):
     url = f"{domain}/users/me/transactions"
     headers = {"Authorization": f"Bearer {user_token}"}
     
-    # 🟢 On demande explicitement l'expansion des catégories à Powens
+    # 🟢 CORRECTION 1 : 'category' au singulier uniquement (évite le 400 Bad Request de Powens)
     params = {
         "limit": 1000,
-        "expand": "category,categories"  # 👈 Demande l'arbre complet de catégorisation ML
+        "expand": "category"
     }
 
-    res = requests.get(url, headers=headers, params=params)
+    res = requests.get(url, headers=headers, params=params, timeout=15)
     if res.status_code != 200:
-        raise Exception(f"Powens API Error ({res.status_code}): {res.text}")
+        print(f"❌ Erreur Powens ({res.status_code}) : {res.text}")
+        raise Exception(f"Erreur API Powens ({res.status_code}): {res.text}")
 
     data = res.json()
-    transactions = data.get("transactions", [])
-
-    # 🔍 TEST EN DIRECT : Affiche la première transaction brute dans votre terminal
-    if transactions:
-        first = transactions[0]
-        print("\n" + "="*50)
-        print("🔍 [TEST MACHINE LEARNING POWENS] Échantillon reçu :")
-        print(f"  Libellé brut: {first.get('original_wording') or first.get('raw_wording')}")
-        print(f"  Libellé nettoyé ML: {first.get('simplified_wording')}")
-        print(f"  Catégorie ML: {first.get('category')}")
-        print(f"  Categories ML: {first.get('categories')}")
-        print(f"  ID Catégorie: {first.get('id_category')}")
-        print("="*50 + "\n")
-
-    return transactions
+    return data.get("transactions", [])
 
 
 def normalize_powens_transactions(
@@ -3819,6 +3806,11 @@ async def import_powens(
 ):
     try:
         user_clean = current_user.lower().strip()
+        
+        # Nettoyage des dates reçues
+        d_deb = None if not date_debut or date_debut in ("null", "undefined", "") else date_debut
+        d_fin = None if not date_fin or date_fin in ("null", "undefined", "") else date_fin
+
         powens_raw = get_powens_transactions(user_token)
 
         transactions_brutes = normalize_powens_transactions(
@@ -3826,14 +3818,13 @@ async def import_powens(
             user_clean, 
             compte_nom, 
             target_account_id=account_id,
-            date_debut=date_debut,
-            date_fin=date_fin
+            date_debut=d_deb,
+            date_fin=d_fin
         )
 
         mots_cles_rules = get_mots_cles_rules(user_clean)
         memoire_rules = fetch_memoire_data(user_clean)
 
-        # 🟢 Récupération des catégories personnalisées + par défaut de l'utilisateur
         with engine.connect() as conn:
             cats_res = conn.execute(
                 text("SELECT nom FROM categories WHERE LOWER(utilisateur) = :u"),
@@ -3843,26 +3834,21 @@ async def import_powens(
 
         transactions_pretes = []
         
-        # --- TRAITEMENT DES RÈGLES DE CATÉGORISATION ---
         for t in transactions_brutes:
-            nom_t = t["nom"]
-            montant_float = t["montant"]
+            nom_t = t.get("nom", "")
+            montant_float = float(t.get("montant", 0.0))
             nom_t_lower = nom_t.lower()
             texte_integral_upper = nom_t.upper()
             cat = "Autre"
 
-            # A. Priorité 1 : Virements internes
-            if any(k in texte_integral_upper for k in ["VERS ", "VIR MME FONTA AUDE", "TO ", "VIREMENT"]):
-                # A. Priorité 1 : Vrais virements internes vers vos livrets d'épargne
-                types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL", "PEA"]
-                type_cible = next((typ for typ in types_epargne if typ in texte_integral_upper), None)
-                
-                if type_cible and any(k in texte_integral_upper for k in ["VERS", "VIR", "VIREMENT", "TO "]):
-                    cat = f"Virement : CCP vers {type_cible}" if montant_float < 0 else f"Virement : {type_cible} vers CCP"
-                elif "COMPTE COMMUN" in texte_integral_upper and any(k in texte_integral_upper for k in ["VERS", "VIR", "VIREMENT"]):
-                    cat = "Compte Commun"
-                else:
-                    cat = "Virements Reçus" if montant_float > 0 else "Virements envoyé"
+            # A. Priorité 1 : Vrais virements internes vers vos livrets d'épargne
+            types_epargne = ["LIVRET A", "LEP", "LDDS", "PEL", "PEA"]
+            type_cible = next((typ for typ in types_epargne if typ in texte_integral_upper), None)
+            
+            if type_cible and any(k in texte_integral_upper for k in ["VERS ", "VIR", "VIREMENT", "TO "]):
+                cat = f"Virement : CCP vers {type_cible}" if montant_float < 0 else f"Virement : {type_cible} vers CCP"
+            elif "COMPTE COMMUN" in texte_integral_upper and any(k in texte_integral_upper for k in ["VERS ", "VIR", "VIREMENT"]):
+                cat = "Compte Commun"
 
             # B. Priorité 2 : Mémoire Apprise
             if cat == "Autre":
@@ -3897,32 +3883,29 @@ async def import_powens(
                     if matched:
                         break
 
-            # 🟢 D. Priorité 4 : CATÉGORISATION NATIVE POWENS (0 TOKEN IA)
+            # D. Priorité 4 : Catégorie native Powens
             if cat == "Autre" and t.get("raw_powens_category"):
                 cat = match_powens_to_user_category(t["raw_powens_category"], user_categories)
 
-            # E. Fallback virement tiers si toujours non classé
+            # E. Fallback virements tiers (externes)
             if cat == "Autre":
-                if any(k in texte_integral_upper for k in ["VERS ", "VIR ", "VIREMENT", "TO "]):
+                if any(k in texte_integral_upper for k in ["VERS ", "VIR ", "VIR.", "VIREMENT", "SEPA"]):
                     cat = "Virements Reçus" if montant_float > 0 else "Virements envoyé"
 
             t["categorie"] = cat
-            # Nettoyage de la clé temporaire
             t.pop("raw_powens_category", None)
             transactions_pretes.append(t)
-            # 🟢 Diagnostic dans la console
-        if t.get("raw_powens_category"):
-            print(f"🔍 [POWENS] '{nom_t[:30]}' -> Catégorie brute: '{t.get('raw_powens_category')}' -> Kleea: '{cat}'")
 
+        # 🟢 CORRECTION 2 : Plus de variable 't' orpheline en dehors de la boucle for
         return transactions_pretes
 
     except Exception as e:
         error_msg = str(e)
-        print(f"Erreur Sync Powens : {error_msg}")
+        print(f"❌ Erreur Import Powens : {error_msg}")
         if "unauthorized" in error_msg.lower() or "401" in error_msg:
             raise HTTPException(
                 status_code=401, 
-                detail="Jeton Powens invalide ou expiré. Veuillez reconnecter votre compte bancaire."
+                detail="Jeton Powens expiré. Veuillez reconnecter votre banque."
             )
         raise HTTPException(status_code=500, detail=error_msg)
 
@@ -4539,28 +4522,57 @@ def decrypt_iban(val: str) -> str:
 # =========================================================================
 
 BANQUE_STOP_WORDS = {
+    "de", "du", "des", "le", "la", "les", "a", "au", "aux", "en", "un", "une",
+    "mme", "mr", "m", "monsieur", "madame", "mlle", "mademoiselle",
     "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
     "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
     "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
-    "operation", "interbancaire", "bancaire", "vers", "pour", "par"
+    "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre",
+    "instantane", "recu", "emis", "motif"
 }
 
-def clean_banking_label_py(label: str) -> set:
+def clean_banking_label_py(label: str) -> list:
     if not label:
-        return set()
+        return []
     text = label.lower()
     text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
     text = re.sub(r'\b\d{2}[/.-]\d{2}([/.-]\d{2,4})?\b', ' ', text)
     text = re.sub(r'\b\d{1,2}h\d{2}\b', ' ', text)
+    text = re.sub(r'\b[a-z0-9_-]*\d{4,}[a-z0-9_-]*\b', ' ', text)  # Nettoie les BIPT262900...
     text = re.sub(r'[^a-z0-9\s]', ' ', text)
     words = text.split()
-    return {w for w in words if len(w) >= 3 and w not in BANQUE_STOP_WORDS and not w.isdigit()}
+    return list(dict.fromkeys([w for w in words if len(w) >= 3 and w not in BANQUE_STOP_WORDS and not w.isdigit()]))
+
+def are_labels_similar_py(label_a: str, label_b: str) -> bool:
+    tokens_a = clean_banking_label_py(label_a)
+    tokens_b = clean_banking_label_py(label_b)
+
+    if not tokens_a and not tokens_b:
+        return True
+    if not tokens_a or not tokens_b:
+        return False
+
+    set_a = set(tokens_a)
+    set_b = set(tokens_b)
+
+    common = set_a.intersection(set_b)
+    if not common:
+        str_a = "".join(tokens_a)
+        str_b = "".join(tokens_b)
+        if len(str_a) >= 4 and len(str_b) >= 4 and (str_a in str_b or str_b in str_a):
+            return True
+        return False
+
+    # Inclusion complète (ex: "Carrefour" dans "Carrefour Market")
+    if set_a.issubset(set_b) or set_b.issubset(set_a):
+        if any(len(t) >= 4 for t in common):
+            return True
+
+    # Calcul de Jaccard (doit être >= 50%)
+    union = set_a.union(set_b)
+    return (len(common) / len(union)) >= 0.5
 
 def is_duplicate_py(new_tx: dict, existing_tx_list: list, claimed_ids: set) -> bool:
-    """
-    Rapproche une transaction Powens avec les transactions CSV déjà en BDD
-    en ignorant les différences de libellés et les décalages de date de valeur (0 à 2 jours).
-    """
     try:
         new_amount = float(new_tx.get('montant', 0) if new_tx.get('montant') is not None else new_tx.get('m', 0))
     except (ValueError, TypeError):
@@ -4574,19 +4586,18 @@ def is_duplicate_py(new_tx: dict, existing_tx_list: list, claimed_ids: set) -> b
 
     new_compte = (new_tx.get('compte') or new_tx.get('co') or "").strip().upper()
     new_nom = new_tx.get('nom') or new_tx.get('n') or ""
-    new_tokens = clean_banking_label_py(new_nom)
 
     for exist in existing_tx_list:
         exist_id = exist.get('id')
         if exist_id and exist_id in claimed_ids:
             continue
 
-        # 1. Vérification du compte bancaire
+        # 1. Compte
         exist_compte = (exist.get('compte') or "").strip().upper()
         if new_compte and exist_compte and new_compte != exist_compte:
             continue
 
-        # 2. Montant exact au centime près et même signe
+        # 2. Montant exact et même sens (+ ou -)
         try:
             exist_amount = float(exist.get('montant', 0))
         except (ValueError, TypeError):
@@ -4597,7 +4608,7 @@ def is_duplicate_py(new_tx: dict, existing_tx_list: list, claimed_ids: set) -> b
         if (new_amount > 0) != (exist_amount > 0):
             continue
 
-        # 3. Écart de date (tolérance de 0 à 2 jours max pour les dates de valeur)
+        # 3. Écart de date (max 3 jours)
         exist_raw_date = str(exist.get('date', ''))[:10]
         try:
             exist_date = datetime.strptime(exist_raw_date, '%Y-%m-%d').date()
@@ -4605,21 +4616,16 @@ def is_duplicate_py(new_tx: dict, existing_tx_list: list, claimed_ids: set) -> b
             continue
 
         diff_days = abs((new_date - exist_date).days)
-        if diff_days > 2:
+        if diff_days > 3:
             continue
 
-        # 4. Mots-clés du libellé (ex: "carrefour" présent dans "CARREFOUR MARKET" et "Carrefour")
-        exist_tokens = clean_banking_label_py(exist.get('nom', ''))
-        tokens_match = bool(new_tokens.intersection(exist_tokens))
-
-        # Match si même jour sans texte complexe OU si mot-clé commun détecté
-        if (diff_days == 0 and (tokens_match or not new_tokens or not exist_tokens)) or tokens_match:
+        # 4. Libellé strict via Jaccard
+        if are_labels_similar_py(new_nom, exist.get('nom', '')):
             if exist_id:
                 claimed_ids.add(exist_id)
             return True
 
     return False
-
 
 # 🟢 FONCTION MÉTIER ATOMIQUE (Appelable par l'API et par les tâches de fond)
 def exec_sync_user_transactions(username: str):
