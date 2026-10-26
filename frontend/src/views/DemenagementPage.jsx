@@ -5,7 +5,7 @@ import {
   Scale, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, 
   Sparkles, Award, ArrowRight, ShieldCheck, Home, ExternalLink,
   Camera, Eye, Star, Clock, MapPin, ChevronLeft, ChevronRight,
-  ClipboardPaste, AlignLeft, Edit2
+  ClipboardPaste, AlignLeft, Edit2,LayoutGrid, List, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
@@ -54,7 +54,14 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const [scrapingUrl, setScrapingUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
   const [annonceFilter, setAnnonceFilter] = useState('all');
-  
+  // 🟢 Mode d'affichage : 'grid' (grandes cartes) ou 'list' (liste compacte sans grande image)
+  const [displayLayout, setDisplayLayout] = useState('grid');
+
+  // 🟢 Filtre par site / plateforme
+  const [selectedPlatform, setSelectedPlatform] = useState('all');
+
+  // 🟢 Vue groupée par site
+  const [groupBySite, setGroupBySite] = useState(false);
   // Analyse par texte/partage (IA)
   const [showSmartPaste, setShowSmartPaste] = useState(false);
   const [pastedAdText, setPastedAdText] = useState('');
@@ -89,6 +96,31 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     'trimestriel': 3,
     'semestriel': 6,
     'annuel': 12
+  };
+
+  // 🟢 Pré-remplir et ouvrir la modale en mode modification
+  const handleOpenEditAnnonce = (a) => {
+    setAnnonceForm({
+      id: a.id,
+      titre: a.titre || '',
+      url: a.url || '',
+      source: a.source || 'Autre',
+      loyer: a.loyer ? a.loyer.toString() : '',
+      charges: a.charges ? a.charges.toString() : '',
+      surface: a.surface ? a.surface.toString() : '',
+      pieces: a.pieces ? a.pieces.toString() : '',
+      ville: a.ville || '',
+      photos: Array.isArray(a.photos) ? [...a.photos] : (a.photos ? [a.photos] : []),
+      dossier_envoye: Boolean(a.dossier_envoye),
+      date_dossier: a.date_dossier || '',
+      visite_effectuee: Boolean(a.visite_effectuee),
+      date_visite: a.date_visite || '',
+      statut_reponse: a.statut_reponse || 'en_attente',
+      notes: a.notes || '',
+      favori: Boolean(a.favori)
+    });
+    setScrapingUrl(a.url || '');
+    setIsAnnonceModalOpen(true);
   };
 
   const getLigneId = (ligne) => ligne?.id || ligne?._id;
@@ -709,15 +741,444 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     return { meilleur, moinsBon, ecartMensuel, ecartAnnuel };
   }, [comparaisonTousScenarios]);
 
+// Liste unique des sites présents dans les annonces
+  const availablePlatforms = useMemo(() => {
+    const list = [...new Set(annonces.map(a => a.source || 'Autre'))].filter(Boolean);
+    return list.sort();
+  }, [annonces]);
+
+  // 🟢 Filtrage combiné : Démarches + Site/Plateforme
   const annoncesFiltrees = useMemo(() => {
     return annonces.filter(a => {
-      if (annonceFilter === 'favoris') return a.favori;
-      if (annonceFilter === 'dossier') return a.dossier_envoye;
-      if (annonceFilter === 'visite') return a.visite_effectuee;
-      if (annonceFilter === 'accepte') return a.statut_reponse === 'accepte';
+      // 1. Filtre démarches / statut
+      if (annonceFilter === 'favoris' && !a.favori) return false;
+      if (annonceFilter === 'dossier' && !a.dossier_envoye) return false;
+      if (annonceFilter === 'visite' && !a.visite_effectuee) return false;
+      if (annonceFilter === 'accepte' && a.statut_reponse !== 'accepte') return false;
+
+      // 2. Filtre selon le site
+      if (selectedPlatform !== 'all' && (a.source || 'Autre').toLowerCase() !== selectedPlatform.toLowerCase()) {
+        return false;
+      }
+
       return true;
     });
-  }, [annonces, annonceFilter]);
+  }, [annonces, annonceFilter, selectedPlatform]);
+
+  // 🟢 Groupement selon le site
+  const annoncesGroupeesParSite = useMemo(() => {
+    const groups = {};
+    annoncesFiltrees.forEach(a => {
+      const src = a.source || 'Autre';
+      if (!groups[src]) groups[src] = [];
+      groups[src].push(a);
+    });
+    return groups;
+  }, [annoncesFiltrees]);
+
+  // =========================================================================
+  // 🟢 1. RENDU VUE LISTE COMPACTE (LES UNES SOUS LES AUTRES SANS GRANDE IMAGE)
+  // =========================================================================
+  const renderCompactList = (liste) => (
+    <div className="space-y-2.5">
+      {liste.map(a => {
+        const prixM2 = a.surface > 0 && a.loyer > 0 ? (a.loyer / a.surface).toFixed(1) : null;
+        const photoMiniature = a.photos && a.photos.length > 0 ? a.photos[0] : null;
+
+        return (
+          <div 
+            key={a.id}
+            className={`p-3 sm:p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 group backdrop-blur-md ${
+              a.favori 
+                ? 'bg-amber-500/[0.04] border-amber-500/40 shadow-sm' 
+                : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-white/[0.02]'
+            }`}
+          >
+            {/* Gauche : Miniature discrète (56px) + Infos clés */}
+            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-950 border border-white/10 shrink-0 relative">
+                {photoMiniature ? (
+                  <img src={photoMiniature} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white/20">
+                    <Camera size={16} />
+                  </div>
+                )}
+                {a.favori && (
+                  <span className="absolute top-1 left-1 text-xs drop-shadow">⭐</span>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/30 text-purple-300 text-[8px] font-black uppercase">
+                    {a.source || 'Autre'}
+                  </span>
+                  {a.ville && (
+                    <span className="text-[9.5px] text-white/60 font-bold flex items-center gap-1">
+                      <MapPin size={10} className="text-purple-400" /> {a.ville}
+                    </span>
+                  )}
+                  {prixM2 && (
+                    <span className="text-[8.5px] font-mono text-white/40">
+                      • {prixM2} €/m²
+                    </span>
+                  )}
+                </div>
+
+                <h4 className="text-xs sm:text-sm font-black uppercase text-white truncate group-hover:text-purple-300 transition-colors">
+                  {a.titre}
+                </h4>
+
+                <div className="flex items-center gap-2 text-[9.5px] font-mono text-white/60 flex-wrap">
+                  {a.surface > 0 && <span>📐 <strong>{a.surface} m²</strong></span>}
+                  {a.pieces > 0 && <span>• 🚪 <strong>{a.pieces} p.</strong></span>}
+                  {a.dossier_envoye && (
+                    <span className="text-emerald-300 text-[8px] font-sans font-black uppercase bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                      📁 Dossier envoyé
+                    </span>
+                  )}
+                  {a.visite_effectuee && (
+                    <span className="text-indigo-300 text-[8px] font-sans font-black uppercase bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.2 rounded">
+                      🗓️ Visité
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Droite : Loyer + Statut + Actions */}
+            <div className="flex items-center justify-between md:justify-end gap-3.5 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-white/5">
+              <div className="text-left md:text-right">
+                <span className="text-base sm:text-lg font-black font-mono text-emerald-400 leading-none">
+                  {a.loyer > 0 ? `${a.loyer.toFixed(0)} €` : 'NC'}
+                </span>
+                <span className="text-[7.5px] uppercase font-bold text-white/40 block">
+                  CC / mois {a.charges > 0 ? `(dont ${a.charges}€)` : ''}
+                </span>
+              </div>
+
+              {/* Statut de réponse */}
+              <div className="text-[8px] font-black uppercase px-2 py-1 rounded-lg border bg-black/40 border-white/10 text-white/70 shrink-0">
+                {a.statut_reponse === 'accepte' ? '🎉 Accepté' :
+                 a.statut_reponse === 'refuse' ? '❌ Refusé' :
+                 a.statut_reponse === 'sans_reponse' ? '👻 Sans suite' : '⏳ En attente'}
+              </div>
+
+              {/* Actions en ligne */}
+              <div className="flex items-center gap-1 shrink-0">
+                {a.loyer > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyLoyerToScenario(a.loyer)}
+                    className="p-1.5 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 rounded-lg transition-all cursor-pointer"
+                    title={`Tester ce loyer (${a.loyer}€) dans le simulateur`}
+                  >
+                    <Calculator size={13} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleToggleFavori(a)}
+                  className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                    a.favori ? 'bg-amber-500 text-black border-amber-400' : 'bg-white/5 text-white/40 hover:text-white border-white/10'
+                  }`}
+                  title="Favori"
+                >
+                  <Star size={13} fill={a.favori ? "currentColor" : "none"} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditAnnonce(a)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-600 text-white/50 hover:text-white border border-white/10 transition-all cursor-pointer"
+                  title="Modifier l'annonce"
+                >
+                  <Edit2 size={13} />
+                </button>
+                {a.url && (
+                  <a
+                    href={a.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-1.5 rounded-lg bg-white/5 hover:bg-purple-600 text-white/50 hover:text-white border border-white/10 transition-all"
+                    title="Voir l'annonce originale"
+                  >
+                    <ExternalLink size={13} />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAnnonce(a.id)}
+                  className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500 text-white/30 hover:text-white border border-white/10 transition-all cursor-pointer"
+                  title="Supprimer"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // =========================================================================
+  // 🟢 2. RENDU VUE GRILLE (VOS CARTES AVEC CARROUSEL PHOTO EXISTANTES)
+  // =========================================================================
+  const renderCardsGrid = (liste) => (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {liste.map(a => {
+        const prixM2 = a.surface > 0 && a.loyer > 0 ? (a.loyer / a.surface).toFixed(1) : null;
+        const totalPhotos = a.photos?.length || 0;
+        const currentPhotoIdx = activePhotoIdx[a.id] || 0;
+        const photoAffichee = totalPhotos > 0 ? a.photos[currentPhotoIdx] : null;
+        const isDescExpanded = Boolean(expandedDesc[a.id]);
+
+        return (
+          <div 
+            key={a.id}
+            className={`rounded-3xl border overflow-hidden flex flex-col justify-between transition-all bg-black/50 backdrop-blur-xl shadow-2xl ${
+              a.favori ? 'border-amber-500/50 shadow-amber-500/5' : 'border-white/10 hover:border-white/20'
+            }`}
+          >
+            {/* CARROUSEL PHOTO */}
+            <div className="relative h-64 sm:h-72 w-full bg-slate-950 overflow-hidden group select-none">
+              {photoAffichee ? (
+                <img 
+                  src={photoAffichee} 
+                  alt={a.titre}
+                  className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
+                />
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-2">
+                  <Camera size={36} />
+                  <span className="text-[9px] uppercase font-bold tracking-widest">Aucune photo</span>
+                </div>
+              )}
+
+              {totalPhotos > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => handlePrevPhoto(e, a.id, totalPhotos)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
+                    title="Photo précédente"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => handleNextPhoto(e, a.id, totalPhotos)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
+                    title="Photo suivante"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </>
+              )}
+
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
+                <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/15 text-[8.5px] font-black uppercase text-purple-300 shadow-md">
+                  {a.source || 'Annonce'}
+                </span>
+              </div>
+
+              <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
+                <button
+                  type="button"
+                  onClick={() => handleToggleFavori(a)}
+                  className={`p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer ${
+                    a.favori ? 'bg-amber-500 text-black border-amber-400' : 'bg-black/60 text-white/60 border-white/10 hover:text-white'
+                  }`}
+                  title="Favori"
+                >
+                  <Star size={13} fill={a.favori ? "currentColor" : "none"} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditAnnonce(a)}
+                  className="p-2 rounded-xl bg-black/60 hover:bg-purple-600 text-white/60 hover:text-white backdrop-blur-md border border-white/10 transition-all cursor-pointer shadow-md"
+                  title="Modifier"
+                >
+                  <Edit2 size={13} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteAnnonce(a.id)}
+                  className="p-2 rounded-xl bg-black/60 hover:bg-rose-500 text-white/60 hover:text-white backdrop-blur-md border border-white/10 transition-all cursor-pointer"
+                  title="Supprimer"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+
+              {totalPhotos > 1 && (
+                <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[8px] font-mono text-white/80 z-10">
+                  📷 {currentPhotoIdx + 1} / {totalPhotos}
+                </div>
+              )}
+            </div>
+
+            {/* DÉTAILS SOUS LA PHOTO */}
+            <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-baseline justify-between gap-2 pb-2 border-b border-white/5">
+                  <div>
+                    <span className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
+                      {a.loyer > 0 ? `${a.loyer.toFixed(0)} €` : 'Loyer NC'}
+                    </span>
+                    <span className="text-[9px] text-white/40 uppercase font-bold ml-1.5">
+                      / mois {a.charges > 0 ? `(dont ${a.charges}€ ch.)` : 'CC'}
+                    </span>
+                  </div>
+                  {prixM2 && (
+                    <span className="text-[10px] font-bold text-white/60 font-mono bg-white/5 px-2.5 py-1 rounded-xl border border-white/5">
+                      {prixM2} € / m²
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {a.surface > 0 && (
+                    <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
+                      📐 <strong>{a.surface} m²</strong>
+                    </span>
+                  )}
+                  {a.pieces > 0 && (
+                    <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
+                      🚪 <strong>{a.pieces} pièce{a.pieces > 1 ? 's' : ''}</strong>
+                    </span>
+                  )}
+                  {a.ville && (
+                    <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] text-white/90 font-bold flex items-center gap-1">
+                      <MapPin size={11} className="text-purple-400" /> {a.ville}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-start justify-between gap-2 pt-1">
+                  <h3 className="text-sm font-black uppercase text-white leading-snug line-clamp-2 flex-1">
+                    {a.titre}
+                  </h3>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditAnnonce(a)}
+                      className="p-2 bg-white/5 hover:bg-purple-600 rounded-xl text-white/50 hover:text-white transition-all cursor-pointer"
+                      title="Modifier l'annonce"
+                    >
+                      <Edit2 size={13} />
+                    </button>
+                    {a.url && (
+                      <a 
+                        href={a.url} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="p-2 bg-white/5 hover:bg-purple-600 rounded-xl text-white/50 hover:text-white transition-all"
+                        title="Ouvrir le lien"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+
+                {a.notes && (
+                  <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 space-y-1.5">
+                    <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-white/40">
+                      <span className="flex items-center gap-1">
+                        <AlignLeft size={10} /> Remarques
+                      </span>
+                      {a.notes.length > 140 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedDesc(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
+                          className="text-purple-400 hover:text-purple-300 cursor-pointer"
+                        >
+                          {isDescExpanded ? 'Réduire ▲' : 'Lire la suite ▼'}
+                        </button>
+                      )}
+                    </div>
+                    <p className={`text-[10px] text-white/70 leading-relaxed font-medium ${isDescExpanded ? '' : 'line-clamp-2'}`}>
+                      {a.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* DÉMARCHES & STATUTS */}
+              <div className="space-y-2.5 pt-3 border-t border-white/5">
+                <div className="grid grid-cols-2 gap-2 text-[9.5px]">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickStatusChange(a, 'dossier_envoye', !a.dossier_envoye)}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                      a.dossier_envoye 
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
+                        : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span>📁</span> Dossier envoyé
+                    </span>
+                    <span className="font-mono">{a.dossier_envoye ? '✓' : '—'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleQuickStatusChange(a, 'visite_effectuee', !a.visite_effectuee)}
+                    className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                      a.visite_effectuee 
+                        ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300' 
+                        : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="font-bold flex items-center gap-1.5">
+                      <span>🗓️</span> Visite effectuée
+                    </span>
+                    <span className="font-mono">{a.visite_effectuee ? '✓' : '—'}</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-1 p-1 bg-black/40 rounded-xl border border-white/5">
+                  {[
+                    { id: 'en_attente', label: '⏳ En attente' },
+                    { id: 'accepte', label: '🎉 Accepté' },
+                    { id: 'refuse', label: '❌ Refusé' },
+                    { id: 'sans_reponse', label: '👻 Sans suite' }
+                  ].map(st => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => handleQuickStatusChange(a, 'statut_reponse', st.id)}
+                      className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded-lg transition-all cursor-pointer text-center ${
+                        a.statut_reponse === st.id
+                          ? 'bg-white/10 text-white shadow-sm'
+                          : 'text-white/30 hover:text-white'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+
+                {a.loyer > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => handleApplyLoyerToScenario(a.loyer)}
+                    className="w-full py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mt-1"
+                  >
+                    <Calculator size={12} />
+                    <span>Tester ce loyer ({a.loyer} €) dans le simulateur</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-6 p-6 min-h-screen text-white bg-[var(--main-bg)] select-none">
@@ -786,337 +1247,208 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
           {/* =====================================================================
               🌟 VUE 3 : COMPARATEUR D'ANNONCES
               ===================================================================== */}
+{/* =====================================================================
+              🌟 VUE 3 : COMPARATEUR D'ANNONCES (AVEC VUE LISTE & VUE PAR SITE)
+              ===================================================================== */}
           {viewMode === 'annonces' && (
             <div className="space-y-6 animate-in fade-in duration-300">
               
-              {/* Barre de filtres & Bouton Ajouter */}
-              <div className="p-4 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-xl">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {[
-                    { id: 'all', label: `Toutes (${annonces.length})` },
-                    { id: 'favoris', label: `⭐ Favoris (${annonces.filter(a => a.favori).length})` },
-                    { id: 'dossier', label: `📁 Dossier envoyé (${annonces.filter(a => a.dossier_envoye).length})` },
-                    { id: 'visite', label: `🗓️ Visité (${annonces.filter(a => a.visite_effectuee).length})` },
-                    { id: 'accepte', label: `🎉 Accepté (${annonces.filter(a => a.statut_reponse === 'accepte').length})` }
-                  ].map(f => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setAnnonceFilter(f.id)}
-                      className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                        annonceFilter === f.id
-                          ? 'bg-purple-600 text-white shadow-md'
-                          : 'bg-black/30 text-white/40 hover:text-white hover:bg-white/5'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAnnonceForm({
-                      id: null,
-                      titre: '',
-                      url: '',
-                      source: 'Autre',
-                      loyer: '',
-                      charges: '',
-                      surface: '',
-                      pieces: '',
-                      ville: '',
-                      photos: [],
-                      dossier_envoye: false,
-                      date_dossier: '',
-                      visite_effectuee: false,
-                      date_visite: '',
-                      statut_reponse: 'en_attente',
-                      notes: '',
-                      favori: false
-                    });
-                    setScrapingUrl('');
-                    setIsAnnonceModalOpen(true);
-                  }}
-                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-[9.5px] uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/20 active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
-                >
-                  <Plus size={13} strokeWidth={3} />
-                  <span>Ajouter une annonce</span>
-                </button>
-              </div>
-
-              {/* Grille des annonces */}
-              {annoncesFiltrees.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {annoncesFiltrees.map(a => {
-                    const prixM2 = a.surface > 0 && a.loyer > 0 ? (a.loyer / a.surface).toFixed(1) : null;
-                    const totalPhotos = a.photos?.length || 0;
-                    const currentPhotoIdx = activePhotoIdx[a.id] || 0;
-                    const photoAffichee = totalPhotos > 0 ? a.photos[currentPhotoIdx] : null;
-                    const isDescExpanded = Boolean(expandedDesc[a.id]);
-
-                    return (
-                      <div 
-                        key={a.id}
-                        className={`rounded-3xl border overflow-hidden flex flex-col justify-between transition-all bg-black/50 backdrop-blur-xl shadow-2xl ${
-                          a.favori ? 'border-amber-500/50 shadow-amber-500/5' : 'border-white/10 hover:border-white/20'
+              {/* BARRE D'OUTILS : FILTRES, SITES, VUE LISTE/GRILLE & AJOUT */}
+              <div className="p-4 rounded-3xl bg-[var(--glass-bg)] border border-white/10 flex flex-col gap-4 shadow-xl">
+                
+                {/* Ligne 1 : Filtres démarches */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[
+                      { id: 'all', label: `Toutes (${annonces.length})` },
+                      { id: 'favoris', label: `⭐ Favoris (${annonces.filter(a => a.favori).length})` },
+                      { id: 'dossier', label: `📁 Dossier (${annonces.filter(a => a.dossier_envoye).length})` },
+                      { id: 'visite', label: `🗓️ Visité (${annonces.filter(a => a.visite_effectuee).length})` },
+                      { id: 'accepte', label: `🎉 Accepté (${annonces.filter(a => a.statut_reponse === 'accepte').length})` }
+                    ].map(f => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setAnnonceFilter(f.id)}
+                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                          annonceFilter === f.id
+                            ? 'bg-purple-600 text-white shadow-md'
+                            : 'bg-black/30 text-white/40 hover:text-white hover:bg-white/5'
                         }`}
                       >
-                        {/* 1. PHOTO PROPRE & CARROUSEL */}
-                        <div className="relative h-64 sm:h-72 w-full bg-slate-950 overflow-hidden group select-none">
-                          {photoAffichee ? (
-                            <img 
-                              src={photoAffichee} 
-                              alt={a.titre}
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                            />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-white/20 gap-2">
-                              <Camera size={36} />
-                              <span className="text-[9px] uppercase font-bold tracking-widest">Aucune photo</span>
-                            </div>
-                          )}
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
 
-                          {totalPhotos > 1 && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={(e) => handlePrevPhoto(e, a.id, totalPhotos)}
-                                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
-                                title="Photo précédente"
-                              >
-                                <ChevronLeft size={16} />
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={(e) => handleNextPhoto(e, a.id, totalPhotos)}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
-                                title="Photo suivante"
-                              >
-                                <ChevronRight size={16} />
-                              </button>
-                            </>
-                          )}
-
-                          <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
-                            <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/15 text-[8.5px] font-black uppercase text-purple-300 shadow-md">
-                              {a.source || 'Annonce'}
-                            </span>
-                          </div>
-
-                          <div className="absolute top-3 right-3 flex items-center gap-1.5 z-10">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleFavori(a)}
-                              className={`p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer ${
-                                a.favori ? 'bg-amber-500 text-black border-amber-400' : 'bg-black/60 text-white/60 border-white/10 hover:text-white'
-                              }`}
-                              title={a.favori ? "Retirer des favoris" : "Ajouter aux favoris"}
-                            >
-                              <Star size={13} fill={a.favori ? "currentColor" : "none"} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteAnnonce(a.id)}
-                              className="p-2 rounded-xl bg-black/60 hover:bg-rose-500 text-white/60 hover:text-white backdrop-blur-md border border-white/10 transition-all cursor-pointer"
-                              title="Supprimer l'annonce"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-
-                          {totalPhotos > 1 && (
-                            <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[8px] font-mono text-white/80 z-10">
-                              📷 {currentPhotoIdx + 1} / {totalPhotos}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 2. INFOS STRUCTURÉES (Sous la photo) */}
-                        <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
-                          <div className="space-y-3">
-                            {/* Ligne Prix & Loyer */}
-                            <div className="flex items-baseline justify-between gap-2 pb-2 border-b border-white/5">
-                              <div>
-                                <span className="text-2xl font-black text-emerald-400 font-mono tracking-tight">
-                                  {a.loyer > 0 ? `${a.loyer.toFixed(0)} €` : 'Loyer NC'}
-                                </span>
-                                <span className="text-[9px] text-white/40 uppercase font-bold ml-1.5">
-                                  / mois {a.charges > 0 ? `(dont ${a.charges}€ ch.)` : 'CC'}
-                                </span>
-                              </div>
-
-                              {prixM2 && (
-                                <span className="text-[10px] font-bold text-white/60 font-mono bg-white/5 px-2.5 py-1 rounded-xl border border-white/5">
-                                  {prixM2} € / m²
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Spécifications en pastilles */}
-                            <div className="flex flex-wrap items-center gap-2">
-                              {a.surface > 0 && (
-                                <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
-                                  📐 <strong>{a.surface} m²</strong>
-                                </span>
-                              )}
-
-                              {a.pieces > 0 && (
-                                <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] font-mono text-white font-bold flex items-center gap-1">
-                                  🚪 <strong>{a.pieces} pièce{a.pieces > 1 ? 's' : ''}</strong>
-                                </span>
-                              )}
-
-                              {a.ville && (
-                                <span className="px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/10 text-[10px] text-white/90 font-bold flex items-center gap-1">
-                                  <MapPin size={11} className="text-purple-400" /> {a.ville}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Titre */}
-                            <div className="flex items-start justify-between gap-2 pt-1">
-                              <h3 className="text-sm font-black uppercase text-white leading-snug line-clamp-2 flex-1">
-                                {a.titre}
-                              </h3>
-                              {a.url && (
-                                <a 
-                                  href={a.url} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="p-2 bg-white/5 hover:bg-purple-600 rounded-xl text-white/50 hover:text-white transition-all shrink-0"
-                                  title="Ouvrir l'annonce sur le site"
-                                >
-                                  <ExternalLink size={14} />
-                                </a>
-                              )}
-                            </div>
-
-                            {/* Description dépliable */}
-                            {a.notes && (
-                              <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-3 space-y-1.5">
-                                <div className="flex items-center justify-between text-[8px] font-black uppercase tracking-wider text-white/40">
-                                  <span className="flex items-center gap-1">
-                                    <AlignLeft size={10} /> Description de l'annonce
-                                  </span>
-                                  {a.notes.length > 140 && (
-                                    <button
-                                      type="button"
-                                      onClick={() => setExpandedDesc(prev => ({ ...prev, [a.id]: !prev[a.id] }))}
-                                      className="text-purple-400 hover:text-purple-300 cursor-pointer"
-                                    >
-                                      {isDescExpanded ? 'Réduire ▲' : 'Lire la suite ▼'}
-                                    </button>
-                                  )}
-                                </div>
-                                <p className={`text-[10px] text-white/70 leading-relaxed font-medium ${
-                                  isDescExpanded ? '' : 'line-clamp-2'
-                                }`}>
-                                  {a.notes}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* 3. PIPELINE DE SUIVI (DOSSIER, VISITE, RÉPONSE) */}
-                          <div className="space-y-2.5 pt-3 border-t border-white/5">
-                            <span className="text-[8px] font-black uppercase tracking-wider text-white/30 block">
-                              Suivi des démarches
-                            </span>
-
-                            <div className="grid grid-cols-2 gap-2 text-[9.5px]">
-                              <button
-                                type="button"
-                                onClick={() => handleQuickStatusChange(a, 'dossier_envoye', !a.dossier_envoye)}
-                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                                  a.dossier_envoye 
-                                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
-                                    : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
-                                }`}
-                              >
-                                <span className="font-bold flex items-center gap-1.5">
-                                  <span>📁</span> Dossier envoyé
-                                </span>
-                                <span className="font-mono">{a.dossier_envoye ? '✓' : '—'}</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleQuickStatusChange(a, 'visite_effectuee', !a.visite_effectuee)}
-                                className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
-                                  a.visite_effectuee 
-                                    ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300' 
-                                    : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
-                                }`}
-                              >
-                                <span className="font-bold flex items-center gap-1.5">
-                                  <span>🗓️</span> Visite effectuée
-                                </span>
-                                <span className="font-mono">{a.visite_effectuee ? '✓' : '—'}</span>
-                              </button>
-                            </div>
-
-                            <div className="flex items-center justify-between gap-1 p-1 bg-black/40 rounded-xl border border-white/5">
-                              {[
-                                { id: 'en_attente', label: '⏳ En attente' },
-                                { id: 'accepte', label: '🎉 Accepté' },
-                                { id: 'refuse', label: '❌ Refusé' },
-                                { id: 'sans_reponse', label: '👻 Sans suite' }
-                              ].map(st => (
-                                <button
-                                  key={st.id}
-                                  type="button"
-                                  onClick={() => handleQuickStatusChange(a, 'statut_reponse', st.id)}
-                                  className={`flex-1 py-1.5 text-[8px] font-black uppercase rounded-lg transition-all cursor-pointer text-center ${
-                                    a.statut_reponse === st.id
-                                      ? 'bg-white/10 text-white shadow-sm'
-                                      : 'text-white/30 hover:text-white'
-                                  }`}
-                                >
-                                  {st.label}
-                                </button>
-                              ))}
-                            </div>
-
-                            {a.loyer > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => handleApplyLoyerToScenario(a.loyer)}
-                                className="w-full py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-300 text-[9px] font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer mt-1"
-                              >
-                                <Calculator size={12} />
-                                <span>Tester ce loyer ({a.loyer} €) dans le simulateur</span>
-                              </button>
-                            )}
-                          </div>
-
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {/* Bouton Ajouter */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAnnonceForm({
+                        id: null,
+                        titre: '',
+                        url: '',
+                        source: 'Autre',
+                        loyer: '',
+                        charges: '',
+                        surface: '',
+                        pieces: '',
+                        ville: '',
+                        photos: [],
+                        dossier_envoye: false,
+                        date_dossier: '',
+                        visite_effectuee: false,
+                        date_visite: '',
+                        statut_reponse: 'en_attente',
+                        notes: '',
+                        favori: false
+                      });
+                      setScrapingUrl('');
+                      setIsAnnonceModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-[9.5px] uppercase tracking-wider rounded-xl shadow-lg shadow-purple-600/20 active:scale-95 flex items-center gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Plus size={13} strokeWidth={3} />
+                    <span>Ajouter une annonce</span>
+                  </button>
                 </div>
+
+                {/* Ligne 2 : Filtres selon le site + Commutateur Grille / Liste */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-white/5">
+                  
+                  {/* Filtres par site / plateforme */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[8.5px] font-black uppercase text-white/30 mr-1 flex items-center gap-1">
+                      <Globe size={11} className="text-purple-400" /> Sites :
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPlatform('all')}
+                      className={`px-2.5 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                        selectedPlatform === 'all'
+                          ? 'bg-white text-black shadow-sm'
+                          : 'bg-black/20 text-white/40 hover:text-white'
+                      }`}
+                    >
+                      Tous ({annonces.length})
+                    </button>
+
+                    {availablePlatforms.map(plat => {
+                      const count = annonces.filter(a => (a.source || 'Autre') === plat).length;
+                      return (
+                        <button
+                          key={plat}
+                          type="button"
+                          onClick={() => setSelectedPlatform(plat)}
+                          className={`px-2.5 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            selectedPlatform === plat
+                              ? 'bg-purple-600 text-white shadow-sm'
+                              : 'bg-black/20 text-white/40 hover:text-white'
+                          }`}
+                        >
+                          {plat} ({count})
+                        </button>
+                      );
+                    })}
+
+                    {/* Bouton pour grouper visuellement par site */}
+                    <button
+                      type="button"
+                      onClick={() => setGroupBySite(!groupBySite)}
+                      className={`ml-2 px-2.5 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
+                        groupBySite
+                          ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+                          : 'bg-transparent border-white/10 text-white/40 hover:text-white'
+                      }`}
+                      title="Organiser les annonces sous des sections par site"
+                    >
+                      {groupBySite ? '✓ Groupé par site' : 'Grouper par site'}
+                    </button>
+                  </div>
+
+                  {/* Commutateur GRILLE (Grandes photos) vs LISTE (Lignes compactes) */}
+                  <div className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/10 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLayout('grid')}
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[8.5px] font-black uppercase ${
+                        displayLayout === 'grid'
+                          ? 'bg-white text-black shadow-sm'
+                          : 'text-white/40 hover:text-white'
+                      }`}
+                      title="Vue Grille avec grandes photos"
+                    >
+                      <LayoutGrid size={13} />
+                      <span className="hidden sm:inline">Grille</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLayout('list')}
+                      className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[8.5px] font-black uppercase ${
+                        displayLayout === 'list'
+                          ? 'bg-white text-black shadow-sm'
+                          : 'text-white/40 hover:text-white'
+                      }`}
+                      title="Vue Liste compacte sans grandes images"
+                    >
+                      <List size={13} />
+                      <span className="hidden sm:inline">Liste</span>
+                    </button>
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* CONTENU PRINCIPAL DES ANNONCES */}
+              {annoncesFiltrees.length > 0 ? (
+                groupBySite ? (
+                  /* =========================================================
+                     🟢 AFFICHAGE GROUPÉ SELON LE SITE
+                     ========================================================= */
+                  <div className="space-y-8">
+                    {Object.entries(annoncesGroupeesParSite).map(([siteName, siteAnnonces]) => (
+                      <div key={siteName} className="space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-white/10">
+                          <Globe size={14} className="text-purple-400" />
+                          <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                            {siteName}
+                          </h3>
+                          <span className="text-[8.5px] font-mono text-purple-300 bg-purple-500/15 border border-purple-500/30 px-2 py-0.2 rounded-full font-bold">
+                            {siteAnnonces.length} annonce{siteAnnonces.length > 1 ? 's' : ''}
+                          </span>
+                        </div>
+
+                        {displayLayout === 'list' 
+                          ? renderCompactList(siteAnnonces) 
+                          : renderCardsGrid(siteAnnonces)
+                        }
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* AFFICHAGE STANDARD */
+                  displayLayout === 'list' 
+                    ? renderCompactList(annoncesFiltrees) 
+                    : renderCardsGrid(annoncesFiltrees)
+                )
               ) : (
                 <div className="p-12 text-center bg-black/20 rounded-3xl border border-dashed border-white/10 space-y-3">
                   <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-400 flex items-center justify-center mx-auto">
                     <Home size={24} />
                   </div>
                   <h3 className="text-sm font-black uppercase text-white tracking-wider">
-                    Aucune annonce enregistrée
+                    Aucune annonce trouvée
                   </h3>
                   <p className="text-[10px] text-white/40 max-w-sm mx-auto">
-                    Collez vos liens d'annonces ou le texte de vos annonces Leboncoin, SeLoger ou PAP pour les comparer.
+                    Modifiez vos filtres ou ajoutez une nouvelle annonce immobilière.
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => setIsAnnonceModalOpen(true)}
-                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-lg active:scale-95 cursor-pointer"
-                  >
-                    + Ajouter votre première annonce
-                  </button>
                 </div>
               )}
+
             </div>
           )}
 
@@ -2027,6 +2359,77 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                     className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none"
                   />
                 </div>
+              </div>
+
+              {/* ========================================================= */}
+              {/* 🟢 POINT 3 : NOUVELLE GESTION DES PHOTOS (À COLLER ICI)  */}
+              {/* ========================================================= */}
+              <div>
+                <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">
+                  Photos de l'annonce ({annonceForm.photos?.length || 0})
+                </label>
+                
+                {/* Miniatures existantes avec bouton de suppression ✕ */}
+                {annonceForm.photos && annonceForm.photos.length > 0 && (
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-2 custom-scrollbar">
+                    {annonceForm.photos.map((pUrl, pIdx) => (
+                      <div key={pIdx} className="relative w-16 h-16 rounded-xl overflow-hidden border border-white/20 shrink-0 group">
+                        <img src={pUrl} alt="" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAnnonceForm(prev => ({
+                              ...prev,
+                              photos: prev.photos.filter((_, i) => i !== pIdx)
+                            }));
+                          }}
+                          className="absolute top-1 right-1 w-5 h-5 bg-black/80 hover:bg-rose-500 rounded-full flex items-center justify-center text-white text-[10px] cursor-pointer transition-colors"
+                          title="Supprimer cette photo"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Champ pour ajouter une URL de photo */}
+                <input 
+                  type="url"
+                  placeholder="Ajouter une URL d'image (https://...) puis valider"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const val = e.target.value.trim();
+                      if (val) {
+                        setAnnonceForm(prev => ({ ...prev, photos: [...(prev.photos || []), val] }));
+                        e.target.value = '';
+                      }
+                    }
+                  }}
+                  onBlur={(e) => {
+                    const val = e.target.value.trim();
+                    if (val) {
+                      setAnnonceForm(prev => ({ ...prev, photos: [...(prev.photos || []), val] }));
+                      e.target.value = '';
+                    }
+                  }}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono text-white outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Description / Remarques (qui reste juste en-dessous) */}
+              <div>
+                <label className="text-[8.5px] font-black uppercase text-white/40 tracking-wider block mb-1">
+                  Description / Remarques
+                </label>
+                <textarea 
+                  rows="3"
+                  placeholder="Cuisine équipée, 2e étage sans ascenseur, parking souterrain..."
+                  value={annonceForm.notes}
+                  onChange={(e) => setAnnonceForm({ ...annonceForm, notes: e.target.value })}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-2.5 text-xs text-white outline-none focus:border-purple-500 leading-relaxed"
+                />
               </div>
 
               {/* Photos */}
