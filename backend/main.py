@@ -46,12 +46,14 @@ load_dotenv()
 
 
 # 2. Configuration Base de données
+# 2. Configuration Base de données optimisée
 engine = create_engine(
     os.getenv("DATABASE_URL"),
-    pool_pre_ping=True,
-    pool_recycle=60,
-    pool_size=5,
-    max_overflow=10,
+    pool_pre_ping=True,        # Vérifie que la connexion est vivante avant de l'utiliser
+    pool_recycle=300,          # 5 minutes au lieu de 60s (réduit la latence de reconnexion)
+    pool_size=10,              # 10 connexions persistantes au lieu de 5
+    max_overflow=20,           # Jusqu'à 30 connexions en pic de charge
+    pool_timeout=30,           # Évite les TimeoutError prématurés
     connect_args={
         "sslmode": "require",
         "connect_timeout": 10
@@ -2279,8 +2281,11 @@ def calculer_balances(transactions):
 
 
 @app.get("/get-tricount/{username}/{group_name}")
-def get_tricount(username: str, group_name: str):
-    u_clean = username.strip().lower()
+def get_tricount(username: str, group_name: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Vérifie que l'utilisateur consulte bien ses propres groupes
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
     decoded_group = unquote(group_name).strip()
     query = text("""
         SELECT * FROM tricount 
@@ -2288,7 +2293,7 @@ def get_tricount(username: str, group_name: str):
         ORDER BY date DESC
     """)
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": u_clean, "g": decoded_group}).mappings().all()
+        res = conn.execute(query, {"u": current_user, "g": decoded_group}).mappings().all()
         transactions = [dict(r) for r in res]
         transferts = calculer_balances(transactions)
         return {
@@ -2297,16 +2302,16 @@ def get_tricount(username: str, group_name: str):
         }
 
 @app.post("/save-tricount")
-def save_tricount(t: TricountTransaction):
-    # 💡 AJOUT : Associe le token s'il existe déjà pour ce groupe
+def save_tricount(t: TricountTransaction, current_user: str = Depends(get_current_user)):
+    # 🔒 Force l'utilisateur connecté comme propriétaire du groupe
     query_token = text("""
         SELECT token_partage FROM tricount 
-        WHERE utilisateur = :u AND groupe = :g AND token_partage IS NOT NULL 
+        WHERE LOWER(utilisateur) = :u AND groupe = :g AND token_partage IS NOT NULL 
         LIMIT 1
     """)
     token_existant = None
     with engine.connect() as conn:
-        row = conn.execute(query_token, {"u": t.utilisateur, "g": t.groupe}).fetchone()
+        row = conn.execute(query_token, {"u": current_user, "g": t.groupe}).fetchone()
         if row:
             token_existant = row[0]
 
@@ -2319,13 +2324,16 @@ def save_tricount(t: TricountTransaction):
     with engine.begin() as conn:
         conn.execute(query, {
             "d": t.date, "l": t.libelle, "p": t.paye_par, "pq": t.pour_qui, 
-            "m": t.montant, "u": t.utilisateur, "g": t.groupe, "token": token_final, "e": t.emoji
+            "m": t.montant, "u": current_user, "g": t.groupe, "token": token_final, "e": t.emoji
         })
     return {"status": "success"}
 
 @app.get("/get-groups/{username}")
-def get_groups(username: str):
-    u_clean = username.strip().lower()
+def get_groups(username: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurisation JWT
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
     query = text("""
         SELECT groupe, paye_par, emoji 
         FROM tricount 
@@ -2333,7 +2341,7 @@ def get_groups(username: str):
         AND emoji IS NOT NULL
     """)
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": u_clean}).mappings().all()
+        res = conn.execute(query, {"u": current_user}).mappings().all()
         emojis_par_groupe = {}
         for r in res:
             g = r['groupe']
@@ -2345,7 +2353,7 @@ def get_groups(username: str):
 
     query_names = text("SELECT DISTINCT groupe FROM tricount WHERE LOWER(utilisateur) = :u ORDER BY groupe")
     with engine.connect() as conn:
-        res_names = conn.execute(query_names, {"u": u_clean}).all()
+        res_names = conn.execute(query_names, {"u": current_user}).all()
         final_groups = []
         for i, r in enumerate(res_names):
             nom_g = r[0]
@@ -2418,7 +2426,10 @@ class StyledPDF(FPDF):
 # ROUTE 1 : TELECHARGEMENT DE PDF (CONNECTÉ)
 # ==========================================================
 @app.get("/download-pdf/{username}/{group_name}")
-def download_pdf(username: str, group_name: str, sujet: str = None):
+def download_pdf(username: str, group_name: str, sujet: str = None, current_user: str = Depends(get_current_user)):
+    # 🔒 Empêche un utilisateur externe de télécharger le bilan complet
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
     try:
         # --- 1. RÉCUPÉRATION DES DONNÉES ---
         query = text("SELECT * FROM tricount WHERE utilisateur = :u AND groupe = :g ORDER BY date DESC")
@@ -2539,40 +2550,45 @@ def download_pdf(username: str, group_name: str, sujet: str = None):
 
 # 1. Générer ou récupérer un lien de partage unique pour un groupe
 @app.post("/share-group/{username}/{group_name}")
-def share_group(username: str, group_name: str):
-    # On vérifie si un token existe déjà pour éviter d'en recréer un inutilement
+def share_group(username: str, group_name: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Seul le créateur du groupe peut générer son lien de partage
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
     query_check = text("""
         SELECT token_partage FROM tricount 
-        WHERE utilisateur = :u AND groupe = :g AND token_partage IS NOT NULL 
+        WHERE LOWER(utilisateur) = :u AND groupe = :g AND token_partage IS NOT NULL 
         LIMIT 1
     """)
     with engine.connect() as conn:
-        row = conn.execute(query_check, {"u": username, "g": group_name}).fetchone()
+        row = conn.execute(query_check, {"u": current_user, "g": group_name}).fetchone()
         if row:
             return {"token": row[0]}
             
-    # Sinon, on génère un token cryptographique sécurisé de 16 caractères
     token = secrets.token_urlsafe(16)
     query_update = text("""
         UPDATE tricount 
         SET token_partage = :token 
-        WHERE utilisateur = :u AND groupe = :g
+        WHERE LOWER(utilisateur) = :u AND groupe = :g
     """)
     with engine.begin() as conn:
-        conn.execute(query_update, {"token": token, "u": username, "g": group_name})
+        conn.execute(query_update, {"token": token, "u": current_user, "g": group_name})
         
     return {"token": token}
 
 # 2. Récupérer le token s'il existe déjà
 @app.get("/get-share-token/{username}/{group_name}")
-def get_share_token(username: str, group_name: str):
+def get_share_token(username: str, group_name: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
     query = text("""
         SELECT token_partage FROM tricount 
-        WHERE utilisateur = :u AND groupe = :g AND token_partage IS NOT NULL 
+        WHERE LOWER(utilisateur) = :u AND groupe = :g AND token_partage IS NOT NULL 
         LIMIT 1
     """)
     with engine.connect() as conn:
-        row = conn.execute(query, {"u": username, "g": group_name}).fetchone()
+        row = conn.execute(query, {"u": current_user, "g": group_name}).fetchone()
         if row:
             return {"token": row[0]}
     return {"token": None}
@@ -2857,25 +2873,21 @@ def update_transaction(t: UpdateTransactionRequest, current_user: str = Depends(
         raise HTTPException(status_code=500, detail=str(e))
     
 @app.put("/update-member-emoji")
-def update_member_emoji(data: dict):
-    # data contient : { "username": "...", "group_name": "...", "member_name": "...", "new_emoji": "🍕" }
+def update_member_emoji(data: dict, current_user: str = Depends(get_current_user)):
+    # 🔒 Vérifie que l'émoji est modifié sur un groupe de l'utilisateur connecté
     query = text("""
         UPDATE tricount 
         SET emoji = :e 
-        WHERE utilisateur = :u AND groupe = :g AND paye_par = :m
+        WHERE LOWER(utilisateur) = :u AND groupe = :g AND paye_par = :m
     """)
-    
-    try:
-        with engine.begin() as conn:
-            conn.execute(query, {
-                "e": data['new_emoji'],
-                "u": data['username'],
-                "g": data['group_name'],
-                "m": data['member_name']
-            })
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        conn.execute(query, {
+            "e": data['new_emoji'],
+            "u": current_user,
+            "g": data['group_name'],
+            "m": data['member_name']
+        })
+    return {"status": "success"}
 
 
 app.get("/generate-share-link/{username}/{group_name}")
@@ -2923,31 +2935,29 @@ def get_shared_tricount(token: str):
         }
     
 @app.get("/get-members/{username}/{group_name}")
-def get_members(username: str, group_name: str):
+def get_members(username: str, group_name: str, current_user: str = Depends(get_current_user)):
+    # 🔒 Sécurisation JWT
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé.")
+
     query = text("""
         SELECT paye_par, pour_qui 
         FROM tricount 
-        WHERE utilisateur = :u AND groupe = :g
+        WHERE LOWER(utilisateur) = :u AND groupe = :g
     """)
-    
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": username, "g": group_name}).mappings().all()
-        
+        res = conn.execute(query, {"u": current_user, "g": group_name}).mappings().all()
         membres = set()
         for r in res:
-            # 1. On ajoute le payeur
             if r['paye_par']:
                 membres.add(r['paye_par'].strip())
-            
-            # 2. On extrait les gens dans 'pour_qui'
-            # Format attendu : "Theo:10,Marie:5" ou "Theo,Marie"
             pour_qui_raw = r['pour_qui'] or ""
             parts = [p.strip() for p in pour_qui_raw.split(',') if p.strip()]
             for p in parts:
                 nom = p.split(':')[0] if ':' in p else p
                 membres.add(nom.strip())
-                
         return sorted(list(membres))
+
     
 
 
@@ -3526,7 +3536,12 @@ POWENS_DOMAIN_HOST = POWENS_DOMAIN.replace("https://", "").replace("http://", ""
 
 
 @app.get("/powens/connect-url")
-def get_connect_url(utilisateur: str, redirect_url: str, user_token: str = None):
+def get_connect_url(
+    utilisateur: str, 
+    redirect_url: str, 
+    user_token: str = None, 
+    connection_id: int = None  # 👈 Permet de cibler la reconnexion d'une banque précise
+):
     try:
         encoded_redirect = quote(redirect_url, safe="")
         encoded_state = quote(utilisateur, safe="")
@@ -3535,36 +3550,36 @@ def get_connect_url(utilisateur: str, redirect_url: str, user_token: str = None)
         if not domain.endswith('/2.0') and not domain.endswith('/v2'):
             domain += '/2.0'
 
+        # Si connection_id est fourni, on ouvre le flux de reconnexion directe
+        flow = "reconnect" if connection_id else "connect"
         webview_url = (
-            f"https://webview.powens.com/fr/connect"
+            f"https://webview.powens.com/fr/{flow}"
             f"?domain={POWENS_DOMAIN_HOST}"
             f"&client_id={POWENS_CLIENT_ID}"
             f"&redirect_uri={encoded_redirect}"
             f"&state={encoded_state}"
         )
 
-        # 🟢 CORRECTION : Sécurisation blindée du bloc try/except pour Powens
+        if connection_id:
+            webview_url += f"&connection_id={connection_id}"
+
         if user_token and user_token.strip() and user_token != "null":
             try:
                 code_res = requests.get(
                     f"{domain}/auth/token/code",
                     headers={"Authorization": f"Bearer {user_token}"},
-                    timeout=5 # 👈 Évite de bloquer le serveur si Powens met trop de temps à répondre
+                    timeout=5
                 )
-                
                 if code_res.status_code == 200:
                     temp_code = code_res.json().get("code")
                     if temp_code:
                         webview_url += f"&code={temp_code}"
-                else:
-                    print(f"⚠️ Avertissement Powens token code: {code_res.status_code} - {code_res.text}")
             except Exception as inner_err:
-                print(f"⚠️ Impossible de joindre l'endpoint code de Powens (ignoré): {inner_err}")
+                print(f"⚠️ Avertissement Powens token code: {inner_err}")
 
         return {"url": webview_url}
 
     except Exception as e:
-        print(f"❌ Erreur critique connect-url: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erreur Webview: {str(e)}")
 
 
@@ -3590,7 +3605,7 @@ def powens_callback(code: str, redirect_uri: str = None, state: str = None):
         payload["redirect_uri"] = redirect_uri
 
     headers = {"Content-Type": "application/json"}
-    res = requests.post(url, json=payload, headers=headers)
+    res = requests.post(url, json=payload, headers=headers, timeout=10)
 
     if res.status_code != 200:
         print(f"❌ ERREUR POWENS {res.status_code}: {res.text}")
@@ -3636,7 +3651,7 @@ def get_powens_accounts(user_token: str):
     url = f"{domain}/users/me/accounts"
     headers = {"Authorization": f"Bearer {user_token}"}
 
-    res = requests.get(url, headers=headers)
+    res = requests.get(url, headers=headers, timeout=10)
 
     if res.status_code != 200:
         raise HTTPException(
@@ -3795,7 +3810,7 @@ def get_mots_cles_rules(utilisateur: str):
     return mots_cles_rules
 
 @app.get("/import-powens")
-async def import_powens(
+def import_powens(
     utilisateur: str, 
     user_token: str, 
     account_id: str = None, 
@@ -3920,39 +3935,89 @@ def get_connections_and_accounts(user_token: str):
 
     headers = {"Authorization": f"Bearer {user_token}"}
 
-    # 1. 🟢 CRUCIAL : ?expand=connector pour récupérer le connecteur et son nom réel
-    conn_res = requests.get(f"{domain}/users/me/connections?expand=connector", headers=headers)
+    # 🟢 1. On demande explicitement 'connector' ET 'sources' (où se trouve la vraie expiration DSP2)
+    conn_res = requests.get(f"{domain}/users/me/connections?expand=connector,sources", headers=headers)
     connections = conn_res.json().get("connections", []) if conn_res.status_code == 200 else []
 
     valid_connections = [c for c in connections if not c.get("deleted")]
     valid_connections.sort(key=lambda x: x.get("id", 0), reverse=True)
 
+    now_utc = datetime.now(timezone.utc)
     unique_connections = {}
+
     for c in valid_connections:
-        # 🟢 On groupe par l'ID technique du connecteur bancaire (ex: LBP != Revolut)
         connector_id = c.get("id_connector") or (c.get("connector", {}).get("id")) or c.get("id")
         conn_name = c.get("connector", {}).get("name") or f"Banque #{connector_id}"
+
+        # 🟢 2. Recherche de la vraie date d'expiration dans la connexion OU dans ses sources
+        raw_expire = c.get("expire")
+        
+        # Si vide sur la connexion, on cherche dans les sources (Open Banking / DirectAccess)
+        if not raw_expire:
+            sources = c.get("sources") or []
+            for s in sources:
+                if s.get("expire"):
+                    raw_expire = s.get("expire")
+                    break
+
+        days_left = None
+        expire_date_str = None
+
+        # CAS A : Powens ou la banque a renvoyé la date officielle d'expiration
+        if raw_expire:
+            try:
+                exp_dt = datetime.fromisoformat(str(raw_expire).replace("Z", "+00:00"))
+                days_left = (exp_dt.date() - now_utc.date()).days
+                expire_date_str = exp_dt.strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # CAS B : Estimation légale basée sur 'created' (date initiale de connexion, JAMAIS last_update !)
+        if days_left is None:
+            created_ref = c.get("created")
+            if created_ref:
+                try:
+                    created_dt = datetime.fromisoformat(str(created_ref).replace("Z", "+00:00"))
+                    exp_dt = created_dt + timedelta(days=180)
+                    days_left = (exp_dt.date() - now_utc.date()).days
+                    expire_date_str = exp_dt.strftime("%Y-%m-%d")
+                except Exception:
+                    pass
+
+        # Sécurité : Si toujours None, on met 180 par précaution
+        if days_left is None:
+            days_left = 180
+
+        state = c.get("state")
+        needs_reconnect = (days_left <= 0) or (state in [
+            "SCARequired", "webauthRequired", "decoupled", 
+            "actionNeeded", "passwordExpired", "wrongpass"
+        ])
+
+        #print(f"🔍 [POWENS DSP2] {conn_name} | Créé le: {c.get('created')} | Expire le: {expire_date_str} | Jours restants: {days_left}")
 
         if connector_id not in unique_connections:
             unique_connections[connector_id] = {
                 "id": c.get("id"),
                 "connector_id": connector_id,
                 "connector_name": conn_name,
-                "state": c.get("state"),
-                "last_update": c.get("last_update")
+                "state": state,
+                "last_update": c.get("last_update"),
+                "created": c.get("created"),
+                "expire": expire_date_str,
+                "days_left": days_left,
+                "needs_reconnect": needs_reconnect
             }
 
     filtered_connections = list(unique_connections.values())
     active_conn_ids = {c["id"] for c in filtered_connections}
 
-    # 2. Récupération des comptes
+    # Récupération des comptes
     acc_res = requests.get(f"{domain}/users/me/accounts", headers=headers)
     accounts = acc_res.json().get("accounts", []) if acc_res.status_code == 200 else []
 
     filtered_accounts = []
     seen_account_names = set()
-
-    accounts.sort(key=lambda x: x.get("id", 0), reverse=True)
 
     for a in accounts:
         if a.get("deleted") or a.get("disabled"):
@@ -4893,7 +4958,7 @@ def clean_existing_duplicates(username: str, current_user: str = Depends(get_cur
 
 # 🟢 ROUTE API SÉCURISÉE AVEC JWT (Sans paramètre inutilisé)
 @app.post("/powens/sync-user/{username}")
-async def sync_user_transactions(
+def sync_user_transactions(
     username: str, 
     current_user: str = Depends(get_current_user)
 ):

@@ -159,29 +159,27 @@ export default function ProfileTab({
   };
 
   // 6. Redirection Connexion Banque
-  const onConnectBank = async () => {
-    if (typeof handleConnectNewBank === 'function') {
-      handleConnectNewBank();
-      return;
-    }
-    try {
-      setConnectLoading(true);
-      const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
-      const redirectUri = window.location.origin + window.location.pathname;
-      const existingToken = localStorage.getItem('powens_user_token') || '';
+  const onConnectBank = async (connectionId = null) => {
+      try {
+        setConnectLoading(true);
+        const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
+        const redirectUri = window.location.origin + window.location.pathname;
+        const existingToken = localStorage.getItem('powens_user_token') || '';
 
-      const resUrl = await api.get(
-        `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`
-      );
+        let urlEndpoint = `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`;
+        if (connectionId) {
+          urlEndpoint += `&connection_id=${connectionId}`;
+        }
 
-      const url = resUrl.data?.url || resUrl.data?.redirect_url;
-      if (url) window.location.href = url;
-    } catch (err) {
-      toast.error("Erreur lors de la génération du lien bancaire.");
-    } finally {
-      setConnectLoading(false);
-    }
-  };
+        const resUrl = await api.get(urlEndpoint);
+        const url = resUrl.data?.url || resUrl.data?.redirect_url;
+        if (url) window.location.href = url;
+      } catch (err) {
+        toast.error("Erreur lors de la génération du lien bancaire.");
+      } finally {
+        setConnectLoading(false);
+      }
+    };
 
   if (loading) {
     return (
@@ -505,10 +503,60 @@ export default function ProfileTab({
                   style={{ zIndex: 40 - (connIndex * 10) }}
                   className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5 overflow-visible relative focus-within:z-[100]"
                 >
+                  {/* EN-TÊTE DE LA BANQUE */}
                   <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1.5">
                     <span>{conn.connector_name}</span>
                     <span className="text-[8px] text-[var(--text-main)]/30 font-mono">ID: {conn.id}</span>
                   </div>
+
+                  {/* 🟢 BANDEAU DE DÉCOMPTE DSP2 & STATUT D'EXPIRATION */}
+                  {(() => {
+                    const days = conn.days_left;
+                    const needsAction = conn.needs_reconnect || (days !== null && days <= 0);
+                    const isWarning = days !== null && days > 0 && days <= 30;
+
+                    return (
+                      <div className={`p-2.5 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                        needsAction
+                          ? 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+                          : isWarning
+                            ? 'bg-amber-500/10 border-amber-500/25 text-amber-300'
+                            : 'bg-emerald-500/[0.04] border-emerald-500/15 text-emerald-400'
+                      }`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${
+                            needsAction ? 'bg-rose-400 animate-ping' : isWarning ? 'bg-amber-400' : 'bg-emerald-400'
+                          }`} />
+                          
+                          <div className="flex flex-col min-w-0 leading-tight">
+                            <span className="text-[8.5px] font-black uppercase tracking-wider truncate">
+                              {needsAction 
+                                ? "Authentification requise" 
+                                : isWarning 
+                                  ? `Reconnexion dans ${days} jour${days > 1 ? 's' : ''}` 
+                                  : `Accès valide encore ${days !== null ? `${days} jours` : 'actif'}`}
+                            </span>
+                            <span className="text-[7px] text-white/40 uppercase font-medium">
+                              {conn.expire ? `Échéance le ${new Date(conn.expire).toLocaleDateString('fr-FR')}` : 'Sécurité bancaire DSP2 (180 jours)'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Bouton Reconnecter ou Renouveler */}
+                        <button
+                          type="button"
+                          onClick={() => onConnectBank(conn.id)}
+                          className={`px-2.5 py-1 rounded-lg text-[7.5px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+                            needsAction 
+                              ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/20' 
+                              : 'bg-white/10 hover:bg-white/20 text-white'
+                          }`}
+                        >
+                          {needsAction ? "Reconnecter" : "Prolonger"}
+                        </button>
+                      </div>
+                    );
+                  })()}
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-0.5 overflow-visible">
                     {connAccounts.map((acc, index) => {
