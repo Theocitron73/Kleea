@@ -544,12 +544,18 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     }
   };
 
-  const handleQuickStatusChange = async (annonce, field, value) => {
+const handleQuickStatusChange = async (annonce, field, value) => {
     const payload = { ...annonce, [field]: value };
     try {
       await api.put(`/api/demenagement/annonces/${annonce.id}`, payload);
       setAnnonces(prev => prev.map(a => a.id === annonce.id ? payload : a));
-      toast.success("Statut mis à jour !");
+
+      // 🟢 Notification spécifique si refusé
+      if (field === 'statut_reponse' && value === 'refuse') {
+        toast.info(`Logement déplacé dans l'onglet « Refusés » ❌`);
+      } else {
+        toast.success("Statut mis à jour !");
+      }
     } catch (err) {
       toast.error("Erreur de mise à jour.");
     }
@@ -748,15 +754,26 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   }, [annonces]);
 
   // 🟢 Filtrage combiné : Démarches + Site/Plateforme
+// 🟢 Filtrage : Masque les refusés de tous les onglets actifs et les isole dans leur propre onglet
   const annoncesFiltrees = useMemo(() => {
     return annonces.filter(a => {
-      // 1. Filtre démarches / statut
-      if (annonceFilter === 'favoris' && !a.favori) return false;
-      if (annonceFilter === 'dossier' && !a.dossier_envoye) return false;
-      if (annonceFilter === 'visite' && !a.visite_effectuee) return false;
-      if (annonceFilter === 'accepte' && a.statut_reponse !== 'accepte') return false;
+      const isRefuse = a.statut_reponse === 'refuse';
 
-      // 2. Filtre selon le site
+      // 1. Si on est sur l'onglet 'refuse', on n'affiche QUE les logements refusés
+      if (annonceFilter === 'refuse') {
+        if (!isRefuse) return false;
+      } else {
+        // 🟢 Dans TOUS les autres onglets (Toutes, Favoris, Dossier, etc.), on MASQUE les refusés !
+        if (isRefuse) return false;
+
+        // Filtres spécifiques
+        if (annonceFilter === 'favoris' && !a.favori) return false;
+        if (annonceFilter === 'dossier' && !a.dossier_envoye) return false;
+        if (annonceFilter === 'visite' && !a.visite_effectuee) return false;
+        if (annonceFilter === 'accepte' && a.statut_reponse !== 'accepte') return false;
+      }
+
+      // 2. Filtre selon le site (Leboncoin, SeLoger...)
       if (selectedPlatform !== 'all' && (a.source || 'Autre').toLowerCase() !== selectedPlatform.toLowerCase()) {
         return false;
       }
@@ -1258,27 +1275,43 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
                 
                 {/* Ligne 1 : Filtres démarches */}
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {[
-                      { id: 'all', label: `Toutes (${annonces.length})` },
-                      { id: 'favoris', label: `⭐ Favoris (${annonces.filter(a => a.favori).length})` },
-                      { id: 'dossier', label: `📁 Dossier (${annonces.filter(a => a.dossier_envoye).length})` },
-                      { id: 'visite', label: `🗓️ Visité (${annonces.filter(a => a.visite_effectuee).length})` },
-                      { id: 'accepte', label: `🎉 Accepté (${annonces.filter(a => a.statut_reponse === 'accepte').length})` }
-                    ].map(f => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => setAnnonceFilter(f.id)}
-                        className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                          annonceFilter === f.id
-                            ? 'bg-purple-600 text-white shadow-md'
-                            : 'bg-black/30 text-white/40 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
+                 <div className="flex flex-wrap items-center gap-1.5">
+                    {(() => {
+                      const actives = annonces.filter(a => a.statut_reponse !== 'refuse');
+                      const refusees = annonces.filter(a => a.statut_reponse === 'refuse');
+
+                      return [
+                        { id: 'all', label: `Actives (${actives.length})` },
+                        { id: 'favoris', label: `⭐ Favoris (${actives.filter(a => a.favori).length})` },
+                        { id: 'dossier', label: `📁 Dossier (${actives.filter(a => a.dossier_envoye).length})` },
+                        { id: 'visite', label: `🗓️ Visité (${actives.filter(a => a.visite_effectuee).length})` },
+                        { id: 'accepte', label: `🎉 Accepté (${annonces.filter(a => a.statut_reponse === 'accepte').length})` },
+                        // 🟢 NOUVEL ONGLET DÉDIÉ AUX REFUSÉS :
+                        { id: 'refuse', label: `❌ Refusés (${refusees.length})` }
+                      ].map(f => {
+                        const isCurrent = annonceFilter === f.id;
+                        const isRefuseTab = f.id === 'refuse';
+
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => setAnnonceFilter(f.id)}
+                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              isCurrent
+                                ? isRefuseTab
+                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                                  : 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                                : isRefuseTab
+                                  ? 'bg-rose-500/10 text-rose-300 border border-rose-500/20 hover:bg-rose-500/20'
+                                  : 'bg-black/30 text-white/40 hover:text-white hover:bg-white/5'
+                            }`}
+                          >
+                            {f.label}
+                          </button>
+                        );
+                      });
+                    })()}
                   </div>
 
                   {/* Bouton Ajouter */}
