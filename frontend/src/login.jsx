@@ -5632,7 +5632,8 @@ const isPageScrollable = [
   'guide', 
   'tricount', 
   'profile', 
-  'conges'
+  'conges',
+  'theme'
 ].includes(activeTab?.toLowerCase());
 
 
@@ -6077,6 +6078,46 @@ const handleWheelRightTab = (e) => {
 };
 
 
+// 🟢 Calcul en direct du dégradé selon vos réglages de thème
+  const getAppBackground = () => {
+    const style = userTheme?.gradient_style || 'radial';
+    const intensity = userTheme?.gradient_intensity || '50%';
+    const customEnd = userTheme?.gradient_color;
+
+    const endColor = (customEnd && customEnd !== 'auto')
+      ? customEnd
+      : `color-mix(in srgb, var(--bg-site), black ${intensity})`;
+
+    if (style === 'solid' || intensity === '0%') {
+      return 'var(--bg-site)';
+    }
+
+    if (style === 'linear') {
+      return `linear-gradient(180deg, var(--bg-site) 0%, ${endColor} 100%)`;
+    }
+
+    if (style === 'diagonal') {
+      return `linear-gradient(135deg, var(--bg-site) 0%, ${endColor} 100%)`;
+    }
+
+    // Par défaut : Radial (Spotlight en haut)
+    return `radial-gradient(circle at 50% -10%, var(--bg-site) 45%, ${endColor} 100%)`;
+  };
+
+
+// 🟢 Récupération des pages masquées depuis PostgreSQL
+  const fetchHiddenPages = async (username) => {
+    try {
+      const res = await api.get(`/api/pages-masquees/${username}`);
+      if (Array.isArray(res.data)) {
+        setHiddenPages(res.data);
+        localStorage.setItem('hidden_menu_pages', JSON.stringify(res.data));
+      }
+    } catch (err) {
+      console.error("Erreur chargement pages masquées BDD:", err);
+    }
+  };
+
 // 🟢 CHARGEMENT SÉCURISÉ AU DÉMARRAGE DE L'APPLICATION
 useEffect(() => {
   if (user) {
@@ -6084,6 +6125,7 @@ useEffect(() => {
     fetchComptes();
     fetchUserTheme(user);
     fetchPowensConnections();
+    fetchHiddenPages(user);
     api.get(`/note/${user}`).then(res => setNote(res.data.texte));
     
     // 🟢 Récupération officielle du profil (mode d'import + rôle)
@@ -6142,21 +6184,16 @@ if (!user) {
 
   return (
     <div 
-  className={`p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500 ${
-      isPageScrollable 
-        ? 'min-h-screen overflow-y-auto' 
-        : 'h-screen lg:overflow-hidden'
-    }`}
-  style={{
-    /* On mélange 20% de ta couleur avec 80% de noir pour créer un "noir coloré" */
-    background: `radial-gradient(
-      circle at 50% -10%, 
-      var(--bg-site) 50%, 
-      color-mix(in srgb, var(--bg-site), black 50%) 100%
-    )`,
-    backgroundAttachment: 'fixed'
-  }}
->
+      className={`p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500 ${
+          isPageScrollable 
+            ? 'min-h-screen overflow-y-auto' 
+            : 'h-screen lg:overflow-hidden'
+        }`}
+      style={{
+        background: getAppBackground(),
+        backgroundAttachment: 'fixed'
+      }}
+    >
       {/* max-w-full permet d'occuper 100% de la largeur disponible, peu importe l'écran */}
       <div className="max-w-full mx-auto">
       

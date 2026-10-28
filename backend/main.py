@@ -5922,6 +5922,9 @@ class ThemePresetIn(BaseModel):
     radius: str
     glass_blur: str
     glass_bg: str
+    gradient_style: Optional[str] = "radial"       # 👈 Ajout
+    gradient_intensity: Optional[str] = "50%"      # 👈 Ajout
+    gradient_color: Optional[str] = "auto"         # 👈 Ajout
 
 @app.get("/api/themes/presets")
 def get_theme_presets(current_user: str = Depends(get_current_user)):
@@ -5936,29 +5939,22 @@ def get_theme_presets(current_user: str = Depends(get_current_user)):
 
 @app.post("/api/themes/presets")
 def save_theme_preset(p: ThemePresetIn, current_user: str = Depends(get_current_user)):
-    clean_nom = p.nom.strip()
-    if not clean_nom:
-        raise HTTPException(status_code=400, detail="Le nom du thème est obligatoire")
-    
     with engine.begin() as conn:
         query = text("""
-            INSERT INTO theme_presets (utilisateur, nom, bg_site, primary_color, text_main, glass_bg, glass_blur, radius)
-            VALUES (:u, :nom, :bg, :pri, :tm, :gb, :gblur, :rad)
+            INSERT INTO theme_presets (utilisateur, nom, bg_site, primary_color, text_main, glass_bg, glass_blur, radius, gradient_style, gradient_intensity, gradient_color)
+            VALUES (:u, :nom, :bg, :pri, :tm, :gb, :gblur, :rad, :gs, :gi, :gc)
             ON CONFLICT (utilisateur, nom) DO UPDATE 
-            SET bg_site = EXCLUDED.bg_site,
-                primary_color = EXCLUDED.primary_color,
-                text_main = EXCLUDED.text_main,
-                glass_bg = EXCLUDED.glass_bg,
-                glass_blur = EXCLUDED.glass_blur,
-                radius = EXCLUDED.radius
+            SET bg_site = EXCLUDED.bg_site, primary_color = EXCLUDED.primary_color,
+                gradient_style = EXCLUDED.gradient_style, gradient_intensity = EXCLUDED.gradient_intensity,
+                gradient_color = EXCLUDED.gradient_color
             RETURNING id
         """)
         res = conn.execute(query, {
-            "u": current_user, "nom": clean_nom, "bg": p.bg_site, "pri": p.primary_color,
-            "tm": p.text_main, "gb": p.glass_bg, "gblur": p.glass_blur, "rad": p.radius
+            "u": current_user, "nom": p.nom, "bg": p.bg_site, "pri": p.primary_color,
+            "tm": p.text_main, "gb": p.glass_bg, "gblur": p.glass_blur, "rad": p.radius,
+            "gs": p.gradient_style or "radial", "gi": p.gradient_intensity or "50%", "gc": p.gradient_color or "auto"
         })
-        new_id = res.scalar()
-    return {"status": "success", "id": new_id, "nom": clean_nom}
+    return {"status": "success"}
 
 @app.post("/api/themes/presets/{preset_id}/apply")
 def apply_theme_preset(preset_id: int, current_user: str = Depends(get_current_user)):
@@ -6429,3 +6425,53 @@ async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_
         "ville": ville,
         "photos": photos[:10]
     }
+
+# =========================================================================
+# 📱 SYNCHRONISATION DES PAGES MASQUÉES DU MENU (MULTI-APPAREILS)
+# =========================================================================
+
+@app.get("/api/pages-masquees/{username}")
+def get_pages_masquees(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    with engine.begin() as conn:
+        # Création automatique de la table si elle n'existe pas encore
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pages_masquees (
+                utilisateur VARCHAR(255) PRIMARY KEY,
+                pages TEXT DEFAULT '[]'
+            )
+        """))
+        res = conn.execute(
+            text("SELECT pages FROM pages_masquees WHERE LOWER(utilisateur) = :u"),
+            {"u": current_user.lower().strip()}
+        ).scalar()
+
+        if res:
+            try:
+                return json.loads(res)
+            except Exception:
+                return []
+        return []
+
+@app.post("/api/pages-masquees")
+def save_pages_masquees(data: dict = Body(...), current_user: str = Depends(get_current_user)):
+    pages_list = data.get("pages", [])
+    pages_json = json.dumps(pages_list)
+
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS pages_masquees (
+                utilisateur VARCHAR(255) PRIMARY KEY,
+                pages TEXT DEFAULT '[]'
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO pages_masquees (utilisateur, pages)
+            VALUES (:u, :p)
+            ON CONFLICT (utilisateur) DO UPDATE
+            SET pages = EXCLUDED.pages
+        """), {"u": current_user.lower().strip(), "p": pages_json})
+
+    return {"status": "success", "pages": pages_list}
