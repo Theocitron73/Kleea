@@ -4080,22 +4080,21 @@ const handleSyncPowens = async (overrideMode = null) => {
 };
 
 // =========================================================================
-// 🟢 MODULE DÉDOUBLONNAGE V3 (FILTRAGE FAMILLE, PRÉNOMS & CODES BANCAIRES)
+// 🟢 MODULE DÉDOUBLONNAGE V4 (ALGORITHME EN 2 PASSES : DATE EXACTE PRIORITAIRE)
 // =========================================================================
 
-// 1. Découpage et extraction des mots-clés uniques
+const BANQUE_STOP_WORDS = new Set([
+  "de", "du", "des", "le", "la", "les", "a", "au", "aux", "en", "un", "une",
+  "mme", "mr", "m", "monsieur", "madame", "mlle", "mademoiselle",
+  "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
+  "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
+  "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
+  "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre",
+  "instantane", "recu", "emis", "motif"
+]);
+
 const getSignificantTokens = (label) => {
   if (!label) return [];
-  const BANQUE_STOP_WORDS = new Set([
-    "de", "du", "des", "le", "la", "les", "a", "au", "aux", "en", "un", "une",
-    "mme", "mr", "m", "monsieur", "madame", "mlle", "mademoiselle",
-    "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
-    "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
-    "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
-    "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre",
-    "instantane", "recu", "emis", "motif"
-  ]);
-
   return Array.from(new Set(
     label
       .toLowerCase()
@@ -4109,7 +4108,6 @@ const getSignificantTokens = (label) => {
   ));
 };
 
-// 2. Comparaison des libellés (Jaccard)
 const areLabelsSimilar = (labelA, labelB) => {
   const tokensA = getSignificantTokens(labelA);
   const tokensB = getSignificantTokens(labelB);
@@ -4124,26 +4122,21 @@ const areLabelsSimilar = (labelA, labelB) => {
   if (intersection.length === 0) {
     const strA = tokensA.join("");
     const strB = tokensB.join("");
-    if (strA.length >= 4 && strB.length >= 4 && (strA.includes(strB) || strB.includes(strA))) {
-      return true;
-    }
-    return false;
+    return strA.length >= 4 && strB.length >= 4 && (strA.includes(strB) || strB.includes(strA));
   }
 
   const isSubset = tokensA.every(t => setB.has(t)) || tokensB.every(t => setA.has(t));
-  if (isSubset && intersection.some(t => t.length >= 4)) {
+  if (isSubset && intersection.some(t => t.length >= 3)) {
     return true;
   }
 
   const union = new Set([...tokensA, ...tokensB]);
-  return (intersection.length / union.size) >= 0.5;
+  return (intersection.length / union.size) >= 0.4;
 };
 
-// 🟢 3. PARSER DE DATES UNIVERSEL
 const parseDateOnly = (dStr) => {
   if (!dStr) return null;
   if (dStr instanceof Date) return isNaN(dStr.getTime()) ? null : dStr;
-
   const s = String(dStr).split('T')[0].split(' ')[0].trim();
 
   if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(s)) {
@@ -4158,13 +4151,12 @@ const parseDateOnly = (dStr) => {
     const [d, m, y] = s.split(/[-/]/).map(Number);
     return new Date(2000 + y, m - 1, d);
   }
-
   const d = new Date(dStr);
   return isNaN(d.getTime()) ? null : d;
 };
 
-// 4. Détecteur anti-doublon
-const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set()) => {
+// 🟢 VÉRIFICATION UNIQUE AVEC CONTRAINTE DE DISTANCE DE DATES
+const findSingleDuplicate = (incomingTx, existingList, claimedIds, maxAllowedDays) => {
   const incMontant = parseFloat(incomingTx.montant) || 0;
   const incDate = parseDateOnly(incomingTx.date);
   if (!incDate) return null;
@@ -4174,12 +4166,12 @@ const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set
   for (const exist of existingList) {
     if (claimedIds.has(exist.id)) continue;
 
-    // A. Même montant
+    // 1. Montant identique au centime près
     const existMontant = parseFloat(exist.montant) || 0;
     if (Math.abs(Math.abs(incMontant) - Math.abs(existMontant)) > 0.01) continue;
     if ((incMontant > 0) !== (existMontant > 0)) continue;
 
-    // B. Même compte
+    // 2. Vérification compte
     const existCompte = (exist.compte || "").trim().toUpperCase();
     if (incCompte && existCompte) {
       const c1 = incCompte.replace(/[^A-Z0-9]/g, '');
@@ -4189,18 +4181,15 @@ const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set
       if (isLivret1 !== isLivret2) continue;
     }
 
-    // C. Date (max 3.5 jours)
+    // 3. Écart de date
     const existDate = parseDateOnly(exist.date);
     if (!existDate) continue;
 
     const diffDays = Math.abs((incDate.getTime() - existDate.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays > 3.5) continue;
+    if (diffDays > maxAllowedDays) continue;
 
-    // D. Comparaison du libellé
-    const labelsMatch = areLabelsSimilar(incomingTx.nom, exist.nom);
-
-    if (labelsMatch) {
-      claimedIds.add(exist.id);
+    // 4. Comparaison du libellé
+    if (areLabelsSimilar(incomingTx.nom, exist.nom)) {
       return exist;
     }
   }
@@ -4208,10 +4197,10 @@ const findDuplicateTransaction = (incomingTx, existingList, claimedIds = new Set
   return null;
 };
 
+
 // =========================================================================
-// 🟢 1. IMPORT FICHIER CSV (DÉDOUBLONNÉ AVEC POWENS & BDD)
+// 🟢 1. IMPORT FICHIER CSV AVEC RÉCONCILIATION EN 2 PASSES
 // =========================================================================
-// 🟢 IMPORT CSV AVEC DÉTECTION INTELLIGENTE DES DOUBLONS & ASSIGNATION DE isAlreadyImported
 const handleFileUpload = async (file) => {
   if (!file) return;
   setFileName(file.name);
@@ -4230,13 +4219,9 @@ const handleFileUpload = async (file) => {
 
     const lignesBrutes = response.data;
     const batchOccurrences = {};
-    const claimedDbIds = new Set();
-    let nbDoublonsDetectes = 0;
 
-    console.log("🔍 [DIAGNOSTIC CSV] Lignes CSV reçues :", lignesBrutes.length);
-    console.log("🔍 [DIAGNOSTIC BDD] Transactions en BDD (Powens) :", (toutesLesTransactions || []).length);
-
-    const lignesTraitees = lignesBrutes.map((t) => {
+    // 1. Première passe locale : détection des doublons au sein du même fichier CSV (#2, #3)
+    const preparedLines = lignesBrutes.map((t) => {
       const baseNom = (t.nom || "Transaction").trim();
       const dateStr = t.date ? String(t.date).trim() : "";
       const montantNum = parseFloat(t.montant) || 0;
@@ -4250,22 +4235,48 @@ const handleFileUpload = async (file) => {
         nomFinal = `${baseNom} #${occurrence}`;
       }
 
-      // Rapprochement avec les transactions Powens déjà en base
-      const duplicateFound = findDuplicateTransaction(
-        { ...t, nom: nomFinal, compte: targetCompte },
-        toutesLesTransactions || [],
-        claimedDbIds
-      );
+      return {
+        ...t,
+        nom: nomFinal,
+        compte: targetCompte,
+        duplicateIndex: occurrence
+      };
+    });
 
+    const claimedDbIds = new Set();
+    const matchedDuplicates = new Array(preparedLines.length).fill(null);
+
+    // 🟢 PASSE 1 OBLIGATOIRE : Rapprochement STRICT sur la DATE EXACTE (diffDays = 0)
+    // Empêche formellement une opération du 30/10 de voler le péage du 27/10 !
+    for (let i = 0; i < preparedLines.length; i++) {
+      const match = findSingleDuplicate(preparedLines[i], toutesLesTransactions || [], claimedDbIds, 0.5);
+      if (match) {
+        claimedDbIds.add(match.id);
+        matchedDuplicates[i] = match;
+      }
+    }
+
+    // 🟢 PASSE 2 : Tolérance floue (1 à 2 jours) UNIQUEMENT pour les lignes orphelines
+    for (let i = 0; i < preparedLines.length; i++) {
+      if (matchedDuplicates[i]) continue; // Déjà réconcilié à la date exacte
+      const match = findSingleDuplicate(preparedLines[i], toutesLesTransactions || [], claimedDbIds, 2.0);
+      if (match) {
+        claimedDbIds.add(match.id);
+        matchedDuplicates[i] = match;
+      }
+    }
+
+    // 3. Construction des lignes finales avec statut propre
+    let nbDoublonsDetectes = 0;
+    const lignesTraitees = preparedLines.map((t, idx) => {
+      const duplicateFound = matchedDuplicates[idx];
       const alreadyInDb = Boolean(duplicateFound);
       if (alreadyInDb) nbDoublonsDetectes++;
 
       return {
         ...t,
-        nom: nomFinal,
-        isAlreadyImported: alreadyInDb, // 👈 Marqué TRUE si Powens l'a déjà importé
-        isPotentialDuplicate: alreadyInDb || occurrence > 1,
-        duplicateIndex: occurrence,
+        isAlreadyImported: alreadyInDb,
+        isPotentialDuplicate: alreadyInDb || t.duplicateIndex > 1,
         matchedWith: duplicateFound ? `${duplicateFound.nom} (${duplicateFound.date})` : null
       };
     });
@@ -4273,9 +4284,7 @@ const handleFileUpload = async (file) => {
     setTempTransactions(lignesTraitees);
 
     if (nbDoublonsDetectes > 0) {
-      toast.info(`ℹ️ ${nbDoublonsDetectes} / ${lignesBrutes.length} transaction(s) déjà importée(s) par Powens ont été détectées et ignorées.`);
-    } else {
-      toast.warning("Aucun doublon détecté : vérifiez si le compte cible dans la liste correspond au compte des transactions Powens.");
+      toast.info(`ℹ️ ${nbDoublonsDetectes} / ${lignesBrutes.length} transaction(s) déjà en base détectée(s) et ignorée(s).`);
     }
 
   } catch (error) {
@@ -4295,9 +4304,7 @@ const handlePowensImportSuccess = (transactions, accountName) => {
   }
 
   const batchOccurrences = {};
-  const claimedDbIds = new Set();
-
-  const transactionsMarquees = transactions.map(t => {
+  const preparedLines = transactions.map(t => {
     const baseNom = (t.nom || t.libelle || "Transaction").trim();
     const dateStr = t.date ? String(t.date).trim() : "";
     const montantNum = parseFloat(t.montant) || 0;
@@ -4311,35 +4318,56 @@ const handlePowensImportSuccess = (transactions, accountName) => {
       nomFinal = `${baseNom} #${occurrence}`;
     }
 
-    // 🟢 Rapprochement intelligent avec la BDD existante (même si importé par CSV !)
-    const duplicateFound = findDuplicateTransaction(
-      { ...t, nom: nomFinal, compte: accountName },
-      toutesLesTransactions || [],
-      claimedDbIds
-    );
-
-    const isDuplicate = Boolean(duplicateFound) || occurrence > 1;
-
     return {
       ...t,
       nom: nomFinal,
-      isAlreadyImported: Boolean(duplicateFound), // 🟢 Crucial : décoché d'office
-      isPotentialDuplicate: isDuplicate,
-      duplicateIndex: occurrence,
-      matchedWith: duplicateFound ? duplicateFound.nom : null
+      compte: accountName,
+      duplicateIndex: occurrence
     };
   });
 
-  const nbNouvelles = transactionsMarquees.filter(t => !t.isAlreadyImported).length;
-  const nbDejaImportees = transactionsMarquees.length - nbNouvelles;
+  const claimedDbIds = new Set();
+  const matchedDuplicates = new Array(preparedLines.length).fill(null);
+
+  // PASSE 1 : Date exacte
+  for (let i = 0; i < preparedLines.length; i++) {
+    const match = findSingleDuplicate(preparedLines[i], toutesLesTransactions || [], claimedDbIds, 0.5);
+    if (match) {
+      claimedDbIds.add(match.id);
+      matchedDuplicates[i] = match;
+    }
+  }
+
+  // PASSE 2 : Décalage 1 à 2 jours
+  for (let i = 0; i < preparedLines.length; i++) {
+    if (matchedDuplicates[i]) continue;
+    const match = findSingleDuplicate(preparedLines[i], toutesLesTransactions || [], claimedDbIds, 2.0);
+    if (match) {
+      claimedDbIds.add(match.id);
+      matchedDuplicates[i] = match;
+    }
+  }
+
+  let nbDoublons = 0;
+  const transactionsMarquees = preparedLines.map((t, idx) => {
+    const duplicate = matchedDuplicates[idx];
+    const alreadyInDb = Boolean(duplicate);
+    if (alreadyInDb) nbDoublons++;
+
+    return {
+      ...t,
+      isAlreadyImported: alreadyInDb,
+      isPotentialDuplicate: alreadyInDb || t.duplicateIndex > 1,
+      matchedWith: duplicate ? duplicate.nom : null
+    };
+  });
+
+  const nbNouvelles = transactionsMarquees.length - nbDoublons;
 
   setFileName(`Import Powens (${accountName})`);
   setTempTransactions(transactionsMarquees);
 
-  toast.success(
-    `${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s) à importer, ${nbDejaImportees} déjà en base via CSV/Banque).`
-  );
-
+  toast.success(`${transactionsMarquees.length} transactions analysées (${nbNouvelles} nouvelle(s), ${nbDoublons} déjà en base).`);
   fetchPowensConnections();
   checkNewTransactions();
 };
