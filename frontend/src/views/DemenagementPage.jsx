@@ -5,7 +5,7 @@ import {
   Scale, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, 
   Sparkles, Award, ArrowRight, ShieldCheck, Home, ExternalLink,
   Camera, Eye, Star, Clock, MapPin, ChevronLeft, ChevronRight,
-  ClipboardPaste, AlignLeft, Edit2,LayoutGrid, List, Globe
+  ClipboardPaste, AlignLeft, Edit2, LayoutGrid, List, Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
@@ -13,7 +13,6 @@ import CustomSelect from '../components/CustomSelect';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 
 export default function DemenagementPage({ user, toutesLesCategories = [], comptes = [] }) {
-  // Mode d'affichage : 'simulator' | 'compare' | 'annonces'
   const [viewMode, setViewMode] = useState('simulator');
 
   // --- 1. ÉTATS DU SIMULATEUR ---
@@ -25,20 +24,15 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const [currentScenario, setCurrentScenario] = useState('Scénario de base');
   const [nouveauScenarioNom, setNouveauScenarioNom] = useState('');
 
-  // Modale de duplication de scénario
   const [isDuplicateModalOpen, setIsDuplicateModalOpen] = useState(false);
   const [duplicateName, setDuplicateName] = useState('');
   const [isDuplicating, setIsDuplicating] = useState(false);
 
-  // Salaires
   const [salaireLui, setSalaireLui] = useState('');
   const [salaireElle, setSalaireElle] = useState('');
-
-  // Dépenses personnelles
   const [depensePersoLui, setDepensePersoLui] = useState('');
   const [depensePersoElle, setDepensePersoElle] = useState('');
 
-  // Ajout rapide et objectif global
   const [categorieSelect, setCategorieSelect] = useState(toutesLesCategories[0] || 'Logement');
   const [montantInitial, setMontantInitial] = useState('');
   const [montantCommunForfaitaire, setMontantCommunForfaitaire] = useState('');
@@ -47,27 +41,22 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
   const saveTimeoutRef = useRef(null);
   const editorRef = useRef(null);
 
-  // --- 2. ÉTATS DU MODULE ANNONCES ---
+  // --- 2. ÉTATS ANNONCES ---
   const [annonces, setAnnonces] = useState([]);
   const [loadingAnnonces, setLoadingAnnonces] = useState(false);
   const [isAnnonceModalOpen, setIsAnnonceModalOpen] = useState(false);
   const [scrapingUrl, setScrapingUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
   const [annonceFilter, setAnnonceFilter] = useState('all');
-  // 🟢 Mode d'affichage : 'grid' (grandes cartes) ou 'list' (liste compacte sans grande image)
+
   const [displayLayout, setDisplayLayout] = useState('grid');
-
-  // 🟢 Filtre par site / plateforme
   const [selectedPlatform, setSelectedPlatform] = useState('all');
-
-  // 🟢 Vue groupée par site
   const [groupBySite, setGroupBySite] = useState(false);
-  // Analyse par texte/partage (IA)
+
   const [showSmartPaste, setShowSmartPaste] = useState(false);
   const [pastedAdText, setPastedAdText] = useState('');
   const [isParsingText, setIsParsingText] = useState(false);
 
-  // Carrousel photo et accordéon description
   const [activePhotoIdx, setActivePhotoIdx] = useState({});
   const [expandedDesc, setExpandedDesc] = useState({});
 
@@ -98,7 +87,8 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     'annuel': 12
   };
 
-  // 🟢 Pré-remplir et ouvrir la modale en mode modification
+  const getLigneId = (ligne) => ligne?.id || ligne?._id;
+
   const handleOpenEditAnnonce = (a) => {
     setAnnonceForm({
       id: a.id,
@@ -123,37 +113,250 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     setIsAnnonceModalOpen(true);
   };
 
-  const getLigneId = (ligne) => ligne?.id || ligne?._id;
+  // --- 3. BLOC-NOTES (COMPATIBLE AVEC TOUTES TES CASES EXISTANTES) ---
 
-  // --- 3. CHARGEMENTS ---
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, []);
+  // 🟢 Synchronise TOUS les inputs de type checkbox sans dépendre de la classe
+  const syncCheckboxesVisuals = () => {
+    if (!editorRef.current) return;
+    const allCb = editorRef.current.querySelectorAll('input[type="checkbox"]');
+    
+    allCb.forEach((cb) => {
+      const taskText = cb.parentElement?.querySelector('span');
+      const hasAttrChecked = cb.hasAttribute('checked');
+      const hasDataChecked = cb.getAttribute('data-checked') === 'true';
+      const hasLineThrough = Boolean(
+        taskText?.classList.contains('line-through') || 
+        taskText?.style.textDecoration?.includes('line-through')
+      );
 
+      const isDone = hasAttrChecked || hasDataChecked || hasLineThrough;
+
+      cb.checked = isDone;
+      cb.defaultChecked = isDone;
+
+      if (isDone) {
+        cb.setAttribute('checked', 'checked');
+        cb.setAttribute('data-checked', 'true');
+        if (taskText) {
+          taskText.classList.add('line-through', 'text-white/30');
+          taskText.style.textDecoration = 'line-through';
+          taskText.style.opacity = '0.4';
+        }
+      } else {
+        cb.removeAttribute('checked');
+        cb.removeAttribute('data-checked');
+        if (taskText) {
+          taskText.classList.remove('line-through', 'text-white/30');
+          taskText.style.textDecoration = 'none';
+          taskText.style.opacity = '1';
+        }
+      }
+    });
+  };
+
+  // Chargement avec cache instantané localStorage + API
   useEffect(() => {
+    const usernameClean = typeof user === 'object' ? user?.nom || user?.username : user;
+    const storageKey = `kleea_notes_demenagement_${usernameClean || 'guest'}`;
+    
+    // 1. Charge d'abord depuis localStorage en 0 ms
+    const cached = localStorage.getItem(storageKey);
+    if (cached && editorRef.current) {
+      editorRef.current.innerHTML = cached;
+      setNotesHtml(cached);
+      syncCheckboxesVisuals();
+    }
+
+    // 2. Récupère la version à jour depuis le serveur
     const fetchNotes = async () => {
+      if (!usernameClean) return;
       try {
-        const res = await api.get(`/api/notes-demenagement/${user}`);
-        if (res.data) {
-          const contenu = res.data.contenu || "";
+        const res = await api.get(`/api/notes-demenagement/${usernameClean}?t=${Date.now()}`);
+        if (res.data && res.data.contenu) {
+          const contenu = res.data.contenu;
           setNotesHtml(contenu);
-          if (editorRef.current) editorRef.current.innerHTML = contenu;
+          localStorage.setItem(storageKey, contenu);
+          if (editorRef.current) {
+            editorRef.current.innerHTML = contenu;
+            syncCheckboxesVisuals();
+            setTimeout(syncCheckboxesVisuals, 60);
+          }
         }
       } catch (err) {
-        console.error("Erreur notes :", err);
+        console.error("Erreur chargement notes :", err);
       }
     };
-    if (user) fetchNotes();
+
+    fetchNotes();
   }, [user]);
 
-  useEffect(() => {
-    if (editorRef.current && !editorRef.current.innerHTML && notesHtml) {
-      editorRef.current.innerHTML = notesHtml;
+  // Sauvegarde API
+  const saveNotesToApi = async (htmlContent) => {
+    const usernameClean = typeof user === 'object' ? user?.nom || user?.username : user;
+    if (!usernameClean) return;
+    setIsSaving(true);
+    try {
+      await api.post('/api/notes-demenagement', { utilisateur: usernameClean, contenu: htmlContent });
+    } catch (err) {
+      console.error("Erreur sauvegarde notes :", err);
+      toast.error("Erreur lors de l'enregistrement sur le serveur.");
+    } finally {
+      setIsSaving(false);
     }
-  }, [notesHtml]);
+  };
 
+  // 🟢 Sauvegarde immédiate
+  const saveNotesImmediately = () => {
+    if (!editorRef.current) return;
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = null;
+
+    const currentHtml = editorRef.current.innerHTML;
+    const usernameClean = typeof user === 'object' ? user?.nom || user?.username : user;
+    const storageKey = `kleea_notes_demenagement_${usernameClean || 'guest'}`;
+
+    localStorage.setItem(storageKey, currentHtml);
+    setNotesHtml(currentHtml);
+    saveNotesToApi(currentHtml);
+  };
+
+  // Sauvegarde quand on tape du texte
+  const handleInput = () => {
+    if (!editorRef.current) return;
+    const currentHtml = editorRef.current.innerHTML;
+    const usernameClean = typeof user === 'object' ? user?.nom || user?.username : user;
+    const storageKey = `kleea_notes_demenagement_${usernameClean || 'guest'}`;
+
+    localStorage.setItem(storageKey, currentHtml);
+    setNotesHtml(currentHtml);
+    setIsSaving(true);
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      saveNotesToApi(currentHtml);
+    }, 800);
+  };
+
+  // Sauvegarde au démontage
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        if (editorRef.current) {
+          const html = editorRef.current.innerHTML;
+          const usernameClean = typeof user === 'object' ? user?.nom || user?.username : user;
+          const storageKey = `kleea_notes_demenagement_${usernameClean || 'guest'}`;
+          localStorage.setItem(storageKey, html);
+          api.post('/api/notes-demenagement', { utilisateur: usernameClean, contenu: html }).catch(() => {});
+        }
+      }
+    };
+  }, [user]);
+
+  // Écoute de l'événement de suppression personnalisé de tes anciens boutons
+  useEffect(() => {
+    const handleCustomUpdate = () => saveNotesImmediately();
+    window.addEventListener('editor-update', handleCustomUpdate);
+    return () => window.removeEventListener('editor-update', handleCustomUpdate);
+  }, []);
+
+  // 🟢 Clic sur n'importe quelle case à cocher
+  const handleEditorClick = (e) => {
+    const target = e.target;
+    
+    // Détecte n'importe quel input checkbox
+    if (target && target.tagName === 'INPUT' && target.type === 'checkbox') {
+      const isChecked = target.checked;
+      const taskText = target.parentElement?.querySelector('span');
+      
+      if (isChecked) {
+        target.setAttribute('checked', 'checked');
+        target.setAttribute('data-checked', 'true');
+        if (taskText) {
+          taskText.classList.add('line-through', 'text-white/30');
+          taskText.style.textDecoration = 'line-through';
+          taskText.style.opacity = '0.4';
+        }
+      } else {
+        target.removeAttribute('checked');
+        target.removeAttribute('data-checked');
+        if (taskText) {
+          taskText.classList.remove('line-through', 'text-white/30');
+          taskText.style.textDecoration = 'none';
+          taskText.style.opacity = '1';
+        }
+      }
+      
+      saveNotesImmediately();
+    }
+
+    // Suppression d'une tâche (compatibilité avec tes anciens et nouveaux boutons ✕)
+    if (target && (target.classList?.contains('task-delete') || target.textContent === '✕')) {
+      const parentTask = target.closest('[id^="group-"]') || target.closest('.task-item');
+      if (parentTask) {
+        parentTask.remove();
+        saveNotesImmediately();
+      }
+    }
+  };
+
+  const insererCheckbox = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+
+    const id = `group-${Date.now()}`;
+    const taskContainer = document.createElement('div');
+    taskContainer.id = id;
+    taskContainer.className = "flex items-start gap-2 my-1.5 group/cb relative select-none";
+    taskContainer.contentEditable = "false";
+    taskContainer.innerHTML = `
+      <input type="checkbox" class="accent-indigo-500 cursor-pointer mt-0.5" />
+      <span class="text-xs text-white/80 outline-none flex-1 font-medium" contenteditable="true" placeholder="Nouvelle tâche..."></span>
+      <button type="button" class="text-white/20 hover:text-rose-400 opacity-0 group-hover/cb:opacity-100 transition-opacity px-1 text-[10px] font-bold cursor-pointer select-none" onclick="document.getElementById('${id}').remove(); window.dispatchEvent(new Event('editor-update'));" title="Supprimer la tâche">✕</button>
+    `;
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+      const range = sel.getRangeAt(0);
+      range.collapse(false);
+      range.insertNode(taskContainer);
+    } else {
+      editorRef.current.appendChild(taskContainer);
+    }
+
+    const spanText = taskContainer.querySelector('span');
+    if (spanText) setTimeout(() => spanText.focus(), 10);
+    saveNotesImmediately();
+  };
+
+  const handleKeyDown = (e) => {
+    const target = e.target;
+    const isTaskText = target?.tagName === 'SPAN' && target?.closest('[id^="group-"]');
+    const parentTask = target?.closest('[id^="group-"]') || target?.closest('.task-item');
+
+    if (isTaskText && parentTask) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (!target.textContent.trim()) {
+          parentTask.remove();
+          const p = document.createElement('div');
+          p.innerHTML = '<br>';
+          editorRef.current.appendChild(p);
+          saveNotesImmediately();
+          return;
+        }
+        insererCheckbox();
+        return;
+      }
+      if (e.key === 'Backspace' && !target.textContent) {
+        e.preventDefault();
+        parentTask.remove();
+        saveNotesImmediately();
+      }
+    }
+  };
+
+  // --- 4. CHARGEMENTS DES SIMULATIONS ET ANNONCES ---
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -204,101 +407,6 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     setDepensePersoElle(persElle ? persElle.montant.toString() : '');
     setMontantCommunForfaitaire(mntGlobal ? mntGlobal.montant.toString() : '');
   }, [currentScenario, lignes]);
-
-  // --- 4. BLOC-NOTES & TÂCHES ---
-  const handleInput = () => {
-    if (!editorRef.current) return;
-    const currentHtml = editorRef.current.innerHTML;
-    setNotesHtml(currentHtml);
-    setIsSaving(true);
-
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await api.post('/api/notes-demenagement', { utilisateur: user, contenu: currentHtml });
-      } catch (err) {
-        console.error("Erreur sauvegarde notes :", err);
-      } finally {
-        setIsSaving(false);
-      }
-    }, 1000);
-  };
-
-  const insererCheckbox = () => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-
-    const taskContainer = document.createElement('div');
-    taskContainer.className = "task-item flex items-start gap-2.5 my-1.5 group/task relative select-none";
-    taskContainer.contentEditable = "false";
-    taskContainer.innerHTML = `
-      <input type="checkbox" class="task-checkbox w-4 h-4 mt-0.5 rounded accent-indigo-500 cursor-pointer shrink-0" />
-      <span class="task-text text-xs text-white/90 outline-none flex-1 font-medium leading-relaxed" contenteditable="true" placeholder="Nouvelle tâche..."></span>
-      <button type="button" class="task-delete text-white/20 hover:text-rose-400 opacity-0 group-hover/task:opacity-100 transition-opacity px-1 text-xs cursor-pointer" title="Supprimer">✕</button>
-    `;
-
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
-      const range = sel.getRangeAt(0);
-      range.collapse(false);
-      range.insertNode(taskContainer);
-    } else {
-      editorRef.current.appendChild(taskContainer);
-    }
-
-    const spanText = taskContainer.querySelector('.task-text');
-    if (spanText) setTimeout(() => spanText.focus(), 10);
-    handleInput();
-  };
-
-  const handleKeyDown = (e) => {
-    const target = e.target;
-    const isTaskText = target?.classList?.contains('task-text');
-    const parentTask = target?.closest('.task-item');
-
-    if (isTaskText && parentTask) {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (!target.textContent.trim()) {
-          parentTask.remove();
-          const p = document.createElement('div');
-          p.innerHTML = '<br>';
-          editorRef.current.appendChild(p);
-          handleInput();
-          return;
-        }
-        insererCheckbox();
-        return;
-      }
-      if (e.key === 'Backspace' && !target.textContent) {
-        e.preventDefault();
-        parentTask.remove();
-        handleInput();
-      }
-    }
-  };
-
-  const handleEditorClick = (e) => {
-    const target = e.target;
-    if (target && target.classList?.contains('task-checkbox')) {
-      const taskText = target.parentElement?.querySelector('.task-text');
-      if (target.checked) {
-        target.setAttribute('checked', 'checked');
-        taskText?.classList.add('line-through', 'text-white/30');
-      } else {
-        target.removeAttribute('checked');
-        taskText?.classList.remove('line-through', 'text-white/30');
-      }
-      handleInput();
-    }
-    if (target && target.classList?.contains('task-delete')) {
-      const parentTask = target.closest('.task-item');
-      if (parentTask) {
-        parentTask.remove();
-        handleInput();
-      }
-    }
-  };
 
   // --- 5. LOGIQUE DES LIGNES DU SIMULATEUR ---
   const upsertLigne = async (titre, fluxType, cat, mnt, freq = 'mensuel') => {

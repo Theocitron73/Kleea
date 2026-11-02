@@ -2565,7 +2565,7 @@ const recapAnnuelStats = useMemo(() => {
     const tracerPointilleCeMois = estPointDeJonction || estDansLaPlagePrevisions;
 
     // La ligne pleine réelle s'arrête au dernier mois clôturé (Août)
-    const tracerLignePleine = isPasseCloture || (!hasAnyPrevisionInYear && reel.hasRealData);
+    const tracerLignePleine = isPasseCloture || reel.hasRealData;
 
     const revMoisEnCoursEstime = reel.rev + revResteAVenir;
     const depMoisEnCoursEstime = reel.dep + depResteAVenir;

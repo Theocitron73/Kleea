@@ -3498,31 +3498,52 @@ def duplicate_scenario(req: DuplicateScenarioRequest, current_user: str = Depend
     return {"status": "success", "new_scenario": new_sc, "data": [dict(r) for r in rows]}
     
 
+# =========================================================================
+# 📝 BLOC-NOTES DÉMÉNAGEMENT (SAUVEGARDE ATOMIQUE SANS COLONNE MANQUANTE)
+# =========================================================================
+
 class NoteUpdate(BaseModel):
     utilisateur: str
     contenu: str
 
 @app.get("/api/notes-demenagement/{username}")
 def get_user_notes(username: str, current_user: str = Depends(get_current_user)):
-    if username.lower() != current_user.lower():
+    if username.lower().strip() != current_user.lower().strip():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
-    query = text("SELECT contenu FROM notes_demenagement WHERE LOWER(utilisateur) = :u")
-    with engine.connect() as conn:
-        result = conn.execute(query, {"u": current_user})
-        row = result.fetchone()
-        return {"contenu": row[0] if row else ""}
+    with engine.begin() as conn:
+        # Crée la table si elle n'existe pas
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS notes_demenagement (
+                utilisateur VARCHAR(255) PRIMARY KEY,
+                contenu TEXT
+            )
+        """))
+        res = conn.execute(
+            text("SELECT contenu FROM notes_demenagement WHERE LOWER(utilisateur) = :u"),
+            {"u": current_user.lower().strip()}
+        ).scalar()
+        return {"contenu": res if res else ""}
 
 @app.post("/api/notes-demenagement")
 def save_user_notes(note: NoteUpdate, current_user: str = Depends(get_current_user)):
-    now_utc = datetime.now(timezone.utc)
+    user_clean = current_user.lower().strip()
     with engine.begin() as conn:
-        exists = conn.execute(text("SELECT utilisateur FROM notes_demenagement WHERE LOWER(utilisateur) = :u"), {"u": current_user}).fetchone()
-        if exists:
-            query = text("UPDATE notes_demenagement SET contenu = :c, mis_a_jour_le = :now WHERE LOWER(utilisateur) = :u")
-        else:
-            query = text("INSERT INTO notes_demenagement (utilisateur, contenu, mis_a_jour_le) VALUES (:u, :c, :now)")
-        conn.execute(query, {"u": current_user, "c": note.contenu, "now": now_utc})
+        # Crée la table si nécessaire
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS notes_demenagement (
+                utilisateur VARCHAR(255) PRIMARY KEY,
+                contenu TEXT
+            )
+        """))
+        # 🟢 Sauvegarde infaillible sans colonne "mis_a_jour_le" inexistante
+        conn.execute(text("""
+            INSERT INTO notes_demenagement (utilisateur, contenu)
+            VALUES (:u, :c)
+            ON CONFLICT (utilisateur) DO UPDATE
+            SET contenu = EXCLUDED.contenu
+        """), {"u": user_clean, "c": note.contenu})
+        
     return {"status": "success"}
 
 
