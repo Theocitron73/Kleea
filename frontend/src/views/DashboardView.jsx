@@ -2538,13 +2538,95 @@ export default function DashboardView(props) {
                         <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} dy={10} tickFormatter={(v) => v ? `${v.substring(0, 3)}.` : ''} />
                         <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(0)}k€` : `${val}€`} />
                         
+                        {/* 🟢 TOOLTIP INTELLIGENT SANS DOUBLONS INUTILES */}
                         <Tooltip 
                           cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
-                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '12px' }}
-                          formatter={(val, name) => {
-                            const fVal = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2 }).format(val);
-                            const map = { revenus: 'Revenus', depenses: 'Dépenses', epargne: 'Épargne', revenusProjete: 'Revenus (Prévu)', depensesProjete: 'Dépenses (Prévues)', epargneProjete: 'Épargne (Prévue)' };
-                            return [fVal, map[name] || name];
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload || !payload.length) return null;
+
+                            const fEuro = (v) => new Intl.NumberFormat('fr-FR', { 
+                              style: 'currency', currency: 'EUR', minimumFractionDigits: 2 
+                            }).format(v);
+
+                            const getEntry = (key) => payload.find(p => p.dataKey === key);
+
+                            const metrics = [
+                              { key: 'revenus', label: 'Revenus', color: userTheme.color_revenus || '#10b981' },
+                              { key: 'depenses', label: 'Dépenses', color: userTheme.color_depenses || '#f43f5e' },
+                              { key: 'epargne', label: 'Épargne', color: userTheme.color_epargne || '#ffffff' }
+                            ];
+
+                            return (
+                              <div className="bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl space-y-2 min-w-[210px] select-none">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/50 border-b border-white/5 pb-1.5">
+                                  {label}
+                                </p>
+
+                                <div className="space-y-1.5">
+                                  {metrics.map(m => {
+                                    const real = getEntry(m.key);
+                                    const proj = getEntry(`${m.key}Projete`);
+
+                                    const hasReal = real && real.value !== null && real.value !== undefined;
+                                    const hasProj = proj && proj.value !== null && proj.value !== undefined;
+
+                                    if (!hasReal && !hasProj) return null;
+
+                                    const realVal = hasReal ? Number(real.value) : 0;
+                                    const projVal = hasProj ? Number(proj.value) : 0;
+                                    const areSame = hasReal && hasProj && Math.abs(realVal - projVal) < 0.01;
+
+                                    // CAS 1 : Même valeur -> 1 seule ligne propre (évite les doublons du screen)
+                                    if (areSame) {
+                                      return (
+                                        <div key={m.key} className="flex items-center justify-between gap-4 text-xs">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+                                            <span className="text-white/70 font-bold uppercase text-[11px]">{m.label}</span>
+                                          </div>
+                                          <span className="font-mono font-black" style={{ color: m.color }}>
+                                            {fEuro(realVal)}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+
+                                    // CAS 2 : Valeurs différentes (ex: mois en cours) ou seulement l'une des deux
+                                    return (
+                                      <React.Fragment key={m.key}>
+                                        {hasReal && (
+                                          <div className="flex items-center justify-between gap-4 text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+                                              <span className="text-white/70 font-bold uppercase text-[11px]">
+                                                {m.label} {hasProj ? '(Réel)' : ''}
+                                              </span>
+                                            </div>
+                                            <span className="font-mono font-black" style={{ color: m.color }}>
+                                              {fEuro(realVal)}
+                                            </span>
+                                          </div>
+                                        )}
+
+                                        {hasProj && (
+                                          <div className="flex items-center justify-between gap-4 text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="w-2 h-1 border border-dashed rounded-sm" style={{ borderColor: m.color }} />
+                                              <span className="text-white/50 font-bold uppercase text-[11px]">
+                                                {m.label} (Prévu)
+                                              </span>
+                                            </div>
+                                            <span className="font-mono font-black opacity-80" style={{ color: m.color }}>
+                                              {fEuro(projVal)}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
                           }}
                         />
 
@@ -2572,14 +2654,14 @@ export default function DashboardView(props) {
                           )}
                         />
 
-                        <Area type="monotone" dataKey="revenus" name="revenus" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }} />
-                        <Area type="monotone" dataKey="revenusProjete" name="revenusProjete" legendType="none" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorRevProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_revenus || '#10b981' }} />
+                        <Area type="monotone" dataKey="revenus" name="revenus" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="revenusProjete" name="revenusProjete" legendType="none" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorRevProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_revenus || '#10b981' }} isAnimationActive={false} />
 
-                        <Area type="monotone" dataKey="depenses" name="depenses" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeWidth={3} fillOpacity={1} fill="url(#colorDep)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }} />
-                        <Area type="monotone" dataKey="depensesProjete" name="depensesProjete" legendType="none" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorDepProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_depenses || '#f43f5e' }} />
+                        <Area type="monotone" dataKey="depenses" name="depenses" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeWidth={3} fillOpacity={1} fill="url(#colorDep)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="depensesProjete" name="depensesProjete" legendType="none" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorDepProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_depenses || '#f43f5e' }} isAnimationActive={false} />
 
-                        <Area type="monotone" dataKey="epargne" name="epargne" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeWidth={2} fillOpacity={1} fill="url(#colorEp)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }} />
-                        <Area type="monotone" dataKey="epargneProjete" name="epargneProjete" legendType="none" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorEpProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff' }} />
+                        <Area type="monotone" dataKey="epargne" name="epargne" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeWidth={2} fillOpacity={1} fill="url(#colorEp)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="epargneProjete" name="epargneProjete" legendType="none" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorEpProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff' }} isAnimationActive={false} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -3605,47 +3687,97 @@ export default function DashboardView(props) {
                         }}
                       />
                       
-                      <Tooltip 
-                        cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
-                        contentStyle={{ 
-                          backgroundColor: '#0f172a', 
-                          border: '1px solid rgba(255,255,255,0.1)', 
-                          borderRadius: '12px',
-                          boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
-                          padding: '12px'
-                        }}
-                        formatter={(value, name) => {
-                          const formattedValue = new Intl.NumberFormat('fr-FR', { 
-                            style: 'currency', 
-                            currency: 'EUR',
-                            minimumFractionDigits: 2 
-                          }).format(value);
+                      {/* 🟢 TOOLTIP INTELLIGENT SANS DOUBLONS INUTILES */}
+                        <Tooltip 
+                          cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload || !payload.length) return null;
 
-                          const labelMap = {
-                            revenus: 'Revenus',
-                            depenses: 'Dépenses',
-                            epargne: 'Épargne',
-                            revenusProjete: 'Revenus (Prévu)',
-                            depensesProjete: 'Dépenses (Prévues)',
-                            epargneProjete: 'Épargne (Prévue)'
-                          };
+                            const fEuro = (v) => new Intl.NumberFormat('fr-FR', { 
+                              style: 'currency', currency: 'EUR', minimumFractionDigits: 2 
+                            }).format(v);
 
-                          return [formattedValue, labelMap[name] || name];
-                        }}
-                        itemStyle={{ 
-                          fontSize: '12px', 
-                          fontWeight: '900', 
-                          textTransform: 'uppercase',
-                          padding: '2px 0'
-                        }}
-                        labelStyle={{ 
-                          color: 'rgba(255,255,255,0.5)', 
-                          fontWeight: 'bold', 
-                          marginBottom: '8px',
-                          fontSize: '10px',
-                          textTransform: 'uppercase'
-                        }}
-                      />
+                            const getEntry = (key) => payload.find(p => p.dataKey === key);
+
+                            const metrics = [
+                              { key: 'revenus', label: 'Revenus', color: userTheme.color_revenus || '#10b981' },
+                              { key: 'depenses', label: 'Dépenses', color: userTheme.color_depenses || '#f43f5e' },
+                              { key: 'epargne', label: 'Épargne', color: userTheme.color_epargne || '#ffffff' }
+                            ];
+
+                            return (
+                              <div className="bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl space-y-2 min-w-[210px] select-none">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-white/50 border-b border-white/5 pb-1.5">
+                                  {label}
+                                </p>
+
+                                <div className="space-y-1.5">
+                                  {metrics.map(m => {
+                                    const real = getEntry(m.key);
+                                    const proj = getEntry(`${m.key}Projete`);
+
+                                    const hasReal = real && real.value !== null && real.value !== undefined;
+                                    const hasProj = proj && proj.value !== null && proj.value !== undefined;
+
+                                    if (!hasReal && !hasProj) return null;
+
+                                    const realVal = hasReal ? Number(real.value) : 0;
+                                    const projVal = hasProj ? Number(proj.value) : 0;
+                                    const areSame = hasReal && hasProj && Math.abs(realVal - projVal) < 0.01;
+
+                                    // CAS 1 : Même valeur -> 1 seule ligne propre (évite les doublons du screen)
+                                    if (areSame) {
+                                      return (
+                                        <div key={m.key} className="flex items-center justify-between gap-4 text-xs">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+                                            <span className="text-white/70 font-bold uppercase text-[11px]">{m.label}</span>
+                                          </div>
+                                          <span className="font-mono font-black" style={{ color: m.color }}>
+                                            {fEuro(realVal)}
+                                          </span>
+                                        </div>
+                                      );
+                                    }
+
+                                    // CAS 2 : Valeurs différentes (ex: mois en cours) ou seulement l'une des deux
+                                    return (
+                                      <React.Fragment key={m.key}>
+                                        {hasReal && (
+                                          <div className="flex items-center justify-between gap-4 text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }} />
+                                              <span className="text-white/70 font-bold uppercase text-[11px]">
+                                                {m.label} {hasProj ? '(Réel)' : ''}
+                                              </span>
+                                            </div>
+                                            <span className="font-mono font-black" style={{ color: m.color }}>
+                                              {fEuro(realVal)}
+                                            </span>
+                                          </div>
+                                        )}
+
+                                        {hasProj && (
+                                          <div className="flex items-center justify-between gap-4 text-xs">
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="w-2 h-1 border border-dashed rounded-sm" style={{ borderColor: m.color }} />
+                                              <span className="text-white/50 font-bold uppercase text-[11px]">
+                                                {m.label} (Prévu)
+                                              </span>
+                                            </div>
+                                            <span className="font-mono font-black opacity-80" style={{ color: m.color }}>
+                                              {fEuro(projVal)}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          }}
+                        />
 
                       {/* Légende interactive mobile */}
                       <Legend 
@@ -3691,6 +3823,7 @@ export default function DashboardView(props) {
                         fill="url(#colorRevMob)"
                         connectNulls={false}
                         dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
+                        isAnimationActive={false}
                       />
                       <Area 
                         type="monotone" 
@@ -3705,6 +3838,7 @@ export default function DashboardView(props) {
                         fill="url(#colorRevProjMob)"
                         connectNulls={false}
                         dot={{ r: 2.5, fill: userTheme.color_revenus || '#10b981' }}
+                        isAnimationActive={false}
                       />
 
                       <Area 
@@ -3718,6 +3852,7 @@ export default function DashboardView(props) {
                         fill="url(#colorDepMob)"
                         connectNulls={false}
                         dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
+                        isAnimationActive={false}
                       />
                       <Area 
                         type="monotone" 
@@ -3732,6 +3867,7 @@ export default function DashboardView(props) {
                         fill="url(#colorDepProjMob)"
                         connectNulls={false}
                         dot={{ r: 2.5, fill: userTheme.color_depenses || '#f43f5e' }}
+                        isAnimationActive={false}
                       />
 
                       <Area 
@@ -3745,6 +3881,7 @@ export default function DashboardView(props) {
                         fill="url(#colorEpMob)"
                         connectNulls={false}
                         dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                        isAnimationActive={false}
                       />
                       <Area 
                         type="monotone" 
@@ -3759,6 +3896,7 @@ export default function DashboardView(props) {
                         fill="url(#colorEpProjMob)"
                         connectNulls={false}
                         dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff' }}
+                        isAnimationActive={false}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
