@@ -73,14 +73,14 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <div className="h-2 w-12 bg-white/10 rounded" />
-                  <div className="h-3 w-20 bg-white/20 rounded" />
+                  <div className="h-2 w-12 bg-white/10 rounded-sm" />
+                  <div className="h-3 w-20 bg-white/20 rounded-sm" />
                 </div>
                 <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10" />
               </div>
               <div>
                 <span className="text-[8.5px] font-black uppercase text-white/40 block mb-1">Solde</span>
-                <div className="h-5 w-24 bg-white/20 rounded font-mono animate-pulse" />
+                <div className="h-5 w-24 bg-white/20 rounded-sm font-mono animate-pulse" />
               </div>
             </div>
           ))}
@@ -103,11 +103,11 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
                   <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
                     Flux mensuel
                   </h3>
-                  <span className="text-indigo-400 text-[10px] font-black tracking-[0.2em] uppercase border-l border-white/10 pl-3">
+                  <span className="text-secondary-400 text-[10px] font-black tracking-[0.2em] uppercase border-l border-white/10 pl-3">
                     {filters?.mois || 'En cours'}
                   </span>
                 </div>
-                <div className="mt-1.5 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
+                <div className="mt-1.5 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_50%,transparent)]" />
               </div>
 
               {/* Boutons d'onglets complets */}
@@ -142,12 +142,12 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
                   </div>
                   <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex justify-between items-center">
-                      <div className="h-3 w-36 bg-white/15 rounded animate-pulse" />
-                      <div className="h-3.5 w-16 bg-white/20 rounded font-mono animate-pulse" />
+                      <div className="h-3 w-36 bg-white/15 rounded-sm animate-pulse" />
+                      <div className="h-3.5 w-16 bg-white/20 rounded-sm font-mono animate-pulse" />
                     </div>
                     <div className="flex justify-between items-center">
-                      <div className="h-2 w-16 bg-white/10 rounded" />
-                      <div className="h-2 w-20 bg-white/10 rounded" />
+                      <div className="h-2 w-16 bg-white/10 rounded-sm" />
+                      <div className="h-2 w-20 bg-white/10 rounded-sm" />
                     </div>
                   </div>
                 </div>
@@ -164,8 +164,8 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="flex-col items-center min-w-[76px] p-2 bg-black/30 border border-white/5 rounded-xl flex">
                   <div className="w-12 h-6 border-t-2 border-white/20 rounded-t-full mb-1" />
-                  <div className="h-2 w-10 bg-white/10 rounded mb-1" />
-                  <div className="h-2 w-6 bg-white/20 rounded animate-pulse" />
+                  <div className="h-2 w-10 bg-white/10 rounded-sm mb-1" />
+                  <div className="h-2 w-6 bg-white/20 rounded-sm animate-pulse" />
                 </div>
               ))}
             </div>
@@ -191,7 +191,7 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
                 </div>
                 <div className="flex items-center gap-1.5 mt-1">
                   <span className="text-[8.5px] font-bold text-white/40 uppercase">Solde 1er janvier :</span>
-                  <div className="h-3 w-14 bg-emerald-500/20 rounded animate-pulse" />
+                  <div className="h-3 w-14 bg-emerald-500/20 rounded-sm animate-pulse" />
                 </div>
               </div>
 
@@ -226,12 +226,12 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
                   
                   {/* Revenus skeleton */}
                   <div className="col-span-2 flex justify-end pr-1">
-                    <div className="h-2.5 w-12 bg-emerald-500/20 rounded animate-pulse" />
+                    <div className="h-2.5 w-12 bg-emerald-500/20 rounded-sm animate-pulse" />
                   </div>
 
                   {/* Dépenses skeleton */}
                   <div className="col-span-2 flex justify-end pr-1">
-                    <div className="h-2.5 w-12 bg-rose-500/20 rounded animate-pulse" />
+                    <div className="h-2.5 w-12 bg-rose-500/20 rounded-sm animate-pulse" />
                   </div>
 
                   {/* Épargne skeleton */}
@@ -241,7 +241,7 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
 
                   {/* Cumul skeleton */}
                   <div className="col-span-3 flex justify-end">
-                    <div className="h-3 w-14 bg-white/20 rounded font-mono animate-pulse" />
+                    <div className="h-3 w-14 bg-white/20 rounded-sm font-mono animate-pulse" />
                   </div>
                 </div>
               ))}
@@ -257,15 +257,15 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
             <div className="grid grid-cols-3 gap-2">
               <div className="bg-black/20 p-2 rounded-xl text-center">
                 <span className="text-[7px] font-black uppercase text-white/30 block mb-1">Total Revenus</span>
-                <div className="h-4 w-16 bg-emerald-500/20 rounded mx-auto animate-pulse" />
+                <div className="h-4 w-16 bg-emerald-500/20 rounded-sm mx-auto animate-pulse" />
               </div>
               <div className="bg-black/20 p-2 rounded-xl text-center">
                 <span className="text-[7px] font-black uppercase text-white/30 block mb-1">Total Dépenses</span>
-                <div className="h-4 w-16 bg-rose-500/20 rounded mx-auto animate-pulse" />
+                <div className="h-4 w-16 bg-rose-500/20 rounded-sm mx-auto animate-pulse" />
               </div>
               <div className="bg-black/20 p-2 rounded-xl text-center">
                 <span className="text-[7px] font-black uppercase text-white/30 block mb-1">Net Épargné</span>
-                <div className="h-4 w-16 bg-white/20 rounded mx-auto animate-pulse" />
+                <div className="h-4 w-16 bg-white/20 rounded-sm mx-auto animate-pulse" />
               </div>
             </div>
           </div>
@@ -277,11 +277,11 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
         <div className="col-span-12 lg:col-span-4 flex flex-col gap-3 h-[420px] lg:h-full min-h-0">
           
           {/* Vrais boutons d'onglets de droite */}
-          <div className="flex bg-slate-900/50 p-1.5 rounded-[24px] border border-white/5 w-fit self-center shrink-0">
-            <span className="px-5 py-1.5 rounded-[18px] text-[9.5px] font-black uppercase tracking-[0.15em] bg-white text-slate-900 shadow-md">
+          <div className="flex bg-slate-900/50 p-1.5 rounded-[var(--radius)] border border-white/5 w-fit self-center shrink-0">
+            <span className="px-5 py-1.5 rounded-[calc(var(--radius)*0.75)] text-[9.5px] font-black uppercase tracking-[0.15em] bg-white text-slate-900 shadow-md">
               Analytique
             </span>
-            <span className="px-5 py-1.5 rounded-[18px] text-[9.5px] font-black uppercase tracking-[0.15em] text-white/30">
+            <span className="px-5 py-1.5 rounded-[calc(var(--radius)*0.75)] text-[9.5px] font-black uppercase tracking-[0.15em] text-white/30">
               Gestion Épargne & Projets
             </span>
           </div>
@@ -298,7 +298,7 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
                     Objectif d'épargne {anneeAffichee}
                   </h4>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className="h-4 w-20 bg-white/20 rounded animate-pulse" />
+                    <div className="h-4 w-20 bg-white/20 rounded-sm animate-pulse" />
                     <span className="text-white/30 text-[10px] font-bold">/ Objectif</span>
                   </div>
                 </div>
@@ -339,7 +339,7 @@ export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadi
               <h3 className="text-white font-bold text-xs uppercase tracking-wider">
                 Détail des comptes
               </h3>
-              <div className="h-2 w-24 bg-white/10 rounded" />
+              <div className="h-2 w-24 bg-white/10 rounded-sm" />
             </div>
             {/* Onde graphique factice */}
             <div className="flex-1 w-full bg-black/20 rounded-xl flex items-end p-3 gap-1.5 overflow-hidden">

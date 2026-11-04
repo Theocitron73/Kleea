@@ -201,17 +201,17 @@ export default function ProfileTab({
     <div className="max-w-2xl mx-auto space-y-4 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* HEADER */}
       <div 
-        className="bg-white/5 backdrop-blur-xl p-5 rounded-3xl border border-white/10 relative overflow-hidden"
+        className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-5 rounded-3xl border border-white/10 relative overflow-hidden"
         style={{ boxShadow: `0 0 30px -15px var(--primary)` }}
       >
         <div className="absolute top-[-20%] right-[-10%] w-[120px] h-[120px] bg-[var(--primary)]/10 blur-[40px] rounded-full" />
         <div className="flex flex-col sm:flex-row items-center gap-4 relative z-10">
-          <div className="w-14 h-14 rounded-2xl bg-[var(--primary)] flex items-center justify-center text-2xl font-black text-white shadow-[0_0_20px_rgba(var(--primary-rgb),0.4)] border border-white/20 shrink-0">
+          <div className="w-14 h-14 rounded-2xl bg-[var(--primary)] flex items-center justify-center text-2xl font-black text-white shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_40%,transparent)] border border-white/20 shrink-0">
             {((data.name || data.username || "U").substring(0, 1).toUpperCase())}
           </div>
           <div className="text-center sm:text-left leading-tight">
             <h3 className="text-xl font-black text-white tracking-tight uppercase">{data.name}</h3>
-            <p className="text-[9px] font-bold text-[var(--primary)] uppercase tracking-widest mt-0.5">
+            <p className="text-[9px] font-bold text-[var(--secondary)] uppercase tracking-widest mt-0.5">
               {isAdmin ? 'Fondateur Kleea' : 'Membre Kleea Premium'}
             </p>
             <p className="text-[8px] font-semibold text-white/30 uppercase tracking-[0.2em] mt-1">@{data.username}</p>
@@ -222,7 +222,7 @@ export default function ProfileTab({
       {/* DÉTAILS DU COMPTE */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Infos personnelles */}
-        <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
+        <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">Détails Personnels</h4>
@@ -304,14 +304,14 @@ export default function ProfileTab({
         </div>
 
         {/* Sécurité */}
-        <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
+        <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
           <div>
             <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">Sécurité du Coffre</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
-                  <span className="text-[10px] font-black text-[var(--primary)] bg-[var(--primary)]/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
+                  <span className="text-[10px] font-black text-[var(--secondary)] bg-[var(--secondary)]/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
                     {isAdmin ? 'Administrateur' : 'Utilisateur'}
                   </span>
                 </div>
@@ -345,7 +345,7 @@ export default function ProfileTab({
         </div>
 
         {/* Mode d'import Global */}
-        <div className="md:col-span-2 bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="md:col-span-2 bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-0.5">
             <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">Mode d'importation Global</h4>
             <p className="text-[10px] text-white/50 leading-relaxed">Basculez entre l'import automatique Powens et l'import de relevés manuel.</p>
@@ -379,7 +379,7 @@ export default function ProfileTab({
 
       {/* FORMULAIRE CHANGER MOT DE PASSE */}
       {showPasswordForm && (
-        <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in-95 duration-300">
+        <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in-95 duration-300">
           <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">Mettre à jour le mot de passe</h4>
           <form onSubmit={handlePasswordChange} className="space-y-3">
             <div>
@@ -407,10 +407,10 @@ export default function ProfileTab({
       )}
 
       {/* SECTION BANCAIRE / POWENS */}
-      <div className="relative z-20 overflow-visible bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 p-4 space-y-3">
+      <div className="relative z-20 overflow-visible bg-white/5 backdrop-blur-[var(--glass-blur)] rounded-2xl border border-white/5 p-4 space-y-3">
         <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-[9px] uppercase font-bold text-[var(--text-main)] select-none">
           <span className="flex items-center gap-2 truncate pr-2">
-            <Building2 size={14} className="text-[var(--primary)] shrink-0" />
+            <Building2 size={14} className="text-[var(--secondary)] shrink-0" />
             <span className="truncate text-[10px] font-black tracking-wider">
               Association de vos comptes en banque réels & ceux sur Kleea ({powensData?.accounts_count || 0})
             </span>
@@ -505,7 +505,7 @@ export default function ProfileTab({
                   className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5 overflow-visible relative focus-within:z-[100]"
                 >
                   {/* EN-TÊTE DE LA BANQUE */}
-                  <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1.5">
+                  <div className="flex items-center justify-between text-[9px] font-black text-[var(--secondary)] uppercase px-1 border-b border-white/5 pb-1.5">
                     <span>{conn.connector_name}</span>
                     <span className="text-[8px] text-[var(--text-main)]/30 font-mono">ID: {conn.id}</span>
                   </div>
@@ -584,11 +584,11 @@ export default function ProfileTab({
                             <div className="flex items-center gap-1.5 truncate pr-1">
                               <span className="text-[var(--text-main)] font-semibold truncate">{acc.name}</span>
                               {!isAssociated ? (
-                                <span className="px-1 py-0.2 rounded bg-amber-500/10 text-amber-400/80 border border-amber-500/20 text-[6px] font-black uppercase tracking-wider shrink-0">Non lié</span>
+                                <span className="px-1 py-0.2 rounded-sm bg-amber-500/10 text-amber-400/80 border border-amber-500/20 text-[6px] font-black uppercase tracking-wider shrink-0">Non lié</span>
                               ) : isDesynced ? (
-                                <span className="px-1 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[6px] font-black uppercase tracking-wider animate-pulse shrink-0">Sync requis</span>
+                                <span className="px-1 py-0.2 rounded-sm bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[6px] font-black uppercase tracking-wider animate-pulse shrink-0">Sync requis</span>
                               ) : (
-                                <span className="px-1 py-0.2 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[6px] font-black uppercase tracking-wider shrink-0">Synchro</span>
+                                <span className="px-1 py-0.2 rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[6px] font-black uppercase tracking-wider shrink-0">Synchro</span>
                               )}
                             </div>
                             <span className="font-bold text-[var(--text-main)] shrink-0 text-[9px]">
@@ -622,7 +622,7 @@ export default function ProfileTab({
       <StreamDeckTokenCard />
 
       {/* ZONE DANGER SUPPRESSION */}
-      <div className="bg-rose-500/5 backdrop-blur-md p-4 rounded-2xl border border-rose-500/20 space-y-3">
+      <div className="bg-rose-500/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-rose-500/20 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <h4 className="text-[9px] font-black text-rose-400 uppercase tracking-[0.22em]">Supprimer mon compte</h4>
@@ -643,7 +643,7 @@ export default function ProfileTab({
             <p className="text-[10px] font-semibold text-rose-300/80">⚠️ Attention : Action irréversible. Toutes vos données seront purgées.</p>
             <div className="flex flex-col gap-1 max-w-sm">
               <label className="text-[8px] font-black text-white/40 uppercase tracking-wider">
-                Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded">delete</span> :
+                Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded-sm">delete</span> :
               </label>
               <input
                 type="text"

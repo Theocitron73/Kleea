@@ -525,7 +525,7 @@ export default function TricountManager({ userId }) {
               onClick={() => setMobileSection('bilan')}
               className={`flex-1 py-2.5 text-center text-[9.5px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                 mobileSection === 'bilan' 
-                  ? 'border-[var(--primary)] text-[var(--primary)]' 
+                  ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                   : 'border-transparent text-white/40'
               }`}
             >
@@ -536,7 +536,7 @@ export default function TricountManager({ userId }) {
               onClick={() => setMobileSection('ajouter')}
               className={`flex-1 py-2.5 text-center text-[9.5px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                 mobileSection === 'ajouter' 
-                  ? 'border-[var(--primary)] text-[var(--primary)]' 
+                  ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                   : 'border-transparent text-white/40'
               }`}
             >
@@ -547,7 +547,7 @@ export default function TricountManager({ userId }) {
               onClick={() => setMobileSection('membres')}
               className={`flex-1 py-2.5 text-center text-[9.5px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                 mobileSection === 'membres' 
-                  ? 'border-[var(--primary)] text-[var(--primary)]' 
+                  ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                   : 'border-transparent text-white/40'
               }`}
             >
@@ -567,10 +567,10 @@ export default function TricountManager({ userId }) {
                 <h4 className="text-[10px] font-black text-[var(--text-main)]/60 uppercase tracking-[0.25em]">Membres du Groupe</h4>
               </div>
 
-              <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
+              <div className="bg-[var(--surface)] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-5">
                 {/* Ajout de membre */}
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black uppercase tracking-widest text-[var(--primary)] ml-1">Nouveau membre</label>
+                  <label className="text-[9px] font-black uppercase tracking-widest text-[var(--secondary)] ml-1">Nouveau membre</label>
                   <div className="relative">
                     <input 
                       type="text"
@@ -626,7 +626,7 @@ export default function TricountManager({ userId }) {
 
                             {activeEmojiPicker === membre && createPortal(
                               <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-                                <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setActiveEmojiPicker(null)} />
+                                <div className="absolute inset-0 bg-black/70 backdrop-blur-[var(--glass-blur)]" onClick={() => setActiveEmojiPicker(null)} />
                                 <div className="relative shadow-2xl animate-in zoom-in-95 duration-200">
                                   <EmojiPicker 
                                     onEmojiClick={(emojiData) => {
@@ -676,7 +676,7 @@ export default function TricountManager({ userId }) {
                 <h4 className="text-[10px] font-black text-[var(--text-main)]/60 uppercase tracking-[0.25em]">Nouvelle dépense</h4>
               </div>
               
-              <div className="bg-[#0f172a] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
+              <div className="bg-[var(--surface)] border border-white/10 rounded-3xl p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto custom-scrollbar">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[8.5px] font-black uppercase tracking-widest text-white/40 block mb-1">Désignation</label>
@@ -716,7 +716,7 @@ export default function TricountManager({ userId }) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[8.5px] font-black uppercase tracking-widest text-[var(--primary)] block">Payé par</label>
+                  <label className="text-[8.5px] font-black uppercase tracking-widest text-[var(--secondary)] block">Payé par</label>
                   <div className="flex flex-wrap gap-1.5 p-1.5 bg-black/25 rounded-2xl border border-white/5">
                     {participantsDuGroupe.map(p => (
                       <button
@@ -852,7 +852,7 @@ export default function TricountManager({ userId }) {
                         <div className="col-span-full h-full min-h-[250px] flex flex-col items-center justify-center border-2 border-dashed border-white/5 rounded-3xl bg-white/[0.02]">
                           <div className="w-16 h-16 bg-indigo-500/5 rounded-full flex items-center justify-center mb-3 text-2xl">👥</div>
                           <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40 mb-1">Groupe vide</h5>
-                          <p className="text-[10px] font-bold text-indigo-400/50 uppercase tracking-wider text-center px-6">Ajoutez des membres pour commencer.</p>
+                          <p className="text-[10px] font-bold text-secondary-400/50 uppercase tracking-wider text-center px-6">Ajoutez des membres pour commencer.</p>
                         </div>
                       );
                     }
@@ -932,7 +932,7 @@ export default function TricountManager({ userId }) {
                       setGroupToEdit({ oldName: groupes[activeTab].nom, newName: groupes[activeTab].nom });
                       setIsEditModalOpen(true);
                     }}
-                    className="p-2 bg-[var(--glass-bg)] hover:bg-white/10 rounded-xl border border-white/10 transition-all text-white/60 hover:text-[var(--primary)] cursor-pointer"
+                    className="p-2 bg-[var(--glass-bg)] hover:bg-white/10 rounded-xl border border-white/10 transition-all text-white/60 hover:text-[var(--secondary)] cursor-pointer"
                     title="Renommer ce groupe"
                   >
                     <Edit2 size={13}/>
@@ -973,7 +973,7 @@ export default function TricountManager({ userId }) {
                           </span>
                           <div className="flex items-center gap-1.5 mt-1">
                             <span className="text-xs">{getEmojiForMember(t.payé_par || t.paye_par) || "👤"}</span>
-                            <span className="text-[8.5px] text-[var(--primary)] font-black uppercase tracking-wider">
+                            <span className="text-[8.5px] text-[var(--secondary)] font-black uppercase tracking-wider">
                               Par {t.payé_par || t.paye_par}
                             </span>
                           </div>
@@ -1012,7 +1012,7 @@ export default function TricountManager({ userId }) {
                                   details_montants: montantsInitialises
                                 });
                               }}
-                              className="p-1.5 text-white/40 hover:text-[var(--primary)] cursor-pointer"
+                              className="p-1.5 text-white/40 hover:text-[var(--secondary)] cursor-pointer"
                               title="Modifier la dépense"
                             >
                               <Edit2 size={12} />
@@ -1031,7 +1031,7 @@ export default function TricountManager({ userId }) {
 
                       {/* Confirmation suppression en ligne */}
                       {deletingId === t.id && (
-                        <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-md flex items-center justify-between px-4 animate-in fade-in duration-200">
+                        <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-[var(--glass-blur)] flex items-center justify-between px-4 animate-in fade-in duration-200">
                           <span className="text-[8.5px] font-black uppercase tracking-wider text-rose-400">
                             Supprimer définitivement ?
                           </span>
@@ -1071,7 +1071,7 @@ export default function TricountManager({ userId }) {
         </div>
       ) : !loading ? (
         <div className="flex flex-col items-center justify-center p-16 sm:p-20 bg-[var(--glass-bg)] rounded-3xl border border-white/10 text-center">
-          <div className="w-16 h-16 bg-[var(--primary)]/20 text-[var(--primary)] rounded-2xl flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-[var(--secondary)]/20 text-[var(--secondary)] rounded-2xl flex items-center justify-center mb-4">
             <Plus size={32} strokeWidth={3} />
           </div>
           <h3 className="text-lg font-black text-[var(--text-main)] uppercase tracking-tight mb-1">Aucun groupe actif</h3>
@@ -1085,14 +1085,14 @@ export default function TricountManager({ userId }) {
 
       {/* MODALE ÉDITION TRANSACTION */}
       {editingTransaction && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setEditingTransaction(null)} />
           <div 
-            className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl max-h-[85vh] overflow-y-auto custom-scrollbar space-y-5"
+            className="relative w-full max-w-lg bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl max-h-[85vh] overflow-y-auto custom-scrollbar space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center pb-3 border-b border-white/5">
-              <h3 className="text-sm font-black uppercase tracking-wider text-[var(--primary)]">Modifier la dépense</h3>
+              <h3 className="text-sm font-black uppercase tracking-wider text-[var(--secondary)]">Modifier la dépense</h3>
               <button onClick={() => setEditingTransaction(null)} className="p-1 text-white/40 hover:text-white cursor-pointer"><X size={16} /></button>
             </div>
             
@@ -1137,7 +1137,7 @@ export default function TricountManager({ userId }) {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[8.5px] font-black uppercase tracking-widest text-[var(--primary)] block">Payé par</label>
+                <label className="text-[8.5px] font-black uppercase tracking-widest text-[var(--secondary)] block">Payé par</label>
                 <div className="flex flex-wrap gap-1.5 p-1.5 bg-black/20 rounded-xl border border-white/5">
                   {participantsDuGroupe.map(personne => (
                     <button
@@ -1221,15 +1221,15 @@ export default function TricountManager({ userId }) {
 
       {/* MODALE CRÉATION GROUPE */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsModalOpen(false)} />
           <div 
-            className="relative w-full max-w-sm bg-[#0f172a] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4"
+            className="relative w-full max-w-sm bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">Nouveau Groupe</h4>
+                <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest leading-none">Nouveau Groupe</h4>
                 <p className="text-[9px] text-white/30 uppercase font-bold mt-1">Définissez le nom de votre projet</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-1 text-white/40 hover:text-white cursor-pointer"><X size={16} /></button>
@@ -1256,15 +1256,15 @@ export default function TricountManager({ userId }) {
 
       {/* MODALE RENOMMER GROUPE */}
       {isEditModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsEditModalOpen(false)} />
           <div 
-            className="relative w-full max-w-sm bg-[#0f172a] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4"
+            className="relative w-full max-w-sm bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">Modifier le nom</h4>
+                <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest leading-none">Modifier le nom</h4>
                 <p className="text-[9px] text-white/30 uppercase font-bold mt-1">Ancien nom : {groupToEdit.oldName}</p>
               </div>
               <button onClick={() => setIsEditModalOpen(false)} className="p-1 text-white/40 hover:text-white cursor-pointer"><X size={16} /></button>
@@ -1290,10 +1290,10 @@ export default function TricountManager({ userId }) {
 
       {/* MODALE SUPPRESSION GROUPE */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsDeleteModalOpen(false)} />
           <div 
-            className="relative w-full max-w-sm bg-[#0f172a] border border-rose-500/20 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 text-center animate-in zoom-in-95 duration-200 space-y-4"
+            className="relative w-full max-w-sm bg-[var(--surface)] border border-rose-500/20 rounded-3xl p-6 sm:p-8 shadow-2xl z-10 text-center animate-in zoom-in-95 duration-200 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-14 h-14 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-rose-500/10">

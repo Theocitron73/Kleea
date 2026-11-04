@@ -115,7 +115,7 @@ export const AnnualCategoriesChart = ({ data, userTheme = {}, currentYear, gener
           </div>
         </foreignObject>
         <text 
-          x={x} y={y + 10} fill="white" textAnchor="middle" dominantBaseline="central" 
+          x={x} y={y + 10} fill="var(--text-main)" textAnchor="middle" dominantBaseline="central" 
           className="text-[8.5px] md:text-[10px] font-black tracking-tighter"
           style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}
         >
@@ -160,7 +160,7 @@ export const AnnualCategoriesChart = ({ data, userTheme = {}, currentYear, gener
                   if (active && payload && payload.length) {
                     const p = payload[0].payload;
                     return (
-                      <div className="bg-[#0a0a0b]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-md z-50 flex items-center gap-3">
+                      <div className="bg-[var(--surface)]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-[var(--glass-blur)] z-50 flex items-center gap-3">
                         <div className="p-1.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
                           <CategoryIcon name={p.name} size={15} />
                         </div>
@@ -208,10 +208,10 @@ export const AnnualCategoriesChart = ({ data, userTheme = {}, currentYear, gener
                 }`}
               >
                 <CategoryIcon name={entry.name} size={isMobile ? 12 : 14} />
-                <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#0a0a0b] border border-white/15 flex items-center justify-center transition-opacity ${
+                <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[var(--surface)] border border-white/15 flex items-center justify-center transition-opacity ${
                   isHidden ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                 }`}>
-                  {isHidden ? <EyeOff size={7} color="white" /> : <Eye size={7} color="white" />}
+                  {isHidden ? <EyeOff size={7} color="var(--text-main)" /> : <Eye size={7} color="var(--text-main)" />}
                 </div>
               </button>
             );
@@ -319,7 +319,7 @@ export const CategoriesView = ({ statsCategories, chartData, hiddenCategories, t
             <CategoryIcon name={name} size={iconSize} />
           </div>
         </foreignObject>
-        <text x={textOffset} y={3.5} textAnchor="start" fill="rgba(255,255,255,0.8)" fontSize={isMobile ? 8 : 9} fontWeight="bold" className="uppercase tracking-tight">
+        <text x={textOffset} y={3.5} textAnchor="start" fill="color-mix(in srgb, var(--text-main) 80%, transparent)" fontSize={isMobile ? 8 : 9} fontWeight="bold" className="uppercase tracking-tight">
           {displayName}
         </text>
       </g>
@@ -332,7 +332,7 @@ export const CategoriesView = ({ statsCategories, chartData, hiddenCategories, t
       const evolution = data.evolution || 0;
 
       return (
-        <div className="bg-slate-900/95 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
+        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
           <div className="flex justify-between items-start gap-3 mb-2">
             <div className="flex items-center gap-2">
               <CategoryIcon name={data.name} size={13} />
@@ -377,7 +377,7 @@ export const CategoriesView = ({ statsCategories, chartData, hiddenCategories, t
                   </defs>
                   <XAxis type="number" hide />
                   <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} interval={0} width={isMobile ? 108 : 128} tick={<CustomYAxisTick />} />
-                  <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }} content={<CustomTooltip />} />
+                  <Tooltip cursor={{ fill: 'color-mix(in srgb, var(--text-main) 3%, transparent)' }} content={<CustomTooltip />} />
                   <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 15}>
                     {(chartData || []).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
@@ -392,7 +392,7 @@ export const CategoriesView = ({ statsCategories, chartData, hiddenCategories, t
                         return (
                           <text x={x + width + (isMobile ? 4 : 6)} y={y + height / 2} dy={3.5} fontSize={isMobile ? 8 : 9} fontWeight="900">
                             <tspan fill="rgba(245, 238, 238, 0.9)">{Math.round(value)}€ </tspan>
-                            <tspan fill="rgba(99, 102, 241, 0.9)">({percentage}%)</tspan>
+                            <tspan fill="color-mix(in srgb, var(--primary) 90%, transparent)">({percentage}%)</tspan>
                           </text>
                         );
                       }}
@@ -513,7 +513,7 @@ export const VariationsView = ({ statsCategories = [], userTheme = {}, prevMonth
               <div className="flex items-end justify-between w-full mt-1.5 leading-none gap-1.5">
                 <div className="flex items-center gap-0.5 min-w-0">
                   {isNewCategory ? (
-                    <div className="flex items-center gap-0.5 text-indigo-400">
+                    <div className="flex items-center gap-0.5 text-secondary-400">
                       <Sparkles size={9} />
                       <span className="text-[8.5px] font-black tracking-wider uppercase italic">Nouveau</span>
                     </div>
@@ -571,7 +571,7 @@ const MAP_COULEURS = {
   rose: { bg: "bg-rose-500/[0.03] border-rose-500/10", text: "text-rose-400" },
   amber: { bg: "bg-amber-500/[0.03] border-amber-500/10", text: "text-amber-400" },
   emerald: { bg: "bg-emerald-500/[0.03] border-emerald-500/10", text: "text-emerald-400" },
-  indigo: { bg: "bg-indigo-500/[0.02] border-indigo-500/20", text: "text-indigo-400" },
+  indigo: { bg: "bg-indigo-500/[0.02] border-indigo-500/20", text: "text-secondary-400" },
   cyan: { bg: "bg-cyan-500/[0.03] border-cyan-500/10", text: "text-cyan-400" },
   violet: { bg: "bg-violet-500/[0.03] border-violet-500/10", text: "text-violet-400" },
   blue: { bg: "bg-blue-500/[0.03] border-blue-500/10", text: "text-blue-400" },
@@ -872,11 +872,11 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             <button 
               type="button"
               onClick={() => setReponseAI("")}
-              className="absolute top-2 right-2 text-white/20 hover:text-white/60 text-[9px] uppercase tracking-widest transition-all px-1.5 py-0.5 rounded hover:bg-white/5 cursor-pointer"
+              className="absolute top-2 right-2 text-white/20 hover:text-white/60 text-[9px] uppercase tracking-widest transition-all px-1.5 py-0.5 rounded-sm hover:bg-white/5 cursor-pointer"
             >
               Fermer
             </button>
-            <p className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-0.5">
+            <p className="text-[7px] font-black text-secondary-400 uppercase tracking-[0.2em] mb-0.5">
               ✨ Analyse de l'assistant
             </p>
             <div className="text-[11px] text-white/80 prose prose-invert max-w-none leading-relaxed break-words max-h-[180px] overflow-y-auto pr-1 custom-scrollbar">
@@ -899,7 +899,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
             type="button"
             onClick={analyserDonneesAvecGemini}
             disabled={loading || !question.trim()}
-            className="h-7 px-3 rounded-lg bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white disabled:bg-white/0 disabled:text-white/50 text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center justify-center cursor-pointer"
+            className="h-7 px-3 rounded-lg bg-secondary-500/10 hover:bg-indigo-500 text-secondary-400 hover:text-white disabled:bg-white/0 disabled:text-white/50 text-[9px] font-black uppercase tracking-wider transition-all shrink-0 flex items-center justify-center cursor-pointer"
           >
             {loading ? <span className="w-3 h-3 border-2 border-white/50 border-t-indigo-400 rounded-full animate-spin" /> : "Demander"}
           </button>
@@ -1006,7 +1006,7 @@ export const GridTile = React.memo(({ jour, index, totalJours }) => {
   return (
     <div className={`w-3.5 h-3.5 rounded-sm border transition-all duration-150 relative group/tile ${couleursIntensite[jour.niveauIntensite]}`}>
       <div className={`absolute hidden group-hover/tile:flex items-center pointer-events-none z-50 animate-in fade-in duration-150 ${classeYTooltip} ${classeXTooltip}`}>
-        <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-md min-w-[130px] isolate">
+        <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-[var(--glass-blur)] min-w-[130px] isolate">
           <p className="text-[8px] font-black text-white/40 uppercase tracking-wider">{jour.affichage}</p>
           <p className="text-xs font-black tracking-tight text-rose-400 mt-0.5 whitespace-nowrap">
             {jour.montant > 0 ? `${jour.montant.toLocaleString('fr-FR')} €` : '0,00 €'}
@@ -1424,7 +1424,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
         <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Profil : Weekend vs Semaine</p>
           <div className="mt-4 space-y-1">
-            <p className="text-xl font-black tracking-tight text-indigo-400">{stats.pctWeekend.toFixed(0)} %</p>
+            <p className="text-xl font-black tracking-tight text-secondary-400">{stats.pctWeekend.toFixed(0)} %</p>
             <p className="text-[10px] font-medium text-white/60">De vos budgets s'envolent le weekend.</p>
           </div>
         </div>
@@ -1629,7 +1629,7 @@ export default function DashboardView(props) {
                   <span className="text-[9px] text-white/50 uppercase font-black tracking-tighter italic">
                     {filters.profil}
                   </span>
-                  <div className="flex h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.5)]" />
+                  <div className="flex h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_5px_color-mix(in_srgb,var(--text-main)_50%,transparent)]" />
                 </div>
                 <p className="text-[10px] text-white/90 font-black truncate">
                   {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
@@ -1676,12 +1676,12 @@ export default function DashboardView(props) {
                         Flux mensuel
                       </h3>
                       <div className="border-l border-white/10 pl-3 flex flex-col">
-                        <span className="text-indigo-400 text-[10px] font-black tracking-[0.2em] uppercase">
+                        <span className="text-secondary-400 text-[10px] font-black tracking-[0.2em] uppercase">
                           {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
                         </span>
                       </div>
                     </div>
-                    <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_rgba(99,102,241,0.5)]" />
+                    <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_50%,transparent)]" />
                   </div>
 
                   <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
@@ -1837,12 +1837,12 @@ export default function DashboardView(props) {
                                     color={
                                       tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
                                       tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
-                                      '#6366f1'
+                                      'var(--primary)'
                                     }
                                     bg={
                                       tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
                                       tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
-                                      'rgba(99, 102, 241, 0.1)'
+                                      'color-mix(in srgb, var(--primary) 10%, transparent)'
                                     }
                                   />
                                 ))
@@ -1890,7 +1890,7 @@ export default function DashboardView(props) {
                       <button 
                         type="button"
                         onClick={() => navigateCarousel('prev')}
-                        className="absolute left-[-12px] top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-black/60 hover:bg-[var(--primary)] text-white border border-white/10 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 shadow-lg cursor-pointer"
+                        className="absolute left-[-12px] top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-black/60 hover:bg-[var(--primary)] text-white border border-white/10 rounded-full flex items-center justify-center backdrop-blur-[var(--glass-blur)] transition-all active:scale-90 shadow-lg cursor-pointer"
                       >
                         <ChevronLeft size={14} strokeWidth={3} />
                       </button>
@@ -1900,7 +1900,7 @@ export default function DashboardView(props) {
                       <button 
                         type="button"
                         onClick={() => navigateCarousel('next')}
-                        className="absolute right-[-12px] top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-black/60 hover:bg-[var(--primary)] text-white border border-white/10 rounded-full flex items-center justify-center backdrop-blur-md transition-all active:scale-90 shadow-lg cursor-pointer"
+                        className="absolute right-[-12px] top-1/2 -translate-y-1/2 z-10 w-7 h-7 bg-black/60 hover:bg-[var(--primary)] text-white border border-white/10 rounded-full flex items-center justify-center backdrop-blur-[var(--glass-blur)] transition-all active:scale-90 shadow-lg cursor-pointer"
                       >
                         <ChevronRight size={14} strokeWidth={3} />
                       </button>
@@ -1989,7 +1989,7 @@ export default function DashboardView(props) {
                     <button 
                       type="button"
                       onClick={() => setActiveTab('gerer')}
-                      className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-white/[0.06] hover:border-white/10 rounded-lg text-[var(--primary)] text-[8px] font-black uppercase tracking-widest transition-all duration-200 border border-white/5 active:scale-95 cursor-pointer"
+                      className="px-3 py-1.5 bg-[var(--glass-bg)] hover:bg-white/[0.06] hover:border-white/10 rounded-lg text-[var(--secondary)] text-[8px] font-black uppercase tracking-widest transition-all duration-200 border border-white/5 active:scale-95 cursor-pointer"
                     >
                       Limites →
                     </button>
@@ -2101,7 +2101,7 @@ export default function DashboardView(props) {
 
                               {estFutur && aDesPrevisions && (
                                 <span 
-                                  className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded tracking-wider shrink-0 select-none border"
+                                  className="text-[7.5px] font-black uppercase px-1.5 py-0.2 rounded-sm tracking-wider shrink-0 select-none border"
                                   style={{
                                     backgroundColor: `${userTheme.color_patrimoine || '#37b58f'}1a`,
                                     borderColor: `${userTheme.color_patrimoine || '#37b58f'}33`,
@@ -2368,11 +2368,11 @@ export default function DashboardView(props) {
 
           {/* --- COLONNE 3 : GRAPHES & GESTION ÉPARGNE & PROJETS --- */}
           <div className="col-span-12 lg:col-span-4 flex flex-col h-[700px] lg:h-full min-h-0">
-            <div onWheel={handleWheelRightTab} className="flex bg-slate-900/50 p-1.5 rounded-[24px] mb-2 border border-white/5 backdrop-blur-[var(--glass-blur)] w-fit self-center shadow-inner select-none">
+            <div onWheel={handleWheelRightTab} className="flex bg-slate-900/50 p-1.5 rounded-[var(--radius)] mb-2 border border-white/5 backdrop-blur-[var(--glass-blur)] w-fit self-center shadow-inner select-none">
               <button 
                 type="button"
                 onClick={() => setActiveRightTab('graphs')}
-                className={`px-6 py-2 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
+                className={`px-6 py-2 rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
                   activeRightTab === 'graphs' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                 }`}
               >
@@ -2381,7 +2381,7 @@ export default function DashboardView(props) {
               <button 
                 type="button"
                 onClick={() => setActiveRightTab('epargneProjets')}
-                className={`px-6 py-2 rounded-[18px] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
+                className={`px-6 py-2 rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
                   activeRightTab === 'epargneProjets' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                 }`}
               >
@@ -2534,13 +2534,13 @@ export default function DashboardView(props) {
                           </linearGradient>
                         </defs>
 
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                        <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }} dy={10} tickFormatter={(v) => v ? `${v.substring(0, 3)}.` : ''} />
-                        <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(0)}k€` : `${val}€`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-main) 3%, transparent)" vertical={false} />
+                        <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{ fill: 'color-mix(in srgb, var(--text-main) 30%, transparent)', fontSize: 11 }} dy={10} tickFormatter={(v) => v ? `${v.substring(0, 3)}.` : ''} />
+                        <YAxis tick={{ fill: 'color-mix(in srgb, var(--text-main) 50%, transparent)', fontSize: 11 }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(0)}k€` : `${val}€`} />
                         
                         {/* 🟢 TOOLTIP INTELLIGENT SANS DOUBLONS INUTILES */}
                         <Tooltip 
-                          cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
+                          cursor={{ stroke: 'color-mix(in srgb, var(--text-main) 10%, transparent)', strokeWidth: 2 }}
                           content={({ active, payload, label }) => {
                             if (!active || !payload || !payload.length) return null;
 
@@ -2557,7 +2557,7 @@ export default function DashboardView(props) {
                             ];
 
                             return (
-                              <div className="bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl space-y-2 min-w-[210px] select-none">
+                              <div className="bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl space-y-2 min-w-[210px] select-none">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-white/50 border-b border-white/5 pb-1.5">
                                   {label}
                                 </p>
@@ -2654,13 +2654,13 @@ export default function DashboardView(props) {
                           )}
                         />
 
-                        <Area type="monotone" dataKey="revenus" name="revenus" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="revenus" name="revenus" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: 'var(--text-main)' }} isAnimationActive={false} />
                         <Area type="monotone" dataKey="revenusProjete" name="revenusProjete" legendType="none" hide={!visibleAnnuel.revenus} stroke={userTheme.color_revenus || "#10b981"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorRevProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_revenus || '#10b981' }} isAnimationActive={false} />
 
-                        <Area type="monotone" dataKey="depenses" name="depenses" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeWidth={3} fillOpacity={1} fill="url(#colorDep)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="depenses" name="depenses" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeWidth={3} fillOpacity={1} fill="url(#colorDep)" connectNulls={false} dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: 'var(--text-main)' }} isAnimationActive={false} />
                         <Area type="monotone" dataKey="depensesProjete" name="depensesProjete" legendType="none" hide={!visibleAnnuel.depenses} stroke={userTheme.color_depenses || "#f43f5e"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorDepProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_depenses || '#f43f5e' }} isAnimationActive={false} />
 
-                        <Area type="monotone" dataKey="epargne" name="epargne" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeWidth={2} fillOpacity={1} fill="url(#colorEp)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="epargne" name="epargne" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeWidth={2} fillOpacity={1} fill="url(#colorEp)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: 'var(--text-main)' }} isAnimationActive={false} />
                         <Area type="monotone" dataKey="epargneProjete" name="epargneProjete" legendType="none" hide={!visibleAnnuel.epargne} stroke={userTheme.color_epargne || "#ffffff"} strokeDasharray="4 4" strokeWidth={2} fillOpacity={1} fill="url(#colorEpProj)" connectNulls={false} dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff' }} isAnimationActive={false} />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -2670,9 +2670,9 @@ export default function DashboardView(props) {
                   <div className="flex-1 w-full min-h-[200px] min-w-0 pb-4">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                        <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} tickFormatter={(v) => v ? `${v.substring(0, 3)}.` : ''} />
-                        <YAxis tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(0)}k€` : `${val}€`} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-main) 3%, transparent)" vertical={false} />
+                        <XAxis dataKey="nom" axisLine={false} tickLine={false} tick={{fill: 'color-mix(in srgb, var(--text-main) 30%, transparent)', fontSize: 11}} tickFormatter={(v) => v ? `${v.substring(0, 3)}.` : ''} />
+                        <YAxis tick={{ fill: 'color-mix(in srgb, var(--text-main) 50%, transparent)', fontSize: 11 }} axisLine={false} tickLine={false} width={60} tickFormatter={(val) => Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(0)}k€` : `${val}€`} />
                         
                         <defs>
                           {comptesDuProfil?.map((compte, index) => (
@@ -2763,13 +2763,13 @@ export default function DashboardView(props) {
 
                             return (
                               <React.Fragment key={`area-compte-${index}`}>
-                                <Area type="monotone" dataKey={nomCle} name={compte.compte} hide={isHidden} stroke={color} fill={`url(#colorGrad-${index})`} fillOpacity={1} strokeWidth={2} connectNulls={false} dot={{ r: 3, fill: color, strokeWidth: 1, stroke: '#ffffff' }} isAnimationActive={false} />
+                                <Area type="monotone" dataKey={nomCle} name={compte.compte} hide={isHidden} stroke={color} fill={`url(#colorGrad-${index})`} fillOpacity={1} strokeWidth={2} connectNulls={false} dot={{ r: 3, fill: color, strokeWidth: 1, stroke: 'var(--text-main)' }} isAnimationActive={false} />
                                 <Area type="monotone" dataKey={`PROJ_${nomCle}`} name={compte.compte} legendType="none" hide={isHidden} stroke={color} strokeDasharray="4 4" fill={`url(#colorGradProj-${index})`} fillOpacity={1} strokeWidth={2} connectNulls={false} dot={{ r: 2.5, fill: color }} isAnimationActive={false} />
                               </React.Fragment>
                             );
                           })}
 
-                        <Area type="monotone" dataKey="soldeTotal" stroke="#ffffff" strokeWidth={3} fill="transparent" name="PATRIMOINE TOTAL" hide={!!hiddenComptes["PATRIMOINE TOTAL"]} dot={{ r: 3, fill: '#ffffff', strokeWidth: 1, stroke: '#ffffff' }} connectNulls={false} isAnimationActive={false} />
+                        <Area type="monotone" dataKey="soldeTotal" stroke="var(--text-main)" strokeWidth={3} fill="transparent" name="PATRIMOINE TOTAL" hide={!!hiddenComptes["PATRIMOINE TOTAL"]} dot={{ r: 3, fill: 'var(--text-main)', strokeWidth: 1, stroke: 'var(--text-main)' }} connectNulls={false} isAnimationActive={false} />
                         <Area type="monotone" dataKey="soldeProjete" stroke="#38bdf8" strokeDasharray="4 4" strokeWidth={2.5} fill="transparent" name="PATRIMOINE TOTAL (Prévu)" legendType="none" hide={!!hiddenComptes["PATRIMOINE TOTAL"]} dot={{ r: 3, fill: '#38bdf8' }} connectNulls={false} isAnimationActive={false} />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -2785,12 +2785,10 @@ export default function DashboardView(props) {
                   projets={projets}
                   setProjets={setProjets}
                   transactions={toutesLesTransactions}
-                  epargneCumuleeAnnuelle={epargneCumuleeAnnuelle}
                   recapAnnuelStats={recapAnnuelStats}
                   filters={filters}
-                  user={user}
                   api={api}
-                  fetchAllocations={fetchAllocations}
+                  comptesDuProfil={comptesDuProfil}
                 />
               </div>
             )}
@@ -2828,7 +2826,7 @@ export default function DashboardView(props) {
                       key={p}
                       type="button"
                       onClick={() => setFilters({...filters, profil: p})}
-                      className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                         isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:text-white/70'
                       }`}
                     >
@@ -2848,7 +2846,7 @@ export default function DashboardView(props) {
                     key={year}
                     type="button"
                     onClick={() => setFilters({...filters, annee: year.toString()})}
-                    className={`px-2 py-0.5 rounded text-[8px] font-black transition-all ${
+                    className={`px-2 py-0.5 rounded-sm text-[8px] font-black transition-all ${
                       filters.annee?.toString() === year.toString() ? 'bg-emerald-500 text-white' : 'text-white/40'
                     }`}
                   >
@@ -2890,7 +2888,7 @@ export default function DashboardView(props) {
             onClick={() => setMobileHub('flux')}
             className={`flex-1 py-2 text-center text-[9px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               mobileHub === 'flux' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -2901,7 +2899,7 @@ export default function DashboardView(props) {
             onClick={() => setMobileHub('annual')}
             className={`flex-1 py-2 text-center text-[9px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               mobileHub === 'annual' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -2912,7 +2910,7 @@ export default function DashboardView(props) {
             onClick={() => setMobileHub('graphs')}
             className={`flex-1 py-2 text-center text-[9px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               mobileHub === 'graphs' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -3002,7 +3000,7 @@ export default function DashboardView(props) {
                           setTabActive(tab);
                           setSearchTerm('');
                         }}
-                        className={`p-1 rounded transition-all cursor-pointer ${
+                        className={`p-1 rounded-sm transition-all cursor-pointer ${
                           isActive ? 'bg-[var(--glass-bg)] text-white border border-white/5' : 'text-white/30'
                         }`}
                       >
@@ -3091,12 +3089,12 @@ export default function DashboardView(props) {
                             color={
                               tabActive === 'revenus' ? (userTheme?.color_revenus || '#10b981') : 
                               tabActive === 'depenses' ? (userTheme?.color_depenses || '#f43f5e') : 
-                              '#6366f1'
+                              'var(--primary)'
                             }
                             bg={
                               tabActive === 'revenus' ? `${userTheme?.color_revenus || '#10b981'}15` : 
                               tabActive === 'depenses' ? `${userTheme?.color_depenses || '#f43f5e'}15` : 
-                              'rgba(99, 102, 241, 0.1)'
+                              'color-mix(in srgb, var(--primary) 10%, transparent)'
                             }
                           />
                         </div>
@@ -3198,28 +3196,28 @@ export default function DashboardView(props) {
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('list')}
-                    className={`p-1 rounded cursor-pointer ${annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
+                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
                   >
                     <List size={11} />
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('chart')}
-                    className={`p-1 rounded cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
+                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
                   >
                     <PieChartIcon size={11} />
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('calendar')}
-                    className={`p-1 rounded cursor-pointer ${annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
+                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
                   >
                     <CalendarDays size={11} />
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('wrapped')}
-                    className={`p-1 rounded cursor-pointer ${annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
+                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
                   >
                     <Sparkles size={11} />
                   </button>
@@ -3252,14 +3250,14 @@ export default function DashboardView(props) {
                               </span>
 
                               {estMoisEnCours && (
-                                <span className="text-[7px] font-black uppercase px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                                <span className="text-[7px] font-black uppercase px-1.5 py-0.2 rounded-sm bg-secondary-500/20 text-secondary-300 border border-secondary-500/30">
                                   En cours
                                 </span>
                               )}
 
                               {estFutur && aDesPrevisions && (
                                 <span 
-                                  className="text-[7px] font-black uppercase px-1.5 py-0.2 rounded border"
+                                  className="text-[7px] font-black uppercase px-1.5 py-0.2 rounded-sm border"
                                   style={{
                                     backgroundColor: `${userTheme.color_patrimoine || '#37b58f'}1a`,
                                     borderColor: `${userTheme.color_patrimoine || '#37b58f'}33`,
@@ -3317,7 +3315,7 @@ export default function DashboardView(props) {
                             <div>
                               <p className="text-[6.5px] font-bold text-white/30 uppercase">Épargne</p>
                               <span 
-                                className="inline-block px-1.5 py-0.2 rounded text-[8.5px] font-mono font-black mt-0.5"
+                                className="inline-block px-1.5 py-0.2 rounded-sm text-[8.5px] font-mono font-black mt-0.5"
                                 style={{ 
                                   backgroundColor: ((m.epargneReel ?? m.epargnePrevu) >= 0) ? `${userTheme.color_epargne || '#ffffff'}15` : `${userTheme.color_depenses || '#f43f5e'}15`,
                                   color: ((m.epargneReel ?? m.epargnePrevu) >= 0) ? (userTheme.color_epargne || '#ffffff') : (userTheme.color_depenses || '#f43f5e') 
@@ -3385,7 +3383,7 @@ export default function DashboardView(props) {
                     <button
                       type="button"
                       onClick={() => setTotalTab('annuel')}
-                      className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                         !estPeriode ? 'bg-[var(--glass-bg)] text-white shadow-md' : 'text-white/30'
                       }`}
                     >
@@ -3394,7 +3392,7 @@ export default function DashboardView(props) {
                     <button
                       type="button"
                       onClick={() => setTotalTab('periode')}
-                      className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer ${
                         estPeriode ? 'bg-[var(--glass-bg)] text-white shadow-md' : 'text-white/30'
                       }`}
                     >
@@ -3664,19 +3662,19 @@ export default function DashboardView(props) {
                         </linearGradient>
                       </defs>
 
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-main) 3%, transparent)" vertical={false} />
                       
                       <XAxis 
                         dataKey="nom" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 11 }}
+                        tick={{ fill: 'color-mix(in srgb, var(--text-main) 30%, transparent)', fontSize: 11 }}
                         dy={10}
                         tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''}
                       />
 
                       <YAxis 
-                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                        tick={{ fill: 'color-mix(in srgb, var(--text-main) 50%, transparent)', fontSize: 11 }}
                         axisLine={false}
                         tickLine={false}
                         width={60}
@@ -3689,7 +3687,7 @@ export default function DashboardView(props) {
                       
                       {/* 🟢 TOOLTIP INTELLIGENT SANS DOUBLONS INUTILES */}
                         <Tooltip 
-                          cursor={{ stroke: 'rgba(255,255,255,0.1)', strokeWidth: 2 }}
+                          cursor={{ stroke: 'color-mix(in srgb, var(--text-main) 10%, transparent)', strokeWidth: 2 }}
                           content={({ active, payload, label }) => {
                             if (!active || !payload || !payload.length) return null;
 
@@ -3706,7 +3704,7 @@ export default function DashboardView(props) {
                             ];
 
                             return (
-                              <div className="bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl space-y-2 min-w-[210px] select-none">
+                              <div className="bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl space-y-2 min-w-[210px] select-none">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-white/50 border-b border-white/5 pb-1.5">
                                   {label}
                                 </p>
@@ -3822,7 +3820,7 @@ export default function DashboardView(props) {
                         fillOpacity={1} 
                         fill="url(#colorRevMob)"
                         connectNulls={false}
-                        dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: '#ffffff' }}
+                        dot={{ r: 3, fill: userTheme.color_revenus || '#10b981', strokeWidth: 1, stroke: 'var(--text-main)' }}
                         isAnimationActive={false}
                       />
                       <Area 
@@ -3851,7 +3849,7 @@ export default function DashboardView(props) {
                         fillOpacity={1} 
                         fill="url(#colorDepMob)"
                         connectNulls={false}
-                        dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: '#ffffff' }}
+                        dot={{ r: 3, fill: userTheme.color_depenses || '#f43f5e', strokeWidth: 1, stroke: 'var(--text-main)' }}
                         isAnimationActive={false}
                       />
                       <Area 
@@ -3880,7 +3878,7 @@ export default function DashboardView(props) {
                         fillOpacity={1} 
                         fill="url(#colorEpMob)"
                         connectNulls={false}
-                        dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                        dot={{ r: 2.5, fill: userTheme.color_epargne || '#ffffff', strokeWidth: 1, stroke: 'var(--text-main)' }}
                         isAnimationActive={false}
                       />
                       <Area 
@@ -3910,18 +3908,18 @@ export default function DashboardView(props) {
                 <div className="h-52 w-full pb-2">
                   <ResponsiveContainer width="100%" height="120%">
                     <AreaChart data={recapAnnuelStats} margin={{ top: 0, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--text-main) 3%, transparent)" vertical={false} />
                       
                       <XAxis 
                         dataKey="nom" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{fill: 'rgba(255,255,255,0.3)', fontSize: 11}} 
+                        tick={{fill: 'color-mix(in srgb, var(--text-main) 30%, transparent)', fontSize: 11}} 
                         tickFormatter={(value) => value ? `${value.substring(0, 3)}.` : ''} 
                       />
                       
                       <YAxis 
-                        tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                        tick={{ fill: 'color-mix(in srgb, var(--text-main) 50%, transparent)', fontSize: 11 }}
                         axisLine={false}
                         tickLine={false}
                         width={60}
@@ -4045,7 +4043,7 @@ export default function DashboardView(props) {
                                 fillOpacity={1}
                                 strokeWidth={2}
                                 connectNulls={false}
-                                dot={{ r: 3, fill: color, strokeWidth: 1, stroke: '#ffffff' }}
+                                dot={{ r: 3, fill: color, strokeWidth: 1, stroke: 'var(--text-main)' }}
                                 isAnimationActive={false}
                               />
                               <Area
@@ -4070,12 +4068,12 @@ export default function DashboardView(props) {
                       <Area
                         type="monotone"
                         dataKey="soldeTotal"
-                        stroke="#ffffff"
+                        stroke="var(--text-main)"
                         strokeWidth={3}
                         fill="transparent"
                         name="PATRIMOINE TOTAL"
                         hide={!!hiddenComptes["PATRIMOINE TOTAL"]}
-                        dot={{ r: 3, fill: '#ffffff', strokeWidth: 1, stroke: '#ffffff' }}
+                        dot={{ r: 3, fill: 'var(--text-main)', strokeWidth: 1, stroke: 'var(--text-main)' }}
                         connectNulls={false}
                         isAnimationActive={false}
                       />
@@ -4109,12 +4107,10 @@ export default function DashboardView(props) {
                   projets={projets}
                   setProjets={setProjets}
                   transactions={toutesLesTransactions} 
-                  epargneCumuleeAnnuelle={savingsData.reel}
                   recapAnnuelStats={recapAnnuelStats}
                   filters={filters}
-                  user={user}
                   api={api}
-                  fetchAllocations={fetchAllocations}
+                  comptesDuProfil={comptesDuProfil}
                 />
               </div>
             )}
@@ -4123,14 +4119,14 @@ export default function DashboardView(props) {
 
         {/* MODALE D'ÉDITION MOBILE DE TRANSACTION */}
         {editingTransaction && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-3 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
             <div 
-              className="w-full bg-[#121214] border border-white/10 rounded-2xl p-5 max-h-[85vh] overflow-y-auto space-y-3 animate-in zoom-in-95 duration-200"
+              className="w-full bg-[var(--surface)] border border-white/10 rounded-2xl p-5 max-h-[85vh] overflow-y-auto space-y-3 animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-2 border-b border-white/5">
                 <div>
-                  <h4 className="text-[11px] font-black uppercase text-[var(--primary)] tracking-widest">Éditer la transaction</h4>
+                  <h4 className="text-[11px] font-black uppercase text-[var(--secondary)] tracking-widest">Éditer la transaction</h4>
                   <p className="text-[8px] text-white/30 uppercase font-black">Modification express</p>
                 </div>
                 <button 

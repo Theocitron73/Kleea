@@ -122,15 +122,15 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
   // Mode Guide Public
   if (showPublicGuide) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8 flex flex-col justify-between relative overflow-hidden">
+      <div className="min-h-screen bg-[var(--surface)] text-white p-4 md:p-8 flex flex-col justify-between relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[120px] rounded-full pointer-events-none" />
         
-        <div className="max-w-7xl w-full mx-auto flex items-center justify-between mb-6 p-4 bg-[var(--glass-bg)] border border-white/10 rounded-2xl relative z-10 backdrop-blur-md">
+        <div className="max-w-7xl w-full mx-auto flex items-center justify-between mb-6 p-4 bg-[var(--glass-bg)] border border-white/10 rounded-2xl relative z-10 backdrop-blur-[var(--glass-blur)]">
           <div className="flex items-center gap-3">
             <span className="text-xl">📖</span>
             <div>
-              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--primary)]">Accès Public</span>
+              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--secondary)]">Accès Public</span>
               <h3 className="text-sm font-black uppercase mt-1">Guide d'utilisation</h3>
             </div>
           </div>
@@ -150,7 +150,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-[var(--surface)] flex items-center justify-center p-4 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[100px] rounded-full" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[120px] rounded-full" />
       <div className="absolute w-[500px] h-[600px] bg-[var(--primary)]/30 blur-[100px] rounded-full z-0" />
@@ -158,7 +158,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
       <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
         <form 
           onSubmit={isForgotPassword ? handleResetRequest : (isRegistering ? handleRegister : handleLogin)} 
-          className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[3rem] border border-white/20 shadow-2xl w-full"
+          className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[calc(var(--radius)*2)] border border-white/20 shadow-2xl w-full"
           style={{ 
             boxShadow: `0 0 40px -10px var(--primary), inset 0 0 20px -10px var(--primary)` 
           }}
@@ -166,12 +166,12 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
           {/* Header */}
           <div className="text-center mb-10">
             <div className="inline-block px-4 py-1.5 bg-[var(--primary)]/10 border border-[var(--primary)]/20 rounded-full mb-4">
-              <span className="text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.3em]">
+              <span className="text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.3em]">
                 {isForgotPassword ? "Récupération" : (isRegistering ? "Nouveau Membre" : "Accès Sécurisé")}
               </span>
             </div>
             <h2 className="text-4xl font-black text-[var(--text-main)] tracking-tighter uppercase">
-              <span className="text-[var(--primary)]">Kleea</span>
+              <span className="text-[var(--secondary)]">Kleea</span>
             </h2>
             <p className="text-[10px] font-bold text-[var(--text-main)]/20 uppercase tracking-widest mt-2">
               {isForgotPassword ? "Réinitialisation du coffre" : (isRegistering ? "Créez votre coffre privé" : "Gestion de patrimoine privé")}
@@ -184,7 +184,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">E-mail de récupération</label>
                   <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
                     <input 
                       type="email"
                       className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
@@ -226,7 +226,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Identifiant</label>
                   <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
                     <input 
                       className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
                       placeholder="Pseudo ou Adresse e-mail"
@@ -241,7 +241,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">E-mail</label>
                     <div className="relative group">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
                       <input 
                         type="email"
                         className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
@@ -261,14 +261,14 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
                       <button 
                         type="button" 
                         onClick={() => setIsForgotPassword(true)}
-                        className="text-[8px] font-black text-[var(--primary)] uppercase tracking-[0.1em] hover:brightness-150 transition-all cursor-pointer"
+                        className="text-[8px] font-black text-[var(--secondary)] uppercase tracking-[0.1em] hover:brightness-150 transition-all cursor-pointer"
                       >
                         Mot de passe Oublié ?
                       </button>
                     )}
                   </div>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--primary)] transition-colors" size={16} />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
                     <input 
                       type={showPassword ? "text" : "password"}
                       className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 pr-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
@@ -303,7 +303,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
             if (isForgotPassword) setIsForgotPassword(false);
             else setIsRegistering(!isRegistering);
           }}
-          className="w-full mt-6 text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] hover:text-[var(--primary)] transition-colors cursor-pointer"
+          className="w-full mt-6 text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] hover:text-[var(--secondary)] transition-colors cursor-pointer"
         >
           {isForgotPassword ? "Retour à la connexion" : (isRegistering ? "Déjà un compte ? Se connecter" : "Nouveau ici ? Créer un compte")}
         </button>
@@ -311,7 +311,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
         <button 
           type="button"
           onClick={() => setShowPublicGuide(true)}
-          className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] hover:brightness-125 transition-all cursor-pointer"
+          className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] hover:brightness-125 transition-all cursor-pointer"
         >
           <BookOpen size={12} />
           <span>Consulter le Guide d'utilisation</span>

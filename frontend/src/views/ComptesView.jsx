@@ -70,7 +70,7 @@ export default function ComptesView({
           <div className="flex-[1.4] min-w-[160px]">
             <div className="flex items-center w-full h-[38px] bg-black/30 px-3 rounded-xl border border-white/10 focus-within:border-white/30 transition-colors">
               {selectedType && (
-                <span className="text-[10px] font-black text-[var(--primary)] uppercase mr-1.5 shrink-0 select-none">
+                <span className="text-[10px] font-black text-[var(--secondary)] uppercase mr-1.5 shrink-0 select-none">
                   {selectedType} -
                 </span>
               )}
@@ -144,7 +144,7 @@ export default function ComptesView({
           {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_user_token'))) && (
             <div className="flex-[1.2] min-w-[170px]">
               <div className="flex items-center gap-1.5 bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-[var(--primary)]/50 transition-colors">
-                <Building2 size={12} className="text-[var(--primary)] shrink-0 opacity-60" />
+                <Building2 size={12} className="text-[var(--secondary)] shrink-0 opacity-60" />
                 <input 
                   type="text" 
                   name="creationPowensInput"
@@ -209,16 +209,16 @@ export default function ComptesView({
           3. MODALE MOBILE D'AJOUT DE COMPTE (AFFICHÉE UNIQUEMENT SUR MOBILE)
           ========================================================================= */}
       {isCreateModalOpen && (
-        <div className="lg:hidden fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="lg:hidden fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsCreateModalOpen(false)} />
 
           <div 
-            className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="relative w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-4">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">
+                <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest leading-none">
                   Nouveau compte
                 </h4>
                 <p className="text-[9px] text-white/30 uppercase font-bold tracking-wider mt-1">
@@ -259,7 +259,7 @@ export default function ComptesView({
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation du compte</label>
                 <div className="flex items-center w-full h-[38px] bg-black/40 px-3 rounded-xl border border-white/10 focus-within:border-white/30 transition-colors">
                   {selectedType && (
-                    <span className="text-[10px] font-black text-[var(--primary)] uppercase mr-1.5 shrink-0 select-none">
+                    <span className="text-[10px] font-black text-[var(--secondary)] uppercase mr-1.5 shrink-0 select-none">
                       {selectedType} -
                     </span>
                   )}
@@ -338,7 +338,7 @@ export default function ComptesView({
                     onClick={() => setShowAddPicker(!showAddPicker)}
                     className="p-0.5 bg-white/10 rounded-lg border border-white/20 active:scale-95 transition-transform cursor-pointer"
                   >
-                    <div className="w-8 h-5 rounded shadow-inner" style={{ backgroundColor: newCompteColor }} />
+                    <div className="w-8 h-5 rounded-sm shadow-inner" style={{ backgroundColor: newCompteColor }} />
                   </button>
 
                   {showAddPicker && (
@@ -413,7 +413,7 @@ export default function ComptesView({
                   className={`relative group p-4 sm:p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col justify-between gap-3 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
                   style={{ 
                     backgroundColor: `${c.couleur}80`,
-                    backdropFilter: 'blur(12px)',
+                    backdropFilter: 'blur(var(--glass-blur))',
                   }}
                 >
                   {/* Ligne 1 : Nom du compte, Groupe, Couleur, Suppression */}
@@ -421,7 +421,7 @@ export default function ComptesView({
                     <div className="flex-1 min-w-0 pr-2">
                       <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight mb-1">{c.compte}</h3>
                       <div className="flex items-center gap-2 bg-black/40 w-fit px-3 py-1 rounded-[var(--radius)] border border-white/10 hover:border-[var(--primary)]/50 transition-colors cursor-text">
-                        <Pencil size={9} className="text-[var(--primary)]" />
+                        <Pencil size={9} className="text-[var(--secondary)]" />
                         <input 
                           className="bg-transparent text-[9px] sm:text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest outline-none w-24 sm:w-28"
                           value={c.groupe}
@@ -440,7 +440,7 @@ export default function ComptesView({
                         <button 
                           type="button"
                           onClick={() => setShowPicker(showPicker === i ? null : i)}
-                          className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_rgba(255,255,255,0.2)] hover:scale-110 transition-transform active:scale-90 cursor-pointer"
+                          className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg sm:rounded-[var(--radius)] border-2 border-white/80 shadow-[0_0_15px_color-mix(in_srgb,var(--text-main)_20%,transparent)] hover:scale-110 transition-transform active:scale-90 cursor-pointer"
                           style={{ backgroundColor: c.couleur }}
                         />
                         <span className="text-[6.5px] sm:text-[7px] font-black text-[var(--text-main)]/50 uppercase tracking-widest">Couleur</span>
@@ -556,7 +556,7 @@ export default function ComptesView({
                     <div className="pt-2.5 border-t border-white/10 flex flex-col gap-1.5 relative z-20">
                       <div className="flex justify-between items-center px-1">
                         <span className="text-[8px] font-black text-white/40 uppercase tracking-widest flex items-center gap-1">
-                          <Building2 size={10} className="text-[var(--primary)]" /> Liaison bancaire
+                          <Building2 size={10} className="text-[var(--secondary)]" /> Liaison bancaire
                         </span>
                       </div>
 
@@ -595,12 +595,12 @@ export default function ComptesView({
                           return (
                             <div className="flex items-center justify-between p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                               <div className="flex items-center gap-2 truncate pr-2">
-                                <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_#818cf8]" />
+                                <span className="w-2 h-2 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_8px_var(--primary)]" />
                                 <div className="flex flex-col truncate">
-                                  <span className="text-[9px] sm:text-[9.5px] font-mono font-bold text-indigo-200 truncate uppercase">
+                                  <span className="text-[9px] sm:text-[9.5px] font-mono font-bold text-secondary-200 truncate uppercase">
                                     {c.powens_name}
                                   </span>
-                                  <span className="text-[7px] text-indigo-400/60 font-bold uppercase tracking-wider">
+                                  <span className="text-[7px] text-secondary-400/60 font-bold uppercase tracking-wider">
                                     IBAN manuel enregistré
                                   </span>
                                 </div>
@@ -683,10 +683,10 @@ export default function ComptesView({
               5. GUIDES EXPLICATIFS (EN CAS D'ABSENCE DE COMPTES - EXACTS DUPLICATAS)
               ========================================================================= */
           importMode === 'auto' ? (
-            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-6 sm:p-8 bg-indigo-500/[0.03] border border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-5">
+            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-6 sm:p-8 bg-indigo-500/[0.03] border border-indigo-500/20 rounded-[var(--radius)] backdrop-blur-[var(--glass-blur)] relative overflow-hidden shadow-2xl space-y-5">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-32 bg-indigo-500/10 blur-[80px] rounded-full pointer-events-none" />
-              <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-                <Sparkles size={28} className="text-indigo-400 animate-pulse" />
+              <div className="relative w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_20%,transparent)]">
+                <Sparkles size={28} className="text-secondary-400 animate-pulse" />
               </div>
               <div>
                 <h3 className="text-white font-black text-base uppercase tracking-widest">
@@ -698,7 +698,7 @@ export default function ComptesView({
               </div>
 
               <div className="w-full text-left p-4 rounded-2xl bg-black/40 border border-white/10 flex items-start gap-3">
-                <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-indigo-300 shrink-0 mt-0.5">
+                <div className="p-2 rounded-xl bg-white/5 border border-white/10 text-secondary-300 shrink-0 mt-0.5">
                   <Wallet size={15} />
                 </div>
                 <div className="space-y-1">
@@ -714,19 +714,19 @@ export default function ComptesView({
               <div className="w-full text-left p-4 rounded-2xl bg-gradient-to-r from-indigo-500/15 via-indigo-500/5 to-transparent border border-indigo-500/30 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Building2 size={16} className="text-indigo-400 shrink-0" />
-                    <h4 className="text-[11px] font-black uppercase text-indigo-300 tracking-wider">
+                    <Building2 size={16} className="text-secondary-400 shrink-0" />
+                    <h4 className="text-[11px] font-black uppercase text-secondary-300 tracking-wider">
                       1. Lier un compte déjà connecté (Compte Courant / CCP)
                     </h4>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[8px] font-black uppercase tracking-widest">
+                  <span className="px-2 py-0.5 rounded-full bg-secondary-500/20 text-secondary-300 border border-secondary-500/30 text-[8px] font-black uppercase tracking-widest">
                     En 1 clic
                   </span>
                 </div>
                 <p className="text-[11px] text-white/80 leading-relaxed">
                   Avant toute chose, si votre banque est connectée, il vous suffit de <strong className="text-white underline decoration-indigo-400 decoration-2">sélectionner votre compte dans le menu déroulant tout à droite du formulaire du haut</strong> (le sélecteur <i>« -- Liste Powens -- »</i>).
                 </p>
-                <p className="text-[10px] text-indigo-200/70 font-medium">
+                <p className="text-[10px] text-secondary-200/70 font-medium">
                   👉 Le compte virtuel sera automatiquement associé et vos transactions seront synchronisées en direct.
                 </p>
               </div>
@@ -763,17 +763,17 @@ export default function ComptesView({
                   setIsCreateModalOpen(true);
                   document.querySelector('input[name="compteName"]')?.focus();
                 }}
-                className="flex items-center gap-2 text-[9.5px] font-black text-indigo-300 uppercase tracking-widest bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-5 py-2.5 rounded-xl transition-all cursor-pointer"
+                className="flex items-center gap-2 text-[9.5px] font-black text-secondary-300 uppercase tracking-widest bg-secondary-500/10 hover:bg-secondary-500/20 border border-secondary-500/20 px-5 py-2.5 rounded-xl transition-all cursor-pointer"
               >
                 <Plus size={12} strokeWidth={3} />
                 <span>Créer mon premier compte</span>
               </button>
             </div>
           ) : (
-            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-6 sm:p-8 bg-white/[0.02] border border-white/10 rounded-[var(--radius)] backdrop-blur-xl relative overflow-hidden shadow-2xl space-y-6">
+            <div className="max-w-2xl mx-auto flex flex-col items-center justify-center text-center p-6 sm:p-8 bg-white/[0.02] border border-white/10 rounded-[var(--radius)] backdrop-blur-[var(--glass-blur)] relative overflow-hidden shadow-2xl space-y-6">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-32 bg-[var(--primary)]/10 blur-[80px] rounded-full pointer-events-none" />
               <div className="relative w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center shadow-lg">
-                <Wallet size={28} className="text-[var(--primary)]" />
+                <Wallet size={28} className="text-[var(--secondary)]" />
               </div>
               <div>
                 <h3 className="text-white font-black text-base uppercase tracking-widest">
@@ -803,8 +803,8 @@ export default function ComptesView({
 
                 <div className="p-4 rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/20 flex flex-col justify-between space-y-2">
                   <div className="flex items-center gap-2">
-                    <Landmark size={15} className="text-[var(--primary)]" />
-                    <h4 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-wider">
+                    <Landmark size={15} className="text-[var(--secondary)]" />
+                    <h4 className="text-[10px] font-black uppercase text-[var(--secondary)] tracking-wider">
                       Option 2 : Zéro téléchargement
                     </h4>
                   </div>

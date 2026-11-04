@@ -913,7 +913,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
         return (
           <div 
             key={a.id}
-            className={`p-3 sm:p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 group backdrop-blur-md ${
+            className={`p-3 sm:p-4 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 group backdrop-blur-[var(--glass-blur)] ${
               a.favori 
                 ? 'bg-amber-500/[0.04] border-amber-500/40 shadow-sm' 
                 : 'bg-black/40 border-white/5 hover:border-white/20 hover:bg-white/[0.02]'
@@ -959,12 +959,12 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                   {a.surface > 0 && <span>📐 <strong>{a.surface} m²</strong></span>}
                   {a.pieces > 0 && <span>• 🚪 <strong>{a.pieces} p.</strong></span>}
                   {a.dossier_envoye && (
-                    <span className="text-emerald-300 text-[8px] font-sans font-black uppercase bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded">
+                    <span className="text-emerald-300 text-[8px] font-sans font-black uppercase bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.2 rounded-sm">
                       📁 Dossier envoyé
                     </span>
                   )}
                   {a.visite_effectuee && (
-                    <span className="text-indigo-300 text-[8px] font-sans font-black uppercase bg-indigo-500/15 border border-indigo-500/30 px-1.5 py-0.2 rounded">
+                    <span className="text-secondary-300 text-[8px] font-sans font-black uppercase bg-secondary-500/15 border border-secondary-500/30 px-1.5 py-0.2 rounded-sm">
                       🗓️ Visité
                     </span>
                   )}
@@ -1062,7 +1062,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
         return (
           <div 
             key={a.id}
-            className={`rounded-3xl border overflow-hidden flex flex-col justify-between transition-all bg-black/50 backdrop-blur-xl shadow-2xl ${
+            className={`rounded-3xl border overflow-hidden flex flex-col justify-between transition-all bg-black/50 backdrop-blur-[var(--glass-blur)] shadow-2xl ${
               a.favori ? 'border-amber-500/50 shadow-amber-500/5' : 'border-white/10 hover:border-white/20'
             }`}
           >
@@ -1086,7 +1086,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                   <button
                     type="button"
                     onClick={(e) => handlePrevPhoto(e, a.id, totalPhotos)}
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-[var(--glass-blur)] border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
                     title="Photo précédente"
                   >
                     <ChevronLeft size={16} />
@@ -1094,7 +1094,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                   <button
                     type="button"
                     onClick={(e) => handleNextPhoto(e, a.id, totalPhotos)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-[var(--glass-blur)] border border-white/20 opacity-0 group-hover:opacity-100 transition-opacity active:scale-90 cursor-pointer z-10"
                     title="Photo suivante"
                   >
                     <ChevronRight size={16} />
@@ -1103,7 +1103,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
               )}
 
               <div className="absolute top-3 left-3 flex items-center gap-1.5 z-10">
-                <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-md border border-white/15 text-[8.5px] font-black uppercase text-purple-300 shadow-md">
+                <span className="px-3 py-1 rounded-full bg-black/75 backdrop-blur-[var(--glass-blur)] border border-white/15 text-[8.5px] font-black uppercase text-purple-300 shadow-md">
                   {a.source || 'Annonce'}
                 </span>
               </div>
@@ -1112,7 +1112,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                 <button
                   type="button"
                   onClick={() => handleToggleFavori(a)}
-                  className={`p-2 rounded-xl backdrop-blur-md border transition-all cursor-pointer ${
+                  className={`p-2 rounded-xl backdrop-blur-[var(--glass-blur)] border transition-all cursor-pointer ${
                     a.favori ? 'bg-amber-500 text-black border-amber-400' : 'bg-black/60 text-white/60 border-white/10 hover:text-white'
                   }`}
                   title="Favori"
@@ -1122,7 +1122,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                 <button
                   type="button"
                   onClick={() => handleOpenEditAnnonce(a)}
-                  className="p-2 rounded-xl bg-black/60 hover:bg-purple-600 text-white/60 hover:text-white backdrop-blur-md border border-white/10 transition-all cursor-pointer shadow-md"
+                  className="p-2 rounded-xl bg-black/60 hover:bg-purple-600 text-white/60 hover:text-white backdrop-blur-[var(--glass-blur)] border border-white/10 transition-all cursor-pointer shadow-md"
                   title="Modifier"
                 >
                   <Edit2 size={13} />
@@ -1130,7 +1130,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                 <button
                   type="button"
                   onClick={() => handleDeleteAnnonce(a.id)}
-                  className="p-2 rounded-xl bg-black/60 hover:bg-rose-500 text-white/60 hover:text-white backdrop-blur-md border border-white/10 transition-all cursor-pointer"
+                  className="p-2 rounded-xl bg-black/60 hover:bg-rose-500 text-white/60 hover:text-white backdrop-blur-[var(--glass-blur)] border border-white/10 transition-all cursor-pointer"
                   title="Supprimer"
                 >
                   <Trash2 size={13} />
@@ -1138,7 +1138,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
               </div>
 
               {totalPhotos > 1 && (
-                <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-md border border-white/10 text-[8px] font-mono text-white/80 z-10">
+                <div className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 backdrop-blur-[var(--glass-blur)] border border-white/10 text-[8px] font-mono text-white/80 z-10">
                   📷 {currentPhotoIdx + 1} / {totalPhotos}
                 </div>
               )}
@@ -1254,7 +1254,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                     onClick={() => handleQuickStatusChange(a, 'visite_effectuee', !a.visite_effectuee)}
                     className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
                       a.visite_effectuee 
-                        ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-300' 
+                        ? 'bg-secondary-500/15 border-secondary-500/30 text-secondary-300' 
                         : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
                     }`}
                   >
@@ -1306,13 +1306,13 @@ const handleQuickStatusChange = async (annonce, field, value) => {
   );
 
   return (
-    <div className="flex flex-col gap-6 p-6 min-h-screen text-white bg-[var(--main-bg)] select-none">
+    <div className="flex flex-col gap-6 p-6 min-h-screen text-white select-none">
       
       {/* 1. EN-TÊTE PRINCIPAL & COMMUTATEUR DE VUES */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
         <div>
           <h1 className="text-lg font-black uppercase tracking-wider flex items-center gap-2">
-            <Layers size={18} className="text-indigo-400" /> Logement, Budget Couple & Comparateur
+            <Layers size={18} className="text-secondary-400" /> Logement, Budget Couple & Comparateur
           </h1>
           <p className="text-[9px] text-white/40 uppercase font-bold tracking-widest mt-0.5">
             Prorata de revenus, charges communes lissées et comparatif des annonces immobilières
@@ -1500,7 +1500,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                       onClick={() => setGroupBySite(!groupBySite)}
                       className={`ml-2 px-2.5 py-1 rounded-lg text-[8.5px] font-black uppercase tracking-wider border transition-all cursor-pointer ${
                         groupBySite
-                          ? 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+                          ? 'bg-secondary-500/20 border-secondary-500/40 text-secondary-300'
                           : 'bg-transparent border-white/10 text-white/40 hover:text-white'
                       }`}
                       title="Organiser les annonces sous des sections par site"
@@ -1632,10 +1632,10 @@ const handleQuickStatusChange = async (annonce, field, value) => {
               )}
 
               {/* Tableau comparatif côte à côte */}
-              <div className="bg-[var(--glass-bg)] border border-white/10 rounded-3xl p-5 shadow-2xl backdrop-blur-xl space-y-3 overflow-hidden">
+              <div className="bg-[var(--glass-bg)] border border-white/10 rounded-3xl p-5 shadow-2xl backdrop-blur-[var(--glass-blur)] space-y-3 overflow-hidden">
                 <div className="flex items-center justify-between border-b border-white/5 pb-3">
                   <div className="flex items-center gap-2">
-                    <Scale size={16} className="text-indigo-400" />
+                    <Scale size={16} className="text-secondary-400" />
                     <h3 className="text-xs font-black uppercase tracking-wider text-white">
                       Tableau Comparatif Côte à Côte
                     </h3>
@@ -1654,7 +1654,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                           <th key={s.scenario} className="py-3 px-3 text-center">
                             <div className="flex flex-col items-center gap-1">
                               <span className={`text-xs font-black uppercase truncate max-w-[150px] ${
-                                s.scenario === currentScenario ? 'text-indigo-400 underline decoration-indigo-400 decoration-2' : 'text-white'
+                                s.scenario === currentScenario ? 'text-secondary-400 underline decoration-indigo-400 decoration-2' : 'text-white'
                               }`}>
                                 {s.scenario}
                               </span>
@@ -1684,7 +1684,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                       <tr className="hover:bg-white/[0.02]">
                         <td className="py-2.5 px-3 font-sans font-bold text-white/60 text-[11px]">💳 Total charges communes (lissées)</td>
                         {comparaisonTousScenarios.map(s => (
-                          <td key={s.scenario} className="py-2.5 px-3 text-center font-black text-indigo-300">
+                          <td key={s.scenario} className="py-2.5 px-3 text-center font-black text-secondary-300">
                             {s.chargesLissees.toFixed(0)} € / mois
                           </td>
                         ))}
@@ -1702,7 +1702,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                       </tr>
 
                       <tr className="hover:bg-white/[0.02] bg-white/[0.01]">
-                        <td className="py-2.5 px-3 font-sans font-bold text-indigo-300 text-[11px]">👤 Part Lui (versée au joint)</td>
+                        <td className="py-2.5 px-3 font-sans font-bold text-secondary-300 text-[11px]">👤 Part Lui (versée au joint)</td>
                         {comparaisonTousScenarios.map(s => (
                           <td key={s.scenario} className="py-2.5 px-3 text-center font-bold text-white">
                             {s.partLui.toFixed(0)} € ({s.prorataLui.toFixed(0)}%)
@@ -1738,7 +1738,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                       </tr>
 
                       <tr className="hover:bg-white/[0.03] bg-indigo-500/10 font-black">
-                        <td className="py-3 px-3 font-sans uppercase tracking-wider text-indigo-300 text-[11px]">💰 Reste global Couple</td>
+                        <td className="py-3 px-3 font-sans uppercase tracking-wider text-secondary-300 text-[11px]">💰 Reste global Couple</td>
                         {comparaisonTousScenarios.map(s => (
                           <td key={s.scenario} className="py-3 px-3 text-center text-sm font-black text-white">
                             {s.resteCouple.toFixed(0)} € / mois
@@ -1769,7 +1769,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                               {s.scenario}
                             </h4>
                             {s.scenario === currentScenario && (
-                              <span className="px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 text-[7px] font-black uppercase">
+                              <span className="px-1.5 py-0.2 rounded-sm bg-secondary-500/30 text-secondary-300 text-[7px] font-black uppercase">
                                 Actif
                               </span>
                             )}
@@ -1879,7 +1879,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                           <button
                             type="button"
                             onClick={() => handleSupprimerScenario(sc)}
-                            className="text-white/30 hover:text-rose-400 ml-1 transition-colors p-0.5 rounded cursor-pointer"
+                            className="text-white/30 hover:text-rose-400 ml-1 transition-colors p-0.5 rounded-sm cursor-pointer"
                             title={`Supprimer le scénario "${sc}"`}
                           >
                             <Trash2 size={11} />
@@ -1895,7 +1895,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                       setDuplicateName(`${currentScenario} (Copie)`);
                       setIsDuplicateModalOpen(true);
                     }}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600/15 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 bg-secondary-600/15 hover:bg-secondary-600/30 text-secondary-300 border border-secondary-500/30 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95"
                     title={`Dupliquer "${currentScenario}"`}
                   >
                     <Copy size={11} />
@@ -1911,7 +1911,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                     onChange={(e) => setNouveauScenarioNom(e.target.value)}
                     className="bg-transparent outline-none text-xs px-3 py-1.5 w-40 placeholder-white/20 font-bold"
                   />
-                  <button type="submit" className="bg-indigo-500/10 hover:bg-indigo-500 text-indigo-300 hover:text-white px-3 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer">
+                  <button type="submit" className="bg-secondary-500/10 hover:bg-indigo-500 text-secondary-300 hover:text-white px-3 text-[10px] font-black uppercase rounded-lg transition-all cursor-pointer">
                     + Créer
                   </button>
                 </form>
@@ -1981,7 +1981,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
 
                   <div className="grid grid-cols-2 gap-3 bg-white/[0.01] p-3 rounded-xl border border-white/5 text-xs h-fit my-auto">
                     <div className="border-r border-white/5 pr-2">
-                      <p className="font-black text-indigo-400 uppercase text-[9px] mb-1">Part Joint Lui ({calculs.prorataLui.toFixed(0)}%)</p>
+                      <p className="font-black text-secondary-400 uppercase text-[9px] mb-1">Part Joint Lui ({calculs.prorataLui.toFixed(0)}%)</p>
                       <p className="text-base font-black font-mono">{calculs.partLui.toFixed(2)}€</p>
                     </div>
                     <div className="pl-1">
@@ -1996,7 +1996,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
-                        <Wallet size={16} className="text-indigo-400" />
+                        <Wallet size={16} className="text-secondary-400" />
                         <span className="text-xs font-black uppercase tracking-wide text-white/80">Montant Cible du Compte Commun (Mensualisé)</span>
                       </div>
                       <p className="text-[10px] text-white/40">
@@ -2013,10 +2013,10 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                         value={montantCommunForfaitaire}
                         onChange={(e) => setMontantCommunForfaitaire(e.target.value)}
                         onBlur={(e) => upsertLigne("Objectif Compte Commun", "depenses", "Budget", e.target.value)}
-                        className="h-9 bg-black/50 border border-white/10 rounded-xl px-3 text-xs font-black text-indigo-400 placeholder-indigo-400/20 outline-none w-48 focus:border-indigo-500"
+                        className="h-9 bg-black/50 border border-white/10 rounded-xl px-3 text-xs font-black text-secondary-400 placeholder-indigo-400/20 outline-none w-48 focus:border-secondary-500"
                       />
                       <div className="text-right shrink-0 border-l border-white/10 pl-3">
-                        <p className="text-lg font-black text-indigo-400 font-mono">{calculs.charges.toFixed(2)} €</p>
+                        <p className="text-lg font-black text-secondary-400 font-mono">{calculs.charges.toFixed(2)} €</p>
                         <p className="text-[9px] text-white/30 uppercase font-bold tracking-wider">Versé / mois</p>
                       </div>
                     </div>
@@ -2133,7 +2133,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                                 {getCleanCategoryName(l.titre)}
                               </span>
                               {l.frequence && l.frequence !== 'mensuel' && (
-                                <span className="text-[10px] text-indigo-400 font-mono font-medium">
+                                <span className="text-[10px] text-secondary-400 font-mono font-medium">
                                   Soit {getMontantMensuelLisse(l).toFixed(2)} € / mois
                                 </span>
                               )}
@@ -2192,17 +2192,17 @@ const handleQuickStatusChange = async (annonce, field, value) => {
 
         {/* 🟢 COLONNE DROITE PERMANENTE : BLOC-NOTES & TÂCHES */}
         <div className="w-full lg:w-80 xl:w-96 shrink-0 flex flex-col">
-          <div className="bg-white/[0.01] border border-white/5 rounded-3xl p-5 sticky top-6 flex flex-col h-[580px] gap-3 shadow-xl backdrop-blur-xl">
+          <div className="bg-white/[0.01] border border-white/5 rounded-3xl p-5 sticky top-6 flex flex-col h-[580px] gap-3 shadow-xl backdrop-blur-[var(--glass-blur)]">
             <div className="flex items-center justify-between border-b border-white/5 pb-2">
               <div className="flex items-center gap-2">
-                <FileText size={16} className="text-indigo-400" />
+                <FileText size={16} className="text-secondary-400" />
                 <h2 className="text-xs font-black uppercase tracking-wider text-white/80">Bloc-Notes & Tâches</h2>
               </div>
               
               <button 
                 type="button"
                 onClick={insererCheckbox}
-                className="flex items-center gap-1 bg-indigo-500/10 hover:bg-indigo-500 text-indigo-400 hover:text-white px-2.5 py-1 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer"
+                className="flex items-center gap-1 bg-secondary-500/10 hover:bg-indigo-500 text-secondary-400 hover:text-white px-2.5 py-1 text-[9px] font-black uppercase rounded-lg transition-all cursor-pointer"
                 title="Ajouter une tâche"
               >
                 <Plus size={11} strokeWidth={3} />
@@ -2237,16 +2237,16 @@ const handleQuickStatusChange = async (annonce, field, value) => {
           MODALE DE DUPLICATION DE SCÉNARIO
           ========================================================================= */}
       {isDuplicateModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsDuplicateModalOpen(false)} />
 
           <div 
-            className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4"
+            className="relative w-full max-w-sm bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-indigo-500/15 border border-indigo-500/30 text-indigo-400 rounded-xl">
+                <div className="p-2 bg-secondary-500/15 border border-secondary-500/30 text-secondary-400 rounded-xl">
                   <Copy size={16} />
                 </div>
                 <div>
@@ -2308,11 +2308,11 @@ const handleQuickStatusChange = async (annonce, field, value) => {
           MODALE D'AJOUT & SCRAPING D'ANNONCE IMMOBILIÈRE (AVEC SMART PASTE IA)
           ========================================================================= */}
       {isAnnonceModalOpen && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setIsAnnonceModalOpen(false)} />
 
           <div 
-            className="relative w-full max-w-lg bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar"
+            className="relative w-full max-w-lg bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200 space-y-4 max-h-[90vh] overflow-y-auto custom-scrollbar"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-white/5">
@@ -2383,11 +2383,11 @@ const handleQuickStatusChange = async (annonce, field, value) => {
                 </div>
               ) : (
                 <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500/15 via-purple-500/10 to-transparent border border-indigo-500/30 space-y-2.5">
-                  <label className="text-[8.5px] font-black uppercase text-indigo-300 tracking-wider flex items-center justify-between">
+                  <label className="text-[8.5px] font-black uppercase text-secondary-300 tracking-wider flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
                       <ClipboardPaste size={12} /> Collez le texte ou le message de partage de l'annonce
                     </span>
-                    <span className="text-[7.5px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-200 font-mono">
+                    <span className="text-[7.5px] px-1.5 py-0.2 rounded-sm bg-secondary-500/20 text-secondary-200 font-mono">
                       Anti-blocage 100%
                     </span>
                   </label>

@@ -141,7 +141,7 @@ export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
           x={textOffset} 
           y={3.5} 
           textAnchor="start" 
-          fill="rgba(255,255,255,0.75)" 
+          fill="color-mix(in srgb, var(--text-main) 75%, transparent)" 
           fontSize={9} 
           fontWeight="bold"
           className="uppercase tracking-tight"
@@ -156,7 +156,7 @@ export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
     if (active && payload && payload.length) {
       const p = payload[0].payload;
       return (
-        <div className="bg-[#0f172a]/95 backdrop-blur-md border border-white/10 p-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2.5">
+        <div className="bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2.5">
           <CategoryIcon name={p.name} size={15} />
           <div>
             <p className="text-[9px] font-black uppercase text-white/50 tracking-wider">
@@ -200,7 +200,7 @@ export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
           />
 
           <Tooltip 
-            cursor={{ fill: 'rgba(255,255,255,0.03)' }} 
+            cursor={{ fill: 'color-mix(in srgb, var(--text-main) 3%, transparent)' }} 
             content={<CustomTooltip />} 
           />
 
@@ -214,7 +214,7 @@ export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
               offset={6}
               formatter={(val) => `${Math.round(val)}€`} 
               style={{ 
-                fill: 'rgba(255,255,255,0.65)', 
+                fill: 'color-mix(in srgb, var(--text-main) 65%, transparent)', 
                 fontSize: 9, 
                 fontWeight: '900', 
                 fontFamily: 'monospace' 
@@ -431,7 +431,7 @@ const moisCritiques = useMemo(() => {
                   <span className="text-[9px] text-white/50 uppercase font-black tracking-tighter italic">
                     {filters.profil}
                   </span>
-                  <div className="flex h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_5px_rgba(255,255,255,0.5)]" />
+                  <div className="flex h-1.5 w-1.5 rounded-full bg-white/80 shadow-[0_0_5px_color-mix(in_srgb,var(--text-main)_50%,transparent)]" />
                 </div>
                 <p className="text-[10px] text-white/90 font-black truncate">
                   {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
@@ -474,7 +474,7 @@ const moisCritiques = useMemo(() => {
               <div className="col-span-12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-2.5 border-b border-white/5 mb-1">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 bg-[var(--primary)]/10 rounded-lg border border-[var(--primary)]/20">
-                    <Plus size={12} className="text-[var(--primary)]" />
+                    <Plus size={12} className="text-[var(--secondary)]" />
                   </div>
                   <div>
                     <h3 className="text-[11px] font-black text-white uppercase tracking-wider leading-none">Nouvelle Prévision</h3>
@@ -498,7 +498,7 @@ const moisCritiques = useMemo(() => {
                     <button
                       type="button"
                       onClick={handleTryDuplicate}
-                      className="h-[30px] px-3 bg-[var(--primary)] hover:brightness-110 hover:saturate-150 text-white font-black text-[9px] tracking-widest uppercase rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_4px_12px_rgba(99,102,241,0.15)]"
+                      className="h-[30px] px-3 bg-[var(--primary)] hover:brightness-110 hover:saturate-150 text-white font-black text-[9px] tracking-widest uppercase rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-[0_4px_12px_color-mix(in_srgb,var(--primary)_15%,transparent)]"
                     >
                       <span>
                         {selectedIds2.length > 0 
@@ -509,7 +509,7 @@ const moisCritiques = useMemo(() => {
                     </button>
                   )}
 
-                  <div className="px-2.5 py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[8.5px] text-indigo-300/40 font-black tracking-widest italic uppercase w-full sm:w-auto text-center sm:text-left leading-none">
+                  <div className="px-2.5 py-1 bg-[var(--secondary)]/5 rounded-full border border-[var(--secondary)]/10 text-[8.5px] text-secondary-300/40 font-black tracking-widest italic uppercase w-full sm:w-auto text-center sm:text-left leading-none">
                     ⚡ Auto-save Ready
                   </div>
                 </div>
@@ -600,21 +600,21 @@ const moisCritiques = useMemo(() => {
                 <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl shadow-2xl overflow-hidden w-full">
                   <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar w-full">
                     <table className="w-full text-left border-separate border-spacing-y-1.5 relative z-10 table-fixed min-w-[650px]">
-                      <thead className="sticky top-0 z-40 bg-[#0f172a]">
-                        <tr className="bg-[#0f172a] text-[9px] text-[var(--text-main)]/50 uppercase font-black tracking-wider">
-                          <th className="sticky top-0 z-40 py-3 px-3 w-14 text-center border-b border-white/10 bg-[#0f172a]">
+                      <thead className="sticky top-0 z-40 bg-[var(--surface)]">
+                        <tr className="bg-[var(--surface)] text-[9px] text-[var(--text-main)]/50 uppercase font-black tracking-wider">
+                          <th className="sticky top-0 z-40 py-3 px-3 w-14 text-center border-b border-white/10 bg-[var(--surface)]">
                             <input 
                               type="checkbox"
                               checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
                               onChange={toggleAll2}
-                              className="w-4 h-4 rounded border-white/20 bg-black/60 text-emerald-500 cursor-pointer"
+                              className="w-4 h-4 rounded-sm border-white/20 bg-black/60 text-emerald-500 cursor-pointer"
                             />
                           </th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[26%] border-b border-white/10 bg-[#0f172a]">Libellé</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[#0f172a]">Catégorie</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[#0f172a]">Compte</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] text-right border-b border-white/10 bg-[#0f172a]">Montant</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[20%] text-right border-b border-white/10 pr-4 bg-[#0f172a]">Date</th>
+                          <th className="sticky top-0 z-40 py-3 px-3 w-[26%] border-b border-white/10 bg-[var(--surface)]">Libellé</th>
+                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[var(--surface)]">Catégorie</th>
+                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[var(--surface)]">Compte</th>
+                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] text-right border-b border-white/10 bg-[var(--surface)]">Montant</th>
+                          <th className="sticky top-0 z-40 py-3 px-3 w-[20%] text-right border-b border-white/10 pr-4 bg-[var(--surface)]">Date</th>
                         </tr>
                       </thead>
 
@@ -674,7 +674,7 @@ const moisCritiques = useMemo(() => {
                                     {tracking.nbTransactions > 0 && (
                                       <span 
                                         title={`${tracking.nbTransactions} transaction${tracking.nbTransactions > 1 ? 's liées' : ' liée'} : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
-                                        className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0"
+                                        className="px-1.5 py-0.5 rounded-sm bg-secondary-500/20 text-secondary-300 border border-secondary-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0"
                                       >
                                         {tracking.nbTransactions} {tracking.nbTransactions > 1 ? 'liées' : 'liée'}
                                       </span>
@@ -723,7 +723,7 @@ const moisCritiques = useMemo(() => {
                                             className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
                                             style={{ 
                                               color: isTransfert 
-                                                ? '#a855f7' 
+                                                ? 'var(--secondary)' 
                                                 : isRevenu
                                                   ? `${userTheme.color_revenus || '#10b981'}e6` 
                                                   : `${userTheme.color_depenses || '#f43f5e'}e6` 
@@ -765,7 +765,7 @@ const moisCritiques = useMemo(() => {
                                                       ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' 
                                                       : isRevenu
                                                         ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.3)]' 
-                                                        : 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.3)]'
+                                                        : 'bg-indigo-500 shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_30%,transparent)]'
                                                 }`}
                                                 style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
                                               />
@@ -805,7 +805,7 @@ const moisCritiques = useMemo(() => {
                                 <div className="relative mb-6">
                                   <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full" />
                                   <div className="relative w-16 h-16 rounded-2xl bg-[var(--glass-bg)] border border-white/10 flex items-center justify-center">
-                                    <Calendar size={28} className="text-[var(--primary)]/40" />
+                                    <Calendar size={28} className="text-[var(--secondary)]/40" />
                                   </div>
                                 </div>
                                 <h3 className="text-[var(--text-main)] font-black text-[10px] uppercase tracking-[0.3em] opacity-50">
@@ -987,7 +987,7 @@ const moisCritiques = useMemo(() => {
                       <div 
                         className="col-span-2 font-black tracking-tighter text-right pr-1 whitespace-nowrap min-h-0" 
                         style={{ 
-                          color: safeRevenus > 0 ? `${userTheme.color_revenus || '#10b981'}e6` : 'rgba(255,255,255,0.06)',
+                          color: safeRevenus > 0 ? `${userTheme.color_revenus || '#10b981'}e6` : 'color-mix(in srgb, var(--text-main) 6%, transparent)',
                           fontSize: isCompact ? '11px' : '11px'
                         }}
                       >
@@ -1000,7 +1000,7 @@ const moisCritiques = useMemo(() => {
                       <div 
                         className="col-span-2 font-black tracking-tighter text-right pr-1 whitespace-nowrap min-h-0" 
                         style={{ 
-                          color: safeDepenses > 0 ? `${userTheme.color_depenses || '#f43f5e'}e6` : 'rgba(255,255,255,0.06)',
+                          color: safeDepenses > 0 ? `${userTheme.color_depenses || '#f43f5e'}e6` : 'color-mix(in srgb, var(--text-main) 6%, transparent)',
                           fontSize: isCompact ? '11px' : '11px'
                         }}
                       >
@@ -1034,7 +1034,7 @@ const moisCritiques = useMemo(() => {
                           style={{ 
                             color: m.soldeTotal !== null && m.soldeTotal < 0 
                               ? (userTheme?.color_depenses || '#f43f5e') // 🟢 Passe en ROUGE si négatif
-                              : (estInteractif ? userTheme.color_patrimoine : 'rgba(255,255,255,0.2)'),
+                              : (estInteractif ? userTheme.color_patrimoine : 'color-mix(in srgb, var(--text-main) 20%, transparent)'),
                             fontSize: isCompact ? '12px' : '12px'
                           }}
                         >
@@ -1090,7 +1090,7 @@ const moisCritiques = useMemo(() => {
                   </div>
 
                 {objectifAnnuelGlobal > 0 && (
-                  <div className="text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+                  <div className="text-[8px] font-black px-1.5 py-0.5 rounded-sm border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
                     {statsEpargnePrevisionnelle.pourcentage}%
                   </div>
                 )}
@@ -1150,7 +1150,7 @@ const moisCritiques = useMemo(() => {
                       key={p}
                       type="button"
                       onClick={() => setFilters({...filters, profil: p})}
-                      className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                      className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                         isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:text-white/70'
                       }`}
                     >
@@ -1169,7 +1169,7 @@ const moisCritiques = useMemo(() => {
                     key={year}
                     type="button"
                     onClick={() => setFilters({...filters, annee: year.toString()})}
-                    className={`px-1.5 py-0.5 rounded text-[8px] font-black transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                    className={`px-1.5 py-0.5 rounded-sm text-[8px] font-black transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                       filters.annee?.toString() === year.toString() ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/40'
                     }`}
                   >
@@ -1254,7 +1254,7 @@ const moisCritiques = useMemo(() => {
             onClick={() => setMobileSubTab('flux')}
             className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               mobileSubTab === 'flux' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -1265,7 +1265,7 @@ const moisCritiques = useMemo(() => {
             onClick={() => setMobileSubTab('projections')}
             className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               mobileSubTab === 'projections' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -1300,7 +1300,7 @@ const moisCritiques = useMemo(() => {
                 className="w-full flex items-center justify-between p-3.5 text-[10px] uppercase font-black text-white/70"
               >
                 <span className="flex items-center gap-2">
-                  <Plus size={14} className="text-[var(--primary)]" />
+                  <Plus size={14} className="text-[var(--secondary)]" />
                   <span>Nouvelle Prévision Rapide</span>
                 </span>
                 <span>{showAddForm ? '▲' : '▼'}</span>
@@ -1334,7 +1334,7 @@ const moisCritiques = useMemo(() => {
                     <div>
                       <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Date</label>
                       <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[38px] flex items-center justify-center relative">
-                        <Calendar size={12} className="text-[var(--primary)] absolute left-3" />
+                        <Calendar size={12} className="text-[var(--secondary)] absolute left-3" />
                         <DatePicker
                           selected={newPrevi.date ? new Date(newPrevi.date) : null} 
                           onChange={(date) => setNewPrevi({ ...newPrevi, date: date })}
@@ -1413,7 +1413,7 @@ const moisCritiques = useMemo(() => {
                             checked={isSelected}
                             onChange={() => toggleSelect2(prev.id)}
                             onClick={(e) => e.stopPropagation()} 
-                            className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded shrink-0 relative z-10"
+                            className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded-sm shrink-0 relative z-10"
                           />
 
                           <div className="min-w-0">
@@ -1423,17 +1423,17 @@ const moisCritiques = useMemo(() => {
                                 {prev.nom.replace('[PRÉVI] ', '')}
                               </p>
                               {liees.length > 0 && (
-                                <span className="px-1.5 py-0.2 rounded bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[7px] font-black uppercase shrink-0">
+                                <span className="px-1.5 py-0.2 rounded-sm bg-secondary-500/20 border border-secondary-500/30 text-secondary-300 text-[7px] font-black uppercase shrink-0">
                                   {liees.length} tx
                                 </span>
                               )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-1 mt-1">
-                              <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
+                              <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded-sm font-mono uppercase">
                                 {prev.compte}
                               </span>
-                              <div className="flex items-center gap-1 bg-[var(--primary)]/10 text-[var(--primary)] px-1.5 py-0.5 rounded text-[7.5px] font-black max-w-[95px] truncate">
+                              <div className="flex items-center gap-1 bg-[var(--secondary)]/10 text-[var(--secondary)] px-1.5 py-0.5 rounded-sm text-[7.5px] font-black max-w-[95px] truncate">
                                 <CategoryIcon name={prev.categorie} size={9} />
                                 <span className="truncate">{getCleanCategoryName(prev.categorie)}</span>
                               </div>
@@ -1571,7 +1571,7 @@ const moisCritiques = useMemo(() => {
                         )}
                         className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase transition-all ${
                           isVisible 
-                            ? 'bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20' 
+                            ? 'bg-[var(--secondary)]/10 text-[var(--secondary)] border border-[var(--secondary)]/20' 
                             : 'bg-black/30 border border-white/5 text-white/20'
                         }`}
                       >
@@ -1634,7 +1634,7 @@ const moisCritiques = useMemo(() => {
                       <div>
                         <p className="text-[7px] font-bold text-white/30 uppercase">Épargne</p>
                         <span 
-                          className="inline-block px-1.5 py-0.5 rounded text-[9px] font-black mt-0.5"
+                          className="inline-block px-1.5 py-0.5 rounded-sm text-[9px] font-black mt-0.5"
                           style={{ 
                             backgroundColor: `${userTheme.color_epargne || '#ffffff'}10`,
                             color: userTheme.color_epargne || '#ffffff',
@@ -1692,7 +1692,7 @@ const moisCritiques = useMemo(() => {
                   </div>
                   
                   {objectifAnnuelGlobal > 0 && (
-                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
+                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded-sm border border-emerald-500/20 bg-emerald-500/10 text-emerald-400">
                       {statsEpargnePrevisionnelle.pourcentage}%
                     </span>
                   )}
@@ -1717,16 +1717,16 @@ const moisCritiques = useMemo(() => {
 
         {/* MODALE D'ÉDITION MOBILE DE PRÉVISION */}
         {editingTx && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
             <div className="absolute inset-0" onClick={() => setEditingTx(null)} />
 
             <div 
-              className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
+              className="w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between pb-2 border-b border-white/5">
                 <div>
-                  <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la prévision</h4>
+                  <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest">Éditer la prévision</h4>
                   <p className="text-[9px] text-white/30 uppercase font-black">Changements appliqués instantanément</p>
                 </div>
                 <button 
@@ -1763,7 +1763,7 @@ const moisCritiques = useMemo(() => {
                   <div>
                     <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Date estimée</label>
                     <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[34px] flex items-center justify-center relative">
-                      <Calendar size={12} className="text-[var(--primary)] absolute left-3" />
+                      <Calendar size={12} className="text-[var(--secondary)] absolute left-3" />
                       <DatePicker
                         selected={editingTx.date ? new Date(editingTx.date) : null}
                         onChange={(date) => setEditingTx({ ...editingTx, date: toLocalDateString(date) })}

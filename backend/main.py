@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text, bindparam
 import pandas as pd
+import hmac
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, EmailStr, field_validator, Field
@@ -1031,34 +1032,62 @@ class ThemeConfig(BaseModel):
     radius: str
     glass_blur: str  # <-- AJOUT
     glass_bg: str    # <-- AJOUT
+    secondary_color: Optional[str] = None  # None : dérivée de la couleur primaire
+
+
+def assurer_colonnes_theme():
+    """Colonnes vides par défaut : les thèmes existants gardent une secondaire automatique."""
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE IF EXISTS user_theme ADD COLUMN IF NOT EXISTS secondary_color TEXT"))
+        for colonne in (
+            "secondary_color", "gradient_style", "gradient_intensity", "gradient_color",
+            "gradient_angle", "gradient_shape", "gradient_center", "gradient_spread",
+        ):
+            conn.execute(text(f"ALTER TABLE IF EXISTS theme_presets ADD COLUMN IF NOT EXISTS {colonne} TEXT"))
+
+
+try:
+    assurer_colonnes_theme()
+except Exception as e:
+    print(f"⚠️ Ajout des colonnes du thème : {e}")
+
+
+def verifier_proprietaire_theme(nom: str, current_user: str):
+    """Le thème d'un compte n'est lisible et modifiable que par ce compte."""
+    if nom.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
 
 @app.get("/get-theme/{username}")
-def get_theme(username: str):
+def get_theme(username: str, current_user: str = Depends(get_current_user)):
+    verifier_proprietaire_theme(username, current_user)
     query = text("SELECT * FROM user_theme WHERE LOWER(utilisateur) = :u")
     with engine.connect() as conn:
-        res = conn.execute(query, {"u": username.lower()}).fetchone()
+        res = conn.execute(query, {"u": current_user}).fetchone()
         if res:
             return dict(res._mapping)
         return None
 
 @app.post("/save-theme")
-def save_theme(t: ThemeConfig):
+def save_theme(t: ThemeConfig, current_user: str = Depends(get_current_user)):
+    verifier_proprietaire_theme(t.utilisateur, current_user)
     # Ajout des deux nouvelles colonnes dans l'INSERT et le SET du ON CONFLICT
     query = text("""
-        INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius, glass_blur, glass_bg)
-        VALUES (:u, :bg, :p, :tm, :r, :gb, :gg)
-        ON CONFLICT (utilisateur) DO UPDATE 
-        SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r, glass_blur = :gb, glass_bg = :gg
+        INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius, glass_blur, glass_bg, secondary_color)
+        VALUES (:u, :bg, :p, :tm, :r, :gb, :gg, :sc)
+        ON CONFLICT (utilisateur) DO UPDATE
+        SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r, glass_blur = :gb, glass_bg = :gg, secondary_color = :sc
     """)
     with engine.connect() as conn:
         conn.execute(query, {
-            "u": t.utilisateur.lower(), 
+            "u": current_user, 
             "bg": t.bg_site, 
             "p": t.primary_color, 
             "tm": t.text_main, 
             "r": t.radius,
             "gb": t.glass_blur,  # <-- AJOUT
-            "gg": t.glass_bg     # <-- AJOUT
+            "gg": t.glass_bg,    # <-- AJOUT
+            "sc": t.secondary_color
         })
         conn.commit()
     return {"status": "success"}
@@ -1104,9 +1133,10 @@ def get_periodes(username: str, current_user: str = Depends(get_current_user)):
 
 
 @app.get("/get-user-theme/{username}")
-def get_user_theme(username: str):
+def get_user_theme(username: str, current_user: str = Depends(get_current_user)):
+    verifier_proprietaire_theme(username, current_user)
     try:
-        u_lower = username.lower().strip()
+        u_lower = current_user
         # Teste cette requête. Si elle crash, regarde ton terminal Python !
         # Note : On utilise des guillemets doubles pour les noms de colonnes sensibles
         query = text('SELECT element, "couleur" FROM theme WHERE LOWER("user") = :u')
@@ -1131,7 +1161,8 @@ class UserColorUpdate(BaseModel):
     couleur: str
 
 @app.post("/save-user-theme")
-def save_user_theme(c: UserColorUpdate):
+def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_user)):
+    verifier_proprietaire_theme(c.user, current_user)
     query = text("""
         INSERT INTO theme ("user", element, couleur)
         VALUES (:u, :e, :c)
@@ -1139,30 +1170,86 @@ def save_user_theme(c: UserColorUpdate):
         SET couleur = :c
     """)
     with engine.begin() as conn:
-        conn.execute(query, {"u": c.user.lower(), "e": c.element, "c": c.couleur})
+        conn.execute(query, {"u": current_user, "e": c.element, "c": c.couleur})
     return {"status": "success"}
 
 
 
 
+def _date_valide(valeur: str, formats: tuple) -> str:
+    for fmt in formats:
+        try:
+            datetime.strptime(valeur, fmt)
+            return valeur
+        except ValueError:
+            continue
+    raise ValueError("Date invalide")
+
+
 class Projet(BaseModel):
-    utilisateur: str
-    profil: str
-    nom: str
-    cout: float
+    profil: str = Field(min_length=1, max_length=100)
+    nom: str = Field(min_length=1, max_length=120)
+    cout: float = Field(ge=0)
     date: str  # Date d'échéance / cible (Format "YYYY-MM-DD")
-    capa: float
+    capa: float = Field(default=0, ge=0)
+    apport: float = Field(default=0, ge=0)
     date_debut: Optional[str] = None  # Format "YYYY-MM-DD" (ou "YYYY-MM")
     utiliser_capa_stricte: Optional[bool] = False
+
+    @field_validator("nom")
+    @classmethod
+    def nom_non_vide(cls, valeur: str) -> str:
+        valeur = valeur.strip()
+        if not valeur:
+            raise ValueError("Le nom est obligatoire")
+        return valeur
+
+    @field_validator("date")
+    @classmethod
+    def date_valide(cls, valeur: str) -> str:
+        return _date_valide(valeur, ("%Y-%m-%d",))
+
+    @field_validator("date_debut")
+    @classmethod
+    def date_debut_valide(cls, valeur: Optional[str]) -> Optional[str]:
+        return _date_valide(valeur, ("%Y-%m-%d", "%Y-%m")) if valeur else valeur
+
+
+class OrdreProjets(BaseModel):
+    ids: List[int] = Field(max_length=500)
+
+
+def assurer_colonnes_projets():
+    """`id` remplace le nom comme identifiant ; `ordre` conserve la priorité choisie."""
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE IF EXISTS projets ADD COLUMN IF NOT EXISTS id SERIAL"))
+        conn.execute(text("ALTER TABLE IF EXISTS projets ADD COLUMN IF NOT EXISTS ordre INTEGER"))
+
+
+try:
+    assurer_colonnes_projets()
+except Exception as e:
+    print(f"⚠️ Ajout des colonnes de projets : {e}")
+
+
+def verifier_nom_projet_libre(conn, nom: str, profil: str, current_user: str, sauf_id: Optional[int] = None):
+    existe = conn.execute(text("""
+        SELECT 1 FROM projets
+        WHERE LOWER(nom) = LOWER(:n) AND LOWER(profil) = LOWER(:p) AND LOWER(utilisateur) = :u
+          AND (:sauf IS NULL OR id <> :sauf)
+    """), {"n": nom, "p": profil, "u": current_user, "sauf": sauf_id}).first()
+    if existe:
+        raise HTTPException(status_code=409, detail=f"Un projet « {nom} » existe déjà.")
+
 
 # --- 1. PROJETS FUTURS ---
 @app.get("/get-projets/{profil}")
 def get_projets(profil: str, current_user: str = Depends(get_current_user)):
     query = text("""
-        SELECT * FROM projets 
-        WHERE LOWER(profil) = LOWER(:p) 
-          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
-        ORDER BY date ASC
+        SELECT * FROM projets
+        WHERE LOWER(profil) = LOWER(:p)
+          AND LOWER(utilisateur) = :u
+        ORDER BY ordre ASC NULLS LAST, date ASC
     """)
     with engine.connect() as conn:
         res = conn.execute(query, {"p": profil.lower(), "u": current_user}).mappings().all()
@@ -1170,53 +1257,69 @@ def get_projets(profil: str, current_user: str = Depends(get_current_user)):
 
 @app.post("/save-projet")
 def save_projet(p: Projet, current_user: str = Depends(get_current_user)):
-    date_start = p.date_debut if p.date_debut else str(date.today())
     query = text("""
-        INSERT INTO projets (utilisateur, profil, nom, cout, date, capa, date_debut, utiliser_capa_stricte)
-        VALUES (:u, :pr, :n, :co, :d, :ca, :dd, :ucs)
+        INSERT INTO projets (utilisateur, profil, nom, cout, date, capa, apport_epargne, date_debut, utiliser_capa_stricte)
+        VALUES (:u, :pr, :n, :co, :d, :ca, :ap, :dd, :ucs)
     """)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        verifier_nom_projet_libre(conn, p.nom, p.profil, current_user)
         conn.execute(query, {
-            "u": current_user, 
-            "pr": p.profil, 
-            "n": p.nom, 
-            "co": p.cout, 
-            "d": p.date, 
+            "u": current_user,
+            "pr": p.profil,
+            "n": p.nom,
+            "co": p.cout,
+            "d": p.date,
             "ca": p.capa,
-            "dd": date_start,
+            "ap": p.apport,
+            "dd": p.date_debut or str(date.today()),
             "ucs": p.utiliser_capa_stricte or False
         })
-        conn.commit()
     return {"status": "success"}
 
 
-@app.post("/update-projet")
-def update_projet(p: Projet, old_name: str, current_user: str = Depends(get_current_user)):
+@app.post("/reorder-projets")
+def reorder_projets(ordre: OrdreProjets, current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        for position, projet_id in enumerate(ordre.ids):
+            conn.execute(
+                text("UPDATE projets SET ordre = :o WHERE id = :id AND LOWER(utilisateur) = :u"),
+                {"o": position, "id": projet_id, "u": current_user},
+            )
+    return {"status": "success"}
+
+
+@app.post("/update-projet/{projet_id}")
+def update_projet(projet_id: int, p: Projet, current_user: str = Depends(get_current_user)):
     query = text("""
-        UPDATE projets 
-        SET nom = :new_n, cout = :co, date = :d, capa = :ca, date_debut = :dd, utiliser_capa_stricte = :ucs
-        WHERE nom = :old_n AND profil = :pr AND LOWER(utilisateur) = :u
+        UPDATE projets
+        SET nom = :new_n, cout = :co, date = :d, capa = :ca, apport_epargne = :ap,
+            date_debut = COALESCE(:dd, date_debut), utiliser_capa_stricte = :ucs
+        WHERE id = :id AND LOWER(utilisateur) = :u
     """)
     with engine.begin() as conn:
-        conn.execute(query, {
-            "u": current_user.lower(),
-            "pr": p.profil, 
+        verifier_nom_projet_libre(conn, p.nom, p.profil, current_user, sauf_id=projet_id)
+        res = conn.execute(query, {
+            "id": projet_id,
+            "u": current_user,
             "new_n": p.nom,
-            "old_n": old_name,
-            "co": p.cout, 
-            "d": p.date, 
+            "co": p.cout,
+            "d": p.date,
             "ca": p.capa,
+            "ap": p.apport,
             "dd": p.date_debut,
             "ucs": p.utiliser_capa_stricte or False
         })
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Projet introuvable")
     return {"status": "success"}
 
-@app.delete("/delete-projet/{nom}/{profil}")
-def delete_projet(nom: str, profil: str, current_user: str = Depends(get_current_user)):
-    query = text("DELETE FROM projets WHERE nom = :n AND profil = :p AND LOWER(utilisateur) = :u")
-    with engine.connect() as conn:
-        conn.execute(query, {"n": nom, "p": profil, "u": current_user})
-        conn.commit()
+@app.delete("/delete-projet/{projet_id}")
+def delete_projet(projet_id: int, current_user: str = Depends(get_current_user)):
+    query = text("DELETE FROM projets WHERE id = :id AND LOWER(utilisateur) = :u")
+    with engine.begin() as conn:
+        res = conn.execute(query, {"id": projet_id, "u": current_user})
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Projet introuvable")
     return {"status": "deleted"}
 
 
@@ -2106,10 +2209,9 @@ def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)
 
 
 class Allocation(BaseModel):
-    utilisateur: str   # Changé int -> str
-    profil: str        # Changé int -> str
-    projet: str        # Changé int -> str (si tu stockes le nom du projet)
-    montant_alloue: float
+    profil: str = Field(min_length=1, max_length=100)
+    projet: str = Field(min_length=1, max_length=120)
+    montant_alloue: float = Field(ge=0)
 
 
 # --- 2. ENVELOPPES D'ALLOCATIONS (RÉCUPÉRATION HISTORIQUE + SÉCURITÉ) ---
@@ -2118,7 +2220,7 @@ def get_allocations(profil_id: str, current_user: str = Depends(get_current_user
     query = text("""
         SELECT * FROM allocations 
         WHERE LOWER(profil) = LOWER(:p) 
-          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
+          AND LOWER(utilisateur) = :u
         ORDER BY date_allocation DESC
     """)
     try:
@@ -2136,59 +2238,54 @@ def save_allocation(a: Allocation, current_user: str = Depends(get_current_user)
         INSERT INTO allocations (utilisateur, profil, projet, montant_alloue)
         VALUES (:u, :pr, :pj, :m)
     """)
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {
-                "u": current_user,
-                "pr": a.profil,
-                "pj": a.projet,
-                "m": a.montant_alloue
-            })
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        print(f"Erreur SQL Save Allocation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        existe = conn.execute(text("""
+            SELECT 1 FROM allocations
+            WHERE LOWER(projet) = LOWER(:pj) AND LOWER(profil) = LOWER(:pr)
+              AND LOWER(utilisateur) = :u
+        """), {"pj": a.projet, "pr": a.profil, "u": current_user}).first()
+        if existe:
+            raise HTTPException(status_code=409, detail=f"Une enveloppe « {a.projet} » existe déjà.")
+        conn.execute(query, {"u": current_user, "pr": a.profil, "pj": a.projet, "m": a.montant_alloue})
+    return {"status": "success"}
 
 
 @app.delete("/delete-enveloppe/{projet_nom}")
 def delete_enveloppe(projet_nom: str, profil: str, current_user: str = Depends(get_current_user)):
     query = text("""
-        DELETE FROM allocations 
-        WHERE LOWER(projet) = LOWER(:pj) 
-          AND LOWER(profil) = LOWER(:pr) 
-          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
+        DELETE FROM allocations
+        WHERE LOWER(projet) = LOWER(:pj)
+          AND LOWER(profil) = LOWER(:pr)
+          AND LOWER(utilisateur) = :u
     """)
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {"pj": projet_nom, "pr": profil, "u": current_user})
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    with engine.begin() as conn:
+        res = conn.execute(query, {"pj": projet_nom, "pr": profil, "u": current_user})
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Enveloppe introuvable")
+    return {"status": "success"}
 
-# --- MODIFIER LE MONTANT GLOBAL (Met à jour la 1ère ligne trouvée ou recalcule) ---
+# --- MODIFIER LE MONTANT GLOBAL (remplace les lignes existantes de l'enveloppe) ---
 @app.put("/update-enveloppe-montant")
 def update_enveloppe_montant(projet: str, profil: str, nouveau_montant: float, current_user: str = Depends(get_current_user)):
+    if nouveau_montant < 0:
+        raise HTTPException(status_code=422, detail="Le montant ne peut pas être négatif.")
     query_del = text("""
-        DELETE FROM allocations 
-        WHERE LOWER(projet) = LOWER(:pj) 
-          AND LOWER(profil) = LOWER(:pr) 
-          AND (LOWER(utilisateur) = :u OR utilisateur IN ('System', 'Anonyme') OR utilisateur IS NULL)
+        DELETE FROM allocations
+        WHERE LOWER(projet) = LOWER(:pj)
+          AND LOWER(profil) = LOWER(:pr)
+          AND LOWER(utilisateur) = :u
     """)
     query_ins = text("""
-        INSERT INTO allocations (utilisateur, profil, projet, montant_alloue) 
+        INSERT INTO allocations (utilisateur, profil, projet, montant_alloue)
         VALUES (:u, :pr, :pj, :m)
     """)
-    try:
-        with engine.connect() as conn:
-            conn.execute(query_del, {"pj": projet, "pr": profil, "u": current_user})
-            conn.execute(query_ins, {"pj": projet, "pr": profil, "m": nouveau_montant, "u": current_user})
-            conn.commit()
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+    with engine.begin() as conn:
+        res = conn.execute(query_del, {"pj": projet, "pr": profil, "u": current_user})
+        if res.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Enveloppe introuvable")
+        conn.execute(query_ins, {"pj": projet, "pr": profil, "m": nouveau_montant, "u": current_user})
+    return {"status": "success"}
+
 
 class TricountTransaction(BaseModel):
     id: Optional[int] = None
@@ -3305,13 +3402,20 @@ class PermanentSavingsIndicatorResponse(BaseModel):
 
 # 1. Initialisation du client Gemini (pense à bien définir GEMINI_API_KEY dans tes variables d'environnement)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+LIMITE_ANALYSES_ECONOMIES = 15  # par compte, sur 10 minutes
 
 
 @app.post(
     '/api/indicators/savings-analysis',
     response_model=PermanentSavingsIndicatorResponse,
 )
-def get_savings_indicator(data: dict):
+def get_savings_indicator(data: dict, current_user: str = Depends(get_current_user)):
+    if check_is_rate_limited(key=current_user, action="gemini_savings", max_attempts=LIMITE_ANALYSES_ECONOMIES, window_minutes=10):
+        raise HTTPException(
+            status_code=429,
+            detail="Trop de demandes d'analyse IA en peu de temps. Veuillez patienter quelques minutes."
+        )
+
     system_prompt = """
     Tu es un assistant financier intégré à un tableau de bord.
     Ta mission est d'analyser le panier de dépenses mensuel et d'extraire AUTOMATIQUEMENT les 2 ou 3 postes d'économies les plus pertinents pour le mois prochain.
@@ -3340,7 +3444,8 @@ def get_savings_indicator(data: dict):
         return json.loads(response.text)
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Erreur analyse des économies : {e}")
+        raise HTTPException(status_code=500, detail="L'analyse des économies a échoué.")
 
 
 
@@ -5096,10 +5201,20 @@ def recalculate_initial_balances(username: str, current_user: str = Depends(get_
     return exec_recalculate_balances(current_user)
 
 # Route de synchronisation globale de maintenance (exécutée par un cron externe)
-@app.post("/maintenance/sync-all")
-def sync_all_users_background(auth_key: str = None):
-    if auth_key != os.getenv("MAINTENANCE_API_KEY"):
+def verifier_cle_maintenance(cle_recue: Optional[str]):
+    """Refuse tout tant qu'aucune clé n'est configurée : une clé absente ne doit jamais ouvrir la route."""
+    attendue = os.getenv("MAINTENANCE_API_KEY")
+    if not attendue or not cle_recue or not hmac.compare_digest(cle_recue.encode(), attendue.encode()):
         raise HTTPException(status_code=401, detail="Non autorisé")
+
+
+@app.post("/maintenance/sync-all")
+def sync_all_users_background(
+    auth_key: Optional[str] = None,
+    x_maintenance_key: Optional[str] = Header(default=None),
+):
+    # L'en-tête est à préférer : une clé dans l'URL finit dans les logs.
+    verifier_cle_maintenance(x_maintenance_key or auth_key)
         
     query = text("SELECT username FROM users WHERE powens_token IS NOT NULL AND import_mode = 'auto'")
     synced_users = []
@@ -6023,15 +6138,22 @@ class ThemePresetIn(BaseModel):
     radius: str
     glass_blur: str
     glass_bg: str
+    secondary_color: Optional[str] = None
     gradient_style: Optional[str] = "radial"       # 👈 Ajout
     gradient_intensity: Optional[str] = "50%"      # 👈 Ajout
     gradient_color: Optional[str] = "auto"         # 👈 Ajout
+    gradient_angle: Optional[str] = None
+    gradient_shape: Optional[str] = None
+    gradient_center: Optional[str] = None
+    gradient_spread: Optional[str] = None
 
 @app.get("/api/themes/presets")
 def get_theme_presets(current_user: str = Depends(get_current_user)):
     with engine.connect() as conn:
         res = conn.execute(text("""
-            SELECT id, nom, bg_site, primary_color, text_main, glass_bg, glass_blur, radius, is_active
+            SELECT id, nom, bg_site, primary_color, secondary_color, text_main, glass_bg, glass_blur, radius,
+                   gradient_style, gradient_intensity, gradient_color,
+                   gradient_angle, gradient_shape, gradient_center, gradient_spread, is_active
             FROM theme_presets 
             WHERE LOWER(utilisateur) = :u
             ORDER BY id ASC
@@ -6042,18 +6164,22 @@ def get_theme_presets(current_user: str = Depends(get_current_user)):
 def save_theme_preset(p: ThemePresetIn, current_user: str = Depends(get_current_user)):
     with engine.begin() as conn:
         query = text("""
-            INSERT INTO theme_presets (utilisateur, nom, bg_site, primary_color, text_main, glass_bg, glass_blur, radius, gradient_style, gradient_intensity, gradient_color)
-            VALUES (:u, :nom, :bg, :pri, :tm, :gb, :gblur, :rad, :gs, :gi, :gc)
-            ON CONFLICT (utilisateur, nom) DO UPDATE 
+            INSERT INTO theme_presets (utilisateur, nom, bg_site, primary_color, secondary_color, text_main, glass_bg, glass_blur, radius, gradient_style, gradient_intensity, gradient_color, gradient_angle, gradient_shape, gradient_center, gradient_spread)
+            VALUES (:u, :nom, :bg, :pri, :sec, :tm, :gb, :gblur, :rad, :gs, :gi, :gc, :ga, :gsh, :gce, :gsp)
+            ON CONFLICT (utilisateur, nom) DO UPDATE
             SET bg_site = EXCLUDED.bg_site, primary_color = EXCLUDED.primary_color,
+                secondary_color = EXCLUDED.secondary_color, text_main = EXCLUDED.text_main,
+                glass_bg = EXCLUDED.glass_bg, glass_blur = EXCLUDED.glass_blur, radius = EXCLUDED.radius,
                 gradient_style = EXCLUDED.gradient_style, gradient_intensity = EXCLUDED.gradient_intensity,
-                gradient_color = EXCLUDED.gradient_color
-            RETURNING id
+                gradient_color = EXCLUDED.gradient_color, gradient_angle = EXCLUDED.gradient_angle,
+                gradient_shape = EXCLUDED.gradient_shape, gradient_center = EXCLUDED.gradient_center,
+                gradient_spread = EXCLUDED.gradient_spread
         """)
-        res = conn.execute(query, {
-            "u": current_user, "nom": p.nom, "bg": p.bg_site, "pri": p.primary_color,
+        conn.execute(query, {
+            "u": current_user, "nom": p.nom, "bg": p.bg_site, "pri": p.primary_color, "sec": p.secondary_color,
             "tm": p.text_main, "gb": p.glass_bg, "gblur": p.glass_blur, "rad": p.radius,
-            "gs": p.gradient_style or "radial", "gi": p.gradient_intensity or "50%", "gc": p.gradient_color or "auto"
+            "gs": p.gradient_style or "radial", "gi": p.gradient_intensity or "50%", "gc": p.gradient_color or "auto",
+            "ga": p.gradient_angle, "gsh": p.gradient_shape, "gce": p.gradient_center, "gsp": p.gradient_spread
         })
     return {"status": "success"}
 
@@ -6073,12 +6199,12 @@ def apply_theme_preset(preset_id: int, current_user: str = Depends(get_current_u
 
         # 2. Met à jour user_theme (rechargé au boot du site)
         conn.execute(text("""
-            INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius, glass_blur, glass_bg)
-            VALUES (:u, :bg, :p, :tm, :r, :gb, :gg)
-            ON CONFLICT (utilisateur) DO UPDATE 
-            SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r, glass_blur = :gb, glass_bg = :gg
+            INSERT INTO user_theme (utilisateur, bg_site, primary_color, text_main, radius, glass_blur, glass_bg, secondary_color)
+            VALUES (:u, :bg, :p, :tm, :r, :gb, :gg, :sc)
+            ON CONFLICT (utilisateur) DO UPDATE
+            SET bg_site = :bg, primary_color = :p, text_main = :tm, radius = :r, glass_blur = :gb, glass_bg = :gg, secondary_color = :sc
         """), {
-            "u": current_user, "bg": preset["bg_site"], "p": preset["primary_color"],
+            "u": current_user, "bg": preset["bg_site"], "p": preset["primary_color"], "sc": preset["secondary_color"],
             "tm": preset["text_main"], "r": preset["radius"], "gb": preset["glass_blur"], "gg": preset["glass_bg"]
         })
 

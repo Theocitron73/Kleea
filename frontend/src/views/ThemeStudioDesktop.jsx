@@ -1,11 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SketchPicker } from 'react-color';
-import { 
-  Palette, Check, Trash2, Plus, Sparkles, SlidersHorizontal, 
-  Bookmark, Sun, ArrowDown, MoveDiagonal, Square 
-} from 'lucide-react';
+import { Check, Trash2, Plus, SlidersHorizontal, Bookmark } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
+import GradientEditor from '../components/GradientEditor';
+import { GRADIENT_KEYS } from '../utils/gradient';
+
+// Valeur réelle d'une couleur calculée par le CSS : le color picker ne lit que l'hexadécimal.
+const cssVarToHex = (variable) => {
+  const probe = document.createElement('div');
+  probe.style.color = `var(${variable})`;
+  document.body.append(probe);
+  const computed = getComputedStyle(probe).color;
+  probe.remove();
+  const ctx = document.createElement('canvas').getContext('2d');
+  ctx.fillStyle = computed;
+  ctx.fillRect(0, 0, 1, 1);
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+};
 
 export default function ThemeStudioDesktop({
   user,
@@ -19,24 +32,30 @@ export default function ThemeStudioDesktop({
   setUserTheme
 }) {
 
-  // 🟢 Sauvegarde dynamique des options de dégradé
-  const handleUpdateGradientSetting = async (elementKey, value) => {
+  // 🟢 Dégradé : l'affichage suit en direct, l'enregistrement attend la fin du geste
+  const gradientSaveTimers = useRef({});
+  const handleUpdateGradientSetting = (elementKey, value) => {
     if (typeof setUserTheme === 'function') {
       setUserTheme(prev => ({ ...prev, [elementKey]: value }));
     }
-    try {
-      await api.post('/save-user-theme', {
-        user: user,
-        element: elementKey,
-        couleur: value
-      });
-    } catch (err) {
-      console.error("Erreur sauvegarde dégradé :", err);
-    }
+    clearTimeout(gradientSaveTimers.current[elementKey]);
+    gradientSaveTimers.current[elementKey] = setTimeout(async () => {
+      try {
+        await api.post('/save-user-theme', {
+          user: user,
+          element: elementKey,
+          couleur: value
+        });
+      } catch (err) {
+        console.error("Erreur sauvegarde dégradé :", err);
+        toast.error("Le dégradé n'a pas pu être enregistré.");
+      }
+    }, 350);
   };
 
   const [activePicker, setActivePicker] = useState(null);
   const [pickingColor, setPickingColor] = useState(null);
+  const [, refreshLabels] = useState(0);
 
   // État de la bibliothèque de thèmes
   const [presets, setPresets] = useState([]);
@@ -65,6 +84,12 @@ export default function ThemeStudioDesktop({
     // 1. Modifie immédiatement les variables CSS du site
     document.documentElement.style.setProperty('--bg-site', preset.bg_site);
     document.documentElement.style.setProperty('--primary', preset.primary_color);
+    if (preset.secondary_color) {
+      document.documentElement.style.setProperty('--secondary', preset.secondary_color);
+    } else {
+      document.documentElement.style.removeProperty('--secondary');
+    }
+    setPickingColor(null);
     document.documentElement.style.setProperty('--text-main', preset.text_main);
     document.documentElement.style.setProperty('--radius', preset.radius);
     document.documentElement.style.setProperty('--glass-blur', preset.glass_blur);
@@ -74,6 +99,7 @@ export default function ThemeStudioDesktop({
     localStorage.setItem('kleea-theme-cache', JSON.stringify({
       bg_site: preset.bg_site,
       primary_color: preset.primary_color,
+      secondary_color: preset.secondary_color || null,
       text_main: preset.text_main,
       radius: preset.radius,
       glass_blur: preset.glass_blur,
@@ -84,7 +110,11 @@ export default function ThemeStudioDesktop({
     const newGradient = {
       gradient_style: preset.gradient_style || 'radial',
       gradient_intensity: preset.gradient_intensity || '50%',
-      gradient_color: preset.gradient_color || 'auto'
+      gradient_color: preset.gradient_color || 'auto',
+      gradient_angle: preset.gradient_angle || '',
+      gradient_shape: preset.gradient_shape || '',
+      gradient_center: preset.gradient_center || '',
+      gradient_spread: preset.gradient_spread || ''
     };
 
     if (typeof setUserTheme === 'function') {
@@ -100,11 +130,9 @@ export default function ThemeStudioDesktop({
       await api.post(`/api/themes/presets/${preset.id}/apply`);
 
       // 🟢 B. Enregistre aussi le dégradé dans la table `theme` de l'utilisateur (pour le F5)
-      await Promise.all([
-        api.post('/save-user-theme', { user, element: 'gradient_style', couleur: newGradient.gradient_style }),
-        api.post('/save-user-theme', { user, element: 'gradient_intensity', couleur: newGradient.gradient_intensity }),
-        api.post('/save-user-theme', { user, element: 'gradient_color', couleur: newGradient.gradient_color })
-      ]);
+      await Promise.all(GRADIENT_KEYS.map((element) => (
+        api.post('/save-user-theme', { user, element, couleur: newGradient[element] })
+      )));
 
       setPresets(prev => prev.map(p => ({ ...p, is_active: p.id === preset.id })));
       toast.success(`Thème « ${preset.nom} » activé ! ✨`);
@@ -131,13 +159,18 @@ const handleCreatePreset = async (e) => {
       nom: cleanNom,
       bg_site: styles.getPropertyValue('--bg-site').trim() || '#152c48',
       primary_color: styles.getPropertyValue('--primary').trim() || '#4f46e5',
+      secondary_color: document.documentElement.style.getPropertyValue('--secondary').trim() || null,
       text_main: styles.getPropertyValue('--text-main').trim() || '#ffffff',
       radius: styles.getPropertyValue('--radius').trim() || '1.5rem',
       glass_blur: styles.getPropertyValue('--glass-blur').trim() || '12px',
-      glass_bg: styles.getPropertyValue('--glass-bg').trim() || 'rgba(255, 255, 255, 0.03)',
+      glass_bg: styles.getPropertyValue('--glass-bg').trim() || 'color-mix(in srgb, var(--text-main) 3%, transparent)',
       gradient_style: userTheme?.gradient_style || 'radial',
       gradient_intensity: userTheme?.gradient_intensity || '50%',
-      gradient_color: userTheme?.gradient_color || 'auto'
+      gradient_color: userTheme?.gradient_color || 'auto',
+      gradient_angle: userTheme?.gradient_angle || null,
+      gradient_shape: userTheme?.gradient_shape || null,
+      gradient_center: userTheme?.gradient_center || null,
+      gradient_spread: userTheme?.gradient_spread || null
     };
 
     try {
@@ -192,7 +225,7 @@ const handleCreatePreset = async (e) => {
             {/* 🌟 SECTION 1 : BIBLIOTHÈQUE DE THÈMES (CHOIX EN 1 CLIC) */}
             <div className="space-y-3">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--primary)] flex items-center gap-1.5">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--secondary)] flex items-center gap-1.5">
                   <Bookmark size={13} />
                   <span>Bibliothèque de thèmes enregistrés</span>
                 </span>
@@ -212,7 +245,7 @@ const handleCreatePreset = async (e) => {
                       onClick={() => handleApplyPreset(preset)}
                       className={`group p-3 rounded-2xl border transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${
                         isActive
-                          ? 'bg-white/[0.06] border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.15)] ring-1 ring-[var(--primary)]/50'
+                          ? 'bg-white/[0.06] border-[var(--primary)] shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_15%,transparent)] ring-1 ring-[var(--primary)]/50'
                           : 'bg-black/30 border-white/5 hover:border-white/20 hover:bg-white/[0.02]'
                       }`}
                     >
@@ -240,7 +273,7 @@ const handleCreatePreset = async (e) => {
                         {/* Actions à droite */}
                         <div className="flex items-center gap-1 shrink-0">
                           {isActive && (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[7px] font-black uppercase tracking-wider flex items-center gap-0.5">
+                            <span className="px-1.5 py-0.2 rounded-sm bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[7px] font-black uppercase tracking-wider flex items-center gap-0.5">
                               <Check size={9} strokeWidth={3} /> Actif
                             </span>
                           )}
@@ -295,7 +328,7 @@ const handleCreatePreset = async (e) => {
 
             {/* 🛠️ SECTION 2 : PERSONNALISATION FINE DES COULEURS & SLIDERS */}
             <div className="space-y-4">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--primary)] flex items-center gap-1.5 pl-1">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--secondary)] flex items-center gap-1.5 pl-1">
                 <SlidersHorizontal size={13} />
                 <span>Ajustements fins des couleurs & structure</span>
               </span>
@@ -304,12 +337,29 @@ const handleCreatePreset = async (e) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {[
                   { id: 'bg', label: 'Arrière-plan site', var: '--bg-site', alpha: false },
-                  { id: 'primary', label: 'Accent Primaire', var: '--primary', alpha: false },
+                  { id: 'primary', label: 'Accent Primaire (boutons)', var: '--primary', alpha: false },
+                  { id: 'secondary', label: 'Accent Secondaire (textes)', var: '--secondary', alpha: false, auto: true },
                   { id: 'text', label: 'Texte Principal', var: '--text-main', alpha: false },
                   { id: 'glassBg', label: 'Fond des blocs (Glass)', var: '--glass-bg', alpha: true }
                 ].map((item) => (
                   <div key={item.id} className="flex items-center justify-between p-2.5 bg-white/[0.01] border border-white/5 rounded-xl">
-                    <span className="text-[8.5px] font-black uppercase tracking-wider text-[var(--text-main)]/60">{item.label}</span>
+                    <span className="flex items-center gap-2 text-[8.5px] font-black uppercase tracking-wider text-[var(--text-main)]/60">
+                      {item.label}
+                      {item.auto && document.documentElement.style.getPropertyValue(item.var) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            document.documentElement.style.removeProperty(item.var);
+                            setPickingColor(null);
+                            setActivePicker(null);
+                          }}
+                          className="text-[7.5px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-white/40 hover:text-white cursor-pointer"
+                          title="Reprendre la couleur de l'accent primaire"
+                        >
+                          Auto
+                        </button>
+                      )}
+                    </span>
                     <div className="relative">
                       <button 
                         type="button"
@@ -323,7 +373,9 @@ const handleCreatePreset = async (e) => {
                           <SketchPicker 
                             color={pickingColor?.id === item.id 
                               ? pickingColor.hexOrRgb 
-                              : getComputedStyle(document.documentElement).getPropertyValue(item.var).trim()
+                              : item.auto
+                                ? cssVarToHex(item.var)
+                                : getComputedStyle(document.documentElement).getPropertyValue(item.var).trim()
                             }
                             onChange={(color) => {
                               const colorVal = item.alpha 
@@ -346,7 +398,7 @@ const handleCreatePreset = async (e) => {
                 <div className="bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
                   <div className="flex justify-between mb-2">
                     <label className="text-[8.5px] font-black uppercase tracking-wider text-white/55">Arrondi des cartes</label>
-                    <span className="text-[9.5px] font-mono font-bold text-[var(--primary)]">
+                    <span className="text-[9.5px] font-mono font-bold text-[var(--secondary)]">
                       {getComputedStyle(document.documentElement).getPropertyValue('--radius')}
                     </span>
                   </div>
@@ -354,14 +406,14 @@ const handleCreatePreset = async (e) => {
                     type="range" min="0" max="3" step="0.1" 
                     defaultValue={parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--radius')) || 1.5}
                     className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
-                    onChange={(e) => updateThemeLive('--radius', `${e.target.value}rem`)} 
+                    onChange={(e) => { updateThemeLive('--radius', `${e.target.value}rem`); refreshLabels(n => n + 1); }} 
                   />
                 </div>
 
                 <div className="bg-white/[0.01] border border-white/5 p-3 rounded-xl flex flex-col justify-between">
                   <div className="flex justify-between mb-2">
                     <label className="text-[8.5px] font-black uppercase tracking-wider text-white/55">Intensité du flou</label>
-                    <span className="text-[9.5px] font-mono font-bold text-[var(--primary)]">
+                    <span className="text-[9.5px] font-mono font-bold text-[var(--secondary)]">
                       {getComputedStyle(document.documentElement).getPropertyValue('--glass-blur') || '12px'}
                     </span>
                   </div>
@@ -369,135 +421,12 @@ const handleCreatePreset = async (e) => {
                     type="range" min="0" max="40" step="1" 
                     defaultValue={parseInt(getComputedStyle(document.documentElement).getPropertyValue('--glass-blur')) || 12}
                     className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
-                    onChange={(e) => updateThemeLive('--glass-blur', `${e.target.value}px`)} 
+                    onChange={(e) => { updateThemeLive('--glass-blur', `${e.target.value}px`); refreshLabels(n => n + 1); }} 
                   />
                 </div>
               </div>
 
-              {/* ========================================================= */}
-              {/* 🟢 NOUVEAU : CONTRÔLE DU DÉGRADÉ D'ARRIÈRE-PLAN           */}
-              {/* ========================================================= */}
-              <div className="bg-white/[0.01] border border-white/5 p-4 rounded-2xl space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <label className="text-[9px] font-black uppercase tracking-wider text-white flex items-center gap-1.5">
-                      <Sparkles size={12} className="text-[var(--primary)]" />
-                      <span>Dégradé d'Arrière-Plan de la Page</span>
-                    </label>
-                    <p className="text-[7.5px] text-white/40 uppercase font-bold mt-0.5">
-                      Forme, intensité du contraste et fondu
-                    </p>
-                  </div>
-
-                  {/* Indicateur de style actif */}
-                  <span className="text-[8px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/5 text-white/60 uppercase">
-                    {userTheme?.gradient_style || 'radial'}
-                  </span>
-                </div>
-
-                {/* 1. Choix du style de dégradé */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                  {[
-                    { id: 'radial', label: 'Halo Haut', icon: Sun, desc: 'Défaut' },
-                    { id: 'linear', label: 'Vertical', icon: ArrowDown, desc: 'Haut vers bas' },
-                    { id: 'diagonal', label: 'Diagonal', icon: MoveDiagonal, desc: '135°' },
-                    { id: 'solid', label: 'Fond Uni', icon: Square, desc: 'Sans dégradé' }
-                  ].map(st => {
-                    const IconCmp = st.icon;
-                    const isActive = (userTheme?.gradient_style || 'radial') === st.id;
-                    return (
-                      <button
-                        key={st.id}
-                        type="button"
-                        onClick={() => handleUpdateGradientSetting('gradient_style', st.id)}
-                        className={`p-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                          isActive
-                            ? 'bg-[var(--primary)] text-white border-[var(--primary)] shadow-md shadow-[var(--primary)]/20'
-                            : 'bg-black/30 border-white/5 text-white/40 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <IconCmp size={13} />
-                        <span className="text-[8px] font-black uppercase tracking-wider">{st.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* 2. Slider d'intensité du contraste (masqué si 'solid') */}
-                {(userTheme?.gradient_style || 'radial') !== 'solid' && (
-                  <div className="space-y-1.5 pt-1 border-t border-white/5">
-                    <div className="flex justify-between items-center text-[8px] font-black uppercase">
-                      <span className="text-white/50">Profondeur du noir / Contraste</span>
-                      <span className="text-[var(--primary)] font-mono font-bold">
-                        {userTheme?.gradient_intensity || '50%'}
-                      </span>
-                    </div>
-
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="100" 
-                      step="5"
-                      value={parseInt(userTheme?.gradient_intensity || '50')}
-                      className="w-full h-1.5 bg-black/40 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
-                      onChange={(e) => handleUpdateGradientSetting('gradient_intensity', `${e.target.value}%`)} 
-                    />
-
-                    <div className="flex justify-between text-[7px] text-white/20 uppercase font-mono">
-                      <span>0% (Clair / Uni)</span>
-                      <span>50% (Équilibré)</span>
-                      <span>100% (Noir profond)</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Choix optionnel d'une seconde couleur de fondu */}
-                {(userTheme?.gradient_style || 'radial') !== 'solid' && (
-                  <div className="flex items-center justify-between pt-2 border-t border-white/5">
-                    <div>
-                      <span className="text-[8px] font-black uppercase text-white/60 block">Couleur d'arrivée</span>
-                      <span className="text-[7px] text-white/30 uppercase">Noir automatique ou teinte sur-mesure</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {userTheme?.gradient_color && userTheme.gradient_color !== 'auto' && (
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateGradientSetting('gradient_color', 'auto')}
-                          className="text-[7.5px] font-black uppercase px-2 py-0.5 rounded bg-white/5 text-white/40 hover:text-white cursor-pointer"
-                        >
-                          Auto
-                        </button>
-                      )}
-
-                      <div className="relative">
-                        <button
-                          type="button"
-                          onClick={() => setActivePicker(activePicker === 'gradColor' ? null : 'gradColor')}
-                          className="w-8 h-4 rounded-full border border-white/20 shadow-inner cursor-pointer hover:scale-110 transition-transform"
-                          style={{ 
-                            backgroundColor: userTheme?.gradient_color && userTheme.gradient_color !== 'auto'
-                              ? userTheme.gradient_color 
-                              : '#000000'
-                          }}
-                          title="Changer la couleur de fondu"
-                        />
-
-                        {activePicker === 'gradColor' && (
-                          <div className="absolute z-50 bottom-6 right-0 shadow-2xl animate-in zoom-in-95 duration-200">
-                            <div className="fixed inset-0" onClick={() => setActivePicker(null)} />
-                            <SketchPicker
-                              color={userTheme?.gradient_color || '#000000'}
-                              onChange={(c) => handleUpdateGradientSetting('gradient_color', c.hex)}
-                              disableAlpha={true}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <GradientEditor userTheme={userTheme} onChange={handleUpdateGradientSetting} />
 
             </div>
 
@@ -589,7 +518,7 @@ const handleCreatePreset = async (e) => {
                     }}
                       className={`w-9 h-4.5 rounded-full transition-all relative flex-shrink-0 cursor-pointer ${
                         isPageActive 
-                          ? 'bg-[var(--primary)] shadow-[0_0_10px_rgba(99,102,241,0.25)]' 
+                          ? 'bg-[var(--primary)] shadow-[0_0_10px_color-mix(in_srgb,var(--primary)_25%,transparent)]' 
                           : 'bg-white/5 border border-white/5'
                       }`}
                     >

@@ -72,7 +72,7 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
           {isCategorySelect ? (
             <CategoryIcon name={currentLabel} size={14} className="shrink-0" />
           ) : (
-            Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />
+            Icon && <Icon size={12} className="text-[var(--secondary)] shrink-0" />
           )}
           
           <input
@@ -92,16 +92,16 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
       </div>
 
       {isOpen && (
-        <div className="absolute top-[110%] left-0 w-full min-w-[175px] z-[100] bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="absolute top-[110%] left-0 w-full min-w-[175px] z-[100] bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-64 overflow-y-auto custom-scrollbar p-1.5 space-y-1">
             {filteredOptions.length > 0 ? (
               isCategorySelect && groupedOptions && groupedOptions.sortedGroupNames.length > 0 ? (
                 groupedOptions.sortedGroupNames.map(grpName => (
                   <div key={grpName} className="space-y-0.5">
                     {groupedOptions.sortedGroupNames.length > 1 && (
-                      <div className="px-2.5 pt-2 pb-1 text-[8px] font-black uppercase tracking-wider text-indigo-300/60 flex items-center justify-between border-t first:border-t-0 border-white/5 mt-1 select-none">
+                      <div className="px-2.5 pt-2 pb-1 text-[8px] font-black uppercase tracking-wider text-secondary-300/60 flex items-center justify-between border-t first:border-t-0 border-white/5 mt-1 select-none">
                         <span className="flex items-center gap-1.5">
-                          <Layers size={9} className="text-indigo-400" />
+                          <Layers size={9} className="text-secondary-400" />
                           <span>{grpName}</span>
                         </span>
                         <span className="text-[7.5px] font-mono opacity-40">
@@ -145,7 +145,7 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
                       : 'text-[var(--text-main)]/70 hover:bg-[var(--glass-bg)] hover:text-white'
                     }`}
                   >
-                    {Icon && <Icon size={12} className="text-[var(--primary)] shrink-0" />}
+                    {Icon && <Icon size={12} className="text-[var(--secondary)] shrink-0" />}
                     <span className="truncate">{opt.l}</span>
                   </div>
                 ))

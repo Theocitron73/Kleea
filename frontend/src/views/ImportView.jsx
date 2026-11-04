@@ -31,7 +31,7 @@ function HelpPopover() {
         }`}
       >
         <div className="p-1.5 bg-[var(--glass-bg)] rounded-lg">
-          <HelpCircle size={16} className={isOpen ? 'text-[var(--primary)]' : 'text-[var(--text-main)]/40'} />
+          <HelpCircle size={16} className={isOpen ? 'text-[var(--secondary)]' : 'text-[var(--text-main)]/40'} />
         </div>
         <div className="flex flex-col items-start hidden md:flex">
           <span className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-widest text-left">Guide Export CSV</span>
@@ -42,7 +42,7 @@ function HelpPopover() {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => { setIsOpen(false); setSelectedBank(null); }} />
-          <div className="absolute right-0 top-[110%] mt-2 w-72 bg-[#161618] border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute right-0 top-[110%] mt-2 w-72 bg-[var(--surface)] border border-white/10 rounded-[calc(var(--radius)*1.333)] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="p-5 border-b border-white/5 bg-white/[0.02]">
               <h4 className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Exporter mon CSV</h4>
               <p className="text-[8px] text-[var(--text-main)]/20 uppercase font-bold mt-1">Sélectionnez votre banque</p>
@@ -58,8 +58,8 @@ function HelpPopover() {
                       onClick={() => setSelectedBank(bank)}
                       className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-[var(--glass-bg)] transition-colors group/item text-left cursor-pointer"
                     >
-                      <span className="text-[10px] font-bold text-[var(--text-main)]/60 group-hover/item:text-[var(--primary)] uppercase">{bank.name}</span>
-                      <ChevronRight size={14} className="text-[var(--text-main)]/10 group-hover/item:text-[var(--primary)]" />
+                      <span className="text-[10px] font-bold text-[var(--text-main)]/60 group-hover/item:text-[var(--secondary)] uppercase">{bank.name}</span>
+                      <ChevronRight size={14} className="text-[var(--text-main)]/10 group-hover/item:text-[var(--secondary)]" />
                     </button>
                   ))}
                 </div>
@@ -68,12 +68,12 @@ function HelpPopover() {
                   <button 
                     type="button"
                     onClick={() => setSelectedBank(null)}
-                    className="text-[8px] font-black text-[var(--primary)] uppercase mb-4 flex items-center gap-2 hover:opacity-70 cursor-pointer"
+                    className="text-[8px] font-black text-[var(--secondary)] uppercase mb-4 flex items-center gap-2 hover:opacity-70 cursor-pointer"
                   >
                     ← Retour
                   </button>
                   <div className="bg-[var(--primary)]/5 border border-[var(--primary)]/10 p-4 rounded-2xl">
-                    <span className="text-[9px] font-black text-[var(--primary)] uppercase block mb-2">{selectedBank.name}</span>
+                    <span className="text-[9px] font-black text-[var(--secondary)] uppercase block mb-2">{selectedBank.name}</span>
                     <p className="text-[11px] text-[var(--text-main)]/80 font-medium leading-relaxed uppercase tracking-tight">
                       {selectedBank.guide}
                     </p>
@@ -181,7 +181,7 @@ export default function ImportView({
           onClick={() => setMobileSubTab('sources')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             mobileSubTab === 'sources' 
-              ? 'border-[var(--primary)] text-[var(--primary)]' 
+              ? 'border-[var(--secondary)] text-[var(--secondary)]' 
               : 'border-transparent text-white/40'
           }`}
         >
@@ -192,7 +192,7 @@ export default function ImportView({
           onClick={() => setMobileSubTab('previsu')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 relative cursor-pointer ${
             mobileSubTab === 'previsu' 
-              ? 'border-[var(--primary)] text-[var(--primary)]' 
+              ? 'border-[var(--secondary)] text-[var(--secondary)]' 
               : 'border-transparent text-white/40'
           }`}
         >
@@ -208,7 +208,7 @@ export default function ImportView({
           onClick={() => setMobileSubTab('intel')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
             mobileSubTab === 'intel' 
-              ? 'border-[var(--primary)] text-[var(--primary)]' 
+              ? 'border-[var(--secondary)] text-[var(--secondary)]' 
               : 'border-transparent text-white/40'
           }`}
         >
@@ -229,7 +229,7 @@ export default function ImportView({
           {/* Header Section Desktop */}
           <div className="flex items-center gap-3 px-2 shrink-0">
             <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
-              <Upload size={16} className="text-[var(--primary)]" />
+              <Upload size={16} className="text-[var(--secondary)]" />
             </div>
             <div>
               <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">
@@ -268,7 +268,7 @@ export default function ImportView({
                     className="flex-1 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none cursor-pointer"
                   >
                     <span className="flex items-center gap-2 truncate pr-2">
-                      <Building2 size={12} className="text-[var(--primary)] shrink-0" />
+                      <Building2 size={12} className="text-[var(--secondary)] shrink-0" />
                       <span className="truncate">
                         Association de vos comptes en banque réels & ceux sur Kleea ({powensData?.accounts_count || 0})
                       </span>
@@ -282,14 +282,14 @@ export default function ImportView({
                     disabled={isRefreshingPowens || isCheckingSync}
                     className={`p-3 rounded-2xl border flex items-center gap-2 transition-all cursor-pointer select-none shrink-0 ${
                       isRefreshingPowens || isCheckingSync
-                        ? 'bg-[var(--primary)]/15 border-[var(--primary)]/30 text-[var(--primary)] cursor-wait'
+                        ? 'bg-[var(--secondary)]/15 border-[var(--secondary)]/30 text-[var(--secondary)] cursor-wait'
                         : 'bg-white/[0.02] border-white/5 hover:border-white/15 hover:bg-white/[0.05] text-[var(--text-main)]/60 hover:text-white'
                     }`}
                     title="Forcer la vérification et l'actualisation des comptes Powens"
                   >
                     <RefreshCw 
                       size={12} 
-                      className={`shrink-0 text-[var(--primary)] ${
+                      className={`shrink-0 text-[var(--secondary)] ${
                         (isRefreshingPowens || isCheckingSync) ? 'animate-spin' : ''
                       }`} 
                     />
@@ -300,7 +300,7 @@ export default function ImportView({
                 </div>
 
                 {isOpen && (
-                  <div className="absolute top-full mt-2 w-full bg-[#18181a] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute top-full mt-2 w-full bg-[var(--surface)] border border-white/10 rounded-2xl p-4 shadow-2xl animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-4 max-h-80 overflow-y-auto custom-scrollbar">
                       {powensData.connections.map((conn) => {
                         const connAccounts = powensData.accounts?.filter(
@@ -311,7 +311,7 @@ export default function ImportView({
 
                         return (
                           <div key={conn.id} className="space-y-1.5">
-                            <div className="flex items-center justify-between text-[9px] font-black text-[var(--primary)] uppercase px-1 border-b border-white/5 pb-1">
+                            <div className="flex items-center justify-between text-[9px] font-black text-[var(--secondary)] uppercase px-1 border-b border-white/5 pb-1">
                               <span>{conn.connector_name}</span>
                               <span className="text-[7px] text-[var(--text-main)]/30">ID: {conn.id}</span>
                             </div>
@@ -398,13 +398,13 @@ export default function ImportView({
               onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
               title="Ajouter une banque via Powens"
               className={`
-                rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
+                rounded-[calc(var(--radius)*1.333)] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]
                 ${isSyncingPowens 
-                  ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_25px_rgba(var(--primary-rgb),0.15)]' 
+                  ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_25px_color-mix(in_srgb,var(--primary)_15%,transparent)]' 
                   : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
               `}
             >
-              <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingPowens ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'}`}>
+              <div className={`p-3 rounded-xl transition-all duration-500 shrink-0 ${isSyncingPowens ? 'bg-[var(--primary)] text-black animate-spin' : 'bg-[var(--secondary)]/10 border border-[var(--secondary)]/20 text-[var(--secondary)]'}`}>
                 {isSyncingPowens ? <RefreshCw size={18} /> : <Plus size={18} />}
               </div>
               <div className="flex flex-col min-w-0">
@@ -438,9 +438,9 @@ export default function ImportView({
                 <div 
                   onClick={handleClick}
                   className={`
-                    relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[85px]
+                    relative rounded-[calc(var(--radius)*1.333)] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[85px]
                     ${hasPendingSync 
-                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_rgba(var(--primary-rgb),0.2)]' 
+                      ? 'bg-[var(--primary)]/10 border-[var(--primary)] shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_20%,transparent)]' 
                       : isExecutingNow 
                         ? 'bg-[var(--primary)]/10 border-[var(--primary)] cursor-wait' 
                         : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-[var(--primary)]/40'}
@@ -458,7 +458,7 @@ export default function ImportView({
                       ? 'bg-[var(--primary)] text-black animate-spin' 
                       : hasPendingSync 
                         ? 'bg-[var(--primary)] text-black' 
-                        : 'bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)]'
+                        : 'bg-[var(--secondary)]/10 border border-[var(--secondary)]/20 text-[var(--secondary)]'
                   }`}>
                     {isExecutingNow ? <RefreshCw size={18} /> : <Download size={18} />}
                   </div>
@@ -471,7 +471,7 @@ export default function ImportView({
                       
                       <p className={`text-[8px] font-bold uppercase tracking-widest mt-0.5 ${
                         isExecutingNow 
-                          ? 'text-[var(--primary)] font-black animate-pulse'
+                          ? 'text-[var(--secondary)] font-black animate-pulse'
                           : hasPendingSync 
                             ? 'text-rose-400 font-black animate-pulse' 
                             : 'text-emerald-400/80 font-bold'
@@ -486,7 +486,7 @@ export default function ImportView({
 
                     <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 pl-3 flex-1">
                       {isExecutingNow ? (
-                        <span className="text-[8px] font-black text-[var(--primary)] uppercase tracking-wider animate-pulse">
+                        <span className="text-[8px] font-black text-[var(--secondary)] uppercase tracking-wider animate-pulse">
                           Actualisation...
                         </span>
                       ) : hasPendingSync && unsyncedAccs.length > 0 ? (
@@ -499,7 +499,7 @@ export default function ImportView({
                               title={`${accName} : ${count} nouvelle(s) transaction(s) en attente`}
                             >
                               <span className="text-white font-black">{accName}</span>
-                              <span className="text-rose-200 font-black bg-rose-500/30 px-1 py-0.2 rounded text-[7px]">
+                              <span className="text-rose-200 font-black bg-rose-500/30 px-1 py-0.2 rounded-sm text-[7px]">
                                 +{count} Nouvelles
                               </span>
                             </span>
@@ -528,9 +528,9 @@ export default function ImportView({
               onDrop={onDrop}
               onClick={() => document.getElementById('fileInputDesktop')?.click()}
               className={`
-                relative rounded-[2rem] p-4 flex items-center gap-3 border transition-all duration-300 cursor-pointer overflow-hidden min-h-[80px] select-none
+                relative rounded-[calc(var(--radius)*1.333)] p-4 flex items-center gap-3 border transition-all duration-300 cursor-pointer overflow-hidden min-h-[80px] select-none
                 ${isDragging 
-                  ? 'bg-indigo-500/20 border-indigo-400 scale-[1.02] shadow-[0_0_30px_rgba(99,102,241,0.3)]' 
+                  ? 'bg-indigo-500/20 border-indigo-400 scale-[1.02] shadow-[0_0_30px_color-mix(in_srgb,var(--primary)_30%,transparent)]' 
                   : transactionsCalculees?.length > 0 
                     ? 'bg-emerald-500/5 border-emerald-500/30' 
                     : 'bg-white/[0.01] backdrop-blur-[var(--glass-blur)] border-white/10 hover:bg-[var(--glass-bg)] hover:border-white/20'}
@@ -552,7 +552,7 @@ export default function ImportView({
                   ? 'bg-emerald-500 text-black' 
                   : isDragging
                     ? 'bg-indigo-500 text-white animate-bounce'
-                    : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--primary)]'
+                    : 'bg-[var(--glass-bg)] border border-white/10 text-[var(--secondary)]'
               }`}>
                 {transactionsCalculees?.length > 0 && !isDragging ? (
                   <Check size={18} strokeWidth={3} />
@@ -564,7 +564,7 @@ export default function ImportView({
               <div className="pointer-events-none flex flex-col min-w-0">
                 <h3 className={`text-[11px] font-black uppercase tracking-[0.15em] ${
                   isDragging
-                    ? 'text-indigo-300'
+                    ? 'text-secondary-300'
                     : transactionsCalculees?.length > 0 
                       ? 'text-emerald-400' 
                       : 'text-[var(--text-main)]'
@@ -591,9 +591,9 @@ export default function ImportView({
               <div className="flex flex-wrap items-center justify-between gap-4 px-2 relative z-10">
                 <div className="flex items-center gap-2">
                   <div className="bg-[var(--primary)]/10 border border-[var(--primary)]/20 px-3 py-2 rounded-xl flex items-center gap-2 backdrop-blur-[var(--glass-blur)]">
-                    <Wallet size={10} className="text-[var(--primary)]" />
+                    <Wallet size={10} className="text-[var(--secondary)]" />
                     <span className="text-[7px] font-black uppercase text-[var(--text-main)]/40 tracking-tighter">Vers le compte</span>
-                    <span className="text-[10px] font-black text-[var(--primary)] uppercase">
+                    <span className="text-[10px] font-black text-[var(--secondary)] uppercase">
                       {targetCompte}
                     </span>
                   </div>
@@ -649,10 +649,10 @@ export default function ImportView({
                 </div>
               </div>
 
-              <div className="relative z-10 bg-[#0f0f10]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl">
+              <div className="relative z-10 bg-[var(--surface)]/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[calc(var(--radius)*1.333)] overflow-hidden shadow-2xl">
                 <div className="max-h-[420px] min-[2000px]:max-h-[750px] overflow-y-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-[#0f0f10] z-10 shadow-md">
+                    <thead className="sticky top-0 bg-[var(--surface)] z-10 shadow-md">
                       <tr className="border-b border-white/5 text-[9px] text-[var(--text-main)]/80 uppercase font-black bg-white/[0.02]">
                         <th className="p-4">Date</th>
                         <th className="p-4">Désignation</th>
@@ -716,7 +716,7 @@ export default function ImportView({
 
                                   {/* 2. Badge index doublon si plusieurs fois dans le même lot */}
                                   {t.isPotentialDuplicate && !isImported && (
-                                    <span className="px-1.5 py-0.5 rounded text-[7px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
+                                    <span className="px-1.5 py-0.5 rounded-sm text-[7px] font-black uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 shrink-0">
                                       Doublon #{t.duplicateIndex || 2}
                                     </span>
                                   )}
@@ -725,7 +725,7 @@ export default function ImportView({
                                   <button
                                     type="button"
                                     onClick={() => setActiveWordSplitTxId(activeWordSplitTxId === i ? null : i)}
-                                    className="p-1 rounded bg-white/5 hover:bg-indigo-500/20 text-white/40 hover:text-indigo-300 transition-colors cursor-pointer"
+                                    className="p-1 rounded-sm bg-white/5 hover:bg-secondary-500/20 text-white/40 hover:text-secondary-300 transition-colors cursor-pointer"
                                     title="Cliquer pour ajouter des mots directement aux mots-clés"
                                   >
                                     <Tag size={11} />
@@ -749,7 +749,7 @@ export default function ImportView({
                                             toast.success(`Mot-clé "${cleanW}" ajouté à ${getCleanCategoryName(categorieCible)} ! ✨`);
                                             setActiveWordSplitTxId(null);
                                           }}
-                                          className="px-1.5 py-0.5 rounded bg-indigo-500/20 hover:bg-indigo-500 text-indigo-200 hover:text-white border border-indigo-500/30 text-[8px] font-black uppercase transition-all cursor-pointer active:scale-95"
+                                          className="px-1.5 py-0.5 rounded-sm bg-secondary-500/20 hover:bg-indigo-500 text-secondary-200 hover:text-white border border-indigo-500/30 text-[8px] font-black uppercase transition-all cursor-pointer active:scale-95"
                                           title={`Ajouter à ${getCleanCategoryName(intelSelectedCat || t.categorie)}`}
                                         >
                                           + {cleanW}
@@ -768,7 +768,7 @@ export default function ImportView({
                                   isImported
                                     ? 'bg-white/5 text-[var(--text-main)]/30 border-white/5'
                                     : isTransfert 
-                                      ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 shadow-[0_0_12px_rgba(139,92,246,0.25)]' 
+                                      ? 'bg-violet-500/20 text-violet-300 border-violet-500/40 shadow-[0_0_12px_color-mix(in_srgb,var(--secondary)_25%,transparent)]' 
                                       : 'bg-[var(--glass-bg)] text-white border-white/10 group-hover:border-white/20'
                                 }`}>
                                   {getCleanCategoryName(t.categorie)}
@@ -808,7 +808,7 @@ export default function ImportView({
           <div className="flex flex-col gap-1 px-2">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-[var(--primary)]/10 rounded-lg">
-                <Brain size={16} className="text-[var(--primary)]" />
+                <Brain size={16} className="text-[var(--secondary)]" />
               </div>
               <h3 className="text-[var(--text-main)] font-black uppercase tracking-widest text-[12px]">Intelligence</h3>
             </div>
@@ -829,8 +829,8 @@ export default function ImportView({
             />
           </div>
 
-          {/* Carte Lexique : p-4 sm:p-6 lg:p-8, rounded-3xl lg:rounded-[3rem] */}
-          <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-3xl lg:rounded-[3rem] p-4 sm:p-6 lg:p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-0 lg:min-h-[480px]">
+          {/* Carte Lexique : p-4 sm:p-6 lg:p-8, rounded-3xl lg:rounded-[calc(var(--radius)*2)] */}
+          <div className="flex-1 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-3xl lg:rounded-[calc(var(--radius)*2)] p-4 sm:p-6 lg:p-8 flex flex-col transition-all shadow-2xl relative overflow-hidden group min-h-0 lg:min-h-[480px]">
             <div className="absolute -top-24 -left-24 w-64 h-64 bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
             
             <div className="flex flex-col h-full animate-in fade-in duration-500 relative z-10">
@@ -840,7 +840,7 @@ export default function ImportView({
                 <div className="flex items-center gap-2.5 min-w-0 pr-2">
                   <CategoryIcon name={intelSelectedCat} size={18} />
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[9px] lg:text-[10px] font-black text-[var(--primary)] uppercase tracking-[0.2em] leading-none">
+                    <span className="text-[9px] lg:text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] leading-none">
                       Lexique
                     </span>
                     <span className="text-[11px] lg:text-xs text-[var(--text-main)]/80 font-bold uppercase truncate mt-0.5">
@@ -850,7 +850,7 @@ export default function ImportView({
                 </div>
 
                 <div className="bg-[var(--glass-bg)] border border-white/10 px-2.5 py-1 rounded-xl shrink-0">
-                  <span className="text-[11px] lg:text-[12px] font-black text-[var(--primary)] font-mono">
+                  <span className="text-[11px] lg:text-[12px] font-black text-[var(--secondary)] font-mono">
                     {activeCategoryData?.mots_cles?.length || 0}
                   </span>
                 </div>
@@ -907,7 +907,7 @@ export default function ImportView({
                       onClick={() => setSignType("both")}
                       className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 lg:py-2 px-2 lg:px-3 rounded-xl border text-[9px] lg:text-[10px] font-bold uppercase transition-all cursor-pointer ${
                         signType === "both" 
-                          ? "bg-[var(--primary)]/15 border-[var(--primary)] text-[var(--primary)] font-black" 
+                          ? "bg-[var(--secondary)]/15 border-[var(--secondary)] text-[var(--secondary)] font-black" 
                           : "bg-transparent border-white/10 text-[var(--text-main)]/40 hover:text-[var(--text-main)]"
                       }`}
                     >
@@ -945,7 +945,7 @@ export default function ImportView({
                   <input 
                     type="text"
                     placeholder="Nouvel apprentissage..."
-                    className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-xl lg:rounded-[1.5rem] pl-4 lg:pl-6 pr-12 lg:pr-14 py-3 lg:py-5 text-xs lg:text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/20"
+                    className="w-full bg-black/40 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-xl lg:rounded-[var(--radius)] pl-4 lg:pl-6 pr-12 lg:pr-14 py-3 lg:py-5 text-xs lg:text-[11px] text-[var(--text-main)] font-black uppercase focus:outline-none focus:border-[var(--primary)]/50 transition-all placeholder:text-[var(--text-main)]/20"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && e.target.value.trim()) {
                         handleAddKeyword(intelSelectedCat, e.target.value);
@@ -954,7 +954,7 @@ export default function ImportView({
                     }}
                   />
                   <div className="absolute right-3.5 lg:right-4 top-1/2 -translate-y-1/2 p-1.5 lg:p-2 bg-[var(--primary)]/10 rounded-xl pointer-events-none">
-                    <Plus size={15} className="text-[var(--primary)]" />
+                    <Plus size={15} className="text-[var(--secondary)]" />
                   </div>
                 </div>
               </div>

@@ -368,13 +368,13 @@ export default function CongesPage({ user }) {
         
         {/* Titre & Badge */}
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+          <div className="p-2.5 bg-secondary-500/10 border border-secondary-500/20 text-secondary-400 rounded-2xl shadow-[0_0_15px_color-mix(in_srgb,var(--secondary)_20%,transparent)]">
             <Umbrella size={22} />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-black text-white uppercase tracking-tight">Gestion des Congés</h2>
-              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-sm bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 ISA Group PDF
               </span>
             </div>
@@ -430,10 +430,10 @@ export default function CongesPage({ user }) {
         <div className="p-5 rounded-3xl bg-[var(--glass-bg)] border border-white/10 shadow-xl flex flex-col justify-between">
           <div className="flex justify-between items-center">
             <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Droit Total Année {selectedYear}</span>
-            <Calculator size={16} className="text-indigo-400" />
+            <Calculator size={16} className="text-secondary-400" />
           </div>
           <div className="mt-4">
-            <h3 className="text-3xl font-black text-indigo-300 font-mono tracking-tight">
+            <h3 className="text-3xl font-black text-secondary-300 font-mono tracking-tight">
               {statsAcquisition.acquisCumul} <span className="text-xs text-white/40 font-bold uppercase">jours</span>
             </h3>
             <p className="text-[9px] text-white/30 font-bold uppercase mt-1">
@@ -446,10 +446,10 @@ export default function CongesPage({ user }) {
         <div className="p-5 rounded-3xl bg-[var(--glass-bg)] border border-white/10 shadow-xl flex flex-col justify-between">
           <div className="flex justify-between items-center">
             <span className="text-[9px] font-black uppercase tracking-widest text-white/40">Jours CP Posés ({selectedYear})</span>
-            <Calendar size={16} className="text-indigo-400" />
+            <Calendar size={16} className="text-secondary-400" />
           </div>
           <div className="mt-4">
-            <h3 className="text-3xl font-black text-indigo-400 font-mono tracking-tight">
+            <h3 className="text-3xl font-black text-secondary-400 font-mono tracking-tight">
               {totalPrisCP} <span className="text-xs text-white/40 font-bold uppercase">jours</span>
             </h3>
             <p className="text-[9px] text-white/30 font-bold uppercase mt-1">
@@ -482,13 +482,13 @@ export default function CongesPage({ user }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* FORMULAIRE DE DEMANDE (8 colonnes) */}
-        <div className="lg:col-span-8 bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-xl space-y-5">
+        <div className="lg:col-span-8 bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-[var(--glass-blur)] space-y-5">
           <div className="flex items-center justify-between border-b border-white/5 pb-3">
             <div className="flex items-center gap-2">
-              <Plus size={16} className="text-indigo-400" />
+              <Plus size={16} className="text-secondary-400" />
               <h3 className="text-xs font-black uppercase tracking-wider text-white">Poser un nouveau congé</h3>
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest px-2.5 py-1 bg-indigo-500/10 text-indigo-300 rounded-lg border border-indigo-500/20">
+            <span className="text-[8px] font-black uppercase tracking-widest px-2.5 py-1 bg-secondary-500/10 text-secondary-300 rounded-lg border border-secondary-500/20">
               Génère le PDF ISA
             </span>
           </div>
@@ -526,7 +526,7 @@ export default function CongesPage({ user }) {
               <div className="space-y-1.5">
                 <label className="text-[8px] font-black uppercase tracking-widest text-white/40">Du (au matin)</label>
                 <div className="flex items-center gap-2.5 bg-black/40 border border-white/10 rounded-2xl px-3.5 py-3 focus-within:border-indigo-500 transition-colors w-full cursor-pointer">
-                  <Calendar size={15} className="text-indigo-400 shrink-0" />
+                  <Calendar size={15} className="text-secondary-400 shrink-0" />
                   <DatePicker
                     selected={form.date_debut ? new Date(form.date_debut) : null}
                     onChange={(date) => setForm({ ...form, date_debut: toISODateString(date) })}
@@ -543,7 +543,7 @@ export default function CongesPage({ user }) {
               <div className="space-y-1.5">
                 <label className="text-[8px] font-black uppercase tracking-widest text-white/40">Au (inclus)</label>
                 <div className="flex items-center gap-2.5 bg-black/40 border border-white/10 rounded-2xl px-3.5 py-3 focus-within:border-indigo-500 transition-colors w-full cursor-pointer">
-                  <Calendar size={15} className="text-indigo-400 shrink-0" />
+                  <Calendar size={15} className="text-secondary-400 shrink-0" />
                   <DatePicker
                     selected={form.date_fin ? new Date(form.date_fin) : null}
                     onChange={(date) => setForm({ ...form, date_fin: toISODateString(date) })}
@@ -561,7 +561,7 @@ export default function CongesPage({ user }) {
             {/* Récapitulatif calcul automatique */}
             <div className="flex items-center justify-between p-3.5 bg-black/30 border border-white/5 rounded-2xl text-[10px] font-bold">
               <span className="text-white/50 uppercase tracking-wider flex items-center gap-1.5">
-                <Clock size={13} className="text-indigo-400" />
+                <Clock size={13} className="text-secondary-400" />
                 Nombre de jours décomptés :
               </span>
               <span className="text-sm font-black text-emerald-400 font-mono">
@@ -593,7 +593,7 @@ export default function CongesPage({ user }) {
                   type="checkbox"
                   checked={form.anticipe}
                   onChange={(e) => setForm({ ...form, anticipe: e.target.checked })}
-                  className="w-4 h-4 rounded bg-black/40 border-white/20 text-indigo-500"
+                  className="w-4 h-4 rounded-sm bg-black/40 border-white/20 text-secondary-500"
                 />
                 <span>Congés par anticipation</span>
               </label>
@@ -611,7 +611,7 @@ export default function CongesPage({ user }) {
         </div>
 
         {/* CONFIGURATION SALARIÉ & DATE D'EMBAUCHE (4 colonnes) */}
-        <div className="lg:col-span-4 bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-xl space-y-4">
+        <div className="lg:col-span-4 bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-[var(--glass-blur)] space-y-4">
           <div className="flex items-center gap-2 border-b border-white/5 pb-3">
             <User size={16} className="text-emerald-400" />
             <h3 className="text-xs font-black uppercase tracking-wider text-white">Profil & Embauche</h3>
@@ -705,20 +705,20 @@ export default function CongesPage({ user }) {
       </div>
 
       {/* 4. VUE CALENDRIER ANNUEL */}
-      <div className="bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-xl space-y-4">
+      <div className="bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-[var(--glass-blur)] space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
-            <Calendar size={16} className="text-indigo-400" />
+            <Calendar size={16} className="text-secondary-400" />
             <h3 className="text-xs font-black uppercase tracking-wider text-white">
               Calendrier Annuel des Congés ({selectedYear})
             </h3>
           </div>
 
           <div className="flex items-center gap-3 text-[8px] font-black uppercase tracking-wider">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-emerald-500 inline-block" /> Congés Payés</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-amber-500 inline-block" /> Récupération</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-rose-500 inline-block" /> Sans Solde</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded bg-indigo-500/40 border border-indigo-400 inline-block" /> Férié</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block" /> Congés Payés</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500 inline-block" /> Récupération</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-rose-500 inline-block" /> Sans Solde</span>
+            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-indigo-500/40 border border-indigo-400 inline-block" /> Férié</span>
           </div>
         </div>
 
@@ -760,11 +760,11 @@ export default function CongesPage({ user }) {
                       <div 
                         key={iso}
                         title={isAvantEmbauche ? 'Avant date d\'embauche' : isHoliday ? 'Jour férié' : bookedType ? `Congé ${bookedType}` : undefined}
-                        className={`h-5 rounded flex items-center justify-center text-[8px] font-mono font-black transition-all ${
+                        className={`h-5 rounded-sm flex items-center justify-center text-[8px] font-mono font-black transition-all ${
                           bookedType === 'CP' ? 'bg-emerald-500 text-black shadow-sm' :
                           bookedType === 'RECUP' ? 'bg-amber-500 text-black shadow-sm' :
                           bookedType === 'SANS_SOLDE' ? 'bg-rose-500 text-white shadow-sm' :
-                          isHoliday ? 'bg-indigo-500/30 text-indigo-300 border border-indigo-400/50' :
+                          isHoliday ? 'bg-secondary-500/30 text-secondary-300 border border-secondary-400/50' :
                           isAvantEmbauche ? 'bg-white/[0.01] text-white/10' :
                           isSunday ? 'bg-white/[0.02] text-white/20' :
                           'bg-white/[0.04] text-white/70 hover:bg-white/10'
@@ -782,7 +782,7 @@ export default function CongesPage({ user }) {
       </div>
 
       {/* 5. HISTORIQUE COMPLET DES DEMANDES DE L'ANNÉE & TÉLÉCHARGEMENT */}
-      <div className="bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-xl space-y-4">
+      <div className="bg-[var(--glass-bg)] border border-white/10 p-6 rounded-3xl shadow-xl backdrop-blur-[var(--glass-blur)] space-y-4">
         <div className="flex items-center justify-between border-b border-white/5 pb-3">
           <div className="flex items-center gap-2">
             <FileText size={16} className="text-emerald-400" />
@@ -811,7 +811,7 @@ export default function CongesPage({ user }) {
                 {congesAffiches.map(c => (
                   <tr key={c.id} className="hover:bg-white/[0.02] transition-colors group">
                     <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                      <span className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider ${
                         c.type === 'CP' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
                         c.type === 'RECUP' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
                         'bg-rose-500/20 text-rose-300 border border-rose-500/30'
@@ -832,7 +832,7 @@ export default function CongesPage({ user }) {
                       <button
                         type="button"
                         onClick={() => handleDownloadPdf(c.id)}
-                        className="p-1.5 bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white rounded-xl border border-indigo-500/30 transition-all inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                        className="p-1.5 bg-secondary-600/20 hover:bg-indigo-600 text-secondary-300 hover:text-white rounded-xl border border-secondary-500/30 transition-all inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wider cursor-pointer"
                         title="Télécharger le PDF ISA Group rempli"
                       >
                         <Download size={12} /> PDF
@@ -864,11 +864,11 @@ export default function CongesPage({ user }) {
       {deleteModal.show && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+            className="absolute inset-0 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200"
             onClick={() => setDeleteModal({ show: false, congeId: null, congeInfo: null })}
           />
           
-          <div className="relative bg-[#121214] border border-white/10 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center">
+          <div className="relative bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center">
             
             <div className="w-14 h-14 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-rose-500/10">
               <Trash2 size={24} />

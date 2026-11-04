@@ -47,7 +47,7 @@ const CustomBadgeDate = forwardRef(({ t }, ref) => {
         <span className="text-sm font-black text-[var(--text-main)] leading-none">
           {displayDay}
         </span>
-        <span className="text-[8px] font-bold text-[var(--primary)]/60 uppercase tracking-widest mt-1">
+        <span className="text-[8px] font-bold text-[var(--secondary)]/60 uppercase tracking-widest mt-1">
           {moisNoms[displayMonth] || displayMonth}
         </span>
       </div>
@@ -249,7 +249,7 @@ export default function GererView(props) {
               </div>
 
               {/* Bloc création catégorie Desktop */}
-              <div className="bg-black/40 border border-white/5 rounded-[1.5rem] p-4">
+              <div className="bg-black/40 border border-white/5 rounded-[var(--radius)] p-4">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="relative">
                     <button 
@@ -325,7 +325,7 @@ export default function GererView(props) {
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
-                      <Settings2 size={14} className="text-[var(--primary)]" />
+                      <Settings2 size={14} className="text-[var(--secondary)]" />
                     </div>
                     <div className="text-left">
                       <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest leading-tight">
@@ -346,12 +346,12 @@ export default function GererView(props) {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <h3 className="text-[var(--text-main)] text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
-                    <Target size={14} className="text-[var(--primary)]" /> Objectifs Budget
+                    <Target size={14} className="text-[var(--secondary)]" /> Objectifs Budget
                   </h3>
                   <p className="text-[9px] text-[var(--text-main)]/20 font-bold uppercase tracking-tighter">Définir vos limites par catégorie</p>
                 </div>
                 <div className="px-2 py-1 bg-[var(--primary)]/10 rounded-md border border-[var(--primary)]/20">
-                  <span className="text-[10px] font-mono font-bold text-[var(--primary)]">{budgets.length}</span>
+                  <span className="text-[10px] font-mono font-bold text-[var(--secondary)]">{budgets.length}</span>
                 </div>
               </div>
 
@@ -423,7 +423,7 @@ export default function GererView(props) {
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-[var(--primary)]/10 rounded-lg group-hover:bg-[var(--primary)]/20 transition-colors">
-                      <Activity size={14} className="text-[var(--primary)]" />
+                      <Activity size={14} className="text-[var(--secondary)]" />
                     </div>
                     <div className="text-left">
                       <p className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Suivi Budgets</p>
@@ -442,7 +442,7 @@ export default function GererView(props) {
               <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center gap-2 mb-1">
-                    <Filter size={14} className="text-[var(--primary)]" />
+                    <Filter size={14} className="text-[var(--secondary)]" />
                     <h3 className="text-[var(--text-main)] text-xs font-black uppercase tracking-widest">Filtrer</h3>
                   </div>
                   
@@ -532,7 +532,7 @@ export default function GererView(props) {
                 {/* Bloc Mémoire */}
                 <div className="pt-2 relative">
                   <div className="flex items-center gap-2 mb-1">
-                    <Database size={12} className="text-[var(--primary)]/50" />
+                    <Database size={12} className="text-[var(--secondary)]/50" />
                     <span className="text-[10px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.15em]">Apprentissage</span>
                   </div>
                   <p className="text-[9px] text-[var(--text-main)]/50 leading-relaxed mb-3">
@@ -541,7 +541,7 @@ export default function GererView(props) {
 
                   <div className="flex items-center gap-3 p-3 bg-[var(--glass-bg)] rounded-2xl border border-white/10 hover:bg-[var(--glass-bg)] transition-all group relative">
                     <div className="p-2 bg-[var(--primary)]/10 rounded-xl group-hover:scale-110 transition-transform">
-                      <Brain size={18} className="text-[var(--primary)]" />
+                      <Brain size={18} className="text-[var(--secondary)]" />
                     </div>
                     <div className="flex flex-col flex-1">
                       <span className="text-[11px] font-black text-[var(--text-main)] uppercase leading-none">Apprentissage</span>
@@ -565,22 +565,22 @@ export default function GererView(props) {
                     <button 
                       type="button"
                       onClick={() => setIsApprendreActive(!isApprendreActive)}
-                      className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 cursor-pointer ${isApprendreActive ? 'bg-[var(--primary)] shadow-[0_0_15px_rgba(99,102,241,0.3)]' : 'bg-[var(--glass-bg)]'}`}
+                      className={`w-10 h-5 rounded-full transition-all relative flex-shrink-0 cursor-pointer ${isApprendreActive ? 'bg-[var(--primary)] shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_30%,transparent)]' : 'bg-[var(--glass-bg)]'}`}
                     >
                       <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300 ${isApprendreActive ? 'left-6' : 'left-1'}`} />
                     </button>
 
                     {/* Panneau mémoire déroulant Desktop */}
                     {showLearningList && (
-                      <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[#16191f] border border-white/10 rounded-2xl shadow-2xl p-2.5 animate-in fade-in zoom-in-95 duration-200 origin-bottom backdrop-blur-xl">
+                      <div className="absolute bottom-full left-0 right-0 mb-2 z-50 bg-[var(--surface)] border border-white/10 rounded-2xl shadow-2xl p-2.5 animate-in fade-in zoom-in-95 duration-200 origin-bottom backdrop-blur-[var(--glass-blur)]">
                         <div className="flex justify-between items-center px-2 py-1 mb-2 border-b border-white/5">
                           <div className="flex items-center gap-1.5">
-                            <Database size={11} className="text-[var(--primary)]" />
+                            <Database size={11} className="text-[var(--secondary)]" />
                             <span className="text-[8.5px] font-black uppercase text-[var(--text-main)]/50 tracking-widest">
                               Base Mémoire ({elementsAppris.length})
                             </span>
                           </div>
-                          <button onClick={() => setShowLearningList(false)} className="p-0.5 hover:bg-white/5 rounded text-white/30 hover:text-white transition-colors cursor-pointer">
+                          <button onClick={() => setShowLearningList(false)} className="p-0.5 hover:bg-white/5 rounded-sm text-white/30 hover:text-white transition-colors cursor-pointer">
                             <X size={12} />
                           </button>
                         </div>
@@ -627,14 +627,14 @@ export default function GererView(props) {
               <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/5">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-[var(--primary)]/10 rounded-lg border border-[var(--primary)]/20">
-                    <Plus size={14} className="text-[var(--primary)]" />
+                    <Plus size={14} className="text-[var(--secondary)]" />
                   </div>
                   <div>
                     <h3 className="text-[var(--text-main)] font-bold text-[13px] tracking-wide">Nouvelle Transaction</h3>
                     <p className="text-[9px] text-[var(--text-main)]/30 uppercase tracking-widest font-medium">Saisie express</p>
                   </div>
                 </div>
-                <div className="px-3 py-1 bg-[var(--primary)]/5 rounded-full border border-[var(--primary)]/10 text-[9px] text-indigo-300/50 font-bold tracking-widest italic uppercase">
+                <div className="px-3 py-1 bg-[var(--secondary)]/5 rounded-full border border-[var(--secondary)]/10 text-[9px] text-secondary-300/50 font-bold tracking-widest italic uppercase">
                   ⚡ Auto-save Ready
                 </div>
               </div>
@@ -676,7 +676,7 @@ export default function GererView(props) {
                 </div>
 
                 <div className="w-40 flex items-center gap-2 px-3 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 hover:border-[var(--primary)]/30 transition-all relative">
-                  <Calendar size={14} className="text-[var(--primary)]" />
+                  <Calendar size={14} className="text-[var(--secondary)]" />
                   <DatePicker
                     selected={selectedDate}
                     onChange={(date) => setSelectedDate(date)}
@@ -708,19 +708,19 @@ export default function GererView(props) {
                   <div className="flex items-center divide-x divide-white/10">
                     <div className="flex items-center gap-2 pr-6">
                       <User size={10} className="text-[var(--text-main)]/20" />
-                      <span className="text-[10px] font-bold text-indigo-100/60 uppercase tracking-tight">{filters.profil}</span>
+                      <span className="text-[10px] font-bold text-secondary-100/60 uppercase tracking-tight">{filters.profil}</span>
                     </div>
 
                     <div className="flex items-center gap-2 px-6">
                       <Search size={10} className="text-[var(--text-main)]/20" />
-                      <span className="text-[10px] font-bold text-indigo-100/60 uppercase tracking-tight">
+                      <span className="text-[10px] font-bold text-secondary-100/60 uppercase tracking-tight">
                         {selectedCompte === 'tous' ? 'Tous les comptes' : selectedCompte}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2 pl-6">
                       <Calendar size={10} className="text-[var(--text-main)]/20" />
-                      <span className="text-[10px] font-black text-[var(--primary)] uppercase tracking-tighter">
+                      <span className="text-[10px] font-black text-[var(--secondary)] uppercase tracking-tighter">
                         {filters.mois} {filters.annee}
                       </span>
                     </div>
@@ -741,7 +741,7 @@ export default function GererView(props) {
                   <div className="relative group/search">
                     <Search 
                       size={12} 
-                      className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchTerm ? 'text-[var(--primary)]' : 'text-[var(--text-main)]/20'}`} 
+                      className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${searchTerm ? 'text-[var(--secondary)]' : 'text-[var(--text-main)]/20'}`} 
                     />
                     <input
                       type="text"
@@ -758,7 +758,7 @@ export default function GererView(props) {
                   </div>
 
                   <div className="flex items-center gap-2 bg-[var(--glass-bg)] px-3 py-1.5 rounded-full border border-white/5 min-w-[100px] justify-center">
-                    <span className="text-[9px] font-black text-[var(--primary)]">{transactionsFiltrees.length}</span>
+                    <span className="text-[9px] font-black text-[var(--secondary)]">{transactionsFiltrees.length}</span>
                     <span className="text-[9px] font-medium text-[var(--text-main)]/30 uppercase tracking-widest">Résultats</span>
                   </div>
                 </div>
@@ -768,13 +768,13 @@ export default function GererView(props) {
               <div ref={tableContainerRef} className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-left border-separate border-spacing-0">
                   <thead>
-                    <tr className="bg-[var(--bg-site)]/95 backdrop-blur-md sticky top-0 z-40 border-b border-white/10 shadow-sm">
+                    <tr className="bg-[var(--bg-site)]/95 backdrop-blur-[var(--glass-blur)] sticky top-0 z-40 border-b border-white/10 shadow-sm">
                       <th className="py-3 px-2 w-10 border-b border-white/10 text-center">
                         <input 
                           type="checkbox"
                           checked={transactionsFiltrees.length > 0 && selectedIds.length === transactionsFiltrees.length}
                           onChange={toggleAll}
-                          className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-[var(--primary)] focus:ring-[var(--primary)]/40 cursor-pointer"
+                          className="w-3.5 h-3.5 rounded-sm border-white/20 bg-black/40 text-[var(--secondary)] focus:ring-[var(--primary)]/40 cursor-pointer"
                         />
                       </th>
                       <th className="py-3 px-2 w-16 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('jour')}>
@@ -838,7 +838,7 @@ export default function GererView(props) {
                               data-index={virtualRow.index}
                               ref={rowVirtualizer.measureElement}
                               className={`group transition-colors duration-150 ${
-                                isSelected ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_#6366f1]' : 'hover:bg-white/[0.02]'
+                                isSelected ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_var(--primary)]' : 'hover:bg-white/[0.02]'
                               }`}
                             >
                               <td className="py-2.5 px-2 w-10 border-b border-white/[0.04] text-center">
@@ -846,7 +846,7 @@ export default function GererView(props) {
                                   type="checkbox"
                                   checked={isSelected}
                                   onChange={() => toggleSelect(t.id)}
-                                  className="w-3.5 h-3.5 rounded border-white/20 bg-black/40 text-[var(--primary)] cursor-pointer"
+                                  className="w-3.5 h-3.5 rounded-sm border-white/20 bg-black/40 text-[var(--secondary)] cursor-pointer"
                                 />
                               </td>
 
@@ -887,7 +887,7 @@ export default function GererView(props) {
                                     {/#\d+$/.test(t.nom) && (
                                       <span 
                                         title="Transaction similaire indexée"
-                                        className="shrink-0 px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
+                                        className="shrink-0 px-1.5 py-0.2 rounded-sm bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
                                       >
                                         {t.nom.match(/#\d+$/)[0]}
                                       </span>
@@ -898,8 +898,8 @@ export default function GererView(props) {
                                       onClick={() => setSplittingTx(t)}
                                       className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 mt-0.5 flex items-center justify-center ${
                                         t.split_id 
-                                          ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40 shadow-[0_0_10px_rgba(99,102,241,0.25)]' 
-                                          : 'bg-white/[0.04] text-white/50 border-white/10 hover:text-indigo-300 hover:border-indigo-500/40 hover:bg-indigo-500/10'
+                                          ? 'bg-secondary-500/25 text-secondary-300 border-secondary-500/40 shadow-[0_0_10px_color-mix(in_srgb,var(--secondary)_25%,transparent)]' 
+                                          : 'bg-white/[0.04] text-white/50 border-white/10 hover:text-secondary-300 hover:border-secondary-500/40 hover:bg-secondary-500/10'
                                       }`}
                                       title={t.split_id ? "Transaction déjà divisée" : "Diviser cette transaction (Split)"}
                                     >
@@ -918,7 +918,7 @@ export default function GererView(props) {
                                     <span className="text-white/10 text-[8px]">•</span>
                                     <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
                                       isTransfertInterne
-                                        ? "bg-[var(--primary)]/15 text-[var(--primary)]"
+                                        ? "bg-[var(--secondary)]/15 text-[var(--secondary)]"
                                         : isRevenu 
                                           ? "bg-emerald-500/15 text-emerald-400" 
                                           : "bg-rose-500/15 text-rose-400"
@@ -933,7 +933,7 @@ export default function GererView(props) {
                                           e.stopPropagation();
                                           setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom });
                                         }}
-                                        className="px-2 py-0.5 rounded-lg bg-indigo-500/20 hover:bg-rose-500/20 text-indigo-300 hover:text-rose-300 border border-indigo-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
+                                        className="px-2 py-0.5 rounded-lg bg-secondary-500/20 hover:bg-rose-500/20 text-secondary-300 hover:text-rose-300 border border-secondary-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
                                         title="Annuler la division"
                                       >
                                         <Scissors size={9} />
@@ -947,7 +947,7 @@ export default function GererView(props) {
 
                               <td className="py-2.5 px-2 text-right border-b border-white/[0.04] w-28 whitespace-nowrap">
                                 <span className={`text-[13px] font-black tabular-nums transition-colors ${
-                                  isTransfertInterne ? 'text-[var(--primary)]' : isRevenu ? 'text-emerald-400' : 'text-rose-400'
+                                  isTransfertInterne ? 'text-[var(--secondary)]' : isRevenu ? 'text-emerald-400' : 'text-rose-400'
                                 }`}>
                                   {isRevenu && !isTransfertInterne ? '+' : ''}
                                   {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
@@ -1008,7 +1008,7 @@ export default function GererView(props) {
                                       {nomBadge ? (
                                         <span 
                                           title={`Lié à : ${nomBadge}`}
-                                          className="text-[8.5px] font-black px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 uppercase max-w-[85px] truncate flex items-center gap-1"
+                                          className="text-[8.5px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 uppercase max-w-[85px] truncate flex items-center gap-1"
                                         >
                                           <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
                                           <span className="truncate">{nomBadge}</span>
@@ -1049,7 +1049,7 @@ export default function GererView(props) {
                                           <div 
                                             onClick={(e) => e.stopPropagation()}
                                             className={`
-                                              absolute right-0 w-60 bg-[#121214] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-xl
+                                              absolute right-0 w-60 bg-[var(--surface)] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-[var(--glass-blur)]
                                               ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-9'}
                                             `}
                                           >
@@ -1113,7 +1113,7 @@ export default function GererView(props) {
                                   {t.enveloppe ? (
                                     <span 
                                       title={`Alloué à : ${t.enveloppe}`}
-                                      className="text-[8px] font-black px-1.5 py-0.5 rounded bg-[var(--primary)]/15 border border-[var(--primary)]/20 text-[var(--primary)] uppercase max-w-[65px] truncate"
+                                      className="text-[8px] font-black px-1.5 py-0.5 rounded-sm bg-[var(--secondary)]/15 border border-[var(--secondary)]/20 text-[var(--secondary)] uppercase max-w-[65px] truncate"
                                     >
                                       {t.enveloppe}
                                     </span>
@@ -1143,7 +1143,7 @@ export default function GererView(props) {
                                         onClick={(e) => { e.stopPropagation(); setActiveDropdownId(null); }}
                                       />
 
-                                      <div className="absolute right-1 top-9 w-48 bg-[#121214] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-md">
+                                      <div className="absolute right-1 top-9 w-48 bg-[var(--surface)] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-[var(--glass-blur)]">
                                         <button
                                           type="button"
                                           onClick={async (e) => {
@@ -1152,7 +1152,7 @@ export default function GererView(props) {
                                             setActiveDropdownId(null);
                                           }}
                                           className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                                            !t.enveloppe ? 'bg-[var(--primary)]/15 text-[var(--primary)]' : 'text-white/40 hover:bg-white/5 hover:text-white'
+                                            !t.enveloppe ? 'bg-[var(--secondary)]/15 text-[var(--secondary)]' : 'text-white/40 hover:bg-white/5 hover:text-white'
                                           }`}
                                         >
                                           <X size={12} className="shrink-0 opacity-60" />
@@ -1268,9 +1268,9 @@ export default function GererView(props) {
 
         {/* Volet de filtres dépliable mobile */}
         {showFilters && (
-          <div className="mb-4 bg-[#121214] border border-[var(--primary)]/40 rounded-2xl p-4 space-y-3.5 animate-in slide-in-from-top-4 duration-200 relative z-30 shadow-2xl">
+          <div className="mb-4 bg-[var(--surface)] border border-[var(--primary)]/40 rounded-2xl p-4 space-y-3.5 animate-in slide-in-from-top-4 duration-200 relative z-30 shadow-2xl">
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--primary)]">Filtres Actifs</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-[var(--secondary)]">Filtres Actifs</span>
               <button type="button" onClick={() => setShowFilters(false)} className="text-white/40 hover:text-white p-1">
                 <X size={14} />
               </button>
@@ -1336,7 +1336,7 @@ export default function GererView(props) {
             onClick={() => setActiveSection('transactions')}
             className={`flex-1 py-2.5 text-center text-[9.5px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               activeSection === 'transactions' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -1347,7 +1347,7 @@ export default function GererView(props) {
             onClick={() => setActiveSection('tools')}
             className={`flex-1 py-2.5 text-center text-[9.5px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               activeSection === 'tools' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -1358,7 +1358,7 @@ export default function GererView(props) {
             onClick={() => setActiveSection('budgets')}
             className={`flex-1 py-2.5 text-center text-[9.5px] font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
               activeSection === 'budgets' 
-                ? 'border-[var(--primary)] text-[var(--primary)]' 
+                ? 'border-[var(--secondary)] text-[var(--secondary)]' 
                 : 'border-transparent text-white/40'
             }`}
           >
@@ -1438,7 +1438,7 @@ export default function GererView(props) {
                               </p>
                               
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded font-mono uppercase">
+                                <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded-sm font-mono uppercase">
                                   {t.compte}
                                 </span>
                                 
@@ -1450,7 +1450,7 @@ export default function GererView(props) {
                                 </div>
 
                                 {prevAssociee && (
-                                  <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-black max-w-[90px] truncate flex items-center gap-1">
+                                  <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-sm font-black max-w-[90px] truncate flex items-center gap-1">
                                     <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={9} />
                                     <span className="truncate">{getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, ''))}</span>
                                   </span>
@@ -1463,7 +1463,7 @@ export default function GererView(props) {
                                       e.stopPropagation();
                                       setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom });
                                     }}
-                                    className="px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1"
+                                    className="px-1.5 py-0.5 rounded-sm bg-secondary-500/20 text-secondary-300 border border-secondary-500/30 text-[7px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1"
                                     title="Annuler la division"
                                   >
                                     <Scissors size={8} />
@@ -1479,7 +1479,7 @@ export default function GererView(props) {
                             <div>
                               <span className={`text-xs font-mono font-black ${
                                 isTransfertInterne 
-                                  ? 'text-[var(--primary)]' 
+                                  ? 'text-[var(--secondary)]' 
                                   : isRevenu 
                                     ? 'text-emerald-400' 
                                     : 'text-rose-400'
@@ -1500,7 +1500,7 @@ export default function GererView(props) {
                               }}
                               className={`p-2 rounded-xl border transition-all shrink-0 cursor-pointer ${
                                 t.split_id
-                                  ? 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40'
+                                  ? 'bg-secondary-500/25 text-secondary-300 border-secondary-500/40'
                                   : 'bg-white/[0.04] text-white/50 border-white/10 active:bg-indigo-500/20'
                               }`}
                               title="Diviser cette transaction"
@@ -1528,7 +1528,7 @@ export default function GererView(props) {
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* Saisie express */}
             <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
-              <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
+              <h3 className="text-[10px] font-black uppercase text-[var(--secondary)] tracking-widest mb-3 flex items-center gap-2">
                 <Plus size={12} /> Nouvelle Transaction Express
               </h3>
               
@@ -1571,7 +1571,7 @@ export default function GererView(props) {
                   />
 
                   <div className="bg-black/30 border border-white/10 rounded-xl px-2 py-2 h-[38px] flex items-center justify-center relative">
-                    <Calendar size={12} className="text-[var(--primary)] absolute left-3" />
+                    <Calendar size={12} className="text-[var(--secondary)] absolute left-3" />
                     <DatePicker
                       selected={selectedDate}
                       onChange={(date) => setSelectedDate(date)}
@@ -1611,7 +1611,7 @@ export default function GererView(props) {
             {/* Créer une catégorie */}
             <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl relative">
               <h3 className="text-[10px] font-black uppercase text-white/80 tracking-widest mb-3 flex items-center gap-2">
-                <Sparkles size={12} className="text-indigo-400" /> Créer une Catégorie
+                <Sparkles size={12} className="text-secondary-400" /> Créer une Catégorie
               </h3>
 
               <div className="bg-black/40 border border-white/5 rounded-2xl p-3 space-y-3">
@@ -1648,7 +1648,7 @@ export default function GererView(props) {
                     />
 
                     {showCatColorPicker && (
-                      <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                      <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4 bg-black/70 backdrop-blur-[var(--glass-blur)]">
                         <div className="fixed inset-0" onClick={() => setShowCatColorPicker(false)} />
                         <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl z-10 animate-in zoom-in-95">
                           <SketchPicker 
@@ -1697,7 +1697,7 @@ export default function GererView(props) {
                 className="w-full py-3 px-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white text-[10px] font-black uppercase tracking-wider flex items-center justify-between cursor-pointer"
               >
                 <div className="flex items-center gap-2">
-                  <Settings2 size={14} className="text-[var(--primary)]" />
+                  <Settings2 size={14} className="text-[var(--secondary)]" />
                   <span>Gérer toutes mes catégories ({toutesLesCategories.length})</span>
                 </div>
                 <ChevronRight size={13} className="text-white/40" />
@@ -1710,7 +1710,7 @@ export default function GererView(props) {
         {activeSection === 'budgets' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="bg-[var(--glass-bg)] border border-white/10 p-4 rounded-2xl">
-              <h3 className="text-[10px] font-black uppercase text-[var(--primary)] tracking-widest mb-3 flex items-center gap-2">
+              <h3 className="text-[10px] font-black uppercase text-[var(--secondary)] tracking-widest mb-3 flex items-center gap-2">
                 <Target size={12} /> Définir un Budget
               </h3>
               
@@ -1838,14 +1838,14 @@ export default function GererView(props) {
       {showListPopover && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4">
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+            className="absolute inset-0 bg-black/80 backdrop-blur-[var(--glass-blur)] transition-opacity animate-in fade-in duration-200"
             onClick={() => { setShowListPopover(false); setCategorySearch(''); setSelectedGroupFilter('all'); }} 
           />
 
-          <div className="relative w-full max-w-4xl bg-[#121214] border border-white/10 rounded-3xl shadow-2xl p-5 sm:p-6 z-[10000] flex flex-col h-[720px] max-h-[90vh] min-h-[500px] animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+          <div className="relative w-full max-w-4xl bg-[var(--surface)] border border-white/10 rounded-3xl shadow-2xl p-5 sm:p-6 z-[10000] flex flex-col h-[720px] max-h-[90vh] min-h-[500px] animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
             <div className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-[var(--primary)]/10 rounded-xl border border-[var(--primary)]/20 text-[var(--primary)]">
+                <div className="p-2 bg-[var(--secondary)]/10 rounded-xl border border-[var(--secondary)]/20 text-[var(--secondary)]">
                   <Settings2 size={18} />
                 </div>
                 <div>
@@ -1883,7 +1883,7 @@ export default function GererView(props) {
                 <button
                   type="button"
                   onClick={() => setShowAddGroupInput(true)}
-                  className="px-3.5 py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                  className="px-3.5 py-2 rounded-xl bg-secondary-500/10 hover:bg-secondary-500/20 border border-secondary-500/30 text-secondary-300 text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus size={13} strokeWidth={3} />
                   <span className="hidden sm:inline">Nouveau Groupe</span>
@@ -1947,9 +1947,9 @@ export default function GererView(props) {
                             onClick={() => setSelectedGroupFilter(grp)}
                             className="pl-3 pr-2 py-1.5 text-[9px] font-black uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                           >
-                            <Layers size={11} className={isActive ? 'text-white' : 'text-indigo-400'} />
+                            <Layers size={11} className={isActive ? 'text-white' : 'text-secondary-400'} />
                             <span>{grp}</span>
-                            <span className={`text-[8px] px-1.5 py-0.2 rounded font-mono ${isActive ? 'bg-indigo-800 text-white' : 'bg-white/10 text-white/40'}`}>
+                            <span className={`text-[8px] px-1.5 py-0.2 rounded-sm font-mono ${isActive ? 'bg-indigo-800 text-white' : 'bg-white/10 text-white/40'}`}>
                               {count}
                             </span>
                           </button>
@@ -2011,7 +2011,7 @@ export default function GererView(props) {
                                   {getCleanCategoryName(cat)}
                                 </span>
                                 {estPerso && (
-                                  <span className="text-[7px] bg-[var(--primary)]/10 text-[var(--primary)] px-1.5 py-0.2 rounded font-black uppercase tracking-wider border border-[var(--primary)]/20 shrink-0">
+                                  <span className="text-[7px] bg-[var(--secondary)]/10 text-[var(--secondary)] px-1.5 py-0.2 rounded-sm font-black uppercase tracking-wider border border-[var(--secondary)]/20 shrink-0">
                                     Perso
                                   </span>
                                 )}
@@ -2029,7 +2029,7 @@ export default function GererView(props) {
                                       groupe: currentGroup
                                     });
                                   }}
-                                  className="p-1.5 rounded-lg text-white/40 hover:text-indigo-400 hover:bg-white/5 transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-lg text-white/40 hover:text-secondary-400 hover:bg-white/5 transition-colors cursor-pointer"
                                   title="Modifier l'icône et la couleur"
                                 >
                                   <Edit2 size={12} />
@@ -2059,7 +2059,7 @@ export default function GererView(props) {
 
                             <div className="pt-2 mt-2 border-t border-white/5 flex items-center justify-between gap-2">
                               <span className="text-[8px] font-black uppercase text-white/30 tracking-wider shrink-0 flex items-center gap-1">
-                                <Layers size={10} className="text-indigo-400 opacity-60" />
+                                <Layers size={10} className="text-secondary-400 opacity-60" />
                                 <span>Groupe :</span>
                               </span>
                               <div className="flex-1 min-w-0">
@@ -2091,8 +2091,8 @@ export default function GererView(props) {
                           <div key={grp} className="space-y-2">
                             <div className="flex items-center justify-between px-3 py-1.5 bg-white/[0.02] border border-white/5 rounded-xl">
                               <div className="flex items-center gap-2">
-                                <Layers size={13} className="text-indigo-400" />
-                                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-200">{grp}</span>
+                                <Layers size={13} className="text-secondary-400" />
+                                <span className="text-[10px] font-black uppercase tracking-wider text-secondary-200">{grp}</span>
                               </div>
                               <span className="text-[8px] font-mono font-bold text-white/30">{catsInThisGroup.length} catégorie(s)</span>
                             </div>
@@ -2135,14 +2135,14 @@ export default function GererView(props) {
       {showBudgetDetails && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
           <div 
-            className="absolute inset-0 bg-black/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+            className="absolute inset-0 bg-black/70 backdrop-blur-[var(--glass-blur)] transition-opacity animate-in fade-in duration-200"
             onClick={() => { setShowBudgetDetails(false); setEditingBudget(null); }} 
           />
           
-          <div className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl shadow-2xl p-6 z-[10000] animate-in fade-in zoom-in-95 duration-200 overflow-visible">
+          <div className="relative w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl shadow-2xl p-6 z-[10000] animate-in fade-in zoom-in-95 duration-200 overflow-visible">
             <div className="flex items-center justify-between mb-5 pb-3 border-b border-white/5">
               <div>
-                <h4 className="text-[11px] font-black uppercase text-[var(--primary)] tracking-widest leading-none mb-1">Détails des budgets</h4>
+                <h4 className="text-[11px] font-black uppercase text-[var(--secondary)] tracking-widest leading-none mb-1">Détails des budgets</h4>
                 <p className="text-[9px] text-[var(--text-main)]/40 font-bold uppercase tracking-wider">Structure des dépenses</p>
               </div>
               
@@ -2181,7 +2181,7 @@ export default function GererView(props) {
                     }}
                     className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap border shrink-0 cursor-pointer ${
                       selectedBudgetMonth === m
-                        ? 'bg-[var(--primary)]/10 text-[var(--primary)] border-[var(--primary)]/30'
+                        ? 'bg-[var(--secondary)]/10 text-[var(--secondary)] border-[var(--secondary)]/30'
                         : 'bg-white/[0.01] text-[var(--text-main)]/40 border-white/5 hover:text-[var(--text-main)]/70'
                     }`}
                   >
@@ -2275,10 +2275,10 @@ export default function GererView(props) {
                                     {b.nom}
                                   </span>
                                   <div className="flex items-center gap-2 mt-1">
-                                    <span className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded text-[var(--text-main)]/40 font-bold uppercase tracking-tighter border border-white/5 truncate max-w-[120px]">
+                                    <span className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded-sm text-[var(--text-main)]/40 font-bold uppercase tracking-tighter border border-white/5 truncate max-w-[120px]">
                                       {b.compte}
                                     </span>
-                                    <span className="text-[7px] text-[var(--primary)]/60 font-black uppercase tracking-tighter">
+                                    <span className="text-[7px] text-[var(--secondary)]/60 font-black uppercase tracking-tighter">
                                       {b.mois} {bAnnee}
                                     </span>
                                   </div>
@@ -2329,15 +2329,15 @@ export default function GererView(props) {
 
       {/* MODALE PERSONNALISER CATÉGORIE (ICÔNE ET COULEUR) */}
       {editingCat && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setEditingCat(null)} />
           <div 
-            className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 space-y-4 animate-in zoom-in-95 duration-200"
+            className="relative w-full max-w-sm bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 space-y-4 animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-white/5">
               <div>
-                <h4 className="text-xs font-black uppercase text-indigo-400 tracking-widest">Personnaliser</h4>
+                <h4 className="text-xs font-black uppercase text-secondary-400 tracking-widest">Personnaliser</h4>
                 <p className="text-[10px] text-white/60 font-bold uppercase mt-0.5">{getCleanCategoryName(editingCat.nom)}</p>
               </div>
               <button type="button" onClick={() => setEditingCat(null)} className="text-white/40 hover:text-white p-1 rounded-lg">
@@ -2383,7 +2383,7 @@ export default function GererView(props) {
                 </button>
 
                 {showEditColorPicker && (
-                  <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+                  <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4 bg-black/75 backdrop-blur-[var(--glass-blur)]">
                     <div className="fixed inset-0" onClick={() => setShowEditColorPicker(false)} />
                     <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl z-10 animate-in zoom-in-95">
                       <SketchPicker 
@@ -2423,15 +2423,15 @@ export default function GererView(props) {
 
       {/* MODALE D'ÉDITION MOBILE DE TRANSACTION */}
       {editingTransaction && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setEditingTransaction(null)} />
           <div 
-            className="w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
+            className="w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-white/5">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest">Éditer la transaction</h4>
+                <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest">Éditer la transaction</h4>
                 <p className="text-[9px] text-white/30 uppercase font-black">Modification express</p>
               </div>
               <button 
@@ -2533,12 +2533,12 @@ export default function GererView(props) {
       {unsplitModal.show && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
           <div 
-            className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+            className="absolute inset-0 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200"
             onClick={() => setUnsplitModal({ show: false, splitId: null, txName: '' })}
           />
           
-          <div className="relative bg-[#121214] border border-white/10 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-14 h-14 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-500/10">
+          <div className="relative bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-8 max-w-sm w-full shadow-2xl z-10 animate-in zoom-in-95 duration-200 text-center">
+            <div className="w-14 h-14 bg-secondary-500/10 border border-secondary-500/20 text-secondary-400 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-secondary-500/10">
               <RotateCcw size={24} />
             </div>
 

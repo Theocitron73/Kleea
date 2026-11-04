@@ -1,5 +1,73 @@
 @import "tailwindcss";
 
+/* =========================================================================
+   THÈME : les classes Tailwind sont branchées sur les réglages du Studio.
+   Tout text-white, bg-indigo-500, rounded-xl... suit donc le thème en direct.
+   ========================================================================= */
+@theme {
+  --color-white: var(--text-main);
+  --color-black: var(--ink);
+
+  --color-indigo-50: color-mix(in srgb, var(--primary) 7%, var(--text-main));
+  --color-indigo-100: color-mix(in srgb, var(--primary) 15%, var(--text-main));
+  --color-indigo-200: color-mix(in srgb, var(--primary) 30%, var(--text-main));
+  --color-indigo-300: color-mix(in srgb, var(--primary) 45%, var(--text-main));
+  --color-indigo-400: color-mix(in srgb, var(--primary) 65%, var(--text-main));
+  --color-indigo-500: color-mix(in srgb, var(--primary) 88%, var(--text-main));
+  --color-indigo-600: var(--primary);
+  --color-indigo-700: color-mix(in srgb, var(--primary) 85%, black);
+  --color-indigo-800: color-mix(in srgb, var(--primary) 70%, black);
+  --color-indigo-900: color-mix(in srgb, var(--primary) 55%, black);
+  --color-indigo-950: color-mix(in srgb, var(--primary) 35%, black);
+
+  /* Secondaire : textes et icônes d'accent. Primaire : fonds pleins (boutons, onglets, interrupteurs). */
+  --color-secondary-50: color-mix(in srgb, var(--secondary) 7%, var(--text-main));
+  --color-secondary-100: color-mix(in srgb, var(--secondary) 15%, var(--text-main));
+  --color-secondary-200: color-mix(in srgb, var(--secondary) 30%, var(--text-main));
+  --color-secondary-300: color-mix(in srgb, var(--secondary) 45%, var(--text-main));
+  --color-secondary-400: color-mix(in srgb, var(--secondary) 65%, var(--text-main));
+  --color-secondary-500: color-mix(in srgb, var(--secondary) 88%, var(--text-main));
+  --color-secondary-600: var(--secondary);
+  --color-secondary-700: color-mix(in srgb, var(--secondary) 85%, black);
+  --color-secondary-800: color-mix(in srgb, var(--secondary) 70%, black);
+  --color-secondary-900: color-mix(in srgb, var(--secondary) 55%, black);
+  --color-secondary-950: color-mix(in srgb, var(--secondary) 35%, black);
+
+  --color-purple-200: var(--color-secondary-200);
+  --color-purple-300: var(--color-secondary-300);
+  --color-purple-400: var(--color-secondary-400);
+  --color-purple-500: var(--color-secondary-500);
+  --color-purple-600: var(--color-secondary-600);
+  --color-purple-700: var(--color-secondary-700);
+  --color-purple-800: var(--color-secondary-800);
+  --color-purple-900: var(--color-secondary-900);
+  --color-purple-950: var(--color-secondary-950);
+  --color-violet-200: var(--color-secondary-200);
+  --color-violet-300: var(--color-secondary-300);
+  --color-violet-400: var(--color-secondary-400);
+  --color-violet-500: var(--color-secondary-500);
+  --color-violet-600: var(--color-secondary-600);
+
+  --color-slate-400: color-mix(in srgb, var(--text-main) 60%, var(--bg-site));
+  --color-slate-500: color-mix(in srgb, var(--text-main) 45%, var(--bg-site));
+  --color-slate-700: color-mix(in srgb, var(--text-main) 18%, var(--bg-site));
+  --color-slate-800: color-mix(in srgb, var(--text-main) 8%, var(--bg-site));
+  --color-slate-900: var(--surface);
+  --color-slate-950: var(--surface);
+  --color-neutral-800: color-mix(in srgb, var(--text-main) 8%, var(--bg-site));
+  --color-neutral-900: var(--surface);
+  --color-neutral-950: var(--surface);
+
+  /* Rapports calés pour retrouver les tailles Tailwind quand --radius vaut 1.5rem */
+  --radius-xs: calc(var(--radius) * 0.083);
+  --radius-sm: calc(var(--radius) * 0.167);
+  --radius-md: calc(var(--radius) * 0.25);
+  --radius-lg: calc(var(--radius) * 0.333);
+  --radius-xl: calc(var(--radius) * 0.5);
+  --radius-2xl: calc(var(--radius) * 0.667);
+  --radius-3xl: var(--radius);
+}
+
 /* Masquer les flèches pour Chrome, Safari, Edge, Opera */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
@@ -17,6 +85,63 @@ input[type=number] {
   --primary: #4f46e5;
   --text-main: #ffffff;
   --radius: 1.5rem;
+  --glass-blur: 12px;
+  --glass-bg: rgba(255, 255, 255, 0.03);
+
+  /* Valeurs dérivées. Repli si le navigateur ne connaît pas les couleurs relatives. */
+  /* Sans choix explicite, la secondaire reprend la primaire. */
+  --secondary: var(--primary);
+  --ink: #000000;
+  --on-primary: #ffffff;
+  --on-secondary: #ffffff;
+  --surface: color-mix(in srgb, var(--bg-site) 82%, var(--ink));
+}
+
+@supports (color: oklch(from red l c h)) {
+  :root {
+    /* Noir sur un texte clair, blanc sur un texte foncé */
+    --ink: oklch(from var(--text-main) clamp(0, calc((0.5 - l) * 1000), 1) 0 0);
+    /* Blanc ou noir selon ce qui se lit le mieux sur l'accent */
+    --on-primary: oklch(from var(--primary) clamp(0, calc((0.72 - l) * 1000), 1) 0 0);
+    --on-secondary: oklch(from var(--secondary) clamp(0, calc((0.72 - l) * 1000), 1) 0 0);
+  }
+}
+
+/* Texte posé sur un accent plein : il dépend de l'accent, pas de la couleur de texte du site */
+.bg-\[var\(--primary\)\],
+.hover\:bg-\[var\(--primary\)\]:hover,
+.bg-indigo-500, .bg-indigo-600, .bg-indigo-700,
+.hover\:bg-indigo-500:hover, .hover\:bg-indigo-600:hover,
+.from-indigo-500, .from-indigo-600, .from-\[var\(--primary\)\] {
+  --text-main: var(--on-primary);
+  --color-white: var(--on-primary);
+  --color-black: var(--on-primary);
+}
+
+.bg-purple-500, .bg-purple-600, .bg-violet-500, .bg-violet-600,
+.hover\:bg-purple-500:hover, .hover\:bg-purple-600:hover,
+.from-purple-500, .from-purple-600, .from-violet-500, .from-violet-600 {
+  --text-main: var(--on-secondary);
+  --color-white: var(--on-secondary);
+  --color-black: var(--on-secondary);
+}
+
+/* Couleurs de statut : elles ne changent pas avec le thème, leur texte non plus */
+.bg-emerald-400, .bg-emerald-500, .bg-emerald-600,
+.bg-rose-400, .bg-rose-500, .bg-rose-600,
+.bg-red-500, .bg-red-600,
+.bg-amber-400, .bg-amber-500, .bg-amber-600 {
+  --text-main: #ffffff;
+  --color-white: #ffffff;
+  --color-black: #000000;
+}
+
+/* Le color picker garde son propre fond blanc : son texte reste sombre quel que soit le thème */
+.sketch-picker,
+.sketch-picker input,
+.sketch-picker label,
+.sketch-picker span {
+  color: #222222 !important;
 }
 
 body {
@@ -30,15 +155,15 @@ body {
 }
 
 select option {
-  background-color: #0f172a; /* Correspond à slate-900 */
-  color: white;
+  background-color: var(--surface);
+  color: var(--text-main);
 }
 
 /* Container global */
 .react-datepicker {
-  background-color: #111111 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-radius: 1.5rem !important;
+  background-color: var(--surface) !important;
+  border: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent) !important;
+  border-radius: var(--radius) !important;
   font-family: inherit !important;
   overflow: hidden;
   box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5);
@@ -46,13 +171,13 @@ select option {
 
 /* Header (Mois/Année) */
 .react-datepicker__header {
-  background-color: rgba(255, 255, 255, 0.03) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background-color: color-mix(in srgb, var(--text-main) 3%, transparent) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent) !important;
   padding-top: 15px !important;
 }
 
 .react-datepicker__current-month, .react-datepicker__day-name {
-  color: rgba(255, 255, 255, 0.8) !important;
+  color: color-mix(in srgb, var(--text-main) 80%, transparent) !important;
   text-transform: uppercase;
   font-size: 0.7rem !important;
   font-weight: 900 !important;
@@ -61,18 +186,18 @@ select option {
 
 /* Jours */
 .react-datepicker__day {
-  color: rgba(255, 255, 255, 0.6) !important;
-  border-radius: 0.5rem !important;
+  color: color-mix(in srgb, var(--text-main) 60%, transparent) !important;
+  border-radius: var(--radius-lg) !important;
 }
 
 .react-datepicker__day:hover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  color: #818cf8 !important;
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+  color: var(--color-secondary-400) !important;
 }
 
 .react-datepicker__day--selected {
-  background-color: #6366f1 !important;
-  color: white !important;
+  background-color: var(--secondary) !important;
+  color: var(--on-primary) !important;
   font-weight: bold;
 }
 
@@ -88,7 +213,7 @@ select option {
 
 /* Vue Sélection des Mois & Années */
 .react-datepicker__month-container {
-  background-color: #111111 !important;
+  background-color: var(--surface) !important;
 }
 
 .react-datepicker__month-wrapper {
@@ -101,11 +226,11 @@ select option {
 .react-datepicker__month-text,
 .react-datepicker__year-text,
 .react-datepicker__quarter-text {
-  color: rgba(255, 255, 255, 0.8) !important;
+  color: color-mix(in srgb, var(--text-main) 80%, transparent) !important;
   font-size: 0.75rem !important;
   font-weight: 700 !important;
   padding: 0.5rem !important;
-  border-radius: 0.5rem !important;
+  border-radius: var(--radius-lg) !important;
   transition: all 0.2s ease !important;
 }
 
@@ -113,23 +238,23 @@ select option {
 .react-datepicker__month-text:hover,
 .react-datepicker__year-text:hover,
 .react-datepicker__quarter-text:hover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  color: #818cf8 !important;
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+  color: var(--color-secondary-400) !important;
 }
 
 /* Mois sélectionné */
 .react-datepicker__month-text--selected,
 .react-datepicker__month-text--keyboard-selected,
 .react-datepicker__year-text--selected {
-  background-color: #6366f1 !important;
-  color: #ffffff !important;
+  background-color: var(--secondary) !important;
+  color: var(--on-primary) !important;
   font-weight: 900 !important;
 }
 
 /* Mois désactivés (si minDate/maxDate appliqués) */
 .react-datepicker__month-text--disabled,
 .react-datepicker__year-text--disabled {
-  color: rgba(255, 255, 255, 0.15) !important;
+  color: color-mix(in srgb, var(--text-main) 15%, transparent) !important;
   cursor: not-allowed !important;
 }
 
@@ -138,33 +263,33 @@ select option {
 .react-datepicker__year-option,
 .react-datepicker__year-select,
 .react-datepicker-year-header {
-  color: rgba(255, 255, 255, 0.9) !important;
-  background-color: #111111 !important;
+  color: color-mix(in srgb, var(--text-main) 90%, transparent) !important;
+  background-color: var(--surface) !important;
 }
 
 /* Flèches de navigation (précédent / suivant) */
 .react-datepicker__navigation-icon::before {
-  border-color: rgba(255, 255, 255, 0.6) !important;
+  border-color: color-mix(in srgb, var(--text-main) 60%, transparent) !important;
 }
 
 .react-datepicker__navigation:hover .react-datepicker__navigation-icon::before {
-  border-color: #818cf8 !important;
+  border-color: var(--color-secondary-400) !important;
 }
 
 /* Menu déroulant de l'année (si activé) */
 .react-datepicker__year-dropdown {
-  background-color: #111111 !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background-color: var(--surface) !important;
+  border: 1px solid color-mix(in srgb, var(--text-main) 10%, transparent) !important;
 }
 
 .react-datepicker__year-option:hover {
-  background-color: rgba(99, 102, 241, 0.2) !important;
-  color: #818cf8 !important;
+  background-color: color-mix(in srgb, var(--primary) 20%, transparent) !important;
+  color: var(--color-secondary-400) !important;
 }
 
 /* Année sélectionnée dans le menu déroulant */
 .react-datepicker__year-option--selected_year {
-  color: #6366f1 !important;
+  color: var(--secondary) !important;
   font-weight: bold !important;
 }
 
@@ -195,18 +320,18 @@ select {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2); /* Opacité augmentée pour être visible */
+  background: color-mix(in srgb, var(--text-main) 20%, transparent); /* Opacité augmentée pour être visible */
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4); /* Feedback visuel au survol */
+  background: color-mix(in srgb, var(--text-main) 40%, transparent); /* Feedback visuel au survol */
 }
 
 /* Firefox */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-main) 20%, transparent) transparent;
 }
 
 
@@ -219,7 +344,7 @@ select {
   /* 1. ÉCHELLE RACINE : Compense exactement le zoom 125% de Windows */
   :root {
     font-size: 12.5px !important;
-    --radius: 0.85rem !important;
+    --radius: 0.85rem;
   }
 
   /* 2. COQUILLE GLOBALE & PADDINGS EXTERNES */
@@ -325,7 +450,7 @@ select {
 
   .grid-rows-12 > div {
     padding: 2px 6px !important;
-    border-radius: 6px !important;
+    border-radius: var(--radius-md) !important;
     min-height: 0 !important;
   }
 
@@ -395,7 +520,7 @@ select {
 
   .min-w-\[380px\] .grid-rows-12 > div {
     padding: 1px 4px !important;
-    border-radius: 4px !important;
+    border-radius: var(--radius-sm) !important;
   }
 
   /* Graphique circulaire et table */
@@ -414,7 +539,7 @@ select {
   .w-\[54px\].h-\[54px\] {
     width: 38px !important;
     height: 38px !important;
-    border-radius: 8px !important;
+    border-radius: var(--radius-lg) !important;
   }
 
   .w-\[54px\].h-\[54px\] span.text-sm {
@@ -666,7 +791,7 @@ select {
   /* Intérieur de la carte Intelligence bien aéré */
   .lg\:w-150 .p-8 {
     padding: 2rem !important;
-    border-radius: 2.5rem !important;
+    border-radius: calc(var(--radius) * 1.667) !important;
   }
 
   .lg\:w-150 .mb-8 {
@@ -685,7 +810,7 @@ select {
   .lg\:w-150 .flex-wrap.gap-2\.5 > div {
     padding: 0.45rem 0.85rem !important;
     font-size: 10.5px !important;
-    border-radius: 1rem !important;
+    border-radius: var(--radius-2xl) !important;
   }
 
   /* Champ "Nouvel apprentissage" confortable */
@@ -741,7 +866,7 @@ select {
   /* Compactage vertical No-Scroll pour le 14 pouces */
   .lg\:w-150 .p-8 {
     padding: 1rem 1.25rem !important;
-    border-radius: 1.75rem !important;
+    border-radius: calc(var(--radius) * 1.167) !important;
   }
 
   .lg\:w-150 .mb-8 {
@@ -774,9 +899,8 @@ input.pr-12 {
 /* 3. Ajustement de la carte de connexion sur écran 14 pouces */
 @media (min-width: 1024px) and (max-width: 1550px), (max-height: 880px) {
   /* Réduction de la boîte pour qu'elle tienne élégamment au centre */
-  form.rounded-\[3rem\] {
+  form[class*="rounded-[calc(var(--radius)*2)]"] {
     padding: 2rem 2.5rem !important;
-    border-radius: 2rem !important;
     max-width: 380px !important;
   }
 
@@ -787,7 +911,7 @@ input.pr-12 {
     padding-top: 0.75rem !important;
     padding-bottom: 0.75rem !important;
     font-size: 12px !important;
-    border-radius: 1rem !important;
+    border-radius: var(--radius-2xl) !important;
   }
 
   /* Bouton "Se connecter" */
@@ -806,7 +930,7 @@ input.pr-12 {
   /* 1. Conteneur principal (passe d'un gros bloc à un bandeau slim) */
   .z-\[900\].bg-\[var\(--glass-bg\)\].p-3 {
     padding: 0.35rem 0.65rem !important;
-    border-radius: 0.85rem !important;
+    border-radius: var(--radius-2xl) !important;
     margin-bottom: 0.4rem !important;
   }
 
@@ -815,7 +939,7 @@ input.pr-12 {
   .z-\[900\] [class*="h-[38px]"] {
     height: 30px !important;
     min-height: 30px !important;
-    border-radius: 0.6rem !important;
+    border-radius: var(--radius-lg) !important;
     padding-left: 0.5rem !important;
     padding-right: 0.5rem !important;
   }
@@ -840,7 +964,7 @@ input.pr-12 {
   .z-\[900\] .w-6.h-6 {
     width: 18px !important;
     height: 18px !important;
-    border-radius: 4px !important;
+    border-radius: var(--radius-sm) !important;
   }
 
   .z-\[900\] .text-\[6\.5px\] {
@@ -853,7 +977,7 @@ input.pr-12 {
     padding: 0 0.9rem !important;
     font-size: 9px !important;
     letter-spacing: 0.12em !important;
-    border-radius: 0.6rem !important;
+    border-radius: var(--radius-lg) !important;
   }
 
   /* 7. Badge titre "Nouveau Compte" à gauche */
@@ -923,7 +1047,7 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
   /* 1. ÉCHELLE RACINE : Réduit l'ensemble de l'application de ~15% */
   :root {
     font-size: 13.5px !important;
-    --radius: 1rem !important;
+    --radius: 1rem;
   }
 
   /* 2. PADDINGS ET MARGES EXTERNES */
@@ -937,14 +1061,6 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
     padding-right: 0.5rem !important;
     padding-top: 0.35rem !important;
     padding-bottom: 0.35rem !important;
-  }
-
-  /* 3. ARRONDIS ET CONTENEURS VITRÉS */
-  .rounded-\[3rem\],
-  .rounded-\[2\.5rem\],
-  .rounded-\[2rem\],
-  .rounded-\[32px\] {
-    border-radius: 1.25rem !important;
   }
 
   /* Paddings internes des blocs */
@@ -974,7 +1090,7 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
 
   .md\:hidden.fixed.bottom-0 .max-w-lg {
     padding: 0.25rem 0.4rem !important;
-    border-radius: 1.4rem !important;
+    border-radius: var(--radius) !important;
   }
 
   .md\:hidden.fixed.bottom-0 button {
@@ -1002,7 +1118,7 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
   .fixed.inset-0 .max-w-sm {
     max-width: 92vw !important;
     padding: 1.25rem !important;
-    border-radius: 1.5rem !important;
+    border-radius: var(--radius) !important;
   }
 
   /* 8. TABLEAUX ET LISTES */

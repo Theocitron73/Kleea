@@ -74,11 +74,11 @@ export default function ExportModal({
   const groupesDisponibles = ['Tous', ...new Set(comptes.map(c => c.groupe).filter(Boolean))];
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200 select-none">
       <div className="absolute inset-0" onClick={onClose} />
 
       <div 
-        className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* EN-TÊTE */}
@@ -133,8 +133,8 @@ export default function ExportModal({
               }`}
             >
               <div className="flex items-center justify-between">
-                <FileText size={16} className={format === 'csv' ? 'text-indigo-400' : 'opacity-40'} />
-                {format === 'csv' && <Check size={12} className="text-indigo-400" />}
+                <FileText size={16} className={format === 'csv' ? 'text-secondary-400' : 'opacity-40'} />
+                {format === 'csv' && <Check size={12} className="text-secondary-400" />}
               </div>
               <span className="text-xs font-black uppercase tracking-tight">CSV Universel</span>
               <span className="text-[7.5px] opacity-60">UTF-8 avec séparateurs point-virgule</span>

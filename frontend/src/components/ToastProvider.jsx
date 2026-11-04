@@ -14,7 +14,7 @@ export default function ToastProvider() {
       // 🌟 ICÔNES PERSONNALISÉES AVEC LOADER VIOLET
       icons={{
         loading: (
-          <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0 shadow-[0_0_15px_rgba(168,85,247,0.3)] mr-2.5">
+          <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0 shadow-[0_0_15px_color-mix(in_srgb,var(--secondary)_30%,transparent)] mr-2.5">
             <Loader2 size={15} className="animate-spin" />
           </div>
         ),
@@ -34,16 +34,16 @@ export default function ToastProvider() {
           </div>
         ),
         info: (
-          <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center text-indigo-300 shrink-0 shadow-[0_0_15px_rgba(99,102,241,0.3)] mr-2.5">
+          <div className="w-8 h-8 rounded-xl bg-secondary-500/20 border border-secondary-400/40 flex items-center justify-center text-secondary-300 shrink-0 shadow-[0_0_15px_color-mix(in_srgb,var(--secondary)_30%,transparent)] mr-2.5">
             <Sparkles size={15} strokeWidth={2.5} />
           </div>
         ),
       }}
       toastOptions={{
         style: {
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          borderRadius: '22px',
+          backdropFilter: 'blur(var(--glass-blur))',
+          WebkitBackdropFilter: 'blur(var(--glass-blur))',
+          borderRadius: 'var(--radius)',
           padding: '25px 25px',
           gap: '14px',
         },
@@ -55,37 +55,37 @@ export default function ToastProvider() {
 
           // 🟣 1. NOUVEAU FOND VIOLET NÉON POUR LE CHARGEMENT
           loading: `
-            !bg-gradient-to-r !from-[#1a0826]/95 !via-[#260c38]/95 !to-[#12051c]/95
+            !bg-[var(--surface)]
             !border-purple-500/40
-            !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(168,85,247,0.25)]
+            !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_color-mix(in_srgb,var(--secondary)_25%,transparent)]
           `,
 
           // 🟢 2. Succès
           success: `
-            !bg-gradient-to-r !from-[#042017]/95 !via-[#072a1e]/95 !to-[#0b1b17]/95
+            !bg-[var(--surface)]
             !border-emerald-500/40
             !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(16,185,129,0.25)]
           `,
 
           // 🔴 3. Erreur
           error: `
-            !bg-gradient-to-r !from-[#280711]/95 !via-[#330c18]/95 !to-[#1a080e]/95
+            !bg-[var(--surface)]
             !border-rose-500/40
             !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(244,63,94,0.25)]
           `,
 
           // 🟡 4. Avertissement
           warning: `
-            !bg-gradient-to-r !from-[#261603]/95 !via-[#331e05]/95 !to-[#1a1104]/95
+            !bg-[var(--surface)]
             !border-amber-500/40
             !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(245,158,11,0.25)]
           `,
 
           // 🔵 5. Information
           info: `
-            !bg-gradient-to-r !from-[#0c102e]/95 !via-[#111742]/95 !to-[#0a0d22]/95
+            !bg-[var(--surface)]
             !border-indigo-500/40
-            !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(99,102,241,0.25)]
+            !shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_color-mix(in_srgb,var(--primary)_25%,transparent)]
           `,
         },
       }}

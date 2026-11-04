@@ -37,6 +37,7 @@ import CongesPage from './views/Congespage';
 import AuthView from './views/AuthView';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
+import { themeBackground } from './utils/gradient';
 import ImportView from './views/ImportView';
 import GererView from './views/GererView';
 import PrevisionsView, { PrevisionsChartView } from './views/PrevisionsView';
@@ -136,7 +137,7 @@ const bankGuides = [
         }`}
       >
         <div className="p-1.5 bg-[var(--glass-bg)] rounded-lg">
-          <HelpCircle size={16} className={isOpen ? 'text-[var(--primary)]' : 'text-[var(--text-main)]/40'} />
+          <HelpCircle size={16} className={isOpen ? 'text-[var(--secondary)]' : 'text-[var(--text-main)]/40'} />
         </div>
         <div className="flex flex-col items-start hidden md:flex">
           <span className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-widest text-left">Guide Export CSV</span>
@@ -150,7 +151,7 @@ const bankGuides = [
           <div className="fixed inset-0 z-40" onClick={() => {setIsOpen(false); setSelectedBank(null);}} />
           
           {/* CHANGEMENT ICI : top-[110%] au lieu de bottom */}
-          <div className="absolute right-0 top-[110%] mt-2 w-72 bg-[#161618] border border-white/10 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute right-0 top-[110%] mt-2 w-72 bg-[var(--surface)] border border-white/10 rounded-[calc(var(--radius)*1.333)] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="p-5 border-b border-white/5 bg-white/[0.02]">
               <h4 className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Exporter mon CSV</h4>
               <p className="text-[8px] text-[var(--text-main)]/20 uppercase font-bold mt-1">Sélectionnez votre banque</p>
@@ -165,8 +166,8 @@ const bankGuides = [
                       onClick={() => setSelectedBank(bank)}
                       className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-[var(--glass-bg)] transition-colors group/item text-left"
                     >
-                      <span className="text-[10px] font-bold text-[var(--text-main)]/60 group-hover/item:text-[var(--primary)] uppercase">{bank.name}</span>
-                      <ChevronRight size={14} className="text-[var(--text-main)]/10 group-hover/item:text-[var(--primary)]" />
+                      <span className="text-[10px] font-bold text-[var(--text-main)]/60 group-hover/item:text-[var(--secondary)] uppercase">{bank.name}</span>
+                      <ChevronRight size={14} className="text-[var(--text-main)]/10 group-hover/item:text-[var(--secondary)]" />
                     </button>
                   ))}
                 </div>
@@ -174,12 +175,12 @@ const bankGuides = [
                 <div className="p-2 animate-in slide-in-from-right-2 duration-300">
                   <button 
                     onClick={() => setSelectedBank(null)}
-                    className="text-[8px] font-black text-[var(--primary)] uppercase mb-4 flex items-center gap-2 hover:opacity-70"
+                    className="text-[8px] font-black text-[var(--secondary)] uppercase mb-4 flex items-center gap-2 hover:opacity-70"
                   >
                     ← Retour
                   </button>
                   <div className="bg-[var(--primary)]/5 border border-[var(--primary)]/10 p-4 rounded-2xl">
-                    <span className="text-[9px] font-black text-[var(--primary)] uppercase block mb-2">{selectedBank.name}</span>
+                    <span className="text-[9px] font-black text-[var(--secondary)] uppercase block mb-2">{selectedBank.name}</span>
                     <p className="text-[11px] text-[var(--text-main)]/80 font-medium leading-relaxed uppercase tracking-tight">
                       {selectedBank.guide}
                     </p>
@@ -235,7 +236,7 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
         </span>
 
         {/* LE MOIS */}
-        <span className="text-[8px] font-bold text-[var(--primary)]/60 uppercase tracking-widest mt-1">
+        <span className="text-[8px] font-bold text-[var(--secondary)]/60 uppercase tracking-widest mt-1">
           {moisNoms[displayMonth] || displayMonth}
         </span>
       </div>
@@ -407,7 +408,7 @@ const SortableAccountCard = ({ c, isSorting }) => {
                 <span className="text-[8px] md:text-[9.5px] font-black uppercase tracking-wider text-white/40 leading-none">
                   Intérêts
                 </span>
-                <span className="text-[8px] md:text-[9.5px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.2 rounded leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
+                <span className="text-[8px] md:text-[9.5px] font-black tracking-wider bg-white/20 text-white border border-white/30 px-1 py-0.2 rounded-sm leading-none shadow-[0_0_8px_rgba(52,211,153,0.15)]">
                   {c.taux.toFixed(1)}%
                 </span>
               </div>
@@ -516,7 +517,7 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
 
       {/* 🧮 FENÊTRE 2 : PRORATA SIMULATEUR */}
       {activeWidget === 'prorata' && (
-        <div className="absolute right-20 bottom-16 w-80 bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] text-[var(--text-main)] rounded-3xl border border-white/10 shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+        <div className="absolute right-20 bottom-16 w-80 bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] text-[var(--text-main)] rounded-3xl border border-white/10 shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
           <h4 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4">Simulateur Prorata</h4>
           
           <div className="space-y-4">
@@ -547,7 +548,7 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
                 type="number" 
                 value={depenses} 
                 onChange={(e) => setDepenses(e.target.value)}
-                className="w-full bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-xl text-xs font-black text-indigo-300 p-2.5 outline-none" 
+                className="w-full bg-[var(--secondary)]/10 border border-[var(--secondary)]/30 rounded-xl text-xs font-black text-secondary-300 p-2.5 outline-none" 
               />
             </div>
 
@@ -569,7 +570,7 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
 
       {/* 🎨 FENÊTRE 3 : PERSONNALISATEUR DE DESIGN */}
       {activeWidget === 'theme' && (
-        <div className="absolute right-20 bottom-16 w-72 bg-[#0f172a]/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/10 p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+        <div className="absolute right-20 bottom-16 w-72 bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/10 p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
           <div className="flex justify-between items-center mb-4">
             <h4 className="font-black text-[9px] uppercase tracking-[0.2em] text-white/40">Couleurs Graphiques</h4>
             <Palette size={12} className="text-white/20" />
@@ -619,7 +620,7 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
             onClick={() => setActiveWidget(activeWidget === 'notepad' ? null : 'notepad')}
             className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
               activeWidget === 'notepad' 
-                ? 'bg-white text-slate-900 shadow-[0_0_12px_rgba(255,255,255,0.4)] scale-105' 
+                ? 'bg-white text-slate-900 shadow-[0_0_12px_color-mix(in_srgb,var(--text-main)_40%,transparent)] scale-105' 
                 : 'bg-[var(--primary)] text-white hover:scale-105 border border-white/5'
             }`}
             title="Bloc-notes"
@@ -632,7 +633,7 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
             onClick={() => setActiveWidget(activeWidget === 'prorata' ? null : 'prorata')}
             className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
               activeWidget === 'prorata' 
-                ? 'bg-white text-slate-900 shadow-[0_0_12px_rgba(255,255,255,0.4)] scale-105' 
+                ? 'bg-white text-slate-900 shadow-[0_0_12px_color-mix(in_srgb,var(--text-main)_40%,transparent)] scale-105' 
                 : 'bg-indigo-600 text-white hover:scale-105 border border-white/5'
             }`}
             title="Calculateur Prorata"
@@ -645,7 +646,7 @@ export function UnifiedWidgets({ user, userTheme, setUserTheme }) {
             onClick={() => setActiveWidget(activeWidget === 'theme' ? null : 'theme')}
             className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition-all ${
               activeWidget === 'theme' 
-                ? 'bg-white text-slate-900 shadow-[0_0_12px_rgba(255,255,255,0.4)] scale-105' 
+                ? 'bg-white text-slate-900 shadow-[0_0_12px_color-mix(in_srgb,var(--text-main)_40%,transparent)] scale-105' 
                 : 'bg-slate-800 text-white hover:scale-105 border border-white/10'
             }`}
             title="Teintes Graphiques"
@@ -715,7 +716,7 @@ const GridTile = React.memo(({ jour, index, totalJours }) => {
       className={`w-3.5 h-3.5 rounded-sm border transition-all duration-150 relative group/tile ${couleursIntensite[jour.niveauIntensite]}`}
     >
       <div className={`absolute hidden group-hover/tile:flex items-center pointer-events-none z-50 animate-in fade-in duration-150 ${classeYTooltip} ${classeXTooltip}`}>
-        <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-md min-w-[130px] isolate">
+        <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-[var(--glass-blur)] min-w-[130px] isolate">
           <p className="text-[8px] font-black text-white/40 uppercase tracking-wider">{jour.affichage}</p>
           <p className="text-xs font-black tracking-tight text-rose-400 mt-0.5 whitespace-nowrap">
             {jour.montant > 0 ? `${jour.montant.toLocaleString('fr-FR')} €` : '0,00 €'}
@@ -763,7 +764,7 @@ const MAP_COULEURS = {
   rose: { bg: "bg-rose-500/[0.03] border-rose-500/10", text: "text-rose-400" },
   amber: { bg: "bg-amber-500/[0.03] border-amber-500/10", text: "text-amber-400" },
   emerald: { bg: "bg-emerald-500/[0.03] border-emerald-500/10", text: "text-emerald-400" },
-  indigo: { bg: "bg-indigo-500/[0.02] border-indigo-500/20", text: "text-indigo-400" },
+  indigo: { bg: "bg-indigo-500/[0.02] border-indigo-500/20", text: "text-secondary-400" },
   cyan: { bg: "bg-cyan-500/[0.03] border-cyan-500/10", text: "text-cyan-400" },
   violet: { bg: "bg-violet-500/[0.03] border-violet-500/10", text: "text-violet-400" },
   blue: { bg: "bg-blue-500/[0.03] border-blue-500/10", text: "text-blue-400" },
@@ -978,13 +979,13 @@ export function ImportPowensModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="bg-[#0f0f10] border border-white/10 rounded-[2.5rem] p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-6">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-[var(--glass-blur)] z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+      <div className="bg-[var(--surface)] border border-white/10 rounded-[calc(var(--radius)*1.667)] p-6 sm:p-8 max-w-md w-full shadow-2xl relative space-y-6">
         
         {/* En-tête */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-[var(--primary)]/10 rounded-2xl text-[var(--primary)] border border-[var(--primary)]/20">
+            <div className="p-3 bg-[var(--secondary)]/10 rounded-2xl text-[var(--secondary)] border border-[var(--secondary)]/20">
               <Landmark size={20} />
             </div>
             <div>
@@ -1006,7 +1007,7 @@ export function ImportPowensModal({
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-8 gap-3">
-            <RefreshCw size={24} className="text-[var(--primary)] animate-spin" />
+            <RefreshCw size={24} className="text-[var(--secondary)] animate-spin" />
             <p className="text-[10px] font-black uppercase tracking-widest text-[var(--text-main)]/40">
               Chargement des comptes bancaires...
             </p>
@@ -1406,10 +1407,15 @@ const fetchUserTheme = async (username) => {
     if (resTheme.data) {
       document.documentElement.style.setProperty('--bg-site', resTheme.data.bg_site);
       document.documentElement.style.setProperty('--primary', resTheme.data.primary_color);
+      if (resTheme.data.secondary_color) {
+        document.documentElement.style.setProperty('--secondary', resTheme.data.secondary_color);
+      } else {
+        document.documentElement.style.removeProperty('--secondary');
+      }
       document.documentElement.style.setProperty('--text-main', resTheme.data.text_main);
       document.documentElement.style.setProperty('--radius', resTheme.data.radius);
       document.documentElement.style.setProperty('--glass-blur', resTheme.data.glass_blur || '12px');
-      document.documentElement.style.setProperty('--glass-bg', resTheme.data.glass_bg || 'rgba(255, 255, 255, 0.03)');
+      document.documentElement.style.setProperty('--glass-bg', resTheme.data.glass_bg || 'color-mix(in srgb, var(--text-main) 3%, transparent)');
 
       // 🟢 METTRE EN CACHE POUR UN CHARGEMENT INSTANTANÉ AU PROCHAIN RAFRAÎCHISSEMENT
       localStorage.setItem('kleea-theme-cache', JSON.stringify(resTheme.data));
@@ -1433,6 +1439,8 @@ const fetchUserTheme = async (username) => {
     utilisateur: user,
     bg_site: styles.getPropertyValue('--bg-site').trim() || '#152c48',
     primary_color: styles.getPropertyValue('--primary').trim() || '#4f46e5',
+    // Lue sur le style en ligne : sans choix explicite, la secondaire reste dérivée de la primaire.
+    secondary_color: document.documentElement.style.getPropertyValue('--secondary').trim() || null,
     text_main: styles.getPropertyValue('--text-main').trim() || '#0f172a',
     radius: styles.getPropertyValue('--radius').trim() || '1.5rem',
     glass_blur: getComputedStyle(document.documentElement).getPropertyValue('--glass-blur').trim()|| '#f8fafc',
@@ -6121,33 +6129,6 @@ const handleWheelRightTab = (e) => {
 };
 
 
-// 🟢 Calcul en direct du dégradé selon vos réglages de thème
-  const getAppBackground = () => {
-    const style = userTheme?.gradient_style || 'radial';
-    const intensity = userTheme?.gradient_intensity || '50%';
-    const customEnd = userTheme?.gradient_color;
-
-    const endColor = (customEnd && customEnd !== 'auto')
-      ? customEnd
-      : `color-mix(in srgb, var(--bg-site), black ${intensity})`;
-
-    if (style === 'solid' || intensity === '0%') {
-      return 'var(--bg-site)';
-    }
-
-    if (style === 'linear') {
-      return `linear-gradient(180deg, var(--bg-site) 0%, ${endColor} 100%)`;
-    }
-
-    if (style === 'diagonal') {
-      return `linear-gradient(135deg, var(--bg-site) 0%, ${endColor} 100%)`;
-    }
-
-    // Par défaut : Radial (Spotlight en haut)
-    return `radial-gradient(circle at 50% -10%, var(--bg-site) 45%, ${endColor} 100%)`;
-  };
-
-
 // 🟢 Récupération des pages masquées depuis PostgreSQL
   const fetchHiddenPages = async (username) => {
     try {
@@ -6201,7 +6182,7 @@ if (!user) {
           {/* Bouton retour vers la landing page */}
           <button
             onClick={() => setAuthViewMode(null)}
-            className="fixed top-6 left-6 z-50 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-md cursor-pointer transition-all"
+            className="fixed top-6 left-6 z-50 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-[var(--glass-blur)] cursor-pointer transition-all"
           >
             ← Retour à l'accueil
           </button>
@@ -6233,7 +6214,7 @@ if (!user) {
             : 'h-screen lg:overflow-hidden'
         }`}
       style={{
-        background: getAppBackground(),
+        background: themeBackground(userTheme),
         backgroundAttachment: 'fixed'
       }}
     >
@@ -6253,7 +6234,7 @@ if (!user) {
               <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
                 <div className="flex flex-col items-start leading-none">
                   <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-                    Kleea <span className="text-[var(--primary)]">v.{CURRENT_VERSION}</span>
+                    Kleea <span className="text-[var(--secondary)]">v.{CURRENT_VERSION}</span>
                   </span>
                   <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
                     Stable Build
@@ -6290,13 +6271,13 @@ if (!user) {
                 onClick={() => setActiveTab('profile')} 
                 className={`group flex items-center gap-2.5 px-3 py-1.5 border rounded-xl ml-1 transition-all duration-300 cursor-pointer ${
                   activeTab === 'profile'
-                  ? 'bg-white/15 border-[var(--primary)] shadow-[0_0_15px_rgba(var(--primary-rgb),0.2)]'
+                  ? 'bg-white/15 border-[var(--primary)] shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_20%,transparent)]'
                   : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/10 hover:border-white/15'
                 }`}
                 title="Accéder à mon profil et aux réglages"
               >
                 {/* Avatar initial */}
-                <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_rgba(var(--primary-rgb),0.3)] shrink-0">
+                <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_color-mix(in_srgb,var(--primary)_30%,transparent)] shrink-0">
                   {user.substring(0, 1).toUpperCase()}
                 </div>
 
@@ -6305,7 +6286,7 @@ if (!user) {
                   <span className="text-[9px] font-black text-[var(--text-main)] uppercase tracking-[0.1em]">
                     {user}
                   </span>
-                  <span className="text-[6.5px] font-black text-[var(--primary)]/70 group-hover:text-[var(--primary)] uppercase tracking-[0.15em] mt-1 transition-colors">
+                  <span className="text-[6.5px] font-black text-[var(--secondary)]/70 group-hover:text-[var(--secondary)] uppercase tracking-[0.15em] mt-1 transition-colors">
                     Mon Profil
                   </span>
                 </div>
@@ -6313,8 +6294,8 @@ if (!user) {
                 {/* Petit chevron discret qui s'anime au survol */}
                 <ChevronRight 
                   size={11} 
-                  className={`ml-0.5 text-[var(--text-main)]/20 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--primary)] ${
-                    activeTab === 'profile' ? 'text-[var(--primary)]' : ''
+                  className={`ml-0.5 text-[var(--text-main)]/20 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--secondary)] ${
+                    activeTab === 'profile' ? 'text-[var(--secondary)]' : ''
                   }`} 
                 />
               </button>
@@ -6333,7 +6314,7 @@ if (!user) {
             <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] px-3 pb-6 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pointer-events-none">
               
               {/* 💡 max-w-lg et p-1.5 pour aérer la répartition horizontale des icônes */}
-              <div className="max-w-lg mx-auto flex items-center justify-around p-1.5 bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[28px] shadow-2xl pointer-events-auto">
+              <div className="max-w-lg mx-auto flex items-center justify-around p-1.5 bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[calc(var(--radius)*1.167)] shadow-2xl pointer-events-auto">
                 {visibleMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
@@ -6375,7 +6356,7 @@ if (!user) {
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-black transition-all ${
                       activeTab === 'profile'
                         ? 'bg-slate-950 text-white shadow-none'
-                        : 'bg-[var(--primary)] text-white shadow-[0_0_8px_rgba(var(--primary-rgb),0.2)]'
+                        : 'bg-[var(--primary)] text-white shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_20%,transparent)]'
                     }`}>
                       {user?.charAt(0).toUpperCase()}
                     </div>
@@ -6784,14 +6765,14 @@ if (!user) {
       {/* 🟢 INDICATEUR DE SYNCHRONISATION AUTOMATIQUE EN COURS AU DÉMARRAGE */}
       {isAutoSyncingOnLoad && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/85 backdrop-blur-xl border border-indigo-500/30 text-white shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
+          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/85 backdrop-blur-[var(--glass-blur)] border border-indigo-500/30 text-white shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
             {/* Animation spinner et point pulsant */}
             <div className="relative flex items-center justify-center">
               <span className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
             </div>
 
             <div className="flex flex-col text-left">
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-300 flex items-center gap-1.5 leading-none">
+              <span className="text-[10px] font-black uppercase tracking-wider text-secondary-300 flex items-center gap-1.5 leading-none">
                 <span>Synchronisation automatique</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
               </span>
@@ -6843,7 +6824,7 @@ if (!user) {
       {/* BARRE D'ACTION FLOTTANTE */}
         {selectedIds.length > 0 && (
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
-            <div className="bg-[#121212]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
+            <div className="bg-[var(--surface)]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
               
               {/* Compteur */}
               <div className="flex items-center gap-3 border-r border-white/10 pr-6">
@@ -6889,7 +6870,7 @@ if (!user) {
               />
               
               {/* Boîte de dialogue */}
-              <div className="relative bg-[#1a1a1a] border border-white/10 p-8 rounded-[2rem] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
+              <div className="relative bg-[var(--surface)] border border-white/10 p-8 rounded-[calc(var(--radius)*1.333)] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
                 <div className="flex flex-col items-center text-center">
                   <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mb-6 border border-rose-500/20">
                     <Trash2 size={28} className="text-rose-500" />
@@ -6931,7 +6912,7 @@ if (!user) {
     />
     
     {/* Contenu de la modale */}
-    <div className="relative bg-[#1a1a1c] border border-white/10 p-6 rounded-[2rem] shadow-2xl max-w-xs w-full animate-in zoom-in-95 duration-200">
+    <div className="relative bg-[var(--surface)] border border-white/10 p-6 rounded-[calc(var(--radius)*1.333)] shadow-2xl max-w-xs w-full animate-in zoom-in-95 duration-200">
       <div className="flex flex-col items-center text-center gap-4">
         <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center">
           <Trash2 size={24} className="text-rose-500" />
@@ -6966,7 +6947,7 @@ if (!user) {
 
 {selectedIds2.length > 0 && (
   <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
-    <div className="bg-[#121212]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
+    <div className="bg-[var(--surface)]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
       
       {/* Compteur */}
       <div className="flex items-center gap-3 border-r border-white/10 pr-6">
@@ -7012,7 +6993,7 @@ if (!user) {
     />
     
     {/* Contenu du Modal */}
-    <div className="relative bg-[#0A0A0A] border border-white/10 p-8 rounded-[32px] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="relative bg-[var(--surface)] border border-white/10 p-8 rounded-[calc(var(--radius)*1.333)] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
       <div className="flex flex-col items-center text-center">
         <div className="p-4 bg-rose-500/10 rounded-full text-rose-500 mb-4">
           <Trash2 size={32} />
@@ -7058,7 +7039,7 @@ if (!user) {
     <div className="absolute inset-0 bg-black/40 backdrop-blur-[var(--glass-blur)]" onClick={() => setAssistantData({ ...assistantData, open: false })} />
     
     {/* Fenêtre Modale */}
-    <div className="relative w-full max-w-md bg-[#1a1a1c]/90 border border-white/20 rounded-[2rem] p-8 shadow-2xl backdrop-blur-[var(--glass-blur)] animate-in zoom-in-95 duration-200">
+    <div className="relative w-full max-w-md bg-[var(--surface)]/90 border border-white/20 rounded-[calc(var(--radius)*1.333)] p-8 shadow-2xl backdrop-blur-[var(--glass-blur)] animate-in zoom-in-95 duration-200">
       <div className="flex flex-col gap-6">
         <div className="space-y-2">
           <h3 className="text-white font-black text-xl uppercase tracking-tighter">Assistant de Solde</h3>
@@ -7111,7 +7092,7 @@ if (!user) {
     />
     
     {/* Contenu du Modal */}
-    <div className="relative bg-[#0A0A0A] border border-white/10 p-8 rounded-[32px] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
+    <div className="relative bg-[var(--surface)] border border-white/10 p-8 rounded-[calc(var(--radius)*1.333)] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
       <div className="flex flex-col items-center text-center">
         {/* Badge Icône Émeraude */}
         <div className="p-4 bg-emerald-500/10 rounded-full text-emerald-400 mb-4 animate-pulse">
@@ -7156,19 +7137,19 @@ if (!user) {
     🎉 NOTES DE PATCH OFFICIELLES v4.3 : DIVISION DE TRANSACTIONS
     ========================================================================= */}
 {showPatchModal && (
-  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none">
+  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200 select-none">
     
-    <div className="w-full max-w-lg bg-[#121214] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+    <div className="w-full max-w-lg bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
       
       {/* 1. EN-TÊTE OFFICIEL DE LA MISE À JOUR */}
       <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shadow-[0_0_15px_rgba(99,102,241,0.2)] shrink-0">
+          <div className="w-10 h-10 rounded-2xl bg-secondary-500/15 border border-secondary-500/30 flex items-center justify-center text-secondary-400 shadow-[0_0_15px_color-mix(in_srgb,var(--secondary)_20%,transparent)] shrink-0">
             <Sparkles size={18} />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+              <span className="text-[8px] font-black text-secondary-400 uppercase tracking-widest bg-secondary-500/10 px-2 py-0.5 rounded-sm border border-secondary-500/20">
                 Notes de version
               </span>
               <span className="text-[9px] font-mono text-white/30 font-bold">v{CURRENT_VERSION}</span>
@@ -7201,10 +7182,10 @@ if (!user) {
 
           <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10.5px] font-bold">
             <span className="text-white/80">Carrefour (90 €)</span>
-            <span className="text-indigo-400 font-black">➔</span>
+            <span className="text-secondary-400 font-black">➔</span>
             <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
-              <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">60€ Alimentation</span>
-              <span className="text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded border border-indigo-500/30">30€ Maison</span>
+              <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-sm border border-emerald-500/20">60€ Alimentation</span>
+              <span className="text-secondary-300 bg-secondary-500/20 px-2 py-0.5 rounded-sm border border-secondary-500/30">30€ Maison</span>
             </div>
           </div>
           
@@ -7216,7 +7197,7 @@ if (!user) {
         {/* 4. CE QUI CHANGE POUR VOUS (CHANGELOG) */}
         <div className="space-y-1.5 text-[10px] text-white/70">
           <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-            <Scissors size={13} className="text-indigo-400 shrink-0" />
+            <Scissors size={13} className="text-secondary-400 shrink-0" />
             <span><strong>Outil Ciseaux :</strong> Accessible directement sur chaque ligne dans l'onglet <strong>Gérer</strong>.</span>
           </div>
 
@@ -7270,16 +7251,16 @@ if (!user) {
           💡 MODALE UNIFIÉE DE CONFIRMATION (RECONDUCTION MENSUELLE VS ANNUELLE)
           ========================================================================= */}
       {duplicateModal.show && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
           {/* Calque de fond cliquable pour fermer */}
           <div className="absolute inset-0" onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} />
 
           {/* Conteneur de la Modale - Entièrement centré et overflow-visible */}
-          <div className="relative w-full max-w-md bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 overflow-visible">
+          <div className="relative w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 overflow-visible">
             {/* En-tête de la modale */}
             <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-4">
               <div>
-                <h4 className="text-xs font-black uppercase text-[var(--primary)] tracking-widest leading-none">
+                <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest leading-none">
                   {duplicateType === 'year' ? 'Propagation Annuelle' : 'Reconduire le mois'}
                 </h4>
                 <p className="text-[9px] text-white/30 uppercase font-bold mt-1">
@@ -7338,11 +7319,11 @@ if (!user) {
 
 
 {showOnboarding && toutesLesTransactions.length === 0 && (
-  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-    <div className="bg-[#111113] border border-white/10 rounded-[2.5rem] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
+  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)]">
+    <div className="bg-[var(--surface)] border border-white/10 rounded-[calc(var(--radius)*1.667)] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
       
       {/* Icône d'en-tête */}
-      <div className="w-16 h-16 bg-[var(--primary)]/10 text-[var(--primary)] border border-[var(--primary)]/20 rounded-full flex items-center justify-center mx-auto shadow-[0_0_25px_rgba(99,102,241,0.15)]">
+      <div className="w-16 h-16 bg-[var(--secondary)]/10 text-[var(--secondary)] border border-[var(--secondary)]/20 rounded-full flex items-center justify-center mx-auto shadow-[0_0_25px_color-mix(in_srgb,var(--secondary)_15%,transparent)]">
         <Sparkles size={28} className="animate-pulse" />
       </div>
 
@@ -7395,12 +7376,12 @@ if (!user) {
 {/* MODALE DE MODIFICATION D'UNE CATÉGORIE (ICÔNE & COULEUR) */}
 {editingCat && (
   <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-    <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={() => setEditingCat(null)} />
+    <div className="absolute inset-0 bg-black/70 backdrop-blur-[var(--glass-blur)]" onClick={() => setEditingCat(null)} />
     
-    <div className="relative w-full max-w-sm bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
+    <div className="relative w-full max-w-sm bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
       <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-5">
         <div>
-          <h4 className="text-xs font-black uppercase text-indigo-400 tracking-widest">
+          <h4 className="text-xs font-black uppercase text-secondary-400 tracking-widest">
             Personnaliser la catégorie
           </h4>
           <p className="text-[10px] text-white/60 font-bold uppercase mt-0.5">
@@ -7490,13 +7471,13 @@ if (!user) {
     🎉 MODALE DE CÉLÉBRATION : PREMIER IMPORT AUTOMATIQUE RÉUSSI
     ========================================================================= */}
 {celebrationModal.show && (
-  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300">
+  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300">
     <div 
       className="absolute inset-0" 
       onClick={() => setCelebrationModal({ show: false, accountName: '', count: 0 })} 
     />
 
-    <div className="relative w-full max-w-md bg-[#0e131f] border border-emerald-500/30 rounded-3xl p-8 shadow-[0_20px_70px_rgba(16,185,129,0.25)] z-10 animate-in zoom-in-95 duration-300 text-center overflow-hidden">
+    <div className="relative w-full max-w-md bg-[var(--surface)] border border-emerald-500/30 rounded-3xl p-8 shadow-[0_20px_70px_rgba(16,185,129,0.25)] z-10 animate-in zoom-in-95 duration-300 text-center overflow-hidden">
       
       {/* Effets de halo néon */}
       <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/20 blur-[50px] rounded-full pointer-events-none" />
@@ -7532,7 +7513,7 @@ if (!user) {
         </div>
         <div className="flex flex-col pl-1">
           <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Virements</span>
-          <span className="text-[10px] font-black text-indigo-300 uppercase mt-0.5">Auto-classés</span>
+          <span className="text-[10px] font-black text-secondary-300 uppercase mt-0.5">Auto-classés</span>
         </div>
       </div>
 
@@ -7556,9 +7537,9 @@ if (!user) {
           🔒 MODALE JOUR J : RECONNEXION BANCAIRE DSP2 REQUISE
           ========================================================================= */}
       {scaExpiredConnection && (
-        <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-300 select-none">
+        <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300 select-none">
           <div 
-            className="relative w-full max-w-md bg-[#121214] border border-rose-500/30 rounded-3xl p-6 sm:p-7 shadow-[0_20px_70px_rgba(244,63,94,0.2)] text-center space-y-5 animate-in zoom-in-95 duration-200"
+            className="relative w-full max-w-md bg-[var(--surface)] border border-rose-500/30 rounded-3xl p-6 sm:p-7 shadow-[0_20px_70px_rgba(244,63,94,0.2)] text-center space-y-5 animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-14 h-14 bg-rose-500/15 border border-rose-500/30 text-rose-400 rounded-2xl flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(244,63,94,0.25)]">

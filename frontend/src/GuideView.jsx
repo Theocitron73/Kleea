@@ -280,7 +280,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
           <div className="relative p-8 md:p-10 rounded-3xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10 overflow-hidden text-center flex flex-col items-center animate-in fade-in duration-500">
             <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[150%] bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
             <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white mb-4 relative z-10 leading-none">
-              Maîtrisez <span className="text-[var(--primary)] italic">Kleea</span>
+              Maîtrisez <span className="text-[var(--secondary)] italic">Kleea</span>
             </h2>
             <p className="text-white/50 text-xs md:text-sm max-w-2xl font-medium leading-relaxed relative z-10">
               Découvrez comment exploiter chaque module de votre écosystème financier. De l'importation automatisée par l'apprentissage intelligent jusqu'aux projections annuelles et enveloppes virtuelles.
@@ -314,7 +314,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
                     // CAS 1 : CARTE STANDARD DE LISTE (ex: Page Comptes, Importation, Prévisionnel)
                     if (block.type === "card") {
                       return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[2rem] hover:bg-white/[0.03] transition-all">
+                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] hover:bg-white/[0.03] transition-all">
                           {BlockIcon && <BlockIcon className={`${ch.color} mb-4`} size={24} />}
                           <h4 className="text-white font-bold text-sm uppercase mb-4">{block.title}</h4>
                           <ul className="space-y-4 text-xs text-white/50 leading-relaxed">
@@ -332,7 +332,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
                     // CAS 2 : GRAND CONTENEUR DE DETAILS (ex: Tableau d'Édition)
                     if (block.type === "card-large") {
                       return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[2rem] relative overflow-hidden">
+                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] relative overflow-hidden">
                           {BlockIcon && <BlockIcon className={`${ch.color} mb-4`} size={24} />}
                           <h4 className="text-white font-bold text-sm uppercase mb-3">{block.title}</h4>
                           <p className="text-white/50 text-xs leading-relaxed mb-4">{block.desc}</p>
@@ -357,7 +357,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
                     // CAS 3 : CARTES SYSTEME INTUITIVES (ex: Kleea Brain)
                     if (block.type === "brain-card") {
                       return (
-                        <div key={bIdx} className={`p-6 rounded-[2rem] border ${ch.border} ${ch.bg} shadow-[0_0_30px_rgba(168,85,247,0.02)]`}>
+                        <div key={bIdx} className={`p-6 rounded-[calc(var(--radius)*1.333)] border ${ch.border} ${ch.bg} shadow-[0_0_30px_color-mix(in_srgb,var(--secondary)_2%,transparent)]`}>
                           {BlockIcon && <BlockIcon className={`${ch.color} mb-4`} size={24} />}
                           <h4 className="text-white font-bold text-sm uppercase mb-3">{block.title}</h4>
                           <p className="text-white/50 text-xs leading-relaxed mb-3">{block.desc}</p>
@@ -369,7 +369,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
                     // CAS 4 : CARTES DE RÈGLES DE TRANSFERT AVEC CONTEXTE DE CODE
                     if (block.type === "rule-box") {
                       return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-between">
+                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] flex flex-col justify-between">
                           <div>
                             {BlockIcon && <BlockIcon className="text-white/40 mb-3" size={20} />}
                             <h4 className="text-white font-bold text-sm uppercase mb-2">{block.title}</h4>
@@ -377,7 +377,7 @@ export default function GuideView({ userTheme, setActiveTab }) {
                           </div>
                           
                           <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl">
-                            <code className="text-blue-300 font-mono text-[11px] block bg-black/30 p-2.5 rounded border border-white/5">
+                            <code className="text-blue-300 font-mono text-[11px] block bg-black/30 p-2.5 rounded-sm border border-white/5">
                               {block.code}
                             </code>
                           </div>
@@ -412,14 +412,14 @@ export default function GuideView({ userTheme, setActiveTab }) {
                     // CAS 6 : GESTION DES WIDGETS AVEC ICONS
                     if (block.type === "widgets-list") {
                       return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[2rem] flex flex-col justify-center">
+                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] flex flex-col justify-center">
                           <h4 className="text-white font-bold text-sm uppercase mb-5">{block.title}</h4>
                           <div className="space-y-5">
                             {block.items.map((it, itIdx) => {
                               const WidgetIcon = it.icon;
                               return (
                                 <div key={itIdx} className="flex items-start gap-3">
-                                  <div className="p-2 bg-[var(--primary)]/10 rounded-xl border border-[var(--primary)]/20 shrink-0 text-[var(--primary)]">
+                                  <div className="p-2 bg-[var(--secondary)]/10 rounded-xl border border-[var(--secondary)]/20 shrink-0 text-[var(--secondary)]">
                                     <WidgetIcon size={14} />
                                   </div>
                                   <div>

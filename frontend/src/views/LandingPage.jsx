@@ -19,7 +19,7 @@ export default function LandingPage({ onOpenAuth }) {
   const [tricountTab, setTricountTab] = useState('bilan');
 
   return (
-    <div className="min-h-screen bg-[#0a0a0c] text-white selection:bg-[var(--primary)] selection:text-white relative overflow-x-hidden font-sans select-none">
+    <div className="min-h-screen bg-[var(--surface)] text-white selection:bg-[var(--primary)] selection:text-white relative overflow-x-hidden font-sans select-none">
       
       {/* EFFETS DE FOND LUMINEUX (Halos néons) */}
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1100px] h-[550px] bg-[var(--primary)]/15 blur-[170px] rounded-full pointer-events-none" />
@@ -29,15 +29,15 @@ export default function LandingPage({ onOpenAuth }) {
       {/* =========================================================================
           1. NAVIGATION BAR PUBLIQUE
           ========================================================================= */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0c]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-[var(--surface)]/80 backdrop-blur-[var(--glass-blur)] border-b border-white/5 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[var(--primary)] flex items-center justify-center text-white font-black shadow-[0_0_20px_rgba(var(--primary-rgb),0.5)]">
+            <div className="w-9 h-9 rounded-xl bg-[var(--primary)] flex items-center justify-center text-white font-black shadow-[0_0_20px_color-mix(in_srgb,var(--primary)_50%,transparent)]">
               K
             </div>
             <span className="text-lg font-black tracking-tighter uppercase text-white">
-              Kleea <span className="text-[var(--primary)]">Finance</span>
+              Kleea <span className="text-[var(--secondary)]">Finance</span>
             </span>
           </div>
 
@@ -75,7 +75,7 @@ export default function LandingPage({ onOpenAuth }) {
       <section className="relative pt-36 pb-14 px-6 text-center max-w-5xl mx-auto space-y-6 z-10">
         
         {/* Badge version */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-[var(--glass-blur)]">
           <Sparkles size={14} className="text-amber-400 animate-pulse" />
           <span className="text-[10px] font-black uppercase tracking-widest text-white/80">
             Version 4.3 • Suivi bancaire, prévisions & gestion de patrimoine
@@ -134,7 +134,7 @@ export default function LandingPage({ onOpenAuth }) {
       <section id="showcase" className="py-14 px-4 sm:px-6 max-w-7xl mx-auto">
         
         <div className="text-center space-y-2 mb-8">
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--primary)]">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--secondary)]">
             Aperçu Haute Fidélité
           </span>
           <h2 
@@ -149,7 +149,7 @@ export default function LandingPage({ onOpenAuth }) {
         </div>
 
         {/* BARRE D'ONGLETS IMITANT LA BARRE DE NAVIGATION PRINCIPALE */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 p-1.5 bg-slate-900/60 backdrop-blur-xl border border-white/10 rounded-2xl max-w-fit mx-auto mb-6 select-none shadow-xl">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 p-1.5 bg-slate-900/60 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl max-w-fit mx-auto mb-6 select-none shadow-xl">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'gerer', label: 'Historique & Gérer', icon: Settings2 },
@@ -177,7 +177,7 @@ export default function LandingPage({ onOpenAuth }) {
         </div>
 
         {/* CADRE VITRÉ REPRODUISANT LE VIEWPORT DE L'APPLICATION */}
-        <div className="rounded-[2.5rem] border border-white/15 bg-[#101216] p-4 sm:p-7 shadow-[0_30px_90px_rgba(0,0,0,0.9)] backdrop-blur-2xl relative overflow-hidden min-h-[580px]">
+        <div className="rounded-[calc(var(--radius)*1.667)] border border-white/15 bg-[var(--surface)] p-4 sm:p-7 shadow-[0_30px_90px_rgba(0,0,0,0.9)] backdrop-blur-[var(--glass-blur)] relative overflow-hidden min-h-[580px]">
           
           {/* HEADER DU SIMULATEUR */}
           <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-5">
@@ -228,7 +228,7 @@ export default function LandingPage({ onOpenAuth }) {
                 </div>
 
                 {/* Compte Courant */}
-                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#4f46e5]aa to-[#4f46e5]55 border border-white/10 flex flex-col justify-between h-24">
+                <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[var(--primary)]/65 to-[var(--primary)]/35 border border-white/10 flex flex-col justify-between h-24">
                   <div className="flex justify-between items-center">
                     <span className="text-[8px] font-black uppercase text-white/60">CCP Principal</span>
                     <CreditCard size={14} className="text-white" />
@@ -244,7 +244,7 @@ export default function LandingPage({ onOpenAuth }) {
                   <div className="flex justify-between items-center">
                     <span className="text-[8px] font-black uppercase text-white/60">Livret A</span>
                     <div className="flex items-center gap-1">
-                      <span className="text-[7.5px] px-1 py-0.2 rounded bg-white/20 text-white font-black">3.0%</span>
+                      <span className="text-[7.5px] px-1 py-0.2 rounded-sm bg-white/20 text-white font-black">3.0%</span>
                     </div>
                   </div>
                   <div className="flex justify-between items-end">
@@ -260,7 +260,7 @@ export default function LandingPage({ onOpenAuth }) {
                 <div className="p-3.5 rounded-2xl bg-gradient-to-br from-[#d97706]aa to-[#d97706]55 border border-white/10 flex flex-col justify-between h-24">
                   <div className="flex justify-between items-center">
                     <span className="text-[8px] font-black uppercase text-white/60">LEP Épargne</span>
-                    <span className="text-[7.5px] px-1 py-0.2 rounded bg-white/20 text-white font-black">5.0%</span>
+                    <span className="text-[7.5px] px-1 py-0.2 rounded-sm bg-white/20 text-white font-black">5.0%</span>
                   </div>
                   <div className="flex justify-between items-end">
                     <div>
@@ -281,7 +281,7 @@ export default function LandingPage({ onOpenAuth }) {
                     <div className="flex items-center justify-between border-b border-white/5 pb-2.5">
                       <div>
                         <h4 className="text-base font-black uppercase text-white leading-none">Flux mensuel</h4>
-                        <span className="text-[8px] font-black uppercase text-indigo-400 tracking-wider">Octobre 2026</span>
+                        <span className="text-[8px] font-black uppercase text-secondary-400 tracking-wider">Octobre 2026</span>
                       </div>
                       
                       <div className="flex gap-1 p-0.5 bg-white/5 rounded-lg border border-white/5">
@@ -320,7 +320,7 @@ export default function LandingPage({ onOpenAuth }) {
                             </div>
                             <div>
                               <span className="text-xs font-bold text-white block leading-tight">{t.nom}</span>
-                              <span className="text-[8px] uppercase font-bold text-indigo-300">{t.cat}</span>
+                              <span className="text-[8px] uppercase font-bold text-secondary-300">{t.cat}</span>
                             </div>
                           </div>
                           <span className={`text-xs font-mono font-black ${t.col}`}>{t.mnt}</span>
@@ -340,7 +340,7 @@ export default function LandingPage({ onOpenAuth }) {
                         <div key={i} className="flex-1 p-2 bg-white/[0.02] border border-white/5 rounded-xl flex flex-col items-center text-center">
                           <div className="relative w-16 h-8 mb-1">
                             <svg width="64" height="32" viewBox="0 0 64 32">
-                              <path d="M 8,32 A 24,24 0 0 1 56,32" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="5" />
+                              <path d="M 8,32 A 24,24 0 0 1 56,32" fill="none" stroke="color-mix(in srgb, var(--text-main) 10%, transparent)" strokeWidth="5" />
                               <path d="M 8,32 A 24,24 0 0 1 56,32" fill="none" stroke={bg.color} strokeWidth="5" strokeDasharray="75" strokeDashoffset={75 - (Math.min(bg.pct, 100) / 100) * 75} strokeLinecap="round" />
                             </svg>
                             <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[9px] font-mono font-black">{bg.pct}%</span>
@@ -454,7 +454,7 @@ export default function LandingPage({ onOpenAuth }) {
               {/* Saisie rapide identique au haut de la page Gérer */}
               <div className="p-3 rounded-2xl bg-black/40 border border-white/10 flex flex-wrap items-center gap-2.5">
                 <div className="flex items-center gap-2 border-r border-white/10 pr-3">
-                  <Plus size={14} className="text-[var(--primary)]" />
+                  <Plus size={14} className="text-[var(--secondary)]" />
                   <span className="text-[9px] font-black uppercase text-white/80">Nouvelle opération</span>
                 </div>
 
@@ -530,7 +530,7 @@ export default function LandingPage({ onOpenAuth }) {
 
                         <td className="py-2.5 px-3 text-center">
                           {row.isSplit ? (
-                            <span className="px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[7px] font-black uppercase flex items-center justify-center gap-1 w-fit mx-auto">
+                            <span className="px-2 py-0.5 rounded-md bg-secondary-500/20 text-secondary-300 border border-secondary-500/30 text-[7px] font-black uppercase flex items-center justify-center gap-1 w-fit mx-auto">
                               <Scissors size={9} /> Divisée
                             </span>
                           ) : (
@@ -553,7 +553,7 @@ export default function LandingPage({ onOpenAuth }) {
               
               <div className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] border border-white/5">
                 <div>
-                  <h4 className="text-xs font-black uppercase text-indigo-400 tracking-wider">Anticipation & Machine à voyager dans le temps</h4>
+                  <h4 className="text-xs font-black uppercase text-secondary-400 tracking-wider">Anticipation & Machine à voyager dans le temps</h4>
                   <p className="text-[9px] text-white/40 uppercase font-bold">Simulez vos soldes finaux sans toucher à votre historique réel</p>
                 </div>
                 <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-500/10 px-3 py-1.5 rounded-xl border border-emerald-500/20">
@@ -760,7 +760,7 @@ export default function LandingPage({ onOpenAuth }) {
           ========================================================================= */}
       <section id="features" className="py-20 px-6 max-w-7xl mx-auto space-y-12">
         <div className="text-center space-y-3">
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--primary)]">
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--secondary)]">
             Performance & Souveraineté
           </span>
           <h2 
@@ -772,9 +772,9 @@ export default function LandingPage({ onOpenAuth }) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-8 rounded-3xl bg-[var(--glass-bg)] border border-white/10 backdrop-blur-xl flex flex-col justify-between space-y-6">
+          <div className="p-8 rounded-3xl bg-[var(--glass-bg)] border border-white/10 backdrop-blur-[var(--glass-blur)] flex flex-col justify-between space-y-6">
             <div className="space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <div className="w-12 h-12 rounded-2xl bg-secondary-500/10 border border-secondary-500/20 flex items-center justify-center text-secondary-400">
                 <Building2 size={24} />
               </div>
               <h3 className="text-lg font-black uppercase tracking-wider">Synchronisation Powens</h3>
@@ -784,7 +784,7 @@ export default function LandingPage({ onOpenAuth }) {
             </div>
           </div>
 
-          <div className="p-8 rounded-3xl bg-[var(--glass-bg)] border border-white/10 backdrop-blur-xl flex flex-col justify-between space-y-6">
+          <div className="p-8 rounded-3xl bg-[var(--glass-bg)] border border-white/10 backdrop-blur-[var(--glass-blur)] flex flex-col justify-between space-y-6">
             <div className="space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
                 <Brain size={24} />
@@ -796,7 +796,7 @@ export default function LandingPage({ onOpenAuth }) {
             </div>
           </div>
 
-          <div className="p-8 rounded-3xl bg-[var(--glass-bg)] border border-white/10 backdrop-blur-xl flex flex-col justify-between space-y-6">
+          <div className="p-8 rounded-3xl bg-[var(--glass-bg)] border border-white/10 backdrop-blur-[var(--glass-blur)] flex flex-col justify-between space-y-6">
             <div className="space-y-4">
               <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
                 <ChartCandlestick size={24} />
@@ -814,7 +814,7 @@ export default function LandingPage({ onOpenAuth }) {
           5. SECTION SÉCURITÉ & FOOTER
           ========================================================================= */}
       <section id="security" className="py-20 px-6 max-w-5xl mx-auto">
-        <div className="p-10 rounded-3xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent border border-white/10 backdrop-blur-xl flex flex-col md:flex-row items-center justify-between gap-8">
+        <div className="p-10 rounded-3xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-transparent border border-white/10 backdrop-blur-[var(--glass-blur)] flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[9px] font-black uppercase tracking-widest">
               <ShieldCheck size={14} /> Chiffrement de bout en bout

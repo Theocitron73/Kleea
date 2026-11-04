@@ -223,7 +223,7 @@ export default function SharedTricount() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#152C48] flex items-center justify-center">
+      <div className="min-h-screen bg-[var(--bg-site)] flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
       </div>
     );
@@ -326,7 +326,7 @@ export default function SharedTricount() {
                     }`}
                   >
                     <span>{p}</span>
-                    <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center ${isSelected ? 'border-emerald-500 bg-emerald-500' : 'border-white/10'}`}>
+                    <span className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center ${isSelected ? 'border-emerald-500 bg-emerald-500' : 'border-white/10'}`}>
                       {isSelected && <span className="w-1.5 h-1.5 bg-white rounded-full" />}
                     </span>
                   </button>
@@ -394,13 +394,13 @@ export default function SharedTricount() {
 
                 <div className="space-y-1 text-[9px] font-bold">
                   {recoit.map((t, idx) => (
-                    <div key={idx} className="flex justify-between text-emerald-400 p-1 bg-emerald-500/5 rounded">
+                    <div key={idx} className="flex justify-between text-emerald-400 p-1 bg-emerald-500/5 rounded-sm">
                       <span>Reçoit de {t.de}</span>
                       <span>{t.montant.toFixed(2)}€</span>
                     </div>
                   ))}
                   {donne.map((t, idx) => (
-                    <div key={idx} className="flex justify-between text-rose-400 p-1 bg-rose-500/5 rounded">
+                    <div key={idx} className="flex justify-between text-rose-400 p-1 bg-rose-500/5 rounded-sm">
                       <span>Donne à {t.a}</span>
                       <span>{t.montant.toFixed(2)}€</span>
                     </div>
@@ -409,7 +409,7 @@ export default function SharedTricount() {
 
                 <button 
                   onClick={() => handleDownloadPDF(nom)}
-                  className="w-full py-1.5 bg-white/5 text-[8px] font-black uppercase rounded hover:bg-white/10"
+                  className="w-full py-1.5 bg-white/5 text-[8px] font-black uppercase rounded-sm hover:bg-white/10"
                 >
                   Bilan PDF Personnel
                 </button>
@@ -447,7 +447,7 @@ export default function SharedTricount() {
                   <span className="text-xs">
                     {getEmojiForMember(t.paye_par || t.payé_par) || "👤"}
                   </span>
-                  <span className="text-[8.5px] text-indigo-400 font-black uppercase tracking-wider">
+                  <span className="text-[8.5px] text-secondary-400 font-black uppercase tracking-wider">
                     Par {t.paye_par || t.payé_par || "Inconnu"}
                   </span>
                 </div>
@@ -467,11 +467,11 @@ export default function SharedTricount() {
 
               {/* Confirmation de suppression */}
               {deletingId === t.id && (
-                <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-sm rounded-xl flex items-center justify-between px-4 animate-in fade-in duration-200">
+                <div className="absolute inset-0 bg-rose-500/10 backdrop-blur-[var(--glass-blur)] rounded-xl flex items-center justify-between px-4 animate-in fade-in duration-200">
                   <span className="text-[9px] font-black uppercase text-rose-400">Supprimer définitivement ?</span>
                   <div className="flex gap-2">
                     <button onClick={() => setDeletingId(null)} className="text-[8px] uppercase text-white/40">Annuler</button>
-                    <button onClick={() => executeDelete(t.id)} className="px-3 py-1 bg-rose-500 text-white text-[8px] font-black rounded uppercase">Confirmer</button>
+                    <button onClick={() => executeDelete(t.id)} className="px-3 py-1 bg-rose-500 text-white text-[8px] font-black rounded-sm uppercase">Confirmer</button>
                   </div>
                 </div>
               )}
@@ -492,7 +492,7 @@ export default function SharedTricount() {
   );
 
   return (
-    <div className="min-h-screen bg-[#152C48] text-white p-4 md:p-8">
+    <div className="min-h-screen bg-[var(--bg-site)] text-white p-4 md:p-8">
       
       {/* TOAST SYSTEM */}
       {notification.show && (
@@ -507,9 +507,9 @@ export default function SharedTricount() {
       )}
 
       {/* HEADER COMPACT */}
-      <div className="max-w-7xl mx-auto mb-6 p-4 bg-slate-900/50 backdrop-blur-md rounded-2xl border border-white/10 flex justify-between items-center">
+      <div className="max-w-7xl mx-auto mb-6 p-4 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] rounded-2xl border border-white/10 flex justify-between items-center">
         <div>
-          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400">Tricount Partagé</span>
+          <span className="text-[8px] font-black uppercase tracking-[0.2em] text-secondary-400">Tricount Partagé</span>
           <h2 className="text-xl font-black uppercase mt-1">{groupeNom}</h2>
         </div>
         <div className="text-right">
@@ -526,7 +526,7 @@ export default function SharedTricount() {
           onClick={() => setMobileTab('bilan')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
             mobileTab === 'bilan' 
-              ? 'border-indigo-500 text-indigo-400' 
+              ? 'border-secondary-500 text-secondary-400' 
               : 'border-transparent text-white/40'
           }`}
         >
@@ -536,7 +536,7 @@ export default function SharedTricount() {
           onClick={() => setMobileTab('ajouter')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
             mobileTab === 'ajouter' 
-              ? 'border-indigo-500 text-indigo-400' 
+              ? 'border-secondary-500 text-secondary-400' 
               : 'border-transparent text-white/40'
           }`}
         >
@@ -546,7 +546,7 @@ export default function SharedTricount() {
           onClick={() => setMobileTab('historique')}
           className={`flex-1 py-3 text-center text-[10px] font-black uppercase tracking-wider transition-all border-b-2 ${
             mobileTab === 'historique' 
-              ? 'border-indigo-500 text-indigo-400' 
+              ? 'border-secondary-500 text-secondary-400' 
               : 'border-transparent text-white/40'
           }`}
         >
@@ -574,10 +574,10 @@ export default function SharedTricount() {
 
       {/* MODALE DE MODIFICATION COMMUNE (PC & MOBILE) */}
       {editingTransaction && (
-       <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-lg bg-[#0f172a] border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
+       <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
+          <div className="relative w-full max-w-lg bg-[var(--surface)] border border-white/10 rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl max-h-[85vh] overflow-y-auto space-y-4">
             <div className="flex justify-between items-center pb-2 border-b border-white/5">
-              <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400">Modifier la dépense</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-secondary-400">Modifier la dépense</h3>
               <button onClick={() => setEditingTransaction(null)} className="p-1 text-white/40"><X size={16} /></button>
             </div>
             

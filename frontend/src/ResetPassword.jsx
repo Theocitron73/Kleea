@@ -34,7 +34,7 @@ const ResetPassword = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="min-h-screen bg-[var(--surface)] flex items-center justify-center p-4 relative overflow-hidden">
             {/* EFFETS DE FOND (Identiques au Login) */}
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[100px] rounded-full" />
             <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[120px] rounded-full" />
@@ -42,12 +42,12 @@ const ResetPassword = () => {
             <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
                 <form 
                     onSubmit={handleSubmit}
-                    className="bg-white/5 backdrop-blur-2xl p-10 rounded-[3rem] border border-white/20 shadow-2xl w-full"
+                    className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-10 rounded-[calc(var(--radius)*2)] border border-white/20 shadow-2xl w-full"
                     style={{ boxShadow: `0 0 40px -10px var(--primary), inset 0 0 20px -10px var(--primary)` }}
                 >
                     <div className="text-center mb-10">
                         <h2 className="text-3xl font-black text-white tracking-tighter uppercase">
-                            Nouveau <span className="text-[var(--primary)]">Code</span>
+                            Nouveau <span className="text-[var(--secondary)]">Code</span>
                         </h2>
                         <p className="text-[10px] font-bold text-white/20 uppercase tracking-widest mt-2">
                             Sécurisez à nouveau votre coffre
@@ -88,7 +88,7 @@ const ResetPassword = () => {
                     </button>
 
                     {message.text && (
-                        <p className={`mt-6 text-[10px] font-black uppercase text-center tracking-widest ${message.type === 'error' ? 'text-red-500' : 'text-[var(--primary)]'}`}>
+                        <p className={`mt-6 text-[10px] font-black uppercase text-center tracking-widest ${message.type === 'error' ? 'text-red-500' : 'text-[var(--secondary)]'}`}>
                             {message.text}
                         </p>
                     )}

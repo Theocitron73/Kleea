@@ -559,7 +559,7 @@ export function LucideIconPicker({ selectedIcon, onSelectIcon, onClose }) {
 
       <div 
         onClick={e => e.stopPropagation()} 
-        className="absolute top-14 left-0 z-[101] w-80 bg-[#141417] border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] p-3 backdrop-blur-2xl flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 select-none text-left"
+        className="absolute top-14 left-0 z-[101] w-80 bg-[var(--surface)] border border-white/10 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] p-3 backdrop-blur-[var(--glass-blur)] flex flex-col gap-2.5 animate-in fade-in zoom-in-95 duration-150 select-none text-left"
       >
         <div className="relative flex items-center bg-black/40 rounded-xl border border-white/10 px-2.5 py-1.5 focus-within:border-indigo-500/50 transition-colors">
           <Search size={13} className="text-white/30 shrink-0" />
@@ -650,7 +650,7 @@ export function LucideIconPicker({ selectedIcon, onSelectIcon, onClose }) {
           <span className="truncate">
             {hoveredIcon ? `Nom: ${hoveredIcon}` : `Sélectionné: ${selectedIcon || 'Tag'}`}
           </span>
-          <span className="font-bold text-indigo-400">{filteredIcons.length} icônes</span>
+          <span className="font-bold text-secondary-400">{filteredIcons.length} icônes</span>
         </div>
       </div>
     </>

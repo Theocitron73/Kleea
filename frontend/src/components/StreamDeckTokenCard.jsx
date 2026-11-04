@@ -58,7 +58,7 @@ export default function StreamDeckTokenCard() {
   const primaryButton = 'bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-40';
 
   return (
-    <div className="bg-white/5 backdrop-blur-md p-4 rounded-2xl border border-white/5 space-y-3">
+    <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3">
       <div>
         <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-1">Stream Deck</h4>
         <p className="text-[10px] font-semibold text-white/50 leading-relaxed">

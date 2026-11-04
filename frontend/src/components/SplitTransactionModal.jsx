@@ -157,17 +157,17 @@ export default function SplitTransactionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
       <div className="absolute inset-0" onClick={onClose} />
 
       <div 
-        className="relative w-full max-w-2xl bg-[#121214] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-2xl bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* EN-TÊTE */}
         <div className="flex items-center justify-between pb-3 border-b border-white/5 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 rounded-2xl shadow-[0_0_15px_rgba(99,102,241,0.2)]">
+            <div className="p-2.5 bg-secondary-500/10 border border-secondary-500/20 text-secondary-400 rounded-2xl shadow-[0_0_15px_color-mix(in_srgb,var(--secondary)_20%,transparent)]">
               <Scissors size={18} />
             </div>
             <div>
@@ -208,7 +208,7 @@ export default function SplitTransactionModal({
           {parts.map((part, idx) => (
             <div key={idx} className="p-3 bg-white/[0.02] border border-white/5 rounded-2xl space-y-2.5 relative group">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-[8px] font-black uppercase tracking-wider text-indigo-400 px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">
+                <span className="text-[8px] font-black uppercase tracking-wider text-secondary-400 px-2 py-0.5 rounded-sm bg-secondary-500/10 border border-secondary-500/20">
                   Partie #{idx + 1}
                 </span>
 
@@ -268,7 +268,7 @@ export default function SplitTransactionModal({
           <button
             type="button"
             onClick={handleAddPart}
-            className="w-full py-2.5 border border-dashed border-white/10 hover:border-indigo-500/40 rounded-xl text-[9px] font-black uppercase tracking-wider text-white/40 hover:text-indigo-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            className="w-full py-2.5 border border-dashed border-white/10 hover:border-secondary-500/40 rounded-xl text-[9px] font-black uppercase tracking-wider text-white/40 hover:text-secondary-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <Plus size={13} strokeWidth={3} />
             <span>Ajouter une sous-catégorie</span>
