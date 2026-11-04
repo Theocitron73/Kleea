@@ -86,6 +86,19 @@ class Projets(BaseEpargne):
         self.assertEqual(self.client.post(f"/update-projet/{autre['id']}", json=PROJET).status_code, 409)
         self.assertEqual(self.client.post(f"/update-projet/{autre['id']}", json={**PROJET, "nom": "Autre"}).status_code, 200)
 
+    def test_aucun_parametre_null_envoye_a_postgres(self):
+        # psycopg 3 (production) ne sait pas typer un parametre NULL dans "IS NULL OR id <> :x" ; SQLite ne le voit pas.
+        conn = mock.Mock()
+        conn.execute.return_value.first.return_value = None
+        main.verifier_nom_projet_libre(conn, "A", "Theo", "theo")
+        requete, params = conn.execute.call_args.args
+        self.assertNotIn(":sauf", str(requete))
+        self.assertNotIn("sauf", params)
+        main.verifier_nom_projet_libre(conn, "A", "Theo", "theo", sauf_id=3)
+        requete, params = conn.execute.call_args.args
+        self.assertIn(":sauf", str(requete))
+        self.assertEqual(params["sauf"], 3)
+
     def test_les_valeurs_invalides_sont_refusees(self):
         for champs in ({"cout": -1}, {"capa": -1}, {"apport": -1}, {"nom": "   "}, {"date": "demain"}, {"date": "2026-13-45"}, {"date_debut": "nope"}):
             self.assertEqual(self.client.post("/save-projet", json={**PROJET, **champs}).status_code, 422, champs)

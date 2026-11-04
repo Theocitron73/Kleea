@@ -1233,12 +1233,16 @@ except Exception as e:
 
 
 def verifier_nom_projet_libre(conn, nom: str, profil: str, current_user: str, sauf_id: Optional[int] = None):
-    existe = conn.execute(text("""
+    query = """
         SELECT 1 FROM projets
         WHERE LOWER(nom) = LOWER(:n) AND LOWER(profil) = LOWER(:p) AND LOWER(utilisateur) = :u
-          AND (:sauf IS NULL OR id <> :sauf)
-    """), {"n": nom, "p": profil, "u": current_user, "sauf": sauf_id}).first()
-    if existe:
+    """
+    params = {"n": nom, "p": profil, "u": current_user}
+    # Pas de paramètre NULL ici : avec psycopg 3, Postgres ne pourrait pas en déduire le type.
+    if sauf_id is not None:
+        query += " AND id <> :sauf"
+        params["sauf"] = sauf_id
+    if conn.execute(text(query), params).first():
         raise HTTPException(status_code=409, detail=f"Un projet « {nom} » existe déjà.")
 
 
