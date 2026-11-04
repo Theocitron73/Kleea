@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+	<meta charset="utf-8" />
+	<title>Kleea</title>
+	<!-- Aucun script distant : cette page manipule le jeton d'accès. -->
+	<style>
+		:root { color-scheme: dark; }
+		body { margin: 0; padding: 8px 12px; background: #2d2d2d; color: #d8d8d8; font: 12px/1.4 "Segoe UI", Arial, sans-serif; }
+		.row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+		.row label { flex: 0 0 90px; text-align: right; color: #969696; }
+		.row input, .row select { flex: 1; min-width: 0; box-sizing: border-box; padding: 4px 6px; background: #3d3d3d; color: #d8d8d8; border: 1px solid #4d4d4d; border-radius: 3px; font: inherit; }
+		h2 { margin: 16px 0 8px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #969696; }
+		#status { margin: 0 0 8px 98px; color: #969696; }
+		#status.ok { color: #4ade80; }
+		#status.error { color: #fbbf24; }
+		.hint { margin: 0 0 8px 98px; color: #7a7a7a; font-size: 11px; }
+		[hidden] { display: none !important; }
+	</style>
+</head>
+<body>
+	<div class="row">
+		<label for="view">Vue</label>
+		<select id="view">
+			<option value="balance">Solde d'un compte</option>
+			<option value="total">Patrimoine</option>
+			<option value="expenses">Dépenses du mois</option>
+			<option value="income">Revenus du mois</option>
+			<option value="net">Bilan du mois</option>
+			<option value="powens">Transactions à importer (Powens)</option>
+		</select>
+	</div>
+	<div class="row" id="accountRow">
+		<label for="account">Compte</label>
+		<select id="account"></select>
+	</div>
+	<div class="row" id="groupRow" hidden>
+		<label for="group">Profil</label>
+		<select id="group"></select>
+	</div>
+
+	<h2>Connexion (commune à toutes les touches)</h2>
+	<div class="row">
+		<label for="serverUrl">Serveur</label>
+		<input id="serverUrl" type="url" placeholder="https://…" spellcheck="false" />
+	</div>
+	<div class="row">
+		<label for="token">Jeton</label>
+		<input id="token" type="password" autocomplete="off" spellcheck="false" />
+	</div>
+	<p class="hint">À générer dans Kleea : Profil, section Stream Deck.</p>
+	<div class="row">
+		<label for="refreshMinutes">Actualisation</label>
+		<select id="refreshMinutes">
+			<option value="5">5 minutes</option>
+			<option value="15">15 minutes</option>
+			<option value="30">30 minutes</option>
+			<option value="60">1 heure</option>
+			<option value="360">6 heures</option>
+		</select>
+	</div>
+	<p id="status" role="status"></p>
+
+	<script src="view.js"></script>
+</body>
+</html>

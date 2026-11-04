@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body, Depends, Request, UploadFile, File
+from fastapi import FastAPI, HTTPException, Body, Depends, Header, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
@@ -35,6 +35,15 @@ import jwt
 import bcrypt
 from contextlib import asynccontextmanager
 import base64
+import hashlib
+import sys
+
+# Les journaux contiennent des emojis : sur une sortie en cp1252 (Windows, hors console),
+# le moindre print() lèverait UnicodeEncodeError et ferait échouer la requête en cours.
+for _flux in (sys.stdout, sys.stderr):
+    if hasattr(_flux, "reconfigure"):
+        _flux.reconfigure(encoding="utf-8", errors="replace")
+
 # 1. Patch Hostname
 def get_ascii_hostname():
     return "localhost"
@@ -890,6 +899,7 @@ def delete_account(username: str, current_user: str = Depends(get_current_user))
         # 2. Suppression de l'utilisateur (Les cascades en BDD nettoieront le reste)
         delete_query = text("DELETE FROM users WHERE LOWER(username) = LOWER(:username)")
         conn.execute(delete_query, {"username": current_user})
+        supprimer_jeton_streamdeck(conn, current_user)
         conn.commit()
         
     return {"status": "success", "message": "Compte et données associés détruits définitivement"}
@@ -4443,8 +4453,12 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
 
     headers = {"Authorization": f"Bearer {user_token}"}
     try:
-        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers)
-        powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
+        res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers, timeout=15)
+        if res_acc.status_code != 200:
+            # Sans ce signalement, un accès expiré ressemblerait à « rien à importer »
+            print(f"❌ [CHECK-SYNC] Erreur API Powens : {res_acc.status_code}")
+            return {"has_pending": False, "count": 0, "accounts": {}, "error": f"Erreur API Powens ({res_acc.status_code})"}
+        powens_accounts = res_acc.json().get("accounts", [])
         powens_txs = get_powens_transactions(user_token)
     except Exception as e:
         print(f"❌ [CHECK-SYNC] Erreur API Powens: {e}")
@@ -5363,6 +5377,7 @@ async def refresh_bank_sync(username: str, current_user: str = Depends(get_curre
 def delete_my_account(current_user: str = Depends(get_current_user)):
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM users WHERE LOWER(username) = :u"), {"u": current_user})
+        supprimer_jeton_streamdeck(conn, current_user)
     return {"status": "success"}
 
 # Route de test sécurisée par JWT
@@ -6561,3 +6576,238 @@ def save_pages_masquees(data: dict = Body(...), current_user: str = Depends(get_
         """), {"u": current_user.lower().strip(), "p": pages_json})
 
     return {"status": "success", "pages": pages_list}
+
+
+# =========================================================================
+# 🎛️ STREAM DECK : VUES EN LECTURE SEULE POUR LE PLUGIN
+# =========================================================================
+# Le plugin s'authentifie avec un jeton dédié (généré depuis le profil), jamais
+# avec le JWT de session : il ne peut que lire les soldes via /api/streamdeck/data.
+# Seule l'empreinte SHA-256 du jeton est conservée en base.
+
+STREAMDECK_MOIS = [
+    "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet",
+    "aout", "septembre", "octobre", "novembre", "decembre",
+]
+STREAMDECK_MOTS_IGNORES = {"CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"}
+
+
+def assurer_table_streamdeck(conn):
+    conn.execute(text("""
+        CREATE TABLE IF NOT EXISTS streamdeck_tokens (
+            utilisateur VARCHAR(255) PRIMARY KEY,
+            token_hash VARCHAR(64) NOT NULL UNIQUE,
+            created_at TEXT NOT NULL
+        )
+    """))
+
+
+def supprimer_jeton_streamdeck(conn, utilisateur: str):
+    assurer_table_streamdeck(conn)
+    conn.execute(
+        text("DELETE FROM streamdeck_tokens WHERE LOWER(utilisateur) = LOWER(:u)"),
+        {"u": utilisateur},
+    )
+
+
+def empreinte_jeton_streamdeck(jeton: str) -> str:
+    return hashlib.sha256(jeton.encode("utf-8")).hexdigest()
+
+
+def get_streamdeck_user(x_streamdeck_token: Optional[str] = Header(None)) -> str:
+    if not x_streamdeck_token:
+        raise HTTPException(status_code=401, detail="Jeton Stream Deck manquant")
+    with engine.begin() as conn:
+        assurer_table_streamdeck(conn)
+        utilisateur = conn.execute(
+            text("SELECT utilisateur FROM streamdeck_tokens WHERE token_hash = :h"),
+            {"h": empreinte_jeton_streamdeck(x_streamdeck_token)},
+        ).scalar()
+    if not utilisateur:
+        raise HTTPException(status_code=401, detail="Jeton Stream Deck invalide")
+    return utilisateur
+
+
+def _sd_nettoyer_mois(mois) -> str:
+    if not mois:
+        return ""
+    decompose = unicodedata.normalize("NFD", str(mois).lower())
+    return "".join(c for c in decompose if unicodedata.category(c) != "Mn").strip()
+
+
+def _sd_nom_compte(compte) -> str:
+    return str(compte or "").strip().upper()
+
+
+def _sd_montant(valeur) -> float:
+    try:
+        return float(valeur or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _sd_annee(transaction: dict) -> int:
+    if transaction.get("annee"):
+        try:
+            return int(transaction["annee"])
+        except (TypeError, ValueError):
+            return 0
+    valeur = transaction.get("date")
+    if isinstance(valeur, (date, datetime)):
+        return valeur.year
+    try:
+        return int(str(valeur)[:4])
+    except (TypeError, ValueError):
+        return 0
+
+
+def _sd_compte_cible(texte: str, source: str, groupes: dict) -> Optional[str]:
+    """Trouve le compte destinataire d'un virement interne (même groupe, nom cité dans le libellé)."""
+    groupe_source = groupes.get(source)
+    if not groupe_source:
+        return None
+    for nom, groupe in groupes.items():
+        if nom == source or groupe != groupe_source:
+            continue
+        mots = [m for m in nom.split(" ") if len(m) >= 3 and m not in STREAMDECK_MOTS_IGNORES]
+        if nom in texte or any(m in texte for m in mots):
+            return nom
+    return None
+
+
+def calculer_vues_streamdeck(comptes: list, transactions: list, aujourd_hui: date) -> dict:
+    """Reprend le calcul du dashboard (`soldesParCompte` et `statsFiltrées` dans login.jsx)
+    pour que les touches affichent exactement les mêmes chiffres que l'application."""
+    annee = aujourd_hui.year
+    indice_mois = aujourd_hui.month - 1
+    mois_courant = STREAMDECK_MOIS[indice_mois]
+
+    groupes = {_sd_nom_compte(c["compte"]): str(c.get("groupe") or "").strip().upper() for c in comptes}
+    soldes = {_sd_nom_compte(c["compte"]): _sd_montant(c.get("solde")) for c in comptes}
+    revenus = dict.fromkeys(soldes, 0.0)
+    depenses = dict.fromkeys(soldes, 0.0)
+
+    # Montants par (année, mois, compte) : sert à détecter l'écriture miroir d'un virement
+    montants_index: dict = {}
+    for t in transactions:
+        cle = (_sd_annee(t), _sd_nettoyer_mois(t.get("mois")), _sd_nom_compte(t.get("compte")))
+        montants_index.setdefault(cle, []).append(_sd_montant(t.get("montant")))
+
+    for t in transactions:
+        annee_t = _sd_annee(t)
+        mois_t = _sd_nettoyer_mois(t.get("mois"))
+        indice_t = STREAMDECK_MOIS.index(mois_t) if mois_t in STREAMDECK_MOIS else -1
+        if annee_t > annee or (annee_t == annee and indice_t > indice_mois):
+            continue
+
+        montant = _sd_montant(t.get("montant"))
+        source = _sd_nom_compte(t.get("compte"))
+        categorie = str(t.get("categorie") or "")
+        nom = str(t.get("nom") or "")
+        categorie_maj, nom_maj = categorie.upper(), nom.upper()
+
+        if source in soldes:
+            soldes[source] += montant
+
+        if "🔄" in categorie_maj or "VERS" in categorie_maj or "VERS" in nom_maj:
+            cible = _sd_compte_cible(f"{nom_maj} {categorie_maj}", source, groupes)
+            if cible:
+                miroirs = montants_index.get((annee_t, mois_t, cible), [])
+                if not any(abs(m + montant) < 0.1 for m in miroirs):
+                    soldes[cible] -= montant
+
+        est_transfert = (
+            "vers" in categorie.lower()
+            or "transfert" in categorie.lower()
+            or "🔄" in categorie
+            or "🔄" in nom
+        )
+        if source in soldes and annee_t == annee and mois_t == mois_courant and not est_transfert:
+            if montant > 0:
+                revenus[source] += montant
+            elif montant < 0:
+                depenses[source] += abs(montant)
+
+    return {
+        "periode": {"mois": indice_mois + 1, "annee": annee},
+        "comptes": [
+            {
+                "nom": c["compte"],
+                "groupe": c.get("groupe") or "",
+                "couleur": c.get("couleur") or "",
+                "solde": round(soldes[_sd_nom_compte(c["compte"])], 2),
+                "revenus_mois": round(revenus[_sd_nom_compte(c["compte"])], 2),
+                "depenses_mois": round(depenses[_sd_nom_compte(c["compte"])], 2),
+            }
+            for c in comptes
+        ],
+    }
+
+
+@app.get("/api/streamdeck/token")
+def statut_jeton_streamdeck(current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        assurer_table_streamdeck(conn)
+        created_at = conn.execute(
+            text("SELECT created_at FROM streamdeck_tokens WHERE LOWER(utilisateur) = LOWER(:u)"),
+            {"u": current_user},
+        ).scalar()
+    return {"active": bool(created_at), "created_at": created_at}
+
+
+@app.post("/api/streamdeck/token")
+def generer_jeton_streamdeck(response: Response, current_user: str = Depends(get_current_user)):
+    """Crée un jeton ou remplace l'ancien. Le jeton en clair n'est renvoyé qu'ici, une seule fois."""
+    jeton = f"kleea_sd_{secrets.token_urlsafe(32)}"
+    created_at = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as conn:
+        supprimer_jeton_streamdeck(conn, current_user)
+        conn.execute(
+            text("INSERT INTO streamdeck_tokens (utilisateur, token_hash, created_at) VALUES (:u, :h, :c)"),
+            {"u": current_user, "h": empreinte_jeton_streamdeck(jeton), "c": created_at},
+        )
+    response.headers["Cache-Control"] = "no-store"
+    return {"token": jeton, "created_at": created_at}
+
+
+@app.delete("/api/streamdeck/token")
+def revoquer_jeton_streamdeck(current_user: str = Depends(get_current_user)):
+    with engine.begin() as conn:
+        supprimer_jeton_streamdeck(conn, current_user)
+    return {"status": "success"}
+
+
+@app.get("/api/streamdeck/data")
+def donnees_streamdeck(response: Response, utilisateur: str = Depends(get_streamdeck_user)):
+    with engine.connect() as conn:
+        comptes = conn.execute(
+            text("SELECT compte, groupe, solde, couleur FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)"),
+            {"u": utilisateur},
+        ).mappings().all()
+        transactions = conn.execute(
+            text("SELECT date, nom, montant, categorie, mois, annee, compte FROM transactions WHERE LOWER(utilisateur) = LOWER(:u)"),
+            {"u": utilisateur},
+        ).mappings().all()
+    response.headers["Cache-Control"] = "no-store"
+    return calculer_vues_streamdeck([dict(c) for c in comptes], [dict(t) for t in transactions], date.today())
+
+
+@app.get("/api/streamdeck/powens")
+def powens_streamdeck(response: Response, utilisateur: str = Depends(get_streamdeck_user)):
+    """Nombre de transactions à importer. Route séparée car elle interroge Powens, bien plus lent que la base."""
+    response.headers["Cache-Control"] = "no-store"
+    with engine.connect() as conn:
+        powens_token = conn.execute(
+            text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)"),
+            {"u": utilisateur},
+        ).scalar()
+    if not powens_token:
+        return {"connecte": False, "erreur": False, "count": 0, "comptes": {}}
+
+    resultat = check_sync_status(utilisateur, utilisateur)
+    return {
+        "connecte": True,
+        "erreur": bool(resultat.get("error")),
+        "count": resultat.get("count", 0),
+        "comptes": {nom: infos["count"] for nom, infos in resultat.get("accounts", {}).items()},
+    }

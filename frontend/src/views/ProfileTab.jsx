@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp } from 'lucide-react';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
+import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
 import { toast } from 'sonner';
 
 export default function ProfileTab({ 
@@ -616,6 +617,9 @@ export default function ProfileTab({
           </div>
         )}
       </div>
+
+      {/* STREAM DECK */}
+      <StreamDeckTokenCard />
 
       {/* ZONE DANGER SUPPRESSION */}
       <div className="bg-rose-500/5 backdrop-blur-md p-4 rounded-2xl border border-rose-500/20 space-y-3">

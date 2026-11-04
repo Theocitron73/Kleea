@@ -1,0 +1,48 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"Name": "Kleea",
+	"Version": "1.2.0.0",
+	"Author": "Théo Le Barbier",
+	"Description": "Affiche vos soldes et le bilan du mois Kleea sur vos touches Stream Deck.",
+	"Category": "Kleea",
+	"CategoryIcon": "imgs/category",
+	"Icon": "imgs/plugin",
+	"CodePath": "bin/plugin.js",
+	"SDKVersion": 3,
+	"Software": {
+		"MinimumVersion": "7.1"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		},
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		}
+	],
+	"Nodejs": {
+		"Version": "24",
+		"Debug": "disabled"
+	},
+	"UUID": "com.theolebarbier.kleea",
+	"Actions": [
+		{
+			"Name": "Vue financière",
+			"UUID": "com.theolebarbier.kleea.view",
+			"Icon": "imgs/action",
+			"Tooltip": "Affiche un solde, le patrimoine, le bilan du mois ou les transactions à importer. Appuyez pour actualiser.",
+			"PropertyInspectorPath": "ui/view.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"UserTitleEnabled": false,
+			"States": [
+				{
+					"Image": "imgs/key"
+				}
+			]
+		}
+	]
+}
