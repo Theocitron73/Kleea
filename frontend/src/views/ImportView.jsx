@@ -393,7 +393,7 @@ export default function ImportView({
             
             {/* ACTION 1 : NOUVELLE BANQUE */}
             <div 
-              onClick={!isSyncingPowens ? handleConnectNewBank : undefined}
+              onClick={!isSyncingPowens ? () => handleConnectNewBank() : undefined}
               title="Ajouter une banque via Powens"
               className={`
                 rounded-[calc(var(--radius)*1.333)] p-4 flex items-center gap-3 border transition-all duration-500 cursor-pointer overflow-hidden min-h-[80px]

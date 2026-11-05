@@ -813,7 +813,7 @@ export default function ComptesView({
                   </p>
                   <button
                     type="button"
-                    onClick={handleConnectNewBank}
+                    onClick={() => handleConnectNewBank()}
                     className="w-full py-2 bg-[var(--primary)] hover:brightness-110 text-black font-black uppercase text-[9px] tracking-wider rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer mt-1"
                   >
                     <Plus size={12} strokeWidth={3} />

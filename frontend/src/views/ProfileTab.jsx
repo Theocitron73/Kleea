@@ -417,7 +417,7 @@ export default function ProfileTab({
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={onConnectBank}
+              onClick={() => onConnectBank()}
               disabled={connectLoading}
               className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
             >
