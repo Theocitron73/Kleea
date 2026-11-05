@@ -1,6 +1,7 @@
 // src/utils/exportUtils.js
 import * as XLSX from 'xlsx';
 import { getCleanCategoryName } from '../categoryIcons';
+import { estTransfertInterne } from './finance';
 
 /**
  * Télécharge un Blob binaire dans le navigateur sans package externe
@@ -25,13 +26,7 @@ export const exportToExcel = ({ transactions = [], statsAnnuelles = [], recapMoi
   // --- ONGLET 1 : GRAND LIVRE DES TRANSACTIONS ---
   const transactionsRows = transactions.map(t => {
     const montantNum = parseFloat(t.montant) || 0;
-    const isTransfert = Boolean(
-      t.categorie && (
-        t.categorie.includes(" vers ") || 
-        t.categorie.startsWith("Virement :") || 
-        t.categorie.includes("🔄")
-      )
-    );
+    const isTransfert = estTransfertInterne(t.nom, t.categorie);
 
     return {
       "Date": t.date || "",
@@ -111,13 +106,7 @@ export const exportToCsv = ({ transactions = [], filename = "Kleea_Transactions"
 
   const rows = transactions.map(t => {
     const montantNum = parseFloat(t.montant) || 0;
-    const isTransfert = Boolean(
-      t.categorie && (
-        t.categorie.includes(" vers ") || 
-        t.categorie.startsWith("Virement :") || 
-        t.categorie.includes("🔄")
-      )
-    );
+    const isTransfert = estTransfertInterne(t.nom, t.categorie);
 
     return [
       t.date || "",

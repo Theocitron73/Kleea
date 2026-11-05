@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx' 
 import ToastProvider from './components/ToastProvider.jsx'
+import ErreurApplication from './components/ErreurApplication.jsx'
+import { demarrerSuiviErreurs } from './utils/suiviErreurs'
+
+demarrerSuiviErreurs();
 
 // 🟢 ENREGISTREMENT ET ACTUALISATION AUTOMATIQUE DU SERVICE WORKER
 import { registerSW } from 'virtual:pwa-register';
@@ -28,7 +32,9 @@ registerSW({
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ErreurApplication>
+      <App />
+    </ErreurApplication>
     <ToastProvider />
   </StrictMode>,
 )

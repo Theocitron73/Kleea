@@ -14,17 +14,7 @@ import {
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import toLocalDateString from '../utils/dateUtils';
 
-// 🟢 Helper interne : Détection stricte des transferts internes
-const estTransfertInterne = (nom = "", cat = "") => {
-  const txt = `${nom || ""} ${cat || ""}`.toUpperCase();
-  return (
-    txt.includes("🔄") ||
-    txt.includes("VERS") ||
-    txt.includes("TRANSFERT") ||
-    txt.startsWith("VIREMENT :") ||
-    /\bVERS\b/.test(txt)
-  );
-};
+import { estTransfertInterne } from '../utils/finance';
 
 // 🟢 Composant Graphique des Prévisions (Exporté pour réutilisation globale)
 export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {

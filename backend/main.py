@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text, bindparam
 import pandas as pd
 import hmac
+import logging
 import os
 from dotenv import load_dotenv
 from pydantic import BaseModel, EmailStr, field_validator, Field
@@ -41,10 +42,133 @@ import hashlib
 import sys
 
 # Les journaux contiennent des emojis : sur une sortie en cp1252 (Windows, hors console),
-# le moindre print() lèverait UnicodeEncodeError et ferait échouer la requête en cours.
+# le moindre journal lèverait UnicodeEncodeError et ferait échouer la requête en cours.
 for _flux in (sys.stdout, sys.stderr):
     if hasattr(_flux, "reconfigure"):
         _flux.reconfigure(encoding="utf-8", errors="replace")
+
+# --- JOURNAUX ---------------------------------------------------------------
+# Ils ne doivent contenir ni secret ni donnée bancaire : ces motifs servent de filet de sécurité.
+MOTIFS_SECRETS = [
+    (re.compile(r"(?i)(bearer\s+)[\w.~+/=-]+"), r"\1***"),
+    (re.compile(r"kleea_sd_[\w-]+"), "kleea_sd_***"),
+    (re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]+"), "***"),
+    (re.compile(r"(?i)\b(\w*(?:token|password|secret|api_key|auth_key|code)[\"']?\s*[=:]\s*[\"']?)[^\s&\"',}]+"), r"\1***"),
+    (re.compile(r"\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{2,4}){3,8}\b"), "***IBAN***"),
+    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "***@***"),
+]
+# Ces routes portent un jeton de partage dans leur chemin.
+ROUTES_A_JETON = re.compile(
+    r"/(get-shared-tricount|save-shared-transaction|update-shared-transaction|delete-shared-transaction|download-shared-pdf)/[^/?\s]+"
+)
+
+
+def masquer_secrets(texte) -> str:
+    texte = str(texte)
+    for motif, remplacement in MOTIFS_SECRETS:
+        texte = motif.sub(remplacement, texte)
+    return texte
+
+
+def chemin_journalisable(chemin: str) -> str:
+    """Sans paramètres d'URL ni jeton de partage."""
+    return ROUTES_A_JETON.sub(r"/\1/***", str(chemin).split("?", 1)[0])
+
+
+class FormateurSansSecrets(logging.Formatter):
+    """Masque les secrets dans le message et dans la trace d'erreur."""
+
+    def __init__(self, base: Optional[logging.Formatter] = None):
+        super().__init__("%(asctime)s %(levelname)s %(message)s")
+        self.base = base
+
+    def format(self, record):
+        return masquer_secrets(self.base.format(record) if self.base else super().format(record))
+
+
+class FiltreJournalAcces(logging.Filter):
+    """Uvicorn journalise l'URL complète de chaque requête : on n'en garde que le chemin nettoyé."""
+
+    def filter(self, record):
+        if isinstance(record.args, tuple) and len(record.args) == 5:
+            client, methode, chemin, version, statut = record.args
+            record.args = (client, methode, chemin_journalisable(chemin), version, statut)
+        return True
+
+
+logger = logging.getLogger("kleea")
+if not logger.handlers:
+    _sortie = logging.StreamHandler(sys.stdout)
+    _sortie.setFormatter(FormateurSansSecrets())
+    logger.addHandler(_sortie)
+    logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
+    logger.propagate = False
+
+logging.getLogger("uvicorn.access").addFilter(FiltreJournalAcces())
+for _nom in ("uvicorn", "uvicorn.error"):
+    for _sortie in logging.getLogger(_nom).handlers:
+        if not isinstance(_sortie.formatter, FormateurSansSecrets):
+            _sortie.setFormatter(FormateurSansSecrets(_sortie.formatter))
+
+
+def detail_erreur(e: Exception, contexte: str = "Erreur interne") -> str:
+    """Journalise la cause et renvoie au navigateur un message générique avec une référence pour la retrouver."""
+    if isinstance(e, HTTPException):
+        return e.detail
+    reference = uuid.uuid4().hex[:8]
+    logger.error(f"{contexte} [ref {reference}] : {type(e).__name__} : {e}")
+    return f"{contexte}. Référence : {reference}"
+
+
+def nettoyer_evenement_sentry(event, hint=None):
+    """Rien d'identifiant ni de financier ne part vers le service de suivi d'erreurs."""
+    for cle in ("user", "breadcrumbs", "server_name", "extra", "modules"):
+        event.pop(cle, None)
+    requete = event.get("request")
+    if requete:
+        event["request"] = {"method": requete.get("method"), "url": chemin_journalisable(requete.get("url", ""))}
+    if isinstance(event.get("message"), str):
+        event["message"] = masquer_secrets(event["message"])
+    entree = event.get("logentry")
+    if entree:
+        entree.pop("params", None)
+        for cle, valeur in entree.items():
+            if isinstance(valeur, str):
+                entree[cle] = masquer_secrets(valeur)
+    for exception in (event.get("exception") or {}).get("values") or []:
+        if exception.get("value"):
+            exception["value"] = masquer_secrets(exception["value"])
+        for cadre in (exception.get("stacktrace") or {}).get("frames") or []:
+            for cle in ("vars", "pre_context", "context_line", "post_context"):
+                cadre.pop(cle, None)
+    return event
+
+
+def demarrer_suivi_erreurs():
+    """Inactif tant que SENTRY_DSN n'est pas défini : aucune donnée ne quitte alors le serveur."""
+    dsn = os.getenv("SENTRY_DSN")
+    if not dsn:
+        return False
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=dsn,
+            environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
+            send_default_pii=False,
+            include_local_variables=False,
+            include_source_context=False,
+            max_request_body_size="never",
+            max_breadcrumbs=0,
+            traces_sample_rate=0,
+            before_send=nettoyer_evenement_sentry,
+        )
+        logger.info("Suivi d'erreurs actif.")
+        return True
+    except Exception as e:
+        logger.warning(f"Suivi d'erreurs non démarré : {type(e).__name__}")
+        return False
+
 
 # 1. Patch Hostname
 def get_ascii_hostname():
@@ -53,6 +177,7 @@ def get_ascii_hostname():
 socket.gethostname = get_ascii_hostname
 
 load_dotenv()
+demarrer_suivi_erreurs()
 
 
 
@@ -65,6 +190,7 @@ engine = create_engine(
     pool_size=10,              # 10 connexions persistantes au lieu de 5
     max_overflow=20,           # Jusqu'à 30 connexions en pic de charge
     pool_timeout=30,           # Évite les TimeoutError prématurés
+    hide_parameters=True,      # Les valeurs des requêtes n'apparaissent jamais dans les erreurs
     connect_args={
         "sslmode": "require",
         "connect_timeout": 10
@@ -107,7 +233,7 @@ def refresh_banned_ips_cache(force: bool = False):
                 BANNED_IPS_CACHE = {row[0]: row[1] for row in res}
             LAST_BANNED_SYNC = now_ts
         except Exception as e:
-            print(f"⚠️ Erreur synchro cache IP : {e}")
+            logger.warning(f"⚠️ Erreur synchro cache IP : {e}")
 
 async def periodic_cleanup_task():
     """Purge les vieux rate-limits toutes les heures sans bloquer les requêtes."""
@@ -118,11 +244,11 @@ async def periodic_cleanup_task():
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM security_rate_limits WHERE attempted_at < :old"), {"old": now - timedelta(hours=24)})
                 conn.execute(text("DELETE FROM login_failed_attempts WHERE attempted_at < :old"), {"old": now - timedelta(hours=2)})
-            print("🧹 [MAINTENANCE] Tables de sécurité nettoyées.")
+            logger.info("🧹 [MAINTENANCE] Tables de sécurité nettoyées.")
         except asyncio.CancelledError:
             break
         except Exception as e:
-            print(f"⚠️ Erreur tâche périodique : {e}")
+            logger.warning(f"⚠️ Erreur tâche périodique : {e}")
 
 # 5. Lifespan (Démarrage / Arrêt)
 @asynccontextmanager
@@ -155,6 +281,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(Exception)
+async def erreur_non_geree(request: Request, exc: Exception):
+    reference = uuid.uuid4().hex[:8]
+    logger.error(
+        f"Erreur non gérée [ref {reference}] {request.method} {chemin_journalisable(request.url.path)}",
+        exc_info=exc,
+    )
+    reponse = JSONResponse(status_code=500, content={"detail": f"Erreur interne. Référence : {reference}", "reference": reference})
+    origine = request.headers.get("origin")
+    if origine in origins:
+        reponse.headers["Access-Control-Allow-Origin"] = origine
+        reponse.headers["Access-Control-Allow-Credentials"] = "true"
+        reponse.headers["Vary"] = "Origin"
+    return reponse
+
 
 @app.get("/")
 def read_root():
@@ -313,12 +455,12 @@ def refresh_banned_ips_cache(force: bool = False):
                 BANNED_IPS_CACHE = {row[0]: row[1] for row in res}
             LAST_BANNED_SYNC = now_ts
         except Exception as e:
-            print(f"⚠️ Erreur synchro cache IP : {e}")
+            logger.warning(f"⚠️ Erreur synchro cache IP : {e}")
 
 try:
     init_security_tables()
 except Exception as e:
-    print(f"⚠️ Initialisation table sécurité : {e}")
+    logger.warning(f"⚠️ Initialisation table sécurité : {e}")
 
 
 def ban_ip(ip: str, reason: str, duration_minutes: int):
@@ -335,7 +477,7 @@ def ban_ip(ip: str, reason: str, duration_minutes: int):
             SET reason = EXCLUDED.reason, banned_until = EXCLUDED.banned_until
         """), {"ip": ip, "reason": reason, "until": banned_until})
     
-    print(f"🚫 [FIREWALL] IP BANNIE : {ip} | Raison : {reason} | Jusqu'à : {banned_until}")
+    logger.info(f"🚫 [FIREWALL] IP BANNIE : {ip} | Raison : {reason} | Jusqu'à : {banned_until}")
 
 
 MAX_LOGIN_ATTEMPTS = 5  # 5 tentatives autorisées en 10 minutes
@@ -461,7 +603,7 @@ def get_transactions(username: Optional[str] = None, current_user: str = Depends
                     record['date'] = record['date'].strftime('%Y-%m-%d')
             return records
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur Base de données: {str(e)}")
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur Base de données"))
 
     
 class Transaction(BaseModel):
@@ -503,8 +645,8 @@ def add_transaction(t: Transaction, current_user: str = Depends(get_current_user
                 return {**t.dict(), "id": row[0], "status": "success"}
             return {**t.dict(), "status": "ignored", "message": "Doublon détecté"}
     except Exception as e:
-        print(f"Erreur SQL: {e}")
-        return {"status": "error", "message": str(e)}
+        logger.error(f"Erreur SQL: {e}")
+        return {"status": "error", "message": detail_erreur(e)}
 
 
 @app.put("/transactions/{t_id}")
@@ -553,8 +695,8 @@ def delete_transactions(ids: List[int], current_user: str = Depends(get_current_
             })
         return {"status": "success", "deleted_count": result.rowcount}
     except Exception as e:
-        print(f"Erreur SQL suppression: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Erreur SQL suppression: {e}")
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
 
 
 @app.get("/transactions/stats/count/{username}")
@@ -571,7 +713,7 @@ def get_user_transactions_count(username: str, current_user: str = Depends(get_c
                 "user_transactions_count": result
             }
     except Exception as e:
-        print(f"Erreur lors du calcul de la stat pour {current_user}: {e}")
+        logger.error(f"Erreur lors du calcul de la stat pour {current_user}: {e}")
         raise HTTPException(status_code=500, detail="Erreur lors du calcul de la statistique.")
 
 
@@ -731,7 +873,7 @@ def update_import_mode(username: str, req: ImportModeRequest, current_user: str 
                 raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
         return {"status": "success", "import_mode": req.import_mode}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
 
 class ResetRequest(BaseModel):
     email: EmailStr
@@ -817,7 +959,7 @@ async def forgot_password(req: ResetRequest):
             "html": html_content
         })
     except Exception as e:
-        print(f"ERREUR RESEND : {str(e)}")
+        logger.error(f"Envoi de l'e-mail de récupération impossible : {type(e).__name__}")
     
     return response_msg
 
@@ -1052,7 +1194,7 @@ def assurer_colonnes_theme():
 try:
     assurer_colonnes_theme()
 except Exception as e:
-    print(f"⚠️ Ajout des colonnes du thème : {e}")
+    logger.warning(f"⚠️ Ajout des colonnes du thème : {e}")
 
 
 def verifier_proprietaire_theme(nom: str, current_user: str):
@@ -1149,11 +1291,10 @@ def get_user_theme(username: str, current_user: str = Depends(get_current_user))
             rows = result.mappings().all()
             
             data = {row['element']: row['couleur'] for row in rows}
-            print(f"✅ Succès pour {username}: {data}") # Apparaîtra dans ton terminal
             return data
             
     except Exception as e:
-        print(f"❌ ERREUR SQL : {e}") # L'erreur exacte s'affichera ici !
+        logger.error(f"❌ ERREUR SQL : {e}") # L'erreur exacte s'affichera ici !
         # On renvoie un dico vide pour éviter l'erreur 500 et le blocage CORS
         return {}
     
@@ -1232,7 +1373,7 @@ def assurer_colonnes_projets():
 try:
     assurer_colonnes_projets()
 except Exception as e:
-    print(f"⚠️ Ajout des colonnes de projets : {e}")
+    logger.warning(f"⚠️ Ajout des colonnes de projets : {e}")
 
 
 def verifier_nom_projet_libre(conn, nom: str, profil: str, current_user: str, sauf_id: Optional[int] = None):
@@ -1944,13 +2085,13 @@ async def import_file(
                 })
 
             except Exception as e:
-                print(f"Erreur parsing ligne : {e}")
+                logger.warning(f"Ligne d'import ignorée : {type(e).__name__}")
                 continue
 
         return transactions_pretes
 
     except Exception as e:
-        print(f"CRASH GÉNÉRAL IMPORT: {e}")
+        logger.error(f"CRASH GÉNÉRAL IMPORT: {e}")
         return []
     
 
@@ -2000,8 +2141,8 @@ def add_transactions_batch(transactions: List[Transaction], current_user: str = 
             "warning": has_ignored
         }
     except Exception as e:
-        print(f"❌ Erreur bulk insert : {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur d'insertion par lot : {str(e)}")
+        logger.error(f"❌ Erreur bulk insert : {e}")
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur d'insertion par lot"))
 
 
 @app.put("/config-categories/update")
@@ -2085,7 +2226,7 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_use
                 })
             return previsions
     except Exception as e:
-        print(f"Erreur SQL Previsions: {e}")
+        logger.error(f"Erreur SQL Previsions: {e}")
         return []
     
 
@@ -2145,7 +2286,7 @@ def add_prevision(p: PrevisionIn, current_user: str = Depends(get_current_user))
             conn.commit()
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": detail_erreur(e)}
     
 
 
@@ -2197,8 +2338,8 @@ def update_prevision(prev_id: int, data: dict, current_user: str = Depends(get_c
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"Erreur update_prevision: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Erreur update_prevision: {str(e)}")
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
     
     
 @app.delete("/previsions/{prev_id}")
@@ -2211,7 +2352,7 @@ def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)
             conn.commit()
         return {"status": "success"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": detail_erreur(e)}
     
 
 
@@ -2235,7 +2376,7 @@ def get_allocations(profil_id: str, current_user: str = Depends(get_current_user
             res = conn.execute(query, {"p": str(profil_id), "u": current_user}).mappings().all()
             return [dict(r) for r in res]
     except Exception as e:
-        print(f"Erreur SQL Get Allocations: {e}")
+        logger.error(f"Erreur SQL Get Allocations: {e}")
         return []
 
 # --- ENREGISTRER UNE NOUVELLE ALLOCATION ---
@@ -2651,10 +2792,8 @@ def download_pdf(username: str, group_name: str, sujet: str = None, current_user
         return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
     except Exception as e:
-        print("====== ERREUR CRASH GENERATION PDF ======")
-        traceback.print_exc()
-        print("=========================================")
-        raise HTTPException(status_code=500, detail=f"Erreur interne de PDF: {str(e)}")
+        logger.exception("Erreur de génération du PDF")
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur interne de PDF"))
 
 
 
@@ -2930,10 +3069,8 @@ def download_shared_pdf(token: str, sujet: str = None):
         return Response(content=pdf_bytes, media_type="application/pdf", headers=headers)
 
     except Exception as e:
-        print("====== ERREUR CRASH GENERATION PDF SHARED ======")
-        traceback.print_exc()
-        print("================================================")
-        raise HTTPException(status_code=500, detail=f"Erreur interne de PDF: {str(e)}")
+        logger.exception("Erreur de génération du PDF partagé")
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur interne de PDF"))
 
 
 
@@ -2962,7 +3099,7 @@ def delete_transaction(transaction_id: int, current_user: str = Depends(get_curr
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
 
 @app.put("/update-transaction")
 def update_transaction(t: UpdateTransactionRequest, current_user: str = Depends(get_current_user)):
@@ -2984,7 +3121,7 @@ def update_transaction(t: UpdateTransactionRequest, current_user: str = Depends(
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
     
 @app.put("/update-member-emoji")
 def update_member_emoji(data: dict, current_user: str = Depends(get_current_user)):
@@ -3155,7 +3292,7 @@ def delete_custom_stat(stat_id: int, current_user: str = Depends(get_current_use
     except HTTPException as he:
         raise he
     except Exception as e:
-         raise HTTPException(status_code=500, detail=str(e))
+         raise HTTPException(status_code=500, detail=detail_erreur(e))
 
 # --- SCHÉMA DE MISE À JOUR ---
 class CustomStatUpdate(BaseModel):
@@ -3195,7 +3332,7 @@ def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str =
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
 
 
 
@@ -3364,7 +3501,7 @@ def insights_chat(req: ChatRequest, request: Request, current_user: str = Depend
 
     except Exception as e:
         error_str = str(e)
-        print(f"❌ CRASH ROUTE AI : {error_str}")
+        logger.error(f"❌ CRASH ROUTE AI : {error_str}")
         
         # 🟢 Fallback propre respectant le contrat d'interface
         if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
@@ -3451,7 +3588,7 @@ def get_savings_indicator(data: dict, current_user: str = Depends(get_current_us
         return json.loads(response.text)
 
     except Exception as e:
-        print(f"Erreur analyse des économies : {e}")
+        logger.error(f"Erreur analyse des économies : {e}")
         raise HTTPException(status_code=500, detail="L'analyse des économies a échoué.")
 
 
@@ -3546,7 +3683,7 @@ def delete_simulation_line(line_id: int, current_user: str = Depends(get_current
     except HTTPException as he:
         raise he
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=detail_erreur(e))
     
 @app.delete("/api/simulation-demenagement/{username}/{scenario_name}")
 def delete_scenario(username: str, scenario_name: str, current_user: str = Depends(get_current_user)):
@@ -3745,12 +3882,12 @@ def get_connect_url(
                     if temp_code:
                         webview_url += f"&code={temp_code}"
             except Exception as inner_err:
-                print(f"⚠️ Avertissement Powens token code: {inner_err}")
+                logger.warning(f"⚠️ Avertissement Powens token code: {inner_err}")
 
         return {"url": webview_url}
 
     except Exception as e:
-        print(f"Erreur génération de l'URL Powens : {e}")
+        logger.error(f"Erreur génération de l'URL Powens : {e}")
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du lien bancaire.")
 
 
@@ -3782,7 +3919,7 @@ def powens_callback(req: PowensCallback, current_user: str = Depends(get_current
 
     res = requests.post(f"{domain}/auth/token/access", json=payload, headers={"Content-Type": "application/json"}, timeout=10)
     if res.status_code != 200:
-        print(f"❌ ERREUR POWENS {res.status_code} à l'échange du code")
+        logger.error(f"❌ ERREUR POWENS {res.status_code} à l'échange du code")
         raise HTTPException(status_code=502, detail="Powens a refusé la connexion. Relance la connexion bancaire.")
 
     data = res.json()
@@ -3824,7 +3961,7 @@ def get_powens_accounts(current_user: str = Depends(get_current_user)):
 
     if res.status_code != 200:
         # Pas de 401 ici : il déconnecterait l'utilisateur de Kleea pour un jeton bancaire expiré.
-        print(f"❌ ERREUR POWENS {res.status_code} à la lecture des comptes")
+        logger.error(f"❌ ERREUR POWENS {res.status_code} à la lecture des comptes")
         raise HTTPException(status_code=502, detail="Impossible de récupérer les comptes bancaires.")
 
     accounts = res.json().get("accounts", [])
@@ -3858,7 +3995,7 @@ def get_powens_transactions(user_token: str):
 
     res = requests.get(url, headers=headers, params=params, timeout=15)
     if res.status_code != 200:
-        print(f"❌ Erreur Powens ({res.status_code}) : {res.text}")
+        logger.error(f"Erreur Powens {res.status_code} à la lecture des transactions")
         raise Exception(f"Erreur API Powens ({res.status_code}): {res.text}")
 
     data = res.json()
@@ -3973,7 +4110,7 @@ def get_mots_cles_rules(utilisateur: str):
             for cat, keys in temp_rules.items():
                 mots_cles_rules.append({"categorie": cat, "keywords": keys})
     except Exception as e:
-        print(f"Erreur chargement mots_cles: {e}")
+        logger.error(f"Erreur chargement mots_cles: {e}")
     
     return mots_cles_rules
 
@@ -4086,13 +4223,13 @@ def import_powens(
 
     except Exception as e:
         error_msg = str(e)
-        print(f"❌ Erreur Import Powens : {error_msg}")
+        logger.error(f"❌ Erreur Import Powens : {error_msg}")
         if "unauthorized" in error_msg.lower() or "401" in error_msg:
             raise HTTPException(
                 status_code=401, 
                 detail="Jeton Powens expiré. Veuillez reconnecter votre banque."
             )
-        raise HTTPException(status_code=500, detail=error_msg)
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur d'import Powens"))
 
 # 🟢 VERSION SÉCURISÉE : IDENTIFICATION STRICTE PAR ID_CONNECTOR (NE MÉLANGE JAMAIS 2 BANQUES)
 @app.get("/powens/connections-and-accounts")
@@ -4290,7 +4427,7 @@ def propagate_previsions_year(
                 except Exception as e_table:
                     raise HTTPException(
                         status_code=500, 
-                        detail=f"Table de prévisions introuvable : {str(e_table)}"
+                        detail=detail_erreur(e_table, "Table de prévisions introuvable")
                     )
 
         column_name = "nom"
@@ -4401,8 +4538,8 @@ def propagate_previsions_year(
     except HTTPException as he:
         raise he
     except Exception as e:
-        print(f"❌ Erreur propagation annuelle : {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur interne de propagation : {str(e)}")
+        logger.error(f"❌ Erreur propagation annuelle : {e}")
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur interne de propagation"))
 
 
 
@@ -4552,16 +4689,15 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers, timeout=15)
         if res_acc.status_code != 200:
             # Sans ce signalement, un accès expiré ressemblerait à « rien à importer »
-            print(f"❌ [CHECK-SYNC] Erreur API Powens : {res_acc.status_code}")
+            logger.error(f"❌ [CHECK-SYNC] Erreur API Powens : {res_acc.status_code}")
             return {"has_pending": False, "count": 0, "accounts": {}, "error": f"Erreur API Powens ({res_acc.status_code})"}
         powens_accounts = res_acc.json().get("accounts", [])
         powens_txs = get_powens_transactions(user_token)
     except Exception as e:
-        print(f"❌ [CHECK-SYNC] Erreur API Powens: {e}")
-        return {"has_pending": False, "count": 0, "accounts": {}, "error": str(e)}
+        logger.error(f"❌ [CHECK-SYNC] Erreur API Powens: {e}")
+        return {"has_pending": False, "count": 0, "accounts": {}, "error": "Powens indisponible"}
 
     acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
-    print(f"🔍 [CHECK-SYNC] Mapping des comptes : {acc_id_to_kleea}")
 
     if not acc_id_to_kleea:
         return {"has_pending": False, "count": 0, "accounts": {}}
@@ -4667,7 +4803,7 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
             pending_by_account[local_acc]["count"] += 1
             pending_by_account[local_acc]["amount"] = round(pending_by_account[local_acc]["amount"] + abs(p_amount), 2)
 
-    print(f"📊 [CHECK-SYNC] En attente: {total_pending} | Par compte: {pending_by_account}")
+    logger.debug(f"[CHECK-SYNC] En attente : {total_pending}")
 
     return {
         "has_pending": total_pending > 0,
@@ -4686,9 +4822,9 @@ if IBAN_KEY:
     try:
         cipher = Fernet(IBAN_KEY.strip().encode())
     except Exception as e:
-        print(f"⚠️ Clé IBAN_ENCRYPTION_KEY invalide : {e}")
+        logger.warning(f"⚠️ Clé IBAN_ENCRYPTION_KEY invalide : {e}")
 else:
-    print("ℹ️ Aucune clé IBAN_ENCRYPTION_KEY trouvée dans le .env. Le chiffrement est inactif.")
+    logger.info("ℹ️ Aucune clé IBAN_ENCRYPTION_KEY trouvée dans le .env. Le chiffrement est inactif.")
 
 def encrypt_iban(val: str) -> str:
     """Chiffre l'IBAN s'il commence par 'FR' ou ressemble à un IBAN."""
@@ -4863,7 +4999,7 @@ def exec_sync_user_transactions(username: str):
         powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
         powens_raw = get_powens_transactions(user_token)
     except Exception as err:
-        raise HTTPException(status_code=500, detail=f"Erreur API Powens : {str(err)}")
+        raise HTTPException(status_code=500, detail=detail_erreur(err, "Erreur API Powens"))
 
     acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
     if not acc_id_to_kleea:
@@ -4994,7 +5130,7 @@ def exec_sync_user_transactions(username: str):
             })
 
         except Exception as parse_err:
-            print(f"⚠️ Erreur analyse ligne brute : {parse_err}")
+            logger.warning(f"Ligne Powens ignorée : {type(parse_err).__name__}")
             continue
 
     # =========================================================================
@@ -5045,7 +5181,7 @@ def exec_sync_user_transactions(username: str):
                 # On ajoute aussi cette ligne dans existing_db_list pour éviter les doublons au sein du même lot
                 existing_db_list.append(tx_check_dict)
             
-    print(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
+    logger.info(f"✅ Synchronisation terminée: {success_count} transaction(s) importée(s).")
     return {"status": "success", "added": success_count}
 
 
@@ -5132,7 +5268,7 @@ def exec_recalculate_balances(user_clean: str):
         res_acc = requests.get(f"{domain}/users/me/accounts", headers=headers, timeout=10)
         powens_accounts = res_acc.json().get("accounts", []) if res_acc.status_code == 200 else []
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur Powens: {str(e)}")
+        raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur Powens"))
 
     # 4. Association infaillible Powens <-> Kleea
     acc_id_to_kleea = build_powens_account_id_to_kleea_map(powens_accounts, decrypted_config_rows)
@@ -5218,7 +5354,7 @@ def sync_all_users_background(
                 exec_recalculate_balances(u[0])
                 synced_users.append(u[0])
             except Exception as e:
-                print(f"❌ Échec synchro cron pour {u[0]}: {str(e)}")
+                logger.error(f"❌ Échec synchro cron pour {u[0]}: {str(e)}")
                 
     return {"status": "success", "synchronized_users": synced_users}
 
@@ -5308,9 +5444,9 @@ def disconnect_powens(username: str, current_user: str = Depends(get_current_use
                 
             headers = {"Authorization": f"Bearer {user_token}"}
             del_res = requests.delete(f"{domain}/users/me", headers=headers)
-            print(f"🗑️ [POWENS PURGE USER] Réponse Powens: {del_res.status_code}")
+            logger.info(f"🗑️ [POWENS PURGE USER] Réponse Powens: {del_res.status_code}")
         except Exception as e:
-            print(f"⚠️ Erreur lors de la suppression chez Powens: {e}")
+            logger.warning(f"⚠️ Erreur lors de la suppression chez Powens: {e}")
 
     # 2. Nettoyage de la base de données locale Kleea
     with engine.connect() as conn:
@@ -5410,7 +5546,7 @@ def reconcile_and_recalculate_all(username: str, current_user: str = Depends(get
     try:
         exec_recalculate_balances(user_clean)
     except Exception as e:
-        print(f"⚠️ Recalcul des soldes : {e}")
+        logger.warning(f"⚠️ Recalcul des soldes : {e}")
 
     return {
         "status": "success",
@@ -5437,7 +5573,7 @@ async def declencher_actualisation_bancaire(user_token: str) -> dict:
             res_conn = await client.get(f"{domain}/users/me/connections", headers=headers)
             connections = res_conn.json().get("connections", []) if res_conn.status_code == 200 else []
         except Exception as e:
-            print(f"❌ Powens injoignable à la lecture des connexions : {type(e).__name__}")
+            logger.error(f"❌ Powens injoignable à la lecture des connexions : {type(e).__name__}")
             raise HTTPException(status_code=502, detail="Impossible de contacter Powens.")
 
         if not connections:
@@ -5453,7 +5589,7 @@ async def declencher_actualisation_bancaire(user_token: str) -> dict:
                 )
                 return {"id": conn_id, "status": r.status_code}
             except Exception as e:
-                print(f"❌ Actualisation Powens de la connexion {conn_id} : {type(e).__name__}")
+                logger.error(f"❌ Actualisation Powens de la connexion {conn_id} : {type(e).__name__}")
                 return {"id": conn_id, "status": "error"}
 
         active_connection_ids = [
@@ -6398,7 +6534,7 @@ async def parse_ad_text(req: ParseTextRequest, current_user: str = Depends(get_c
         data = json.loads(response.text)
         return {"success": True, **data}
     except Exception as e:
-        print(f"⚠️ Erreur Gemini parse-text: {e}")
+        logger.warning(f"Analyse de texte par Gemini impossible : {type(e).__name__}")
         # Fallback par Regex en cas de coupure de quota IA
         loyer = 0.0
         m_p = re.search(r'(\d[\d\s\u00a0]{2,6})\s*€', raw_text)
@@ -6709,7 +6845,8 @@ STREAMDECK_MOIS = [
     "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet",
     "aout", "septembre", "octobre", "novembre", "decembre",
 ]
-STREAMDECK_MOTS_IGNORES = {"CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"}
+STREAMDECK_MOTS_IGNORES = {"CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE", "DE", "COMPTE", "BANQUE", "DU"}
+STREAMDECK_TYPES_LIVRETS = ("LIVRET A", "LEP", "LDDS", "PEL", "PEA", "LIVRET")
 
 
 def assurer_table_streamdeck(conn):
@@ -6781,23 +6918,41 @@ def _sd_annee(transaction: dict) -> int:
         return 0
 
 
+def _sd_est_transfert(nom: str, categorie: str) -> bool:
+    """Mêmes règles que `estTransfertInterne` (frontend/src/utils/finance.js)."""
+    texte = f"{nom or ''} {categorie or ''}".upper()
+    return (
+        "🔄" in texte
+        or re.search(r"(?<!\w)VERS(?!\w)", texte) is not None
+        or "TRANSFERT" in texte
+        or str(categorie or "").strip().upper().startswith("VIREMENT :")
+    )
+
+
 def _sd_compte_cible(texte: str, source: str, groupes: dict) -> Optional[str]:
-    """Trouve le compte destinataire d'un virement interne (même groupe, nom cité dans le libellé)."""
-    groupe_source = groupes.get(source)
-    if not groupe_source:
+    """Mêmes règles que `trouverCompteCible` (frontend/src/utils/finance.js)."""
+    if not source:
         return None
-    for nom, groupe in groupes.items():
-        if nom == source or groupe != groupe_source:
-            continue
-        mots = [m for m in nom.split(" ") if len(m) >= 3 and m not in STREAMDECK_MOTS_IGNORES]
+    groupe_source = groupes.get(source)
+    candidats = [
+        nom for nom, groupe in groupes.items()
+        if nom != source and not (groupe_source and groupe and groupe != groupe_source)
+    ]
+    for nom in candidats:
+        mots = [m for m in re.split(r"[\s_-]+", nom) if len(m) >= 3 and m not in STREAMDECK_MOTS_IGNORES]
         if nom in texte or any(m in texte for m in mots):
             return nom
+    for type_livret in STREAMDECK_TYPES_LIVRETS:
+        if type_livret in texte:
+            for nom in candidats:
+                if type_livret in nom:
+                    return nom
     return None
 
 
 def calculer_vues_streamdeck(comptes: list, transactions: list, aujourd_hui: date) -> dict:
-    """Reprend le calcul du dashboard (`soldesParCompte` et `statsFiltrées` dans login.jsx)
-    pour que les touches affichent exactement les mêmes chiffres que l'application."""
+    """Reprend les règles de frontend/src/utils/finance.js pour que les touches affichent les mêmes
+    chiffres que l'application. backend/tests/fixtures/calculs_finances.json vérifie cet accord."""
     annee = aujourd_hui.year
     indice_mois = aujourd_hui.month - 1
     mois_courant = STREAMDECK_MOIS[indice_mois]
@@ -6824,24 +6979,18 @@ def calculer_vues_streamdeck(comptes: list, transactions: list, aujourd_hui: dat
         source = _sd_nom_compte(t.get("compte"))
         categorie = str(t.get("categorie") or "")
         nom = str(t.get("nom") or "")
-        categorie_maj, nom_maj = categorie.upper(), nom.upper()
+        est_transfert = _sd_est_transfert(nom, categorie)
 
         if source in soldes:
             soldes[source] += montant
 
-        if "🔄" in categorie_maj or "VERS" in categorie_maj or "VERS" in nom_maj:
-            cible = _sd_compte_cible(f"{nom_maj} {categorie_maj}", source, groupes)
+        if est_transfert:
+            cible = _sd_compte_cible(f"{nom} {categorie}".upper(), source, groupes)
             if cible:
                 miroirs = montants_index.get((annee_t, mois_t, cible), [])
                 if not any(abs(m + montant) < 0.1 for m in miroirs):
                     soldes[cible] -= montant
 
-        est_transfert = (
-            "vers" in categorie.lower()
-            or "transfert" in categorie.lower()
-            or "🔄" in categorie
-            or "🔄" in nom
-        )
         if source in soldes and annee_t == annee and mois_t == mois_courant and not est_transfert:
             if montant > 0:
                 revenus[source] += montant
@@ -6955,7 +7104,7 @@ def importer_si_mode_auto(utilisateur: str) -> bool:
         exec_recalculate_balances(utilisateur)
         return True
     except Exception as e:
-        print(f"❌ Import automatique après actualisation Stream Deck : {type(e).__name__}")
+        logger.error(f"❌ Import automatique après actualisation Stream Deck : {type(e).__name__}")
         return False
 
 

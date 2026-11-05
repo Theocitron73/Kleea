@@ -16,6 +16,7 @@ import {
 import SplitTransactionModal from '../components/SplitTransactionModal';
 import { toast } from 'sonner';
 import api from '../axios';
+import { estTransfertInterne } from '../utils/finance';
 
 // Badge date compact pour le tableau desktop
 const CustomBadgeDate = forwardRef(({ t }, ref) => {
@@ -823,13 +824,7 @@ export default function GererView(props) {
                           if (!t) return null;
 
                           const isSelected = selectedIds.includes(t.id);
-                          const isTransfertInterne = Boolean(
-                            t.categorie && (
-                              t.categorie.includes(" vers ") || 
-                              t.categorie.startsWith("Virement :") || 
-                              t.categorie.includes("🔄")
-                            )
-                          );
+                          const isTransfertInterne = estTransfertInterne(t.nom, t.categorie);
                           const isRevenu = parseFloat(t.montant) > 0;
 
                           return (
@@ -1401,13 +1396,7 @@ export default function GererView(props) {
                     const t = transactionsFiltrees[virtualRow.index];
                     if (!t) return null;
 
-                    const isTransfertInterne = Boolean(
-                      t.categorie && (
-                        t.categorie.includes(" vers ") || 
-                        t.categorie.startsWith("Virement :") || 
-                        t.categorie.includes("🔄")
-                      )
-                    );
+                    const isTransfertInterne = estTransfertInterne(t.nom, t.categorie);
                     const isRevenu = parseFloat(t.montant) > 0;
                     const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
 

@@ -7,13 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/utils/epargneProjet.test.js",
+    "test": "node --test src/utils/epargneProjet.test.js src/utils/finance.test.js src/utils/suiviErreurs.test.js",
     "preview": "vite preview"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
+    "@sentry/react": "^11.10.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-virtual": "^3.14.13",
     "axios": "^1.13.6",

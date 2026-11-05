@@ -281,7 +281,7 @@ export const getCategoryIconInfo = (categoryName) => {
     rule = { icon: Send, iconName: 'Send', hex: '#fb7185' };
   } else if (lower.includes('compte commun')) {
     rule = { icon: Users2, iconName: 'Users2', hex: '#818cf8' };
-  } else if (lower.includes('vers') || lower.includes('transfert interne')) {
+  } else if (/(^|\s)vers(\s|$)/.test(lower) || lower.includes('transfert interne')) {
     rule = { icon: ArrowRightLeft, iconName: 'ArrowRightLeft', hex: '#a78bfa' };
   } else if (lower.includes('chômage') || lower.includes('chomage')) {
     rule = { icon: HandCoins, iconName: 'HandCoins', hex: '#fbbf24' };

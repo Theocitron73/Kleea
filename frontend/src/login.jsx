@@ -38,6 +38,16 @@ import AuthView from './views/AuthView';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
 import { themeBackground } from './utils/gradient';
+import {
+  anneeTransaction,
+  appliquerMouvement,
+  calculerSoldes,
+  creerLecteurMouvements,
+  estTransfertInterne,
+  nettoyerMois,
+  totauxRevenusDepenses,
+  trouverCompteCible,
+} from './utils/finance';
 import ImportView from './views/ImportView';
 import GererView from './views/GererView';
 import PrevisionsView, { PrevisionsChartView } from './views/PrevisionsView';
@@ -1911,14 +1921,8 @@ const comptesDuProfil = useMemo(() => {
 
 
 
-const cleanMonth = (m) => {
-  if (!m) return "";
-  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-};
-
-const getTxYear = (t) => {
-  return (t?.annee || (t?.date ? new Date(t.date).getFullYear() : ""))?.toString().trim();
-};
+const cleanMonth = nettoyerMois;
+const getTxYear = anneeTransaction;
 
 const financeData = useMemo(() => {
   // 1. Préparation des constantes de filtrage
@@ -1947,11 +1951,7 @@ const financeData = useMemo(() => {
   }
 
   // 3. Fonction de filtrage réutilisable (Source, Cible, Transferts)
-  const estUnTransfert = (t) => {
-    const cat = (t.categorie || "").toLowerCase();
-    const lib = (t.nom || "").toLowerCase();
-    return cat.includes('vers') || cat.includes('transfert') || lib.includes('🔄');
-  };
+  const estUnTransfert = (t) => estTransfertInterne(t.nom, t.categorie);
 
 
   const filtrerParPeriode = (mois, annee) => {
@@ -1961,7 +1961,7 @@ const financeData = useMemo(() => {
       
       const matchSource = filters.profil === 'Tous' || nomsComptesProfilMaj.includes(nomCompteTransac);
       const matchCible = filters.profil !== 'Tous' && 
-                        categorie.includes("vers") && 
+                        estTransfertInterne(t.nom, t.categorie) && 
                         nomsComptesProfilMaj.some(nomC => categorie.toUpperCase().includes(nomC));
 
       // 🟢 Normalisation des dates et mois
@@ -2016,189 +2016,11 @@ const soldesParCompte = useMemo(() => {
   const anneeFiltre = parseInt(filters.annee) || new Date().getFullYear();
   const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
 
-  // 1. Initialiser la configuration des comptes
-  const configMap = {};
-  comptes.forEach(c => {
-    configMap[c.compte.trim().toUpperCase()] = {
-      soldeInitial: parseFloat(c.solde) || 0,
-      groupe: c.groupe?.trim().toUpperCase(),
-      taux: parseFloat(c.taux) || 0,
-      original: c
-    };
-  });
-
-  // Soldes au fil de l'eau
-  let soldesCourants = {};
-  Object.keys(configMap).forEach(nom => {
-    soldesCourants[nom] = configMap[nom].soldeInitial;
-  });
-
-  // Mouvements par quinzaine (0 à 23) pour l'année sélectionnée
-  const mouvementsParQuinzaine = {};
-  Object.keys(configMap).forEach(nom => {
-    mouvementsParQuinzaine[nom] = Array(24).fill(0);
-  });
-
-  // 2. Trier les transactions par ordre chronologique
-  const transactionsTriees = [...(toutesLesTransactions || [])].sort((a, b) => {
-    const yearA = parseInt(getTxYear(a) || 0);
-    const yearB = parseInt(getTxYear(b) || 0);
-    if (yearA !== yearB) return yearA - yearB;
-    const idxA = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(a.mois));
-    const idxB = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(b.mois));
-    if (idxA !== idxB) return idxA - idxB;
-    return 0;
-  });
-
-  // Fonction helper pour détecter le compte destinataire d'un virement
-  const identifierCompteCible = (texte, compteSource) => {
-    const groupeSource = configMap[compteSource]?.groupe;
-    if (!groupeSource) return null;
-
-    for (const [nomDest, cfgDest] of Object.entries(configMap)) {
-      if (nomDest === compteSource) continue;
-      if (cfgDest.groupe !== groupeSource) continue;
-
-      const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
-      const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
-
-      const matchNomComplet = texte.includes(nomDest);
-      const matchMotsCles = motsCompte.length > 0 && motsCompte.some(m => texte.includes(m));
-
-      if (matchNomComplet || matchMotsCles) {
-        return nomDest;
-      }
-    }
-    return null;
-  };
-
-  // 3. Parcourir toutes les transactions
-  transactionsTriees.forEach(t => {
-    const anneeT = parseInt(getTxYear(t) || 0);
-    const moisIndexT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
-    
-    // Ignorer ce qui est dans le futur par rapport au filtre sélectionné
-    if (anneeT > anneeFiltre || (anneeT === anneeFiltre && moisIndexT > indexMoisSelectionne)) {
-      return;
-    }
-
-    const montant = parseFloat(t.montant) || 0;
-    const compteSrc = (t.compte || "").trim().toUpperCase();
-    const cat = (t.categorie || "").toUpperCase();
-    const nomTrans = (t.nom || "").toUpperCase();
-    const texteIntegral = `${nomTrans} ${cat}`;
-
-    // A. Mise à jour du compte émetteur
-    if (soldesCourants.hasOwnProperty(compteSrc)) {
-      soldesCourants[compteSrc] += montant;
-    }
-
-    // B. Détection et réconciliation du virement interne vers le compte destinataire (ex: LEP)
-    let compteCibleVirement = null;
-    if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
-      compteCibleVirement = identifierCompteCible(texteIntegral, compteSrc);
-
-      if (compteCibleVirement) {
-        const dejaEnBase = toutesLesTransactions.some(t2 => 
-          getTxYear(t2) === getTxYear(t) && 
-          cleanMonth(t2.mois) === cleanMonth(t.mois) && 
-          t2.compte?.trim().toUpperCase() === compteCibleVirement && 
-          Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
-        );
-
-        // Si l'écriture miroir n'est pas en base, on crédite virtuellement le compte cible
-        if (!dejaEnBase) {
-          soldesCourants[compteCibleVirement] -= montant; // Si montant = -2000, alors -(-2000) = +2000
-        }
-      }
-    }
-
-    // C. Enregistrement des dates de valeur pour la règle des quinzaines (année en cours uniquement)
-    if (anneeT === anneeFiltre) {
-      // Extraire le jour exact
-      let jourT = 15;
-      if (t.date) {
-        const dateSeule = t.date.split('T')[0].split(' ')[0];
-        const parties = dateSeule.split(dateSeule.includes('-') ? '-' : '/');
-        if (parties.length >= 3) {
-          jourT = parties[0].length === 4 ? parseInt(parties[2]) : parseInt(parties[0]);
-        }
-      }
-
-      // 1. Calcul pour le compte source (si rémunéré)
-      if (configMap[compteSrc] && configMap[compteSrc].taux > 0) {
-        const qEffetSrc = montant > 0
-          ? (jourT <= 15 ? moisIndexT * 2 + 1 : (moisIndexT + 1) * 2)
-          : (jourT <= 15 ? moisIndexT * 2 : moisIndexT * 2 + 1);
-
-        if (qEffetSrc < 24) {
-          mouvementsParQuinzaine[compteSrc][qEffetSrc] += montant;
-        }
-      }
-
-      // 2. Calcul pour le compte cible du virement (ex: le LEP qui reçoit les 2000€)
-      if (compteCibleVirement && configMap[compteCibleVirement] && configMap[compteCibleVirement].taux > 0) {
-        const montantRecu = -montant; // Dépôt positif sur le livret
-        const qEffetDest = montantRecu > 0
-          ? (jourT <= 15 ? moisIndexT * 2 + 1 : (moisIndexT + 1) * 2)
-          : (jourT <= 15 ? moisIndexT * 2 : moisIndexT * 2 + 1);
-
-        if (qEffetDest < 24) {
-          mouvementsParQuinzaine[compteCibleVirement][qEffetDest] += montantRecu;
-        }
-      }
-    }
-  });
-
-  // 4. Calcul du solde de départ au 1er janvier de l'année sélectionnée
-  // (Prend en compte le solde initial + tous les mouvements des années passées)
-  const soldeAu1erJanvier = {};
-  Object.keys(configMap).forEach(nom => {
-    soldeAu1erJanvier[nom] = configMap[nom].soldeInitial;
-  });
-
-  transactionsTriees.forEach(t => {
-    const anneeT = parseInt(getTxYear(t) || 0);
-    if (anneeT < anneeFiltre) {
-      const montant = parseFloat(t.montant) || 0;
-      const compteSrc = (t.compte || "").trim().toUpperCase();
-      if (soldeAu1erJanvier.hasOwnProperty(compteSrc)) {
-        soldeAu1erJanvier[compteSrc] += montant;
-      }
-      const cat = (t.categorie || "").toUpperCase();
-      const nomTrans = (t.nom || "").toUpperCase();
-      if (cat.includes("🔄") || cat.includes("VERS") || nomTrans.includes("VERS")) {
-        const cible = identifierCompteCible(`${nomTrans} ${cat}`, compteSrc);
-        if (cible && soldeAu1erJanvier.hasOwnProperty(cible)) {
-          soldeAu1erJanvier[cible] -= montant;
-        }
-      }
-    }
-  });
-
-  // 5. Calcul annuel des 24 quinzaines pour chaque livret rémunéré
-  const interetsEstimes = {};
-
-  Object.keys(configMap).forEach(nom => {
-    const taux = configMap[nom].taux;
-    if (taux <= 0) {
-      interetsEstimes[nom] = 0;
-      return;
-    }
-
-    const tauxParQuinzaine = (taux / 100) / 24;
-    let soldeValorise = soldeAu1erJanvier[nom] || 0;
-    let totalInterets = 0;
-
-    // Simulation des 24 quinzaines de l'année
-    for (let q = 0; q < 24; q++) {
-      soldeValorise += mouvementsParQuinzaine[nom][q];
-      if (soldeValorise > 0) {
-        totalInterets += soldeValorise * tauxParQuinzaine;
-      }
-    }
-
-    interetsEstimes[nom] = Math.round(totalInterets * 100) / 100;
+  const { soldes: soldesCourants, interets: interetsEstimes } = calculerSoldes({
+    comptes,
+    transactions: toutesLesTransactions,
+    annee: anneeFiltre,
+    moisIndex: indexMoisSelectionne,
   });
 
   // 6. Rendu final des comptes avec solde réel et intérêts conformes
@@ -2333,39 +2155,10 @@ const recapAnnuelStats = useMemo(() => {
   if (anneeFiltre < anneeActuelle) dernierMoisClotureIdx = 11;
   else if (anneeFiltre === anneeActuelle) dernierMoisClotureIdx = moisActuelIdx - 1; // Août (M-1)
 
-  const configMap = {};
-  (comptes || []).forEach(c => {
-    configMap[c.compte.trim().toUpperCase()] = {
-      soldeInitial: parseFloat(c.solde) || 0,
-      groupe: c.groupe?.trim().toUpperCase(),
-      taux: parseFloat(c.taux) || 0
-    };
-  });
-
   const comptesDuProfil = (comptes || []).filter(c => 
     filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
   );
   const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
-
-  const estTransfertInterne = (nom, cat) => {
-    const txt = `${nom} ${cat}`.toUpperCase();
-    return txt.includes('🔄') || /\bVERS\b/.test(txt) || txt.includes('TRANSFERT');
-  };
-
-  const identifierCompteCible = (texte, compteSource) => {
-    const groupeSource = configMap[compteSource]?.groupe;
-    if (!groupeSource) return null;
-    for (const [nomDest, cfgDest] of Object.entries(configMap)) {
-      if (nomDest === compteSource) continue;
-      if (cfgDest.groupe !== groupeSource) continue;
-      const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE"];
-      const motsCompte = nomDest.split(" ").filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
-      if (texte.includes(nomDest) || (motsCompte.length > 0 && motsCompte.some(m => texte.includes(m)))) {
-        return nomDest;
-      }
-    }
-    return null;
-  };
 
   // --- 1. DÉTECTION DES PRÉVISIONS ACTIVES ---
   let premierMoisAvecPreviIdx = 999;
@@ -2398,10 +2191,11 @@ const recapAnnuelStats = useMemo(() => {
   const hasAnyPrevisionInYear = dernierMoisAvecPreviIdx >= 0;
 
   // --- 2. HISTORIQUE RÉEL ---
-  let soldesCourantsMois = {};
-  Object.keys(configMap).forEach(nom => {
-    soldesCourantsMois[nom] = configMap[nom].soldeInitial;
-  });
+  // Les années passées comptent aussi : le solde de départ est celui du 1er janvier.
+  const soldesCourantsMois = {
+    ...calculerSoldes({ comptes, transactions: toutesLesTransactions, annee: anneeFiltre, moisIndex: -1 }).soldesAu1erJanvier,
+  };
+  const lireMouvement = creerLecteurMouvements(comptes, toutesLesTransactions);
 
   const reelParMois = [];
   moisListe.forEach((moisObj, idx) => {
@@ -2417,33 +2211,11 @@ const recapAnnuelStats = useMemo(() => {
       const anneeT = parseInt(getTxYear(t) || 0);
       const indexMoisT = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(t.mois));
       if (anneeT === anneeFiltre && indexMoisT === idx) {
-        const montant = parseFloat(t.montant) || 0;
-        const compteSrc = (t.compte || "").trim().toUpperCase();
-        const cat = (t.categorie || "").toUpperCase();
-        const nomTrans = (t.nom || "").toUpperCase();
-
-        if (soldesCourantsMois.hasOwnProperty(compteSrc)) {
-          soldesCourantsMois[compteSrc] += montant;
-        }
-        if (estTransfertInterne(nomTrans, cat)) {
-          const cible = identifierCompteCible(`${nomTrans} ${cat}`, compteSrc);
-          if (cible && soldesCourantsMois.hasOwnProperty(cible)) {
-            const dejaEnBase = (toutesLesTransactions || []).some(t2 => 
-              getTxYear(t2) === getTxYear(t) && 
-              cleanMonth(t2.mois) === cleanMonth(t.mois) && 
-              t2.compte?.trim().toUpperCase() === cible && 
-              Math.abs(parseFloat(t2.montant) - (-montant)) < 0.1
-            );
-            if (!dejaEnBase) soldesCourantsMois[cible] -= montant;
-          }
-        }
+        appliquerMouvement(soldesCourantsMois, lireMouvement(t));
       }
     });
 
-    const rev = txDuMois.filter(t => parseFloat(t.montant) > 0 && !estTransfertInterne(t.nom || "", t.categorie || ""))
-      .reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0);
-    const dep = txDuMois.filter(t => parseFloat(t.montant) < 0 && !estTransfertInterne(t.nom || "", t.categorie || ""))
-      .reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
+    const { revenus: rev, depenses: dep } = totauxRevenusDepenses(txDuMois);
 
     const soldeTotal = nomsComptesProfil.reduce((acc, nom) => acc + (soldesCourantsMois[nom] || 0), 0);
 
@@ -2527,7 +2299,7 @@ const recapAnnuelStats = useMemo(() => {
           impactResteParCompte[compteSrc] += impactReste;
         }
         if (isTransfert) {
-          const cible = identifierCompteCible(`${nom} ${cat}`, compteSrc);
+          const cible = trouverCompteCible(`${nom} ${cat}`, compteSrc, comptes);
           if (cible && impactResteParCompte.hasOwnProperty(cible)) {
             impactResteParCompte[cible] -= impactReste;
           }
@@ -2539,7 +2311,7 @@ const recapAnnuelStats = useMemo(() => {
           impactFuturParCompte[compteSrc] += montantBrut;
         }
         if (isTransfert) {
-          const cible = identifierCompteCible(`${nom} ${cat}`, compteSrc);
+          const cible = trouverCompteCible(`${nom} ${cat}`, compteSrc, comptes);
           if (cible && impactFuturParCompte.hasOwnProperty(cible)) {
             impactFuturParCompte[cible] -= montantBrut;
           }
@@ -2632,36 +2404,16 @@ const recapAnnuelStats = useMemo(() => {
 
 // CALCUL DU SOLDE AU 1ER JANVIER DE L'ANNÉE SÉLECTIONNÉE
 const soldePremierJanvier = useMemo(() => {
-  const anneeFiltre = parseInt(filters.annee);
-
-  // 1. Définition des comptes appartenant au profil sélectionné
-  const comptesDuProfil = comptes.filter(c => 
-    filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
-  );
-  const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
-
-  // 2. Initialisation avec les soldes de base des comptes du profil
-  let soldes = {};
-  comptesDuProfil.forEach(c => {
-    soldes[c.compte.trim().toUpperCase()] = parseFloat(c.solde) || 0;
+  const { soldesAu1erJanvier } = calculerSoldes({
+    comptes,
+    transactions: toutesLesTransactions,
+    annee: parseInt(filters.annee),
+    moisIndex: -1,
   });
 
-  // 3. Application de toutes les transactions des années PRÉCÉDENTES (strictement < anneeFiltre)
-  (toutesLesTransactions || []).forEach(t => {
-    const anneeT = parseInt(t.annee);
-    const compteSrc = (t.compte || "").trim().toUpperCase();
-
-    // On ne prend que les années passées
-    if (anneeT < anneeFiltre && nomsComptesProfil.includes(compteSrc)) {
-      const montant = parseFloat(t.montant) || 0;
-      if (soldes.hasOwnProperty(compteSrc)) {
-        soldes[compteSrc] += montant;
-      }
-    }
-  });
-
-  // 4. Somme des soldes de tous les comptes du profil au 01/01
-  return Object.values(soldes).reduce((acc, val) => acc + val, 0);
+  return comptes
+    .filter(c => filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim())
+    .reduce((acc, c) => acc + (soldesAu1erJanvier[c.compte.trim().toUpperCase()] || 0), 0);
 }, [toutesLesTransactions, comptes, filters.annee, filters.profil]);
 
 
@@ -3464,11 +3216,7 @@ const statsFiltrées = useMemo(() => {
     // 1. Catégories de virements internes : "Virement : CCP vers Livret A", "vers", "transfert"
     // 2. Ancien symbole 🔄 au cas où
     // 3. On ne bloque PAS "Virements Reçus" ni "Virements envoyé" qui sont de vraies entrées/sorties externes
-    const estUnTransfert = 
-      cat.includes("vers") || 
-      cat.includes("transfert") || 
-      cat.includes("🔄") ||
-      nom.includes("🔄");
+    const estUnTransfert = estTransfertInterne(nom, cat);
 
     if (estUnTransfert) {
       return acc; // On ignore ce virement interne pour ne pas fausser les totaux
@@ -3764,11 +3512,7 @@ const appliquerIntelligence = (transactions, config) => {
 
   allRules.sort((a, b) => b.keyword.length - a.keyword.length);
 
-  const isInternalTransfer = (cat) => {
-    if (!cat) return false;
-    const c = String(cat).toLowerCase();
-    return c.includes("vers") || c.includes("transfert") || c.startsWith("🔄") || c.startsWith("virement :");
-  };
+  const isInternalTransfer = (cat) => estTransfertInterne('', cat);
 
   return transactions.map(t => {
     if (isInternalTransfer(t.categorie)) {
@@ -3809,7 +3553,7 @@ const transactionsCalculees = useMemo(() => {
   
   // B. Appliquer la mémoire (éléments appris manuellement, prioritaires sur les mots-clés)
   tx = tx.map(t => {
-    if (t.categorie && (t.categorie.includes("vers") || t.categorie.startsWith("Virement :"))) {
+    if (estTransfertInterne('', t.categorie)) {
       return t;
     }
 
@@ -4606,61 +4350,6 @@ const previsionsActivesPourRecap = useMemo(() => {
 }, [allPrevisionsAnnee, filters.profil, excludedMonths, comptes]);
 
 
-// 🟢 Helper 1 : Détection infaillible des transferts internes
-const estTransfertInterne = (nom = "", cat = "") => {
-  const txt = `${nom || ""} ${cat || ""}`.toUpperCase();
-  return (
-    txt.includes("🔄") ||
-    txt.includes("VERS") ||
-    txt.includes("TRANSFERT") ||
-    txt.startsWith("VIREMENT :") ||
-    /\bVERS\b/.test(txt)
-  );
-};
-
-// 🟢 Helper 2 : Identification intelligente du compte destinataire
-const trouverCompteDestinataire = (texte, compteSource, listeComptes) => {
-  if (!compteSource || !listeComptes || listeComptes.length === 0) return null;
-  const srcUpper = compteSource.trim().toUpperCase();
-  const txtUpper = (texte || "").toUpperCase();
-
-  const compteSrcObj = listeComptes.find(c => c.compte?.trim().toUpperCase() === srcUpper);
-  const groupeSrc = compteSrcObj?.groupe?.trim().toUpperCase();
-
-  // On cherche parmi les comptes du même profil
-  const comptesCibles = listeComptes.filter(c => {
-    const nomC = c.compte?.trim().toUpperCase();
-    if (nomC === srcUpper) return false;
-    if (groupeSrc && c.groupe && c.groupe.trim().toUpperCase() !== groupeSrc) return false;
-    return true;
-  });
-
-  const motsAIgnorer = ["CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE", "DE", "COMPTE", "BANQUE", "DU"];
-
-  for (const c of comptesCibles) {
-    const nomDest = c.compte.trim().toUpperCase();
-    if (txtUpper.includes(nomDest)) return nomDest;
-
-    // Match par mot-clé (ex: "LIVRET", "LEP", "LDDS", "PEL", "PEA")
-    const motsCompte = nomDest.split(/[\s-_]+/).filter(m => m.length >= 3 && !motsAIgnorer.includes(m));
-    if (motsCompte.length > 0 && motsCompte.some(m => txtUpper.includes(m))) {
-      return nomDest;
-    }
-  }
-
-  // Fallback direct sur les types de livrets
-  const typesLivrets = ["LIVRET A", "LEP", "LDDS", "PEL", "PEA", "LIVRET"];
-  for (const t of typesLivrets) {
-    if (txtUpper.includes(t)) {
-      const match = comptesCibles.find(c => c.compte.trim().toUpperCase().includes(t));
-      if (match) return match.compte.trim().toUpperCase();
-    }
-  }
-
-  return null;
-};
-
-
 const soldesPrevisionnels = useMemo(() => {
   const anneeFiltre = parseInt(filters.annee) || new Date().getFullYear();
   const maintenant = new Date();
@@ -4723,7 +4412,7 @@ const soldesPrevisionnels = useMemo(() => {
     // B. Impact sur le compte destinataire (en cas de virement interne vers livret/épargne)
     if (estTransfertInterne(p.nom || "", p.categorie || "")) {
       const texteComplet = `${p.nom || ""} ${p.categorie || ""}`;
-      const compteCible = trouverCompteDestinataire(texteComplet, compteSrc, comptes);
+      const compteCible = trouverCompteCible(texteComplet, compteSrc, comptes);
       
       if (compteCible && impactPrevisions.hasOwnProperty(compteCible)) {
         impactPrevisions[compteCible] -= montantImpact;
@@ -4868,11 +4557,6 @@ const recapPrevisionsStats = useMemo(() => {
   const anneeFiltre = parseInt(filters.annee);
 
   let cumulMobile = 0;
-
-  const estTransfertInterne = (nom, cat) => {
-    const txt = `${nom} ${cat}`.toUpperCase();
-    return txt.includes('🔄') || /\bVERS\b/.test(txt) || txt.includes('TRANSFERT');
-  };
 
   return moisListe.map((moisObj, indexMois) => {
     const estFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMois > moisActuelIdx);
@@ -5299,13 +4983,7 @@ const statsAnnuellesCategories = useMemo(() => {
   transAnnee.forEach(t => {
     const montant = parseFloat(t.montant) || 0;
     const cat = t.categorie || "Autre";
-    const lib = (t.nom || "").toLowerCase();
-    
-    // Logique d'exclusion des transferts (identique à ton tableau)
-    const estTransfert = 
-      cat.toLowerCase().includes('vers') || 
-      cat.toLowerCase().includes('transfert') || 
-      lib.includes('🔄');
+    const estTransfert = estTransfertInterne(t.nom, t.categorie);
 
     // On ne prend que les dépenses (montant < 0)
     if (montant < 0 && !estTransfert) {

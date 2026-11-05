@@ -1,0 +1,68 @@
+{
+  "_lisezmoi": "Cas partagés : frontend/src/utils/finance.test.js et backend/tests/test_calculs_partages.py doivent donner ces résultats.",
+  "transferts": [
+    { "nom": "Salaire", "categorie": "Salaire", "attendu": false },
+    { "nom": "Courses", "categorie": "Divers", "attendu": false },
+    { "nom": "Nature et Decouvertes Versailles", "categorie": "Cadeaux", "attendu": false },
+    { "nom": "Versement client", "categorie": "Revenus", "attendu": false },
+    { "nom": "Remboursement", "categorie": "Univers", "attendu": false },
+    { "nom": "Achat versé", "categorie": "Autre", "attendu": false },
+    { "nom": "VIREMENT INSTANTANE A FRANCOIS", "categorie": "Virement Envoyé", "attendu": false },
+    { "nom": "Epargne", "categorie": "Virement : CCP vers Livret A", "attendu": true },
+    { "nom": "Epargne", "categorie": "virement : CCP Livret", "attendu": true },
+    { "nom": "Virement vers LEP", "categorie": "Autre", "attendu": true },
+    { "nom": "🔄 Mouvement", "categorie": "", "attendu": true },
+    { "nom": "Mouvement", "categorie": "🔄 Epargne", "attendu": true },
+    { "nom": "Mouvement", "categorie": "Transferts", "attendu": true },
+    { "nom": "", "categorie": "", "attendu": false }
+  ],
+  "comptes_cibles": {
+    "comptes": [
+      { "compte": "CCP Theo", "groupe": "Theo" },
+      { "compte": "Livret A Theo", "groupe": "Theo" },
+      { "compte": "LEP Theo", "groupe": "Theo" },
+      { "compte": "CCP Aude", "groupe": "Aude" },
+      { "compte": "LDDS Aude", "groupe": "Aude" },
+      { "compte": "Compte Commun", "groupe": "Commun" }
+    ],
+    "cas": [
+      { "texte": "VIREMENT : CCP VERS LEP", "source": "CCP Theo", "attendu": "LEP THEO" },
+      { "texte": "Virement vers livret a", "source": "CCP Theo", "attendu": "LIVRET A THEO" },
+      { "texte": "Virement vers LDDS", "source": "CCP Theo", "attendu": null },
+      { "texte": "Virement vers LDDS", "source": "CCP Aude", "attendu": "LDDS AUDE" },
+      { "texte": "Virement vers compte", "source": "CCP Theo", "attendu": null },
+      { "texte": "Virement vers CCP", "source": "LEP Theo", "attendu": null },
+      { "texte": "Virement vers CCP Theo", "source": "LEP Theo", "attendu": "CCP THEO" },
+      { "texte": "Virement", "source": "", "attendu": null }
+    ]
+  },
+  "soldes": {
+    "annee": 2026,
+    "mois": 3,
+    "comptes": [
+      { "compte": "CCP Test", "groupe": "Theo", "solde": 1000 },
+      { "compte": "LEP Test", "groupe": "Theo", "solde": 0 },
+      { "compte": "Livret Test", "groupe": "Theo", "solde": 500 },
+      { "compte": "CCP Autre", "groupe": "Aude", "solde": 100 }
+    ],
+    "transactions": [
+      { "compte": "CCP Test", "montant": 200, "nom": "Ancien", "categorie": "Salaire", "mois": "Décembre", "annee": 2025 },
+      { "compte": "CCP Test", "montant": -100, "nom": "Ancien virement", "categorie": "🔄 Virement vers LEP", "mois": "Novembre", "annee": 2025 },
+      { "compte": "CCP Test", "montant": 2000, "nom": "Salaire", "categorie": "Salaire", "mois": "Mars", "annee": 2026 },
+      { "compte": "CCP Test", "montant": -300, "nom": "Courses", "categorie": "Divers", "mois": "Mars", "annee": 2026 },
+      { "compte": "CCP Test", "montant": 50, "nom": "Remboursement", "categorie": "Remboursements", "mois": "Mars", "annee": 2026 },
+      { "compte": "CCP Test", "montant": -400, "nom": "Sans miroir", "categorie": "Virement : CCP vers LEP", "mois": "Mars", "annee": 2026 },
+      { "compte": "CCP Test", "montant": -250, "nom": "Avec miroir", "categorie": "Virement : CCP vers Livret", "mois": "Mars", "annee": 2026 },
+      { "compte": "Livret Test", "montant": 250, "nom": "Miroir", "categorie": "Virement : CCP vers Livret", "mois": "Mars", "annee": 2026 },
+      { "compte": "CCP Test", "montant": -9999, "nom": "Avril", "categorie": "Loyer", "mois": "Avril", "annee": 2026 },
+      { "compte": "CCP Test", "montant": -8888, "nom": "Futur", "categorie": "Loyer", "mois": "Janvier", "annee": 2027 },
+      { "compte": "CCP Autre", "montant": -20, "nom": "Courses", "categorie": "Courses", "mois": "Mars", "annee": 2026 },
+      { "compte": "Disparu", "montant": -7, "nom": "Compte supprimé", "categorie": "Autre", "mois": "Mars", "annee": 2026 }
+    ],
+    "attendu": {
+      "soldes": { "CCP TEST": 2200, "LEP TEST": 500, "LIVRET TEST": 750, "CCP AUTRE": 80 },
+      "revenus_du_mois": { "CCP TEST": 2050, "LEP TEST": 0, "LIVRET TEST": 0, "CCP AUTRE": 0 },
+      "depenses_du_mois": { "CCP TEST": 300, "LEP TEST": 0, "LIVRET TEST": 0, "CCP AUTRE": 20 }
+    }
+  }
+}

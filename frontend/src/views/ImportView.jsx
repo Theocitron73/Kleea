@@ -5,6 +5,8 @@ import {
   ChevronRight, Landmark, Tag
 } from 'lucide-react';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
+import { toast } from 'sonner';
+import { estTransfertInterne } from '../utils/finance';
 
 // Guide d'export CSV par banque (100% d'origine)
 function HelpPopover() {
@@ -132,11 +134,7 @@ export default function ImportView({
   const targetCompte = importCompte || selectedCompte || comptes[0]?.compte;
   const setTargetCompte = setImportCompte || setSelectedCompte;
 
-  const isInternalTransfer = (cat) => {
-    if (!cat) return false;
-    const c = cat.toLowerCase();
-    return c.includes("vers") || c.includes("transfert") || c.startsWith("🔄") || c.startsWith("virement :");
-  };
+  const isInternalTransfer = (cat) => estTransfertInterne('', cat);
 
   const unsyncedAccounts = Object.entries(syncCountByAccount || {}).filter(([_, data]) => {
     const count = typeof data === 'object' ? data?.count : Number(data);

@@ -17,6 +17,7 @@ import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import api from '../axios';
 import { toast } from 'sonner';
 import GestionEpargneProjet from './GestionEpargneProjet';
+import { estTransfertInterne } from '../utils/finance';
 
 // =========================================================================
 // 1. HELPERS & SOUS-COMPOSANTS ANALYTIQUES PARTAGÉS
@@ -1043,7 +1044,7 @@ export const CalendarSection = React.memo(({ toutesLesTransactions, comptesDuPro
 
       const cat = t.categorie || "";
       const lib = t.nom || "";
-      if (cat.includes('vers') || cat.includes('transfert') || lib.includes('🔄')) continue;
+      if (estTransfertInterne(lib, cat)) continue;
 
       if (filtrerParProfil) {
         const nomCompteTransac = (t.compte || "").trim().toUpperCase();
@@ -1229,13 +1230,15 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
       const lib = (t.nom || "").trim();
       const libLower = lib.toLowerCase();
 
-      if (montant > 0 && !cat.includes('vers') && !cat.includes('transfert') && !libLower.includes('🔄')) {
+      const estTransfert = estTransfertInterne(lib, cat);
+
+      if (montant > 0 && !estTransfert) {
         totalRevenus += montant;
         nbVirementsPositifs++;
         continue;
       }
 
-      if (montant >= 0 || cat.includes('vers') || cat.includes('transfert') || libLower.includes('🔄')) continue;
+      if (montant >= 0 || estTransfert) continue;
 
       const montantAbs = Math.abs(montant);
       totalDepense += montantAbs;

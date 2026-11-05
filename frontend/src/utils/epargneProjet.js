@@ -1,17 +1,12 @@
 // Calculs de l'épargne : enveloppes réservées et financement des projets.
 // Sans React ni réseau, pour pouvoir être testés directement (npm test).
 
-const MOIS_PREFIXES = ['janv', 'fev', 'mars', 'avr', 'mai', 'juin', 'juil', 'aou', 'sep', 'oct', 'nov', 'dec'];
+import { estTransfertInterne, indexMois } from './finance.js';
 
-const sansAccents = (texte) => String(texte ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+export { indexMois };
+
 const nombre = (valeur) => parseFloat(valeur) || 0;
 const nomNormalise = (nom) => String(nom ?? '').trim().toLowerCase();
-
-/** Index de 0 à 11 d'un nom de mois français, ou -1. */
-export function indexMois(nomMois) {
-  const nom = sansAccents(nomMois);
-  return nom ? MOIS_PREFIXES.findIndex((prefixe) => nom.startsWith(prefixe)) : -1;
-}
 
 const cleMois = (annee, index) => `${annee}-${String(index + 1).padStart(2, '0')}`;
 
@@ -36,11 +31,6 @@ export function moisCibleDepuisFiltres(filters, aujourdhui = new Date()) {
   return cleMois(annee, index);
 }
 
-const estTransfertInterne = (t) => {
-  const texte = `${t.nom || ''} ${t.categorie || ''}`.toUpperCase();
-  return texte.includes('🔄') || /\bVERS\b/.test(texte) || texte.includes('TRANSFERT');
-};
-
 /** Comptes du profil, en clés comparables. `null` : aucun filtre à appliquer. */
 export function nomsDesComptes(comptes) {
   const noms = (comptes || []).map((c) => nomNormalise(c?.compte)).filter(Boolean);
@@ -63,7 +53,7 @@ function moisDeTransaction(t) {
 export function epargneParMois({ transactions, comptes, recapAnnuel, annee }) {
   const parMois = {};
   (transactions || []).forEach((t) => {
-    if (!t || estTransfertInterne(t) || !estDansLesComptes(t, comptes)) return;
+    if (!t || estTransfertInterne(t.nom, t.categorie) || !estDansLesComptes(t, comptes)) return;
     const cle = moisDeTransaction(t);
     if (cle) parMois[cle] = (parMois[cle] || 0) + nombre(t.montant);
   });
