@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../axios';
+import { calculerJaugesBudget } from '../utils/calculsAnalyse';
 
 // Budgets : chargement, modification et jauges.
 export default function useBudgets({ activeTab, comptesDuProfil, filters, statsCategories, toutesLesTransactions, user }) {
@@ -127,55 +128,7 @@ export default function useBudgets({ activeTab, comptesDuProfil, filters, statsC
   };
 
 
-  const budgetGauges = useMemo(() => {
-    // 1. On décide quelle source de données utiliser
-    // Si on est sur 'gerer', on prend tout (data), sinon on prend le filtré (statsCategories)
-    const isGererPage = activeTab === 'gerer';
-
-    // 2. On regroupe les budgets (on ne filtre par profil que si on n'est pas sur 'gerer')
-    const budgetsAAfficher = budgets.filter(b => {
-      if (isGererPage || filters.profil === 'Tous') return true;
-      const nomsComptesDuProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
-      return nomsComptesDuProfil.includes(b.compte?.trim().toUpperCase());
-    });
-
-    const categoriesRegroupees = budgetsAAfficher.reduce((acc, b) => {
-      const nomCat = b.nom;
-      if (!acc[nomCat]) acc[nomCat] = { nom: nomCat, limite: 0, comptes: [] };
-      acc[nomCat].limite += b.somme;
-      if (!acc[nomCat].comptes.includes(b.compte)) acc[nomCat].comptes.push(b.compte);
-      return acc;
-    }, {});
-
-    // 3. Calcul du réel adapté au contexte
-    return Object.values(categoriesRegroupees).map(bg => {
-      let reel = 0;
-
-      if (isGererPage) {
-        // MODE GÉRER : On recalcule à la main sur la source brute pour ignorer les filtres UI
-        reel = toutesLesTransactions.filter(t => 
-          t.categorie === bg.nom && 
-          bg.comptes.includes(t.compte) &&
-          t.mois === filters.mois
-        ).reduce((acc, t) => acc + Math.abs(t.montant), 0);
-      } else {
-        // MODE DASHBOARD : On utilise les stats déjà filtrées par l'interface
-        reel = statsCategories.find(s => s.name === bg.nom)?.value || 0;
-      }
-
-      const pourcentage = bg.limite > 0 ? (reel / bg.limite) * 100 : 0;
-
-      return {
-        nom: bg.nom,
-        limite: bg.limite,
-        reel: reel,
-        pourcentage: Math.round(pourcentage),
-        rotation: Math.min(pourcentage * 180 / 100, 180),
-        depasse: reel > bg.limite
-      };
-    });
-    // On ajoute data et activeTab dans les dépendances
-  }, [budgets, toutesLesTransactions, statsCategories, filters.mois, filters.profil, activeTab, comptesDuProfil]);
+  const budgetGauges = useMemo(() => calculerJaugesBudget({ activeTab, budgets, comptesDuProfil, filters, statsCategories, toutesLesTransactions }), [budgets, toutesLesTransactions, statsCategories, filters.mois, filters.profil, activeTab, comptesDuProfil]);
 
   useEffect(() => {
     if (user) {

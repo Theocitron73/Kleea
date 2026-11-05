@@ -1,8 +1,8 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
  // <-- Ajoute cette ligne tout en haut du fichier
 
  // À mettre en haut de ton fichier
-import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2, Palette, TrendingUp, FileText, CalendarDays, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Truck } from 'lucide-react';
+import { TrendingUp, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal } from 'lucide-react';
 import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import "react-datepicker/dist/react-datepicker.css";
@@ -22,7 +22,6 @@ import AuthView from './views/AuthView';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
 import { themeBackground } from './utils/gradient';
-import { estTransfertInterne } from './utils/finance';
 import ImportView from './views/ImportView';
 import GererView from './views/GererView';
 import PrevisionsView from './views/PrevisionsView';
@@ -58,6 +57,18 @@ import useMolette from './hooks/useMolette';
 import useTableauTransactions from './hooks/useTableauTransactions';
 import useConnexionBancaire from './hooks/useConnexionBancaire';
 import usePrevisions from './hooks/usePrevisions';
+import useFiltresPeriode from './hooks/useFiltresPeriode';
+import useThemeUtilisateur from './hooks/useThemeUtilisateur';
+import useMenuNavigation from './hooks/useMenuNavigation';
+import useAssistantSoldeCalcul from './hooks/useAssistantSoldeCalcul';
+import useNotesVersion from './hooks/useNotesVersion';
+import useDonneesPeriode from './hooks/useDonneesPeriode';
+import useMoisBudget from './hooks/useMoisBudget';
+import usePropagationAnnee from './hooks/usePropagationAnnee';
+import useSynchroArrierePlan from './hooks/useSynchroArrierePlan';
+import useActualisationPowens from './hooks/useActualisationPowens';
+import { calculerSuiviPrevisions } from './utils/calculsPrevisions';
+import { calculerStatsAnnuellesCategories } from './utils/calculsAnalyse';
 
 
 
@@ -215,74 +226,7 @@ const moisListe = [
 // =========================================================================
 // 🟢 GESTIONNAIRE DE FILTRES INDÉPENDANTS PAR PAGE
 // =========================================================================
-const getPageKey = (tab) => {
-  if (tab === 'previsions' || tab === 'previsionnel') return 'previsionnel';
-  if (tab === 'gerer' || tab === 'transactions') return 'gerer';
-  if (tab === 'dashboard') return 'dashboard';
-  return 'default';
-};
-
-const getDefaultPeriod = () => ({
-  profil: 'Tous',
-  annee: new Date().getFullYear().toString(),
-  mois: moisListe[new Date().getMonth()]?.v || 'Janvier'
-});
-
-const [filtersByPage, setFiltersByPage] = useState(() => {
-  const savedUser = localStorage.getItem('user');
-  if (savedUser) {
-    const saved = localStorage.getItem(`filters_v3_${savedUser.toLowerCase()}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          dashboard: parsed.dashboard || getDefaultPeriod(),
-          previsionnel: parsed.previsionnel || parsed.previsions || getDefaultPeriod(),
-          gerer: parsed.gerer || parsed.transactions || getDefaultPeriod(),
-          default: parsed.default || getDefaultPeriod()
-        };
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }
-
-  const def = getDefaultPeriod();
-  return {
-    dashboard: { ...def },
-    previsionnel: { ...def },
-    gerer: { ...def },
-    default: { ...def }
-  };
-});
-
-const currentKey = getPageKey(activeTab);
-const filters = filtersByPage[currentKey] || filtersByPage['dashboard'] || getDefaultPeriod();
-
-const setFilters = (newFiltersOrFn) => {
-  setFiltersByPage(prev => {
-    const targetKey = getPageKey(activeTab);
-    const currentFilters = prev[targetKey] || prev['default'] || getDefaultPeriod();
-
-    const updated = typeof newFiltersOrFn === 'function' 
-      ? newFiltersOrFn(currentFilters) 
-      : { ...currentFilters, ...newFiltersOrFn };
-
-    const nextState = {
-      ...prev,
-      [targetKey]: updated
-    };
-
-    if (user) {
-      const u = typeof user === 'string' ? user.toLowerCase() : user?.nom?.toLowerCase();
-      if (u) {
-        localStorage.setItem(`filters_v3_${u}`, JSON.stringify(nextState));
-      }
-    }
-
-    return nextState;
-  });
-};
+const { filters, filtersByPage, getDefaultPeriod, getPageKey, setFilters, setFiltersByPage } = useFiltresPeriode({ activeTab, moisListe, user });
 
   const [deleteModal, setDeleteModal] = useState({ show: false, accountName: null });
   const [toutesLesTransactions, setToutesLesTransactions] = useState([]);
@@ -378,68 +322,7 @@ const confirmDelete = async () => {
   
   
 
-  const updateThemeLive = (variable, value) => {
-    document.documentElement.style.setProperty(variable, value);
-    // Optionnel: on met aussi à jour le localStorage en bonus
-    const currentTheme = JSON.parse(localStorage.getItem('mycash-theme')) || {};
-    currentTheme[variable] = value;
-    localStorage.setItem('mycash-theme', JSON.stringify(currentTheme));
-  };
-
-const fetchUserTheme = async (username) => {
-  try {
-    const resTheme = await api.get(`/get-theme/${username}`);
-    if (resTheme.data) {
-      document.documentElement.style.setProperty('--bg-site', resTheme.data.bg_site);
-      document.documentElement.style.setProperty('--primary', resTheme.data.primary_color);
-      if (resTheme.data.secondary_color) {
-        document.documentElement.style.setProperty('--secondary', resTheme.data.secondary_color);
-      } else {
-        document.documentElement.style.removeProperty('--secondary');
-      }
-      document.documentElement.style.setProperty('--text-main', resTheme.data.text_main);
-      document.documentElement.style.setProperty('--radius', resTheme.data.radius);
-      document.documentElement.style.setProperty('--glass-blur', resTheme.data.glass_blur || '12px');
-      document.documentElement.style.setProperty('--glass-bg', resTheme.data.glass_bg || 'color-mix(in srgb, var(--text-main) 3%, transparent)');
-
-      // 🟢 METTRE EN CACHE POUR UN CHARGEMENT INSTANTANÉ AU PROCHAIN RAFRAÎCHISSEMENT
-      localStorage.setItem('kleea-theme-cache', JSON.stringify(resTheme.data));
-    }
-
-    const resColors = await api.get(`/get-user-theme/${username}`);
-    if (resColors.data && Object.keys(resColors.data).length > 0) {
-      setUserTheme(prev => ({ ...prev, ...resColors.data }));
-    }
-  } catch (err) {
-    console.error("Erreur chargement thème SQL", err);
-  }
-};
-
-
-
-
-  const handleSaveThemeSQL = async () => {
-  const styles = getComputedStyle(document.documentElement);
-  const themeData = {
-    utilisateur: user,
-    bg_site: styles.getPropertyValue('--bg-site').trim() || '#152c48',
-    primary_color: styles.getPropertyValue('--primary').trim() || '#4f46e5',
-    // Lue sur le style en ligne : sans choix explicite, la secondaire reste dérivée de la primaire.
-    secondary_color: document.documentElement.style.getPropertyValue('--secondary').trim() || null,
-    text_main: styles.getPropertyValue('--text-main').trim() || '#0f172a',
-    radius: styles.getPropertyValue('--radius').trim() || '1.5rem',
-    glass_blur: getComputedStyle(document.documentElement).getPropertyValue('--glass-blur').trim()|| '#f8fafc',
-    glass_bg: getComputedStyle(document.documentElement).getPropertyValue('--glass-bg').trim()|| '#f8fafc',
-  };
-
-  try {
-    await api.post(`/save-theme`, themeData);
-    toast.success("Configuration propagée avec succès ! 🚀");
-  } catch (err) {
-    console.error(err);
-    toast.error("Échec de la synchronisation cloud.");
-  }
-};
+  const { fetchUserTheme, handleSaveThemeSQL, updateThemeLive } = useThemeUtilisateur({ setUserTheme, user });
 
 
 const fetchComptes = async () => {
@@ -708,39 +591,7 @@ useEffect(() => {
 
 
 
-const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'previsionnel', label: 'Prévisionnel', icon: ChartCandlestick },
-  { id: 'gerer', label: 'Gérer', icon: Settings2 },
-  { id: 'importer', label: 'Importer', icon: FileUp },
-  { id: 'comptes', label: 'Comptes', icon: Wallet },
-  { id: 'tricount', label: 'Tricount', icon: Users2 },
-  { id: 'theme', label: 'Thème', icon: Palette },
-  { id: 'Guide', label: 'Guide', icon: FileText },
-  { id: 'demenagement', label: 'Déménagement', icon: Truck },
-  { id: 'conges', label: 'Congés', icon: CalendarDays }, // 👈 Ajout ici
-];
-
-const [hiddenPages, setHiddenPages] = useState(() => {
-  try {
-    return JSON.parse(localStorage.getItem('hidden_menu_pages') || '[]');
-  } catch  {
-    return [];
-  }
-});
-
-const visibleMenuItems = menuItems.filter(item => {
-  if (hiddenPages.includes(item.id)) {
-    return false;
-  }
-
-  // 🟢 Pages réservées exclusivement aux administrateurs (Thème, Déménagement, Congés)
-  if (item.id === 'theme' || item.id === 'demenagement' || item.id === 'conges') {
-    return userRole === 'admin'; // 👈 Fini 'theo', vérifie le vrai rôle !
-  }
-  
-  return true;
-});
+const { hiddenPages, setHiddenPages, visibleMenuItems } = useMenuNavigation({ userRole });
 
 
 
@@ -863,123 +714,16 @@ const transactionsFiltrees = transactionsAAfficher.filter(t =>
 );
 
 const [annualTab, setAnnualTab] = useState('list'); // 'list' sera la vue par défaut
-const statsAnnuellesCategories = useMemo(() => {
-  const recap = {};
-  let totalAnnuel = 0;
-
-  // 1. IDENTIFIER LES COMPTES APPARTENANT AU PROFIL (Comme dans ton tableau)
-  const comptesDuProfil = comptes.filter(c => 
-    filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim()
-  );
-  const nomsComptesProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
-
-  // 2. FILTRER LES TRANSACTIONS PAR ANNÉE ET PAR COMPTES DU PROFIL
-  const transAnnee = (toutesLesTransactions || []).filter(t => {
-    const matchAnnee =filters.annee.toString().trim();
-    // La transaction appartient au profil si son compte est dans la liste nomsComptesProfil
-    const matchCompteProfil = nomsComptesProfil.includes(t.compte?.trim().toUpperCase());
-    
-    return matchAnnee && matchCompteProfil;
-  });
-
-  // 3. CALCULER LA RÉPARTITION
-  transAnnee.forEach(t => {
-    const montant = parseFloat(t.montant) || 0;
-    const cat = t.categorie || "Autre";
-    const estTransfert = estTransfertInterne(t.nom, t.categorie);
-
-    // On ne prend que les dépenses (montant < 0)
-    if (montant < 0 && !estTransfert) {
-      const absMontant = Math.abs(montant);
-      recap[cat] = (recap[cat] || 0) + absMontant;
-      totalAnnuel += absMontant;
-    }
-  });
-
-  // 4. FORMATAGE POUR RECHARTS
-  return Object.entries(recap)
-    .map(([name, value]) => ({
-      name,
-      value,
-      percent: totalAnnuel > 0 ? Math.round((value / totalAnnuel) * 100) : 0
-    }))
-    .sort((a, b) => b.value - a.value);
-
-}, [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
+const statsAnnuellesCategories = useMemo(() => calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTransactions }), [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
 // On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
 
 
 
-const [assistantData, setAssistantData] = useState({ open: false, compte: null, valeur: "" });
-const openCalculateurAssistant = (compte) => {
-  setAssistantData({ open: true, compte: compte, valeur: "" });
-};
-const confirmerCalculAssistant = async () => {
-  const { compte, valeur } = assistantData;
-  const montantSaisi = parseFloat(valeur.replace(',', '.'));
-
-  if (isNaN(montantSaisi)) {
-    toast.error( "Veuillez saisir un montant valide");
-    return;
-  }
-
-  const totalTransactions = (toutesLesTransactions || [])
-    .filter(t => t.compte?.trim().toUpperCase() === compte.compte.trim().toUpperCase())
-    .reduce((acc, t) => acc + (parseFloat(t.montant) || 0), 0);
-
-  const nouveauSoldeInitial = Math.round((montantSaisi - totalTransactions) * 100) / 100;
-
-  try {
-    const nouveauxComptes = comptes.map(c => 
-      c.compte === compte.compte ? { ...c, solde: nouveauSoldeInitial } : c
-    );
-    
-    setComptes(nouveauxComptes);
-    await handleBlurUpdate({ ...compte, solde: nouveauSoldeInitial });
-
-    toast.success(`Solde initial ajusté : ${nouveauSoldeInitial.toLocaleString('fr-FR')}€`);
-    
-    // Fermer la modale
-    setAssistantData({ open: false, compte: null, valeur: "" });
-    
-    
-  } catch  {
-    toast.error("Erreur lors de la sauvegarde");
-  }
-};
+const { assistantData, confirmerCalculAssistant, openCalculateurAssistant, setAssistantData } = useAssistantSoldeCalcul({ comptes, handleBlurUpdate, setComptes, toutesLesTransactions });
 
 
 // État pour afficher ou masquer le popup flash
-const [showPatchModal, setShowPatchModal] = useState(false);
-
-// Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-const CURRENT_VERSION = "4.3"; 
-
-useEffect(() => {
-  if (!user) return;
-
-  // En incluant CURRENT_VERSION dans la clé, on crée un compteur unique par mise à jour
-  const patchKey = `patch_view_count_v${CURRENT_VERSION}_${user}`;
-  const viewCount = parseInt(localStorage.getItem(patchKey)) || 0;
-
-  // On l'affiche tant qu'on n'a pas atteint la limite (ici, 2 fois)
-  if (viewCount < 1) {
-    const timer = setTimeout(() => {
-      setShowPatchModal(true);
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }
-}, [user, CURRENT_VERSION]); // Ajout de CURRENT_VERSION dans les dépendances par sécurité
-
-const handleClosePatchModal = () => {
-  setShowPatchModal(false);
-
-  // On incrémente sur la clé qui contient la version actuelle
-  const patchKey = `patch_view_count_v${CURRENT_VERSION}_${user}`;
-  const currentCount = parseInt(localStorage.getItem(patchKey)) || 0;
-  localStorage.setItem(patchKey, currentCount + 1);
-};
+const { CURRENT_VERSION, handleClosePatchModal, showPatchModal } = useNotesVersion({ user });
 
 
  // 'bottom' ou 'top'
@@ -1016,73 +760,7 @@ const handleCompteChange = (nouveauCompte) => {
 
 
 // 1. États locaux pour la période (on stocke les valeurs "v" de moisListe, ex: "01", "02"...)
-const [moisDebut, setMoisDebut] = useState("Janvier");
-const [moisFin, setMoisFin] = useState(filters.mois || "12"); 
-
-// 2. État pour l'onglet actif ('annuel' ou 'periode')
-const [totalTab, setTotalTab] = useState('annuel');
-// 3. Calcul automatique basé sur ton tableau recapAnnuelStats
-// 🟢 2. CALCUL DE L'ONGLET "PÉRIODE" (Ex: De Janvier à Septembre ou Octobre)
-const donneesPeriodeDirecte = useMemo(() => {
-  const libelleDebut = moisListe.find(m => m.v === moisDebut)?.l?.toLowerCase();
-  const libelleFin = moisListe.find(m => m.v === moisFin)?.l?.toLowerCase();
-
-  const listeNomsMois = moisListe.map(m => m.l?.toLowerCase());
-  const idxDebut = listeNomsMois.indexOf(libelleDebut);
-  const idxFin = listeNomsMois.indexOf(libelleFin);
-
-  const idxMin = Math.min(idxDebut, idxFin);
-  const idxMax = Math.max(idxDebut, idxFin);
-
-  const moisSelectionnes = (recapAnnuelStats || []).filter(m => {
-    const currentIdx = listeNomsMois.indexOf(m.nom?.toLowerCase());
-    return currentIdx >= idxMin && currentIdx <= idxMax;
-  });
-
-  let revenus = 0;
-  let depenses = 0;
-  let epargne = 0;
-
-  moisSelectionnes.forEach(m => {
-    let rev = 0;
-    let dep = 0;
-
-    if (m.isPasseCloture) {
-      rev = m.revReel || 0;
-      dep = m.depReel || 0;
-    } else if (m.isMoisEnCours) {
-      rev = m.revPrevu !== null ? m.revPrevu : (m.revReel || 0);
-      dep = m.depPrevu !== null ? m.depPrevu : (m.depReel || 0);
-    } else if (m.isFutur) {
-      rev = m.revPrevu !== null ? m.revPrevu : 0;
-      dep = m.depPrevu !== null ? m.depPrevu : 0;
-    } else {
-      rev = m.revReel || 0;
-      dep = m.depReel || 0;
-    }
-
-    revenus += rev;
-    depenses += dep;
-    epargne += (rev - dep);
-  });
-
-  const tauxEffort = revenus > 0 ? Math.max(0, Math.round((epargne / revenus) * 100)) : 0;
-
-  return {
-    revenus,
-    depenses,
-    epargne,
-    tauxEffort
-  };
-}, [recapAnnuelStats, moisDebut, moisFin, moisListe]);
-
-const estPeriode = totalTab === 'periode';
-const donneesAffichees = estPeriode ? donneesPeriodeDirecte : {
-  revenus: totauxAnnuels.revenus,
-  depenses: totauxAnnuels.depenses,
-  epargne: totauxAnnuels.epargne,
-  tauxEffort: tauxEpargneMoyen
-};
+const { donneesAffichees, estPeriode, moisDebut, moisFin, setMoisDebut, setMoisFin, setTotalTab, totalTab } = useDonneesPeriode({ filters, moisListe, recapAnnuelStats, tauxEpargneMoyen, totauxAnnuels });
 
 
 const TAB_CONFIG = {
@@ -1124,38 +802,7 @@ useEffect(() => {
 const { activeIndex, carouselRef, handleScroll, navigateCarousel, scrollToPage, totalDots } = useCarrousel({ budgetGauges });
 
 
-const [selectedBudgetMonth, setSelectedBudgetMonth] = useState('');
-
-// 💡 Tri chronologique strict des mois (Janvier -> Décembre)
-const listeMoisDisponibles = useMemo(() => {
-  const getMonthIndex = (monthStr) => {
-    if (!monthStr) return 999;
-    const clean = monthStr.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-    const order = ["janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet", "aout", "septembre", "octobre", "novembre", "decembre"];
-    const idx = order.indexOf(clean);
-    return idx === -1 ? 999 : idx;
-  };
-
-  const anneeCible = selectedBudgetYear || new Date().getFullYear();
-  const budgetsDeLAnnee = budgets.filter(b => (b.annee || new Date().getFullYear()) === anneeCible);
-  const source = budgetsDeLAnnee.length > 0 ? budgetsDeLAnnee : budgets;
-
-  return Array.from(new Set(source.map(b => b.mois).filter(Boolean)))
-    .sort((a, b) => getMonthIndex(a) - getMonthIndex(b));
-}, [budgets, selectedBudgetYear]);
-
-// Sélectionne automatiquement le mois actif ou le premier mois chronologique
-useEffect(() => {
-  if (listeMoisDisponibles.length > 0) {
-    if (!selectedBudgetMonth || !listeMoisDisponibles.includes(selectedBudgetMonth)) {
-      if (filters?.mois && listeMoisDisponibles.includes(filters.mois)) {
-        setSelectedBudgetMonth(filters.mois);
-      } else {
-        setSelectedBudgetMonth(listeMoisDisponibles[0]);
-      }
-    }
-  }
-}, [listeMoisDisponibles, selectedBudgetMonth, filters?.mois]);
+const { listeMoisDisponibles, selectedBudgetMonth, setSelectedBudgetMonth } = useMoisBudget({ budgets, filters, selectedBudgetYear });
 
 // 🟢 Détection insensible à la casse pour autoriser le défilement sur les pages longues
 const isPageScrollable = [
@@ -1197,47 +844,7 @@ const [visibleAnnuel, setVisibleAnnuel] = useState({
 
 
 // 2. Déclencheur pour la propagation sur l'année complète (mois restants)
-const handleTryPropagateYear = () => {
-  if (selectedIds2.length === 0) {
-    toast.info("Sélectionnez au moins une prévision à propager.");
-    return;
-  }
-  setDuplicateType('year');
-  setDuplicateModal({ 
-    show: true, 
-    count: selectedIds2.length, 
-    isSelection: true 
-  });
-};
-
-// 3. Fonction d'exécution de la propagation annuelle (avec loadPrevisions() de recharge !)
-const confirmPropagateToYear = async () => {
-  try {
-    const nomUtilisateur = typeof user === 'object' ? user.nom : user;
-
-    const response = await api.post(`/api/previsions/propagate-year`, {
-      ids: selectedIds2,
-      utilisateur: nomUtilisateur,
-      mois_actuel: filters.mois,
-      annee: filters.annee.toString()
-    });
-
-    if (response.data.status === "success") {
-      setSelectedIds2([]); // Vider les cases cochées
-      
-      // 💡 CORRECTION : Appel de votre vraie fonction de rafraîchissement
-      await loadPrevisions(); 
-      
-      // Utilisation de votre système de toasts d'origine
-      toast.success(`${response.data.inserted_count} prévisions propagées sur l'année avec succès !`);
-     
-    }
-  } catch (err) {
-    console.error("Erreur de propagation :", err);
-    toast.error("Impossible de propager les prévisions sur l'année.");
-    
-  }
-};
+const { confirmPropagateToYear, handleTryPropagateYear } = usePropagationAnnee({ filters, loadPrevisions, selectedIds2, setDuplicateModal, setDuplicateType, setSelectedIds2, user });
 
 
 
@@ -1291,101 +898,10 @@ useEffect(() => {
 
 
 // 🟢 SYNCHRONISATION EN ARRIÈRE-PLAN PLANIFIÉE (TOUTES LES 6 HEURES)
-const performBackgroundSyncIfNeeded = useCallback(async (forcedMode = null) => {
-  const activeMode = forcedMode || importMode;
-  if (!user || activeMode !== 'auto') return;
-
-  const token = localStorage.getItem('powens_connecte');
-  if (!token) return;
-
-  const now = Date.now();
-  const lastSyncStr = localStorage.getItem(`last_powens_sync_time_${user}`);
-  const sixHoursInMs = 6 * 60 * 60 * 1000;
-
-  if (!lastSyncStr || (now - parseInt(lastSyncStr, 10)) > sixHoursInMs || forcedMode) {
-    // 🟢 1. Active l'indicateur visuel au démarrage
-    setIsAutoSyncingOnLoad(true);
-
-    try {
-      await api.post(`/powens/sync-user/${user}`);
-      await api.post(`/powens/recalculate-balances/${user}`);
-      localStorage.setItem(`last_powens_sync_time_${user}`, now.toString());
-      
-      await fetchTransactions();
-      await fetchComptes();
-      await fetchPowensConnections();
-    } catch (err) {
-      console.error("Erreur lors de la synchronisation d'arrière-plan:", err);
-    } finally {
-      // 🟢 2. Masque l'indicateur avec un léger délai pour confirmer la fin
-      setTimeout(() => {
-        setIsAutoSyncingOnLoad(false);
-      }, 1500);
-    }
-  }
-}, [user, importMode, fetchTransactions, fetchComptes, fetchPowensConnections]);
-/*
-// Effet pour surveiller et déclencher le cycle de vérification
-useEffect(() => {
-  if (user && importMode === 'auto') {
-    // Vérification immédiate lors de l'ouverture du site
-    performBackgroundSyncIfNeeded();
-
-    // Vérification récurrente toutes les 30 minutes pendant que l'onglet reste ouvert
-    const interval = setInterval(() => {
-      performBackgroundSyncIfNeeded();
-    }, 30 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }
-}, [user, importMode, performBackgroundSyncIfNeeded]);
-*/
-// État pour le deuxième graphique (Détaillé)
-// On stocke ici les noms des comptes masqués sous forme de tableau ou d'objet
-const [hiddenComptes, setHiddenComptes] = useState({});
-
-const [isAutoSyncingOnLoad, setIsAutoSyncingOnLoad] = useState(false);
+const { hiddenComptes, isAutoSyncingOnLoad, performBackgroundSyncIfNeeded, setHiddenComptes } = useSynchroArrierePlan({ fetchComptes, fetchPowensConnections, fetchTransactions, importMode, user });
 
 
-const previsionsTracking = useMemo(() => {
-  const map = {};
-
-  (allPrevisionsAnnee || []).forEach(p => {
-    const prevMontantAbs = Math.abs(parseFloat(p.montant) || 0);
-    map[p.id] = {
-      prev: p,
-      prevMontant: prevMontantAbs,
-      consomme: 0,
-      nbTransactions: 0,
-      transactions: []
-    };
-  });
-
-  (toutesLesTransactions || []).forEach(t => {
-    if (t.prevision_id && map[t.prevision_id]) {
-      const montantTx = Math.abs(parseFloat(t.montant) || 0);
-      map[t.prevision_id].consomme += montantTx;
-      map[t.prevision_id].nbTransactions += 1;
-      map[t.prevision_id].transactions.push(t);
-    }
-  });
-
-  Object.keys(map).forEach(id => {
-    const item = map[id];
-    // 🟢 Arrondi strict à 2 décimales pour éliminer les micro-décimales parasites
-    item.consomme = Math.round(item.consomme * 100) / 100;
-    item.restant = Math.round((item.prevMontant - item.consomme) * 100) / 100;
-    
-    // 🟢 Nouveaux états précis
-    item.isComplet = Math.abs(item.restant) < 0.01;      // Exactement 0€ d'écart
-    item.depasse = item.restant < -0.01;                  // Dépassé UNIQUEMENT si strictement supérieur au montant
-    item.pct = item.prevMontant > 0 
-      ? Math.min(100, Math.round((item.consomme / item.prevMontant) * 100)) 
-      : 0;
-  });
-
-  return map;
-}, [allPrevisionsAnnee, toutesLesTransactions]);
+const previsionsTracking = useMemo(() => calculerSuiviPrevisions({ allPrevisionsAnnee, toutesLesTransactions }), [allPrevisionsAnnee, toutesLesTransactions]);
 
 
 
@@ -1396,54 +912,7 @@ const [showEditIconPicker, setShowEditIconPicker] = useState(false);
 const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 
 
-const [isRefreshingPowens, setIsRefreshingPowens] = useState(false);
-
-const handleForceRefreshPowens = async () => {
-  if (isRefreshingPowens) return;
-  setIsRefreshingPowens(true);
-
-  // 1. On démarre le toast de chargement infini et on récupère son identifiant
-  const toastId = toast.loading("Interrogation de votre banque en direct... ⏳", {
-    description: "Connexion sécurisée aux serveurs bancaires"
-  });
-
-  try {
-    // 🟢 1. Déclenche la connexion réelle de Powens auprès de vos serveurs bancaires
-    await api.post(`/powens/refresh-bank-sync/${user}`);
-
-    // 🟢 2. Si vous êtes en mode automatique, on importe les nouvelles transactions immédiatement
-    if (importMode === 'auto') {
-      await api.post(`/powens/sync-user/${user}`);
-      await api.post(`/powens/recalculate-balances/${user}`);
-      await fetchTransactions();
-    }
-
-    // 🟢 3. Rafraîchissement des soldes et du détecteur de nouvelles écritures
-    await Promise.all([
-      fetchPowensConnections(),
-      checkNewTransactions(),
-      fetchComptes()
-    ]);
-
-    // 2. Le toast de chargement se transforme instantanément en succès ✨
-    toast.success("Banque interrogée et données synchronisées ! ⚡", {
-      id: toastId, // 👈 C'est cet id qui remplace le message en cours
-      description: "Vos soldes et transactions sont à jour"
-    });
-
-  } catch (err) {
-    console.error("Erreur lors de l'actualisation manuelle :", err);
-    
-    // 3. En cas d'échec, il se transforme en erreur ❌
-    toast.error("Impossible d'interroger la banque pour le moment.", {
-      id: toastId, // 👈 Remplace le message en cours
-      description: "Veuillez réessayer dans quelques instants"
-    });
-
-  } finally {
-    setIsRefreshingPowens(false);
-  }
-};
+const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens({ checkNewTransactions, fetchComptes, fetchPowensConnections, fetchTransactions, importMode, user });
 
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
