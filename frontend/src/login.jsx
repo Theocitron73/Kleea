@@ -43,7 +43,6 @@ import FenetreSuppressionBudget from './components/FenetreSuppressionBudget';
 import BarreActionsPrevisions from './components/BarreActionsPrevisions';
 import FenetreSuppressionPrevisions from './components/FenetreSuppressionPrevisions';
 import AssistantSolde from './components/AssistantSolde';
-import FenetreDuplication from './components/FenetreDuplication';
 import NotesDeVersion from './components/NotesDeVersion';
 import FenetreReconduction from './components/FenetreReconduction';
 import FenetreBienvenue from './components/FenetreBienvenue';
@@ -1984,10 +1983,6 @@ if (!user) {
 
 
 
-{/* --- MODAL DE CONFIRMATION DE DUPLICATION PERSONNALISÉ --- */}
-{duplicateModal.show && (
-  <FenetreDuplication duplicateModal={duplicateModal} handleConfirmDuplicate={handleConfirmDuplicate} setDuplicateModal={setDuplicateModal} />
-)}
 
 
 

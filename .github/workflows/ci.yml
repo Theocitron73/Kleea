@@ -46,8 +46,7 @@ jobs:
 
   frontend:
     name: Frontend (tests et build)
-    # Playwright 1.56 ne fournit pas Chromium pour Ubuntu 26.04.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
       run:
