@@ -33,7 +33,7 @@ import calendar
 import time
 import asyncio
 import csv
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 import jwt
 import bcrypt
 from contextlib import asynccontextmanager
@@ -41,133 +41,107 @@ import base64
 import hashlib
 import sys
 
-# Les journaux contiennent des emojis : sur une sortie en cp1252 (Windows, hors console),
-# le moindre journal lèverait UnicodeEncodeError et ferait échouer la requête en cours.
-for _flux in (sys.stdout, sys.stderr):
-    if hasattr(_flux, "reconfigure"):
-        _flux.reconfigure(encoding="utf-8", errors="replace")
+# Les modules voisins sont trouvés quel que soit le dossier de lancement.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# --- JOURNAUX ---------------------------------------------------------------
-# Ils ne doivent contenir ni secret ni donnée bancaire : ces motifs servent de filet de sécurité.
-MOTIFS_SECRETS = [
-    (re.compile(r"(?i)(bearer\s+)[\w.~+/=-]+"), r"\1***"),
-    (re.compile(r"kleea_sd_[\w-]+"), "kleea_sd_***"),
-    (re.compile(r"\beyJ[\w-]+\.[\w-]+\.[\w-]+"), "***"),
-    (re.compile(r"(?i)\b(\w*(?:token|password|secret|api_key|auth_key|code)[\"']?\s*[=:]\s*[\"']?)[^\s&\"',}]+"), r"\1***"),
-    (re.compile(r"\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{2,4}){3,8}\b"), "***IBAN***"),
-    (re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+"), "***@***"),
-]
-# Ces routes portent un jeton de partage dans leur chemin.
-ROUTES_A_JETON = re.compile(
-    r"/(get-shared-tricount|save-shared-transaction|update-shared-transaction|delete-shared-transaction|download-shared-pdf)/[^/?\s]+"
+# --- MODULES DU BACKEND ---
+from tricount_calculs import (
+    clean_for_pdf,
+    calculer_balances,
+    StyledPDF,
 )
-
-
-def masquer_secrets(texte) -> str:
-    texte = str(texte)
-    for motif, remplacement in MOTIFS_SECRETS:
-        texte = motif.sub(remplacement, texte)
-    return texte
-
-
-def chemin_journalisable(chemin: str) -> str:
-    """Sans paramètres d'URL ni jeton de partage."""
-    return ROUTES_A_JETON.sub(r"/\1/***", str(chemin).split("?", 1)[0])
-
-
-class FormateurSansSecrets(logging.Formatter):
-    """Masque les secrets dans le message et dans la trace d'erreur."""
-
-    def __init__(self, base: Optional[logging.Formatter] = None):
-        super().__init__("%(asctime)s %(levelname)s %(message)s")
-        self.base = base
-
-    def format(self, record):
-        return masquer_secrets(self.base.format(record) if self.base else super().format(record))
-
-
-class FiltreJournalAcces(logging.Filter):
-    """Uvicorn journalise l'URL complète de chaque requête : on n'en garde que le chemin nettoyé."""
-
-    def filter(self, record):
-        if isinstance(record.args, tuple) and len(record.args) == 5:
-            client, methode, chemin, version, statut = record.args
-            record.args = (client, methode, chemin_journalisable(chemin), version, statut)
-        return True
-
-
-logger = logging.getLogger("kleea")
-if not logger.handlers:
-    _sortie = logging.StreamHandler(sys.stdout)
-    _sortie.setFormatter(FormateurSansSecrets())
-    logger.addHandler(_sortie)
-    logger.setLevel(os.getenv("LOG_LEVEL", "INFO").upper())
-    logger.propagate = False
-
-logging.getLogger("uvicorn.access").addFilter(FiltreJournalAcces())
-for _nom in ("uvicorn", "uvicorn.error"):
-    for _sortie in logging.getLogger(_nom).handlers:
-        if not isinstance(_sortie.formatter, FormateurSansSecrets):
-            _sortie.setFormatter(FormateurSansSecrets(_sortie.formatter))
-
-
-def detail_erreur(e: Exception, contexte: str = "Erreur interne") -> str:
-    """Journalise la cause et renvoie au navigateur un message générique avec une référence pour la retrouver."""
-    if isinstance(e, HTTPException):
-        return e.detail
-    reference = uuid.uuid4().hex[:8]
-    logger.error(f"{contexte} [ref {reference}] : {type(e).__name__} : {e}")
-    return f"{contexte}. Référence : {reference}"
-
-
-def nettoyer_evenement_sentry(event, hint=None):
-    """Rien d'identifiant ni de financier ne part vers le service de suivi d'erreurs."""
-    for cle in ("user", "breadcrumbs", "server_name", "extra", "modules"):
-        event.pop(cle, None)
-    requete = event.get("request")
-    if requete:
-        event["request"] = {"method": requete.get("method"), "url": chemin_journalisable(requete.get("url", ""))}
-    if isinstance(event.get("message"), str):
-        event["message"] = masquer_secrets(event["message"])
-    entree = event.get("logentry")
-    if entree:
-        entree.pop("params", None)
-        for cle, valeur in entree.items():
-            if isinstance(valeur, str):
-                entree[cle] = masquer_secrets(valeur)
-    for exception in (event.get("exception") or {}).get("values") or []:
-        if exception.get("value"):
-            exception["value"] = masquer_secrets(exception["value"])
-        for cadre in (exception.get("stacktrace") or {}).get("frames") or []:
-            for cle in ("vars", "pre_context", "context_line", "post_context"):
-                cadre.pop(cle, None)
-    return event
-
-
-def demarrer_suivi_erreurs():
-    """Inactif tant que SENTRY_DSN n'est pas défini : aucune donnée ne quitte alors le serveur."""
-    dsn = os.getenv("SENTRY_DSN")
-    if not dsn:
-        return False
-    try:
-        import sentry_sdk
-
-        sentry_sdk.init(
-            dsn=dsn,
-            environment=os.getenv("SENTRY_ENVIRONMENT", "production"),
-            send_default_pii=False,
-            include_local_variables=False,
-            include_source_context=False,
-            max_request_body_size="never",
-            max_breadcrumbs=0,
-            traces_sample_rate=0,
-            before_send=nettoyer_evenement_sentry,
-        )
-        logger.info("Suivi d'erreurs actif.")
-        return True
-    except Exception as e:
-        logger.warning(f"Suivi d'erreurs non démarré : {type(e).__name__}")
-        return False
+from imports_bancaires import (
+    clean_val_to_float,
+    parse_ofx_data,
+    parse_qif_data,
+    normalize_powens_transactions,
+    clean_text_for_matching,
+    check_is_duplicate,
+    build_powens_account_id_to_kleea_map,
+    to_pure_date,
+    normalize_acc_name,
+    BANQUE_STOP_WORDS,
+    clean_banking_label_py,
+    are_labels_similar_py,
+    is_duplicate_py,
+    POWENS_CATEGORY_MAPPING,
+    match_powens_to_user_category,
+)
+from streamdeck_calculs import (
+    STREAMDECK_MOIS,
+    STREAMDECK_MOTS_IGNORES,
+    STREAMDECK_TYPES_LIVRETS,
+    _sd_nettoyer_mois,
+    _sd_nom_compte,
+    _sd_montant,
+    _sd_annee,
+    _sd_est_transfert,
+    _sd_compte_cible,
+    calculer_vues_streamdeck,
+)
+from schemas import (
+    _date_valide,
+    Transaction,
+    LoginRequest,
+    RegisterRequest,
+    ImportModeRequest,
+    ResetRequest,
+    NewPasswordRequest,
+    UpdatePasswordRequest,
+    UpdateProfileRequest,
+    CompteConfig,
+    ThemeConfig,
+    UserColorUpdate,
+    Projet,
+    OrdreProjets,
+    Budget,
+    CategorieCreate,
+    CategorieUpdate,
+    CategorieAssignGroup,
+    DeleteGroupRequest,
+    Memoire,
+    PrevisionIn,
+    Allocation,
+    TricountTransaction,
+    RenameGroupRequest,
+    SharedTransactionRequest,
+    SharedTransactionUpdate,
+    UpdateTransactionRequest,
+    CustomStatRule,
+    CustomStatCreate,
+    CustomStatUpdate,
+    ChatRequest,
+    AISuggestedRule,
+    AICreationStat,
+    ChatResponseSchema,
+    ConseilCategorie,
+    PermanentSavingsIndicatorResponse,
+    SimulationLineCreate,
+    DuplicateScenarioRequest,
+    NoteUpdate,
+    PowensCallback,
+    PropagateYearRequest,
+    CongeCreate,
+    CongeProfile,
+    SplitLine,
+    SplitRequest,
+    ThemePresetIn,
+    AnnonceModel,
+    ScrapeUrlRequest,
+    ParseTextRequest,
+)
+from journaux import (
+    FiltreJournalAcces,
+    FormateurSansSecrets,
+    MOTIFS_SECRETS,
+    ROUTES_A_JETON,
+    chemin_journalisable,
+    demarrer_suivi_erreurs,
+    detail_erreur,
+    logger,
+    masquer_secrets,
+    nettoyer_evenement_sentry,
+)
 
 
 # 1. Patch Hostname
@@ -606,20 +580,6 @@ def get_transactions(username: Optional[str] = None, current_user: str = Depends
         raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur Base de données"))
 
     
-class Transaction(BaseModel):
-    nom: str
-    montant: float
-    categorie: str
-    utilisateur: str
-    mois: str
-    annee: int
-    compte: str
-    id: Optional[int] = None
-    date: Optional[str] = None
-    enveloppe: Optional[str] = None
-    prevision_id: Optional[int] = None  # 👈 AJOUT ICI
-    split_id: Optional[str] = None  # 👈 AJOUTEZ CETTE LIGNE
-
 @app.post("/transactions")
 def add_transaction(t: Transaction, current_user: str = Depends(get_current_user)):
     query = text("""
@@ -718,17 +678,6 @@ def get_user_transactions_count(username: str, current_user: str = Depends(get_c
 
 
 
-class LoginRequest(BaseModel):
-    nom: str
-    password: str
-
-class RegisterRequest(BaseModel):
-    nom: str        # Sera utilisé pour 'username'
-    email: str
-    password: str
-    first_name: str
-    last_name: str
-
 @app.post("/register")
 def register(req: RegisterRequest):
     # 🟢 VALIDATION DE LA ROBUSTESSE DU MOT DE PASSE
@@ -821,10 +770,6 @@ def login(req: LoginRequest, request: Request):
         }
 
 
-# Modèle pour la mise à jour du mode d'import
-class ImportModeRequest(BaseModel):
-    import_mode: str  # 'auto' ou 'manual'
-
 # --- ROUTE : RÉCUPÉRER LE PROFIL ---
 @app.get("/profile/{username}")
 def get_profile(username: str, current_user: str = Depends(get_current_user)):
@@ -874,9 +819,6 @@ def update_import_mode(username: str, req: ImportModeRequest, current_user: str 
         return {"status": "success", "import_mode": req.import_mode}
     except Exception as e:
         raise HTTPException(status_code=500, detail=detail_erreur(e))
-
-class ResetRequest(BaseModel):
-    email: EmailStr
 
 # Caches en mémoire pour le Rate-Limiting
 
@@ -964,10 +906,6 @@ async def forgot_password(req: ResetRequest):
     return response_msg
 
 
-class NewPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
 @app.post("/reset-password-confirm")
 async def reset_password_confirm(req: NewPasswordRequest):
     hashed_password = hash_password(req.new_password)
@@ -989,9 +927,6 @@ async def reset_password_confirm(req: NewPasswordRequest):
 
 
 
-
-class UpdatePasswordRequest(BaseModel):
-    new_password: str
 
 # --- ROUTE : CHANGER LE MOT DE PASSE ---
 @app.put("/profile/{username}/password")
@@ -1051,11 +986,6 @@ def delete_account(username: str, current_user: str = Depends(get_current_user))
     return {"status": "success", "message": "Compte et données associés détruits définitivement"}
 
 
-# Modèle pour la mise à jour des infos personnelles
-class UpdateProfileRequest(BaseModel):
-    name: str
-    email: str
-
 # --- ROUTE : MODIFIER LES INFOS PERSONNELLES ---
 @app.put("/profile/{username}/details")
 def update_profile_details(username: str, req: UpdateProfileRequest, current_user: str = Depends(get_current_user)):
@@ -1085,18 +1015,6 @@ def update_profile_details(username: str, req: UpdateProfileRequest, current_use
         conn.commit()
         
     return {"status": "success", "message": "Profil mis à jour avec succès"}
-
-
-# 💡 1. AJOUT DE TAUX DANS LE MODÈLE PYDANTIC
-class CompteConfig(BaseModel):
-    compte: str
-    groupe: str
-    solde: float
-    objectif: float
-    couleur: str
-    utilisateur: str
-    taux: float = 0.0  # Optionnel par défaut à 0.0 si absent
-    powens_name: Optional[str] = None
 
 
 # --- ROUTE : RÉCUPÉRER LA CONFIGURATION DES COMPTES ---
@@ -1168,17 +1086,6 @@ def delete_compte(compte_name: str, username: str, current_user: str = Depends(g
         conn.execute(query, {"c": compte_name, "u": current_user})
         conn.commit()
     return {"status": "deleted"}
-
-class ThemeConfig(BaseModel):
-    utilisateur: str
-    bg_site: str
-    primary_color: str
-    text_main: str
-    radius: str
-    glass_blur: str  # <-- AJOUT
-    glass_bg: str    # <-- AJOUT
-    secondary_color: Optional[str] = None  # None : dérivée de la couleur primaire
-
 
 def assurer_colonnes_theme():
     """Colonnes vides par défaut : les thèmes existants gardent une secondaire automatique."""
@@ -1299,11 +1206,6 @@ def get_user_theme(username: str, current_user: str = Depends(get_current_user))
         return {}
     
 
-class UserColorUpdate(BaseModel):
-    user: str
-    element: str
-    couleur: str
-
 @app.post("/save-user-theme")
 def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_user)):
     verifier_proprietaire_theme(c.user, current_user)
@@ -1318,49 +1220,6 @@ def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_
     return {"status": "success"}
 
 
-
-
-def _date_valide(valeur: str, formats: tuple) -> str:
-    for fmt in formats:
-        try:
-            datetime.strptime(valeur, fmt)
-            return valeur
-        except ValueError:
-            continue
-    raise ValueError("Date invalide")
-
-
-class Projet(BaseModel):
-    profil: str = Field(min_length=1, max_length=100)
-    nom: str = Field(min_length=1, max_length=120)
-    cout: float = Field(ge=0)
-    date: str  # Date d'échéance / cible (Format "YYYY-MM-DD")
-    capa: float = Field(default=0, ge=0)
-    apport: float = Field(default=0, ge=0)
-    date_debut: Optional[str] = None  # Format "YYYY-MM-DD" (ou "YYYY-MM")
-    utiliser_capa_stricte: Optional[bool] = False
-
-    @field_validator("nom")
-    @classmethod
-    def nom_non_vide(cls, valeur: str) -> str:
-        valeur = valeur.strip()
-        if not valeur:
-            raise ValueError("Le nom est obligatoire")
-        return valeur
-
-    @field_validator("date")
-    @classmethod
-    def date_valide(cls, valeur: str) -> str:
-        return _date_valide(valeur, ("%Y-%m-%d",))
-
-    @field_validator("date_debut")
-    @classmethod
-    def date_debut_valide(cls, valeur: Optional[str]) -> Optional[str]:
-        return _date_valide(valeur, ("%Y-%m-%d", "%Y-%m")) if valeur else valeur
-
-
-class OrdreProjets(BaseModel):
-    ids: List[int] = Field(max_length=500)
 
 
 def assurer_colonnes_projets():
@@ -1472,16 +1331,6 @@ def delete_projet(projet_id: int, current_user: str = Depends(get_current_user))
 
 
 
-class Budget(BaseModel):
-    utilisateur: str
-    mois: str
-    annee: int = Field(default_factory=lambda: date.today().year) # Détecte l'annee actuelle par défaut (ex: 2026)
-    compte: str
-    type: str = "Categorie"
-    nom: str
-    somme: float
-
-
 # --- 1. BUDGETS ---
 @app.get("/get-budgets/{utilisateur}")
 @app.get("/get-budgets/{utilisateur}/{mois}")
@@ -1573,19 +1422,6 @@ CATEGORIES_DEFAUT = [
     "Bricolage", "Transports", "Carburant", "Auto", 
     "Retraits", "Internet", "Autre"
 ]
-
-# 1. Modèles Pydantic avec la couleur
-class CategorieCreate(BaseModel):
-    nom: str
-    icone: Optional[str] = "Tag"
-    couleur: Optional[str] = "#818cf8"
-    utilisateur: str
-
-class CategorieUpdate(BaseModel):
-    nom: str
-    icone: Optional[str] = "Tag"
-    couleur: Optional[str] = "#818cf8"
-    utilisateur: str
 
 @app.post("/api/categories")
 def add_category(cat: CategorieCreate, current_user: str = Depends(get_current_user)):
@@ -1702,11 +1538,6 @@ def delete_category(user: str, nom: str, current_user: str = Depends(get_current
     return {"status": "success"}
 
     
-class CategorieAssignGroup(BaseModel):
-    nom: str
-    groupe: str
-    utilisateur: str
-
 @app.put("/api/categories/assign-group")
 def assign_category_group(req: CategorieAssignGroup, current_user: str = Depends(get_current_user)):
     clean_user = current_user  # 👈 Token forcé
@@ -1733,12 +1564,6 @@ def assign_category_group(req: CategorieAssignGroup, current_user: str = Depends
     return {"status": "success", "nom": clean_name, "groupe": clean_group}
 
 
-# 🟢 ROUTE : SUPPRESSION D'UN GROUPE AVEC RÉASSIGNATION AUTOMATIQUE VERS "Général"
-class DeleteGroupRequest(BaseModel):
-    groupe: str
-    utilisateur: str
-    fallback_groupe: Optional[str] = "Général"
-
 @app.put("/api/categories/delete-group")
 def delete_category_group(req: DeleteGroupRequest, current_user: str = Depends(get_current_user)):
     clean_user = current_user  # 👈 Token forcé
@@ -1756,11 +1581,6 @@ def delete_category_group(req: DeleteGroupRequest, current_user: str = Depends(g
         )
 
     return {"status": "success", "deleted_group": clean_group, "fallback": clean_fallback}
-
-class Memoire(BaseModel):
-    nom: str
-    categorie: str
-    utilisateur: str
 
 @app.post("/memoire")
 def add_to_memory(m: dict, current_user: str = Depends(get_current_user)):
@@ -1836,94 +1656,6 @@ def save_masked_categories(user: str, categories: List[str] = Body(default=[]), 
 # =========================================================================
 # 📥 MOTEUR D'IMPORTATION UNIVERSEL : CSV, OFX, QIF & QFX
 # =========================================================================
-
-def clean_val_to_float(val) -> float:
-    if not val:
-        return 0.0
-    res = str(val).replace('+', '').replace('\xa0', '').replace(' ', '').replace('EUR', '').strip()
-    res = res.replace(',', '.')
-    try:
-        return float(res)
-    except ValueError:
-        return 0.0
-
-def parse_ofx_data(content: str):
-    """Parseur robuste pour les fichiers bancaires OFX 1.x (SGML) et OFX 2.x (XML)."""
-    transactions = []
-    # Isole chaque bloc <STMTTRN>...</STMTTRN>
-    blocks = re.findall(r'<STMTTRN>(.*?)(?:</STMTTRN>|(?=<STMTTRN>)|$)', content, flags=re.DOTALL | re.IGNORECASE)
-    
-    for block in blocks:
-        # Date : <DTPOSTED>20261005120000 ou <DTPOSTED>2026-10-05
-        date_match = re.search(r'<DTPOSTED>\s*([0-9\-\:\s]+)', block, re.IGNORECASE)
-        # Montant : <TRNAMT>-45.50
-        amount_match = re.search(r'<TRNAMT>\s*([\+\-0-9\.,\s]+)', block, re.IGNORECASE)
-        # Nom : <NAME>CARREFOUR
-        name_match = re.search(r'<NAME>\s*([^<\r\n]+)', block, re.IGNORECASE)
-        # Memo / Info : <MEMO>CB 04/10
-        memo_match = re.search(r'<MEMO>\s*([^<\r\n]+)', block, re.IGNORECASE)
-
-        if date_match and amount_match:
-            raw_date = date_match.group(1).strip()
-            # Nettoyage date OFX (format YYYYMMDD...)
-            if len(raw_date) >= 8 and raw_date[:8].isdigit():
-                date_str = f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
-            else:
-                date_str = raw_date[:10]
-
-            montant = clean_val_to_float(amount_match.group(1))
-            nom = name_match.group(1).strip() if name_match else ""
-            memo = memo_match.group(1).strip() if memo_match else ""
-            
-            libelle = f"{nom} {memo}".strip() if memo and memo != nom else (nom or memo or "Transaction OFX")
-            transactions.append({
-                "raw_date": date_str,
-                "nom": libelle,
-                "montant": montant
-            })
-    return transactions
-
-def parse_qif_data(content: str):
-    """Parseur officiel pour les fichiers Quicken QIF."""
-    transactions = []
-    # Sépare les enregistrements par le caractère '^'
-    records = content.split('^')
-    
-    for record in records:
-        lines = [l.strip() for l in record.splitlines() if l.strip()]
-        if not lines:
-            continue
-        
-        raw_date = None
-        montant = 0.0
-        payee = ""
-        memo = ""
-
-        for line in lines:
-            code = line[0].upper()
-            val = line[1:].strip()
-            
-            if code == 'D': # Date (ex: D05/10/2026 ou D05/10'26 ou D2026-10-05)
-                raw_date = val.replace("'", "/")
-            elif code == 'T': # Montant (ex: T-45.50)
-                montant = clean_val_to_float(val)
-            elif code == 'P': # Payee / Bénéficiaire
-                payee = val
-            elif code == 'M': # Memo / Description
-                memo = val
-
-        if raw_date and (payee or memo or montant != 0):
-            # Normalisation de la date QIF
-            dt = pd.to_datetime(raw_date, dayfirst=True, errors='coerce')
-            if pd.notna(dt):
-                date_str = dt.strftime('%Y-%m-%d')
-                libelle = f"{payee} {memo}".strip() if memo and memo != payee else (payee or memo or "Transaction QIF")
-                transactions.append({
-                    "raw_date": date_str,
-                    "nom": libelle,
-                    "montant": montant
-                })
-    return transactions
 
 @app.post("/import-csv")
 @app.post("/import-file")
@@ -2230,30 +1962,6 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_use
         return []
     
 
-class PrevisionIn(BaseModel):
-    nom: str
-    montant: float
-    categorie: str
-    compte: str
-    utilisateur: str
-    mois: str
-    annee: int
-    date: str
-    actif: bool = True
-
-    # 💡 Pydantic Validator : Nettoie automatiquement le mois à l'entrée de l'API
-    @field_validator('mois')
-    @classmethod
-    def clean_mois(cls, v: str) -> str:
-        if v:
-            # Enlève les accents (Août -> Aout, Février -> Fevrier)
-            
-            v = "".join(c for c in unicodedata.normalize('NFD', v) if unicodedata.category(c) != 'Mn')
-            # Optionnel : Forcer la première lettre en Majuscule et le reste en minuscule
-            v = v.strip().capitalize()
-        return v
-
-
 @app.get("/previsions/{utilisateur}")
 def get_all_user_previsions_periods(utilisateur: str, current_user: str = Depends(get_current_user)):
     query = text("SELECT DISTINCT mois, annee FROM previsions WHERE LOWER(utilisateur) = :u ORDER BY annee DESC")
@@ -2356,12 +2064,6 @@ def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)
     
 
 
-class Allocation(BaseModel):
-    profil: str = Field(min_length=1, max_length=100)
-    projet: str = Field(min_length=1, max_length=120)
-    montant_alloue: float = Field(ge=0)
-
-
 # --- 2. ENVELOPPES D'ALLOCATIONS (RÉCUPÉRATION HISTORIQUE + SÉCURITÉ) ---
 @app.get("/get-allocations/{profil_id}")
 def get_allocations(profil_id: str, current_user: str = Depends(get_current_user)):
@@ -2433,106 +2135,6 @@ def update_enveloppe_montant(projet: str, profil: str, nouveau_montant: float, c
             raise HTTPException(status_code=404, detail="Enveloppe introuvable")
         conn.execute(query_ins, {"pj": projet, "pr": profil, "m": nouveau_montant, "u": current_user})
     return {"status": "success"}
-
-
-class TricountTransaction(BaseModel):
-    id: Optional[int] = None
-    date: date
-    libelle: str
-    montant: float
-    paye_par: str
-    pour_qui: str # Stocké en string séparé par des virgules (ex: "Theo, Marie, Julie")
-    utilisateur: str
-    groupe: str
-    token_partage: Optional[str] = None # <-- Nouveau champ
-    emoji: Optional[str] = None  # <--- AJOUTE CETTE LIGNE
-
-def clean_for_pdf(text_val: str) -> str:
-    if not text_val:
-        return ""
-    # 1. Nettoyage strict des caractères de haute valeur (ord >= 256) comme les émojis
-    text_val = "".join(c for c in text_val if ord(c) < 256)
-    
-    # 2. Remplacement des accents français courants pour éviter les plantages ou caractères corrompus
-    replacements = {
-        'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-        'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E',
-        'à': 'a', 'â': 'a', 'ä': 'a',
-        'À': 'A', 'Â': 'A', 'Ä': 'A',
-        'ù': 'u', 'û': 'u', 'ü': 'u',
-        'Ù': 'U', 'Û': 'U', 'Ü': 'U',
-        'î': 'i', 'ï': 'i',
-        'Î': 'I', 'Ï': 'I',
-        'ô': 'o', 'ö': 'o',
-        'Ô': 'O', 'Ö': 'O',
-        'ç': 'c', 'Ç': 'C',
-        'œ': 'oe', 'Œ': 'OE'
-    }
-    for orig, rep in replacements.items():
-        text_val = text_val.replace(orig, rep)
-        
-    try:
-        return text_val.encode('latin-1', 'ignore').decode('latin-1')
-    except Exception:
-        return "".join(c for c in text_val if ord(c) < 128)
-
-def calculer_balances(transactions):
-    # 1. On initialise une matrice de dettes croisées
-    # dettes[A][B] = ce que A doit à B
-    dettes = {}
-    participants = set()
-
-    for t in transactions:
-        payeur = str(t.get('paye_par') or t.get('paye_par') or '').strip()
-        montant_total = float(t.get('montant') or 0)
-        if not payeur or payeur == "Système" or montant_total <= 0:
-            continue
-        
-        participants.add(payeur)
-        pour_qui_raw = str(t.get('pour_qui') or '')
-        parts = [p.strip() for p in pour_qui_raw.split(',') if p.strip()]
-
-        for part in parts:
-            if ':' in part:
-                benef, montant_part = part.split(':')
-                benef = benef.strip()
-                participants.add(benef)
-                if benef != payeur:
-                    # Le bénéficiaire 'benef' doit 'montant_part' au 'payeur'
-                    if benef not in dettes: dettes[benef] = {}
-                    dettes[benef][payeur] = dettes[benef].get(payeur, 0) + float(montant_part)
-            else:
-                # Si format simple, on divise
-                part_egale = montant_total / len(parts)
-                benef = part.strip()
-                participants.add(benef)
-                if benef != payeur:
-                    if benef not in dettes: dettes[benef] = {}
-                    dettes[benef][payeur] = dettes[benef].get(payeur, 0) + part_egale
-
-    # 2. Netting Bilatéral (Compensation entre deux personnes)
-    # Si A doit 10 à B et B doit 5 à A, alors A doit 5 à B.
-    transferts = []
-    liste_p = list(participants)
-    
-    for i in range(len(liste_p)):
-        for j in range(i + 1, len(liste_p)):
-            p1 = liste_p[i]
-            p2 = liste_p[j]
-            
-            dette_1_vers_2 = dettes.get(p1, {}).get(p2, 0)
-            dette_2_vers_1 = dettes.get(p2, {}).get(p1, 0)
-            
-            if dette_1_vers_2 > dette_2_vers_1:
-                diff = round(dette_1_vers_2 - dette_2_vers_1, 2)
-                if diff > 0.01:
-                    transferts.append({"de": p1, "a": p2, "montant": diff})
-            elif dette_2_vers_1 > dette_1_vers_2:
-                diff = round(dette_2_vers_1 - dette_1_vers_2, 2)
-                if diff > 0.01:
-                    transferts.append({"de": p2, "a": p1, "montant": diff})
-
-    return transferts
 
 
 @app.get("/get-tricount/{username}/{group_name}")
@@ -2631,12 +2233,6 @@ def delete_group(username: str, group_name: str, current_user: str = Depends(get
         conn.execute(query, {"u": current_user.lower(), "g": group_name})
     return {"status": "success", "message": f"Groupe {group_name} supprimé"}
     
-# Modèle pour valider les données reçues lors du renommage
-class RenameGroupRequest(BaseModel):
-    userId: str
-    oldName: str
-    newName: str
-
 @app.put("/rename-group")
 def rename_group(request: RenameGroupRequest, current_user: str = Depends(get_current_user)):
     query = text("""
@@ -2654,28 +2250,6 @@ def rename_group(request: RenameGroupRequest, current_user: str = Depends(get_cu
     
 
 
-
-class StyledPDF(FPDF):
-    def header_style(self, title, subtitle):
-        # 1. Fond sombre pour le Header (simule le bg du site)
-        self.set_fill_color(15, 23, 42)  # Dark Blue #0f172a
-        self.rect(0, 0, 210, 50, 'F')
-        
-        # 2. Ligne de "lumière" Indigo en haut (comme ton interface)
-        self.set_fill_color(99, 102, 241) # Indigo-500
-        self.rect(0, 0, 210, 2, 'F')
-        
-        # 3. Titre Principal
-        self.set_y(15)
-        self.set_font("Helvetica", "B", 24)
-        self.set_text_color(255, 255, 255)
-        self.cell(0, 10, title.upper(), ln=True, align='C')
-        
-        # 4. Sous-titre
-        self.set_font("Helvetica", "B", 8)
-        self.set_text_color(100, 116, 139) # Gris-bleu text-slate-400
-        self.cell(0, 10, subtitle.upper(), ln=True, align='C')
-        self.ln(20)
 
 # ==========================================================
 # ROUTE 1 : TELECHARGEMENT DE PDF (CONNECTÉ)
@@ -2882,15 +2456,6 @@ def get_shared_tricount(token: str):
             "emojis": chaine_emojis
         }
 
-# 4. Sauvegarder une transaction anonyme depuis le lien de partage
-class SharedTransactionRequest(BaseModel):
-    date: date
-    libelle: str
-    montant: float
-    paye_par: str
-    pour_qui: str
-    emoji: Optional[str] = None
-
 @app.post("/save-shared-transaction/{token}")
 def save_shared_transaction(token: str, t: SharedTransactionRequest):
     # Retrouver l'utilisateur et le groupe d'origine associés au token
@@ -2917,15 +2482,6 @@ def save_shared_transaction(token: str, t: SharedTransactionRequest):
             "m": t.montant, "u": username, "g": group_name, "token": token, "e": t.emoji
         })
     return {"status": "success"}
-
-# 5. Modifier une transaction de manière sécurisée via le token de partage
-class SharedTransactionUpdate(BaseModel):
-    id: int
-    date: date
-    libelle: str
-    paye_par: str
-    pour_qui: str
-    montant: float
 
 @app.put("/update-shared-transaction/{token}")
 def update_shared_transaction(token: str, t: SharedTransactionUpdate):
@@ -3077,15 +2633,6 @@ def download_shared_pdf(token: str, sujet: str = None):
 
 
 
-# Modèle pour la modification
-class UpdateTransactionRequest(BaseModel):
-    id: int
-    date: str
-    libelle: str
-    paye_par: str
-    pour_qui: str
-    montant: float
-
 # 🟢 1. SUPPRESSION / MODIFICATION DE TRANSACTIONS TRICOUNT
 @app.delete("/delete-transaction/{transaction_id}")
 def delete_transaction(transaction_id: int, current_user: str = Depends(get_current_user)):
@@ -3214,22 +2761,6 @@ def get_members(username: str, group_name: str, current_user: str = Depends(get_
 
 
 
-# --- SCHÉMAS PYDANTIC POUR LES STATS PERSONNALISÉES ---
-class CustomStatRule(BaseModel):
-    champ: str       # 'nom', 'categorie' ou 'jour'
-    condition: str   # 'EQUALS', 'CONTAINS', 'GREATER_THAN', 'LESS_THAN'
-    valeur: str      # ex: 'UberEats', 'Macdo', 'lundi', etc.
-
-class CustomStatCreate(BaseModel):
-    utilisateur: str
-    profil: str 
-    titre: str
-    flux_type: str   # 'depenses' ou 'revenus'
-    operateur: str   # 'AND' ou 'OR'
-    couleur: str  # 👈 Ajoute ici
-    icone: str    # 👈 Ajoute ici
-    regles: List[CustomStatRule]
-
 # --- 1. AJOUTER UNE STAT PERSO (CORRIGÉ ✨) ---
 @app.post("/custom-stats")
 def create_custom_stat(stat: CustomStatCreate, current_user: str = Depends(get_current_user)):
@@ -3294,15 +2825,6 @@ def delete_custom_stat(stat_id: int, current_user: str = Depends(get_current_use
     except Exception as e:
          raise HTTPException(status_code=500, detail=detail_erreur(e))
 
-# --- SCHÉMA DE MISE À JOUR ---
-class CustomStatUpdate(BaseModel):
-    titre: str
-    flux_type: str
-    operateur: str
-    couleur: str
-    icone: str
-    regles: List[CustomStatRule]
-
 # --- 4. MODIFIER UNE STAT PERSO (NOUVEAU ✨) ---
 @app.put("/custom-stats/{stat_id}")
 def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str = Depends(get_current_user)):
@@ -3336,33 +2858,6 @@ def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str =
 
 
 
-
-# 1. PLACE LE SCHÉMA ICI EN PREMIER
-class ChatRequest(BaseModel):
-    question: str
-    transactions: List[dict]
-    custom_stats: Optional[List[dict]] = []
-
-
-# 1. Définition de la structure de sortie attendue par Gemini
-class AISuggestedRule(BaseModel):
-    champ: str = Field(description="Doit être 'nom', 'categorie', 'jour', 'montant', 'methode' ou 'frequence'")
-    condition: str = Field(description="Doit être 'EQUALS', 'CONTAINS', 'GREATER_THAN' ou 'LESS_THAN'")
-    valeur: str = Field(description="La valeur cible en minuscules (ex: 'shopping', 'loisirs', 'amazon', 'lundi')")
-
-class AICreationStat(BaseModel):
-    action: str = Field(description="Doit être 'CREATE' pour une création, 'UPDATE' pour une modification d'un indicateur existant, ou 'DELETE' si l'utilisateur veut le supprimer.")
-    id: Optional[str] = Field(default=None, description="L'ID exact de l'indicateur existant si action='UPDATE' ou 'DELETE'. Laisser null si 'CREATE'.")
-    titre: str = Field(description="Le titre de l'indicateur nettoyé (ex: 'Suivi Shopping')")
-    flux_type: str = Field(description="Doit être 'depenses' ou 'revenus'")
-    operateur: str = Field(description="Doit être 'AND' ou 'OR'")
-    couleur: str = Field(description="Choisis parmi exclusivement: 'rose', 'amber', 'emerald', 'indigo', 'cyan', 'violet', 'blue', 'orange', 'red', 'fuchsia'")
-    icone: str = Field(description="Choisis parmi exclusivement: 'fastfood', 'shopping', 'car', 'home', 'sub', 'salary', 'star', 'alert', 'health', 'leisure', 'crypto', 'tech', 'travel', 'gift'")
-    regles: List[AISuggestedRule]
-
-class ChatResponseSchema(BaseModel):
-    reponse: str = Field(description="Ta réponse d'expert financier en Français au format Markdown (tableaux, gras, listes).")
-    creation_stat: Optional[AICreationStat] = Field(default=None, description="Remplis cet objet si l'utilisateur demande explicitement de créer/suivre une stat OU s'il s'intéresse à une/plusieurs catégories/enseignes/jours spécifiques.")
 
 # 2. La route modifiée
 @app.post("/api/insights-chat")
@@ -3519,31 +3014,6 @@ def insights_chat(req: ChatRequest, request: Request, current_user: str = Depend
 
 
 
-class ConseilCategorie(BaseModel):
-  categorie: str = Field(description='Nom de la catégorie visée')
-  depense_actuelle: float = Field(
-      description='Montant dépensé ce mois-ci dans cette catégorie'
-  )
-  economie_potentielle: float = Field(
-      description='Montant réaliste économisable le mois prochain'
-  )
-  action_concrete: str = Field(
-      description='Conseil court et ultra-spécifique (1 à 2 phrases max)'
-  )
-
-
-class PermanentSavingsIndicatorResponse(BaseModel):
-  potentiel_total: float = Field(
-      description='Somme globale des économies identifiées'
-  )
-  score_sante_budget: str = Field(
-      description='Évaluation globale courte (ex: Bon, À surveiller, Critique)'
-  )
-  conseils: list[ConseilCategorie] = Field(
-      description='Liste des 2 à 3 meilleures opportunités d’économies'
-  )
-
-
 # 1. Initialisation du client Gemini (pense à bien définir GEMINI_API_KEY dans tes variables d'environnement)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 LIMITE_ANALYSES_ECONOMIES = 15  # par compte, sur 10 minutes
@@ -3593,17 +3063,6 @@ def get_savings_indicator(data: dict, current_user: str = Depends(get_current_us
 
 
 
-
-class SimulationLineCreate(BaseModel):
-    id: int = None  # Ajout de l'ID optionnel pour l'éventuelle modification directe
-    utilisateur: str
-    scenario: str
-    titre: str
-    flux_type: str
-    categorie: str
-    montant: float
-    frequence: str
-    cible: str
 
 @app.post("/api/simulation-demenagement")
 def add_or_update_simulation_line(line: SimulationLineCreate, current_user: str = Depends(get_current_user)):
@@ -3717,10 +3176,6 @@ def delete_scenario(username: str, scenario_name: str, current_user: str = Depen
 # 📦 DUPLICATION DE SCÉNARIO DÉMÉNAGEMENT
 # =========================================================================
 
-class DuplicateScenarioRequest(BaseModel):
-    scenario_source: str
-    nouveau_scenario: str
-
 @app.post("/api/simulation-demenagement/duplicate")
 def duplicate_scenario(req: DuplicateScenarioRequest, current_user: str = Depends(get_current_user)):
     old_sc = req.scenario_source.strip()
@@ -3760,10 +3215,6 @@ def duplicate_scenario(req: DuplicateScenarioRequest, current_user: str = Depend
 # =========================================================================
 # 📝 BLOC-NOTES DÉMÉNAGEMENT (SAUVEGARDE ATOMIQUE SANS COLONNE MANQUANTE)
 # =========================================================================
-
-class NoteUpdate(BaseModel):
-    utilisateur: str
-    contenu: str
 
 @app.get("/api/notes-demenagement/{username}")
 def get_user_notes(username: str, current_user: str = Depends(get_current_user)):
@@ -3839,7 +3290,7 @@ def jeton_powens_du_compte(current_user: str) -> Optional[str]:
     query = text("SELECT powens_token FROM users WHERE LOWER(username) = :u OR LOWER(email) = :u")
     with engine.connect() as conn:
         ligne = conn.execute(query, {"u": current_user}).fetchone()
-    return ligne[0] if ligne and ligne[0] else None
+    return dechiffrer_jeton(ligne[0]) if ligne and ligne[0] else None
 
 
 @app.get("/powens/connect-url")
@@ -3891,12 +3342,6 @@ def get_connect_url(
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du lien bancaire.")
 
 
-class PowensCallback(BaseModel):
-    code: str = Field(min_length=1)
-    state: str = Field(min_length=1)
-    redirect_uri: Optional[str] = None
-
-
 @app.post("/powens/callback")
 def powens_callback(req: PowensCallback, current_user: str = Depends(get_current_user)):
     """
@@ -3932,7 +3377,7 @@ def powens_callback(req: PowensCallback, current_user: str = Depends(get_current
             UPDATE users
             SET powens_token = :token
             WHERE LOWER(username) = :u OR LOWER(email) = :u
-        """), {"token": access_token, "u": current_user})
+        """), {"token": chiffrer_jeton(access_token), "u": current_user})
         if resultat.rowcount == 0:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
 
@@ -4000,90 +3445,6 @@ def get_powens_transactions(user_token: str):
 
     data = res.json()
     return data.get("transactions", [])
-
-
-def normalize_powens_transactions(
-    powens_txs, 
-    utilisateur: str, 
-    compte_nom: str, 
-    target_account_id: str = None,
-    date_debut: str = None,  # Format "YYYY-MM-DD"
-    date_fin: str = None     # Format "YYYY-MM-DD"
-):
-    mois_fr = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"]
-    normalized = []
-
-    target_id_str = str(target_account_id).strip() if target_account_id else None
-
-    # Conversion des bornes de dates si fournies
-    dt_debut = datetime.strptime(date_debut, '%Y-%m-%d') if date_debut else None
-    dt_fin = datetime.strptime(date_fin, '%Y-%m-%d').replace(hour=23, minute=59, second=59) if date_fin else None
-
-    # Fallback par défaut : si aucune date n'est transmise, prendre les 60 derniers jours
-    if not dt_debut and not dt_fin:
-        aujourdhui = datetime.now()
-        dt_debut = aujourdhui - timedelta(days=60)
-        dt_fin = aujourdhui
-
-    for tx in powens_txs:
-        # 1. Filtrage par ID Compte
-        tx_account_id = str(tx.get("id_account")).strip() if tx.get("id_account") is not None else None
-        if target_id_str and tx_account_id:
-            if tx_account_id != target_id_str:
-                continue
-
-        # 2. Filtrage par Date
-        raw_date = str(tx.get("date") or tx.get("rdate") or "").split(" ")[0]
-        try:
-            dt = datetime.strptime(raw_date, '%Y-%m-%d')
-        except ValueError:
-            continue
-
-        if dt_debut and dt < dt_debut:
-            continue
-        if dt_fin and dt > dt_fin:
-            continue
-
-        # Normalisation montant et libellé
-        montant_float = float(tx.get("value", 0.0))
-        libelle = (
-            tx.get("simplified_wording") or 
-            tx.get("wording") or 
-            tx.get("raw_wording") or 
-            "Transaction Inconnue"
-        )
-
-       # Extraction de la catégorie ML de Powens
-        powens_cat = None
-
-        # 1. Format 'category' standard
-        cat_obj = tx.get("category")
-        if isinstance(cat_obj, dict):
-            powens_cat = cat_obj.get("name")
-        elif isinstance(cat_obj, str):
-            powens_cat = cat_obj
-
-        # 2. Format 'categories' alternatif (Powens Categorization API)
-        if not powens_cat:
-            categories_obj = tx.get("categories")
-            if isinstance(categories_obj, list) and len(categories_obj) > 0:
-                powens_cat = categories_obj[0].get("name") or categories_obj[0].get("description")
-            elif isinstance(categories_obj, dict):
-                powens_cat = categories_obj.get("name") or categories_obj.get("description")
-
-        normalized.append({
-            "date": dt.strftime('%Y-%m-%d'),
-            "nom": libelle.strip(),
-            "montant": montant_float,
-            "categorie": "Autre",
-            "utilisateur": utilisateur.lower(),
-            "compte": compte_nom,
-            "mois": mois_fr[dt.month - 1],
-            "annee": int(dt.year),
-            "raw_powens_category": powens_cat  # 👈 Transmis pour le mapping
-        })
-
-    return normalized
 
 
 def get_mots_cles_rules(utilisateur: str):
@@ -4366,13 +3727,6 @@ def powens_connexion_active(current_user: str = Depends(get_current_user)):
     return {"connecte": bool(jeton_powens_du_compte(current_user))}
 
 
-class PropagateYearRequest(BaseModel):
-    ids: List[int]
-    mois_actuel: Any          # Nom du mois (ex: "Juin") ou chiffre (ex: 6)
-    annee: Any                # Année cible (ex: 2026)
-    utilisateur: Optional[Any] = None  # Conservé pour compatibilité front, mais ignoré au profit du JWT
-
-
 @app.post("/api/previsions/propagate-year")
 def propagate_previsions_year(
     req: PropagateYearRequest, 
@@ -4543,114 +3897,6 @@ def propagate_previsions_year(
 
 
 
-def clean_text_for_matching(text_val: str) -> str:
-    """Nettoie le texte pour faciliter la comparaison (sans accents, sans chiffres parasites)."""
-    if not text_val:
-        return ""
-    text_val = text_val.lower()
-    # Supprime les accents
-    text_val = "".join(c for c in unicodedata.normalize('NFD', text_val) if unicodedata.category(c) != 'Mn')
-    # Supprime les dates (ex: 25/08, 25.08, 2026)
-    text_val = re.sub(r'\d+[\/\.]\d+([\/\.]\d+)?', '', text_val)
-    # Supprime les numéros de carte ou identifiants longs
-    text_val = re.sub(r'cb\s*\d+|carte\s*n[o°]\s*\d+|\b\d{6,}\b', '', text_val)
-    # Nettoie les espaces multiples
-    text_val = " ".join(text_val.split())
-    return text_val
-
-def check_is_duplicate(conn, user: str, date_str: str, montant: float, label: str) -> bool:
-    """
-    Vérifie si une transaction similaire existe déjà dans une fenêtre de +/- 3 jours
-    avec le même montant exact et un libelle similaire.
-    """
-    tx_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    start_window = tx_date - timedelta(days=3)
-    end_window = tx_date + timedelta(days=3)
-    
-    # Récupérer les transactions existantes sur cette période pour cet utilisateur
-    query = text("""
-        SELECT nom, montant FROM transactions 
-        WHERE LOWER(utilisateur) = :u 
-        AND date BETWEEN :start AND :end
-        AND ABS(montant - :m) < 0.01
-    """)
-    
-    candidates = conn.execute(query, {
-        "u": user.lower(),
-        "start": start_window,
-        "end": end_window,
-        "m": montant
-    }).fetchall()
-    
-    if not candidates:
-        return False
-        
-    cleaned_new = clean_text_for_matching(label)
-    
-    for db_nom, db_montant in candidates:
-        cleaned_db = clean_text_for_matching(db_nom)
-        # Si l'un des deux noms est contenu dans l'autre ou s'ils sont proches
-        if cleaned_new in cleaned_db or cleaned_db in cleaned_new or len(set(cleaned_new.split()) & set(cleaned_db.split())) >= 2:
-            return True
-            
-    return False
-
-# 🟢 FONCTION UTILITAIRE : MAPPING UNIVERSEL POWENS -> KLEEA (NOM, IBAN, NUMÉRO, ID)
-def build_powens_account_id_to_kleea_map(powens_accounts: list, config_rows: list) -> dict:
-    """
-    Associe de manière infaillible l'ID technique Powens (str) au compte Kleea local (str),
-    que l'utilisateur ait renseigné le nom Powens, un IBAN, un numéro de compte ou un ID.
-    """
-    mapping = {}
-    for acc in powens_accounts:
-        acc_id = str(acc.get("id"))
-        acc_name = str(acc.get("name") or "").strip().upper()
-        acc_name_compact = acc_name.replace(" ", "")
-        acc_iban = str(acc.get("iban") or "").strip().upper().replace(" ", "")
-        acc_number = str(acc.get("number") or "").strip().upper().replace(" ", "")
-
-        for row in config_rows:
-            local_compte = row[0]
-            k_link = str(row[1] or "").strip().upper().replace(" ", "")
-            if not k_link:
-                continue
-
-            # Correspondance flexible (ID, Nom, IBAN ou Numéro de compte)
-            is_match = (
-                k_link == acc_id or 
-                k_link == acc_name_compact or 
-                k_link in acc_name_compact or 
-                acc_name_compact in k_link or
-                (acc_iban and (k_link == acc_iban or k_link in acc_iban or acc_iban in k_link)) or
-                (acc_number and (k_link == acc_number or k_link in acc_number or acc_number in k_link))
-            )
-
-            if is_match:
-                mapping[acc_id] = local_compte
-                break
-    return mapping
-
-
-
-
-# 🟢 Helper de conversion stricte en datetime.date pure
-def to_pure_date(d_val):
-    if not d_val:
-        return None
-    if isinstance(d_val, datetime):
-        return d_val.date()
-    if isinstance(d_val, date):
-        return d_val
-    try:
-        return datetime.strptime(str(d_val).split(" ")[0].split("T")[0], "%Y-%m-%d").date()
-    except Exception:
-        return None
-
-def normalize_acc_name(name: str) -> str:
-    if not name: return ""
-    return re.sub(r'[\s\-_]+', '', name).upper()
-
-
 # 🟢 VÉRIFICATION DU STATUT DE SYNCHRONISATION (SÉCURISÉE SANS CONFLIT DE TYPES)
 @app.get("/powens/check-sync/{username}")
 def check_sync_status(username: str, current_user: str = Depends(get_current_user)):
@@ -4665,7 +3911,7 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             return {"has_pending": False, "count": 0, "accounts": {}}
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
         # 2. Configurations Kleea (avec déchiffrement des IBANs)
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
@@ -4839,6 +4085,23 @@ def encrypt_iban(val: str) -> str:
             return val
     return val
 
+def chiffrer_jeton(val: str) -> str:
+    """Chiffre le jeton Powens avant de l'enregistrer. Sans clé, il reste en clair, comme les IBAN."""
+    if not val or not cipher:
+        return val
+    return cipher.encrypt(val.encode()).decode()
+
+
+def dechiffrer_jeton(val: str) -> str:
+    """Lit un jeton Powens : ceux enregistrés avant le chiffrement sont en clair et restent valables."""
+    if not val or not cipher:
+        return val
+    try:
+        return cipher.decrypt(val.encode()).decode()
+    except InvalidToken:
+        return val
+
+
 def decrypt_iban(val: str) -> str:
     """Déchiffre un IBAN chiffré. Renvoie la chaîne brute si non chiffrée."""
     if not val or not cipher:
@@ -4853,112 +4116,6 @@ def decrypt_iban(val: str) -> str:
 # 🟢 MODULE ANTI-DOUBLON INTELLIGENT (CSV <-> POWENS)
 # =========================================================================
 
-BANQUE_STOP_WORDS = {
-    "de", "du", "des", "le", "la", "les", "a", "au", "aux", "en", "un", "une",
-    "mme", "mr", "m", "monsieur", "madame", "mlle", "mademoiselle",
-    "paiement", "carte", "cb", "fact", "facture", "virement", "vir", "sepa",
-    "prlv", "prelevement", "debit", "credit", "retrait", "dab", "gab", "emission",
-    "reception", "remise", "cotisation", "frais", "achat", "web", "echeance",
-    "operation", "interbancaire", "bancaire", "vers", "pour", "par", "ref", "titre",
-    "instantane", "recu", "emis", "motif"
-}
-
-def clean_banking_label_py(label: str) -> list:
-    if not label:
-        return []
-    text = label.lower()
-    text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
-    text = re.sub(r'\b\d{2}[/.-]\d{2}([/.-]\d{2,4})?\b', ' ', text)
-    text = re.sub(r'\b\d{1,2}h\d{2}\b', ' ', text)
-    text = re.sub(r'\b[a-z0-9_-]*\d{4,}[a-z0-9_-]*\b', ' ', text)  # Nettoie les BIPT262900...
-    text = re.sub(r'[^a-z0-9\s]', ' ', text)
-    words = text.split()
-    return list(dict.fromkeys([w for w in words if len(w) >= 3 and w not in BANQUE_STOP_WORDS and not w.isdigit()]))
-
-def are_labels_similar_py(label_a: str, label_b: str) -> bool:
-    tokens_a = clean_banking_label_py(label_a)
-    tokens_b = clean_banking_label_py(label_b)
-
-    if not tokens_a and not tokens_b:
-        return True
-    if not tokens_a or not tokens_b:
-        return False
-
-    set_a = set(tokens_a)
-    set_b = set(tokens_b)
-
-    common = set_a.intersection(set_b)
-    if not common:
-        str_a = "".join(tokens_a)
-        str_b = "".join(tokens_b)
-        if len(str_a) >= 4 and len(str_b) >= 4 and (str_a in str_b or str_b in str_a):
-            return True
-        return False
-
-    # Inclusion complète (ex: "Carrefour" dans "Carrefour Market")
-    if set_a.issubset(set_b) or set_b.issubset(set_a):
-        if any(len(t) >= 4 for t in common):
-            return True
-
-    # Calcul de Jaccard (doit être >= 50%)
-    union = set_a.union(set_b)
-    return (len(common) / len(union)) >= 0.5
-
-def is_duplicate_py(new_tx: dict, existing_tx_list: list, claimed_ids: set) -> bool:
-    try:
-        new_amount = float(new_tx.get('montant', 0) if new_tx.get('montant') is not None else new_tx.get('m', 0))
-    except (ValueError, TypeError):
-        return False
-
-    raw_date = str(new_tx.get('date') or new_tx.get('d') or '')[:10]
-    try:
-        new_date = datetime.strptime(raw_date, '%Y-%m-%d').date()
-    except ValueError:
-        return False
-
-    new_compte = (new_tx.get('compte') or new_tx.get('co') or "").strip().upper()
-    new_nom = new_tx.get('nom') or new_tx.get('n') or ""
-
-    for exist in existing_tx_list:
-        exist_id = exist.get('id')
-        if exist_id and exist_id in claimed_ids:
-            continue
-
-        # 1. Compte
-        exist_compte = (exist.get('compte') or "").strip().upper()
-        if new_compte and exist_compte and new_compte != exist_compte:
-            continue
-
-        # 2. Montant exact et même sens (+ ou -)
-        try:
-            exist_amount = float(exist.get('montant', 0))
-        except (ValueError, TypeError):
-            continue
-
-        if abs(abs(new_amount) - abs(exist_amount)) > 0.01:
-            continue
-        if (new_amount > 0) != (exist_amount > 0):
-            continue
-
-        # 3. Écart de date (max 3 jours)
-        exist_raw_date = str(exist.get('date', ''))[:10]
-        try:
-            exist_date = datetime.strptime(exist_raw_date, '%Y-%m-%d').date()
-        except ValueError:
-            continue
-
-        diff_days = abs((new_date - exist_date).days)
-        if diff_days > 3:
-            continue
-
-        # 4. Libellé strict via Jaccard
-        if are_labels_similar_py(new_nom, exist.get('nom', '')):
-            if exist_id:
-                claimed_ids.add(exist_id)
-            return True
-
-    return False
-
 # 🟢 FONCTION MÉTIER ATOMIQUE (Appelable par l'API et par les tâches de fond)
 def exec_sync_user_transactions(username: str):
     user_clean = username.lower().strip()
@@ -4970,7 +4127,7 @@ def exec_sync_user_transactions(username: str):
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
         
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
@@ -5243,7 +4400,7 @@ def exec_recalculate_balances(user_clean: str):
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun jeton bancaire trouvé.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
         query_config = text("SELECT compte, powens_name, solde FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
@@ -5373,7 +4530,7 @@ def clean_powens_duplicates(username: str, current_user: str = Depends(get_curre
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun token Powens.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
@@ -5431,7 +4588,7 @@ def disconnect_powens(username: str, current_user: str = Depends(get_current_use
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
-        user_token = res[0] if res else None
+        user_token = dechiffrer_jeton(res[0]) if res else None
 
     # 1. Suppression définitive chez Powens via l'API (DELETE /users/me)
     if user_token:
@@ -5614,7 +4771,7 @@ async def refresh_bank_sync(username: str, current_user: str = Depends(get_curre
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun jeton bancaire Powens trouvé.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
     return await declencher_actualisation_bancaire(user_token)
 
@@ -5640,25 +4797,6 @@ def test_jwt_token(current_user: str = Depends(get_current_user)):
 # =========================================================================
 # 🏖️ MODULE GESTION DES CONGÉS & GÉNÉRATION PDF OFFICIEL ISA GROUP
 # =========================================================================
-
-class CongeCreate(BaseModel):
-    utilisateur: str
-    type: str  # 'CP', 'SANS_SOLDE', 'RECUP'
-    date_debut: str
-    date_fin: str
-    nb_jours: float
-    motif: Optional[str] = None
-    anticipe: Optional[bool] = False
-    jours_restants_apres: Optional[float] = None
-
-class CongeProfile(BaseModel):
-    utilisateur: str
-    nom: str
-    prenom: str
-    societe: str
-    poste: str
-    jours_acquis_annuel: Optional[float] = 25.0
-    date_embauche: Optional[str] = "2026-01-01"
 
 @app.get("/api/conges/{username}")
 def get_user_conges(username: str, current_user: str = Depends(get_current_user)):
@@ -6023,16 +5161,6 @@ def generate_isa_conge_pdf(conge_id: int, current_user: str = Depends(get_curren
 # ✂️ MODULE SPLIT TRANSACTION (VENTILATION COMPTABLE)
 # =========================================================================
 
-class SplitLine(BaseModel):
-    nom: str
-    montant: float
-    categorie: str
-    enveloppe: Optional[str] = None
-    prevision_id: Optional[int] = None
-
-class SplitRequest(BaseModel):
-    parts: List[SplitLine]
-
 @app.post("/transactions/{t_id}/split")
 def split_transaction(
     t_id: int, 
@@ -6182,100 +5310,9 @@ def unsplit_transaction(
 # 🏦 MAPPING DES CATÉGORIES NATIVES POWENS VERS LES CATÉGORIES UTILISATEUR
 # =========================================================================
 
-# Dictionnaire de correspondance : chaque catégorie Powens pointe vers une liste de candidats Kleea par ordre de préférence
-POWENS_CATEGORY_MAPPING = {
-    # Alimentation & Supermarchés
-    "supermarché / hypermarché": ["Alimentation", "Courses"],
-    "alimentation": ["Alimentation", "Courses"],
-    "boulangerie": ["Alimentation"],
-    "restaurant": ["Restaurants", "Alimentation"],
-    "restaurants / bars": ["Restaurants", "Alimentation"],
-    "restauration rapide": ["Fast Food", "Restaurants", "Alimentation"],
-
-    # Shopping, Bazar & Paiements en ligne (Paypal, Vinted, Normal...)
-    "achats en ligne": ["Shopping"],
-    "paiement en ligne": ["Shopping", "Autre"],
-    "commerce électronique": ["Shopping"],
-    "magasins / bazar": ["Shopping", "Alimentation"],
-    "hygiène / beauté": ["Shopping", "Pharmacie"],
-    "habillement / mode": ["Habillement", "Shopping"],
-    "shopping": ["Shopping"],
-
-    # Frais & Forfaits bancaires (Essentiel LBP, Cotisations...)
-    "frais bancaires": ["Frais Bancaires"],
-    "cotisation bancaire": ["Frais Bancaires"],
-    "services bancaires": ["Frais Bancaires"],
-    "banque": ["Frais Bancaires"],
-
-    # Carburant & Transports
-    "carburant": ["Carburant", "Auto", "Transports"],
-    "station-service": ["Carburant", "Auto"],
-    "péage": ["Péage", "Auto"],
-    "stationnement / parking": ["Auto", "Transports"],
-    "transports en commun": ["Transports"],
-    "train": ["Transports"],
-
-    # Logement & Factures
-    "loyer": ["Loyer", "Logement"],
-    "électricité": ["Électricité", "Logement"],
-    "gaz": ["Gaz", "Énergie"],
-    "eau": ["Eau"],
-    "assurance habitation": ["Assurance Habitation"],
-    "télécom / internet": ["Internet", "Abonnements"],
-
-    # Virements & Revenus de tiers
-    "virements reçus": ["Virement Reçu", "Remboursements"],
-    "virement reçu": ["Virement Reçu", "Remboursements"],
-    "salaire": ["Salaire"],
-    "remboursement": ["Remboursements"]
-}
-
-def match_powens_to_user_category(powens_cat_raw: str, user_available_cats: list) -> str:
-    # 🟢 Si Powens renvoie son code d'inconnu 9998 ou le texte 'Indéfini', on rejette
-    if not powens_cat_raw or powens_cat_raw.lower().strip() in ["indéfini", "indefini", "9998", "none"]:
-        return "Autre"
-
-    p_clean = powens_cat_raw.lower().strip()
-    user_cats_map = {c.lower().strip(): c for c in user_available_cats}
-
-    # 1. Correspondance exacte
-    if p_clean in user_cats_map:
-        return user_cats_map[p_clean]
-
-    # 2. Recherche dans le dictionnaire de mapping
-    candidates = POWENS_CATEGORY_MAPPING.get(p_clean, [])
-    for candidate in candidates:
-        if candidate.lower().strip() in user_cats_map:
-            return user_cats_map[candidate.lower().strip()]
-
-    # 3. Ressemblance
-    for user_cat_clean, real_name in user_cats_map.items():
-        if user_cat_clean in p_clean or p_clean in user_cat_clean:
-            return real_name
-
-    return "Autre"
-
-
 # =========================================================================
 # 🎨 GESTION DES PRESETS DE THÈMES (UNIQUEMENT L'HABILLAGE DU SITE)
 # =========================================================================
-
-class ThemePresetIn(BaseModel):
-    nom: str
-    bg_site: str
-    primary_color: str
-    text_main: str
-    radius: str
-    glass_blur: str
-    glass_bg: str
-    secondary_color: Optional[str] = None
-    gradient_style: Optional[str] = "radial"       # 👈 Ajout
-    gradient_intensity: Optional[str] = "50%"      # 👈 Ajout
-    gradient_color: Optional[str] = "auto"         # 👈 Ajout
-    gradient_angle: Optional[str] = None
-    gradient_shape: Optional[str] = None
-    gradient_center: Optional[str] = None
-    gradient_spread: Optional[str] = None
 
 @app.get("/api/themes/presets")
 def get_theme_presets(current_user: str = Depends(get_current_user)):
@@ -6354,25 +5391,6 @@ def delete_theme_preset(preset_id: int, current_user: str = Depends(get_current_
 # =========================================================================
 # 🏠 ROUTES CRUD POUR LES ANNONCES DE DÉMÉNAGEMENT
 # =========================================================================
-
-# 1. Modèle Pydantic des annonces
-class AnnonceModel(BaseModel):
-    titre: str
-    url: Optional[str] = ""
-    source: Optional[str] = "Autre"
-    loyer: Optional[float] = 0.0
-    charges: Optional[float] = 0.0
-    surface: Optional[float] = 0.0
-    pieces: Optional[int] = 0
-    ville: Optional[str] = ""
-    photos: Optional[List[str]] = []
-    dossier_envoye: Optional[bool] = False
-    date_dossier: Optional[str] = None
-    visite_effectuee: Optional[bool] = False
-    date_visite: Optional[str] = None
-    statut_reponse: Optional[str] = "en_attente"
-    notes: Optional[str] = ""
-    favori: Optional[bool] = False
 
 # 2. Récupérer toutes les annonces de l'utilisateur
 @app.get("/api/demenagement/annonces/{username}")
@@ -6494,13 +5512,6 @@ def delete_annonce(annonce_id: int, current_user: str = Depends(get_current_user
         if res.rowcount == 0:
             raise HTTPException(status_code=404, detail="Annonce introuvable")
     return {"status": "deleted"}
-
-# 2. Route FastAPI
-class ScrapeUrlRequest(BaseModel):
-    url: str
-
-class ParseTextRequest(BaseModel):
-    text: str
 
 # 1. Route d'analyse de texte / partage via Gemini (100% infaillible même si DataDome bloque le lien)
 @app.post("/api/demenagement/parse-text")
@@ -6841,14 +5852,6 @@ def save_pages_masquees(data: dict = Body(...), current_user: str = Depends(get_
 # avec le JWT de session : il ne peut que lire les soldes via /api/streamdeck/data.
 # Seule l'empreinte SHA-256 du jeton est conservée en base.
 
-STREAMDECK_MOIS = [
-    "janvier", "fevrier", "mars", "avril", "mai", "juin", "juillet",
-    "aout", "septembre", "octobre", "novembre", "decembre",
-]
-STREAMDECK_MOTS_IGNORES = {"CCP", "VERS", "VIREMENT", "EPARGNE", "THEO", "AUDE", "DE", "COMPTE", "BANQUE", "DU"}
-STREAMDECK_TYPES_LIVRETS = ("LIVRET A", "LEP", "LDDS", "PEL", "PEA", "LIVRET")
-
-
 def assurer_table_streamdeck(conn):
     conn.execute(text("""
         CREATE TABLE IF NOT EXISTS streamdeck_tokens (
@@ -6883,134 +5886,6 @@ def get_streamdeck_user(x_streamdeck_token: Optional[str] = Header(None)) -> str
     if not utilisateur:
         raise HTTPException(status_code=401, detail="Jeton Stream Deck invalide")
     return utilisateur
-
-
-def _sd_nettoyer_mois(mois) -> str:
-    if not mois:
-        return ""
-    decompose = unicodedata.normalize("NFD", str(mois).lower())
-    return "".join(c for c in decompose if unicodedata.category(c) != "Mn").strip()
-
-
-def _sd_nom_compte(compte) -> str:
-    return str(compte or "").strip().upper()
-
-
-def _sd_montant(valeur) -> float:
-    try:
-        return float(valeur or 0)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _sd_annee(transaction: dict) -> int:
-    if transaction.get("annee"):
-        try:
-            return int(transaction["annee"])
-        except (TypeError, ValueError):
-            return 0
-    valeur = transaction.get("date")
-    if isinstance(valeur, (date, datetime)):
-        return valeur.year
-    try:
-        return int(str(valeur)[:4])
-    except (TypeError, ValueError):
-        return 0
-
-
-def _sd_est_transfert(nom: str, categorie: str) -> bool:
-    """Mêmes règles que `estTransfertInterne` (frontend/src/utils/finance.js)."""
-    texte = f"{nom or ''} {categorie or ''}".upper()
-    return (
-        "🔄" in texte
-        or re.search(r"(?<!\w)VERS(?!\w)", texte) is not None
-        or "TRANSFERT" in texte
-        or str(categorie or "").strip().upper().startswith("VIREMENT :")
-    )
-
-
-def _sd_compte_cible(texte: str, source: str, groupes: dict) -> Optional[str]:
-    """Mêmes règles que `trouverCompteCible` (frontend/src/utils/finance.js)."""
-    if not source:
-        return None
-    groupe_source = groupes.get(source)
-    candidats = [
-        nom for nom, groupe in groupes.items()
-        if nom != source and not (groupe_source and groupe and groupe != groupe_source)
-    ]
-    for nom in candidats:
-        mots = [m for m in re.split(r"[\s_-]+", nom) if len(m) >= 3 and m not in STREAMDECK_MOTS_IGNORES]
-        if nom in texte or any(m in texte for m in mots):
-            return nom
-    for type_livret in STREAMDECK_TYPES_LIVRETS:
-        if type_livret in texte:
-            for nom in candidats:
-                if type_livret in nom:
-                    return nom
-    return None
-
-
-def calculer_vues_streamdeck(comptes: list, transactions: list, aujourd_hui: date) -> dict:
-    """Reprend les règles de frontend/src/utils/finance.js pour que les touches affichent les mêmes
-    chiffres que l'application. backend/tests/fixtures/calculs_finances.json vérifie cet accord."""
-    annee = aujourd_hui.year
-    indice_mois = aujourd_hui.month - 1
-    mois_courant = STREAMDECK_MOIS[indice_mois]
-
-    groupes = {_sd_nom_compte(c["compte"]): str(c.get("groupe") or "").strip().upper() for c in comptes}
-    soldes = {_sd_nom_compte(c["compte"]): _sd_montant(c.get("solde")) for c in comptes}
-    revenus = dict.fromkeys(soldes, 0.0)
-    depenses = dict.fromkeys(soldes, 0.0)
-
-    # Montants par (année, mois, compte) : sert à détecter l'écriture miroir d'un virement
-    montants_index: dict = {}
-    for t in transactions:
-        cle = (_sd_annee(t), _sd_nettoyer_mois(t.get("mois")), _sd_nom_compte(t.get("compte")))
-        montants_index.setdefault(cle, []).append(_sd_montant(t.get("montant")))
-
-    for t in transactions:
-        annee_t = _sd_annee(t)
-        mois_t = _sd_nettoyer_mois(t.get("mois"))
-        indice_t = STREAMDECK_MOIS.index(mois_t) if mois_t in STREAMDECK_MOIS else -1
-        if annee_t > annee or (annee_t == annee and indice_t > indice_mois):
-            continue
-
-        montant = _sd_montant(t.get("montant"))
-        source = _sd_nom_compte(t.get("compte"))
-        categorie = str(t.get("categorie") or "")
-        nom = str(t.get("nom") or "")
-        est_transfert = _sd_est_transfert(nom, categorie)
-
-        if source in soldes:
-            soldes[source] += montant
-
-        if est_transfert:
-            cible = _sd_compte_cible(f"{nom} {categorie}".upper(), source, groupes)
-            if cible:
-                miroirs = montants_index.get((annee_t, mois_t, cible), [])
-                if not any(abs(m + montant) < 0.1 for m in miroirs):
-                    soldes[cible] -= montant
-
-        if source in soldes and annee_t == annee and mois_t == mois_courant and not est_transfert:
-            if montant > 0:
-                revenus[source] += montant
-            elif montant < 0:
-                depenses[source] += abs(montant)
-
-    return {
-        "periode": {"mois": indice_mois + 1, "annee": annee},
-        "comptes": [
-            {
-                "nom": c["compte"],
-                "groupe": c.get("groupe") or "",
-                "couleur": c.get("couleur") or "",
-                "solde": round(soldes[_sd_nom_compte(c["compte"])], 2),
-                "revenus_mois": round(revenus[_sd_nom_compte(c["compte"])], 2),
-                "depenses_mois": round(depenses[_sd_nom_compte(c["compte"])], 2),
-            }
-            for c in comptes
-        ],
-    }
 
 
 @app.get("/api/streamdeck/token")
