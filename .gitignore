@@ -4,3 +4,7 @@ __pycache__/
 *.db
 venv/
 .venv/
+
+# Tests d interface
+test-results/
+playwright-report/
