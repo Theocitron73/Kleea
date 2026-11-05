@@ -41,7 +41,7 @@ test('tous les chapitres s’ouvrent sans erreur', async ({ page }) => {
   const erreurs = surveiller(page);
   await ouvrirGuide(page);
   const sommaire = page.getByRole('navigation', { name: 'Sommaire du guide' });
-  const chapitres = ['Comptes', 'Importer', 'Gérer', 'Dashboard', 'Prévisionnel', 'Épargne & Projets', 'Tricount', 'Profil & outils', 'Stream Deck', 'Thème', 'Déménagement', 'Congés', 'Questions fréquentes'];
+  const chapitres = ['Comptes', 'Importer', 'Gérer', 'Dashboard', 'Prévisionnel', 'Épargne & Projets', 'Tricount', 'Profil & outils', 'Stream Deck', 'Questions fréquentes'];
   for (const titre of chapitres) {
     await sommaire.getByRole('button', { name: titre, exact: true }).click();
     await expect(page.getByRole('heading', { name: titre, level: 2 })).toBeVisible();

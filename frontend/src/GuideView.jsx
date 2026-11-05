@@ -156,7 +156,6 @@ function Chapitre({ chapitre, pagesDisponibles, ouvrirPage }) {
         </div>
         <BoutonPage page={chapitre.page} libelle={`Ouvrir ${chapitre.titre}`} pagesDisponibles={pagesDisponibles} ouvrirPage={ouvrirPage} />
       </header>
-      {chapitre.reserve && <Encadre type="conseil">Cette page est réservée aux comptes administrateurs.</Encadre>}
       <p className="text-[13px] leading-relaxed text-[var(--text-main)]/75">{chapitre.intro}</p>
       {chapitre.sections.map((s) => <Section key={s.titre} section={s} />)}
     </div>

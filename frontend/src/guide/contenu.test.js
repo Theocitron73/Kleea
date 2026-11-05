@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url';
 
 // Les icônes ne servent pas ici : on charge le contenu sans React, en remplaçant lucide-react.
 const source = readFileSync(new URL('./contenu.js', import.meta.url), 'utf8')
-  .replace(/import \{[^}]*\} from 'lucide-react';/s, "const icone = () => null; const [CalendarDays, ChartCandlestick, FileUp, Gamepad2, HelpCircle, LayoutDashboard, Palette, PiggyBank, Settings2, Truck, UserCog, Users2, Wallet] = Array(13).fill(icone);");
+  .replace(/import \{[^}]*\} from 'lucide-react';/s, "const icone = () => null; const [ChartCandlestick, FileUp, Gamepad2, HelpCircle, LayoutDashboard, PiggyBank, Settings2, UserCog, Users2, Wallet] = Array(10).fill(icone);");
 const { CHAPITRES, PREMIERS_PAS, normaliser, rechercher } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 const SRC = fileURLToPath(new URL('..', import.meta.url));
-const PAGES = ['dashboard', 'previsionnel', 'gerer', 'importer', 'comptes', 'tricount', 'theme', 'demenagement', 'conges', 'profile'];
+const PAGES = ['dashboard', 'previsionnel', 'gerer', 'importer', 'comptes', 'tricount', 'profile'];
 
 function fichiers(dossier) {
   return readdirSync(dossier).flatMap((nom) => {
@@ -54,6 +54,13 @@ test('les sections ont un titre unique dans leur chapitre et un contenu', () => 
 test('toutes les pages de l’application ont un chapitre', () => {
   const couvertes = new Set(CHAPITRES.map((c) => c.page));
   for (const page of PAGES) assert.ok(couvertes.has(page), page);
+});
+
+test('le guide ne parle pas des pages réservées aux administrateurs', () => {
+  const texte = normaliser(JSON.stringify({ PREMIERS_PAS, CHAPITRES }));
+  for (const mot of ['administrateur', 'demenagement', 'conges', 'structure du menu', 'studio de design']) {
+    assert.ok(!texte.includes(mot), mot);
+  }
 });
 
 test('la recherche ignore les accents et la casse, et combine les mots', () => {

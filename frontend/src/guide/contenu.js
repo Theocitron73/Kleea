@@ -1,5 +1,5 @@
 import {
-  CalendarDays, ChartCandlestick, FileUp, Gamepad2, HelpCircle, LayoutDashboard, Palette, PiggyBank, Settings2, Truck, UserCog, Users2, Wallet,
+  ChartCandlestick, FileUp, Gamepad2, HelpCircle, LayoutDashboard, PiggyBank, Settings2, UserCog, Users2, Wallet,
 } from 'lucide-react';
 
 // Contenu du guide. Chaque libellé entre guillemets correspond à un texte réellement affiché dans l'application.
@@ -479,91 +479,6 @@ export const CHAPITRES = [
     ],
   },
   {
-    id: 'theme',
-    titre: 'Thème',
-    sousTitre: 'Personnaliser Kleea',
-    icone: Palette,
-    page: 'theme',
-    reserve: true,
-    intro: "Le « Studio de Design & Thèmes » change les couleurs, les arrondis, le flou et le fond de l'application, et permet d'enregistrer vos créations.",
-    sections: [
-      {
-        titre: 'Créer votre thème',
-        etapes: [
-          "Dans « Ajustements fins », réglez l'arrière-plan, les accents, le texte et le fond des blocs. L'effet est immédiat.",
-          "Réglez l'« Arrondi des cartes » et l'« Intensité du flou ».",
-          "Dans « Dégradé d'Arrière-Plan de la Page », choisissez une forme (linéaire, radial, conique ou uni), l'angle et le fondu.",
-          "Donnez un nom au thème et cliquez sur « Sauvegarder » pour le retrouver dans la bibliothèque.",
-        ],
-      },
-      {
-        titre: 'Structure du Menu',
-        texte: "Cochez ou décochez les pages pour les afficher ou les masquer dans le menu, sur ordinateur et sur mobile. Les données des pages masquées sont conservées.",
-      },
-    ],
-  },
-  {
-    id: 'demenagement',
-    titre: 'Déménagement',
-    sousTitre: 'Simuler et comparer',
-    icone: Truck,
-    page: 'demenagement',
-    reserve: true,
-    intro: "Préparez un déménagement à deux : simulez plusieurs budgets, répartissez les charges selon les revenus et comparez les annonces.",
-    sections: [
-      {
-        titre: 'Simulateur',
-        etapes: [
-          "Renseignez les salaires et les dépenses personnelles de chacun.",
-          "Ajoutez les charges communes avec leur fréquence (mensuelle, trimestrielle, semestrielle ou annuelle) : elles sont lissées au mois.",
-          "Kleea calcule la part de chacun au prorata des revenus et ce qui reste après les dépenses.",
-          "Créez ou dupliquez des scénarios, puis comparez-les dans le « Tableau Comparatif Côte à Côte ».",
-        ],
-      },
-      {
-        titre: 'Annonces & Visites',
-        etapes: [
-          "Cliquez sur « Ajouter une annonce ».",
-          "Collez le lien de l'annonce, ou son texte : l'IA en extrait les informations. Si un site bloque la lecture, complétez les champs à la main.",
-          "Suivez chaque annonce : « Dossier envoyé », « Visite effectuée », puis réponse reçue.",
-          "« Tester ce loyer » reporte le loyer dans votre budget.",
-        ],
-      },
-      {
-        titre: 'Bloc-Notes & Tâches',
-        texte: "Un espace enregistré automatiquement pour vos remarques, vos contacts d'agences et votre liste de tâches.",
-      },
-    ],
-  },
-  {
-    id: 'conges',
-    titre: 'Congés',
-    sousTitre: 'Suivre et demander',
-    icone: CalendarDays,
-    page: 'conges',
-    reserve: true,
-    intro: "Suivez votre solde de congés et préparez vos demandes. Les dimanches et les jours fériés ne sont pas décomptés.",
-    sections: [
-      {
-        titre: 'Configurer',
-        texte: "Dans « Profil & Embauche », renseignez votre date d'embauche, votre nom, votre société, votre poste et votre base annuelle de congés. Elle sert au calcul des congés acquis.",
-      },
-      {
-        titre: 'Poser un congé',
-        etapes: [
-          "Dans « Poser un nouveau congé », choisissez « Congés Payés », « Récupération » ou « Sans Solde ».",
-          "Indiquez les dates : le nombre de jours décomptés s'affiche.",
-          "Pour une récupération, précisez le motif, qui est obligatoire.",
-          "Validez pour enregistrer la demande et générer le PDF.",
-        ],
-      },
-      {
-        titre: 'Suivre',
-        texte: "Le calendrier annuel et l'historique récapitulent vos demandes. Depuis l'historique, vous pouvez retélécharger un PDF ou supprimer une demande.",
-      },
-    ],
-  },
-  {
     id: 'questions',
     titre: 'Questions fréquentes',
     sousTitre: 'Quand quelque chose coince',
@@ -593,10 +508,6 @@ export const CHAPITRES = [
       {
         titre: 'Une dépense concerne plusieurs catégories',
         texte: "Dans « Gérer », utilisez « Diviser cette transaction » pour la répartir. La division peut être annulée à tout moment.",
-      },
-      {
-        titre: 'Je ne vois pas certaines pages',
-        texte: "Les pages Thème, Déménagement et Congés sont réservées aux comptes administrateurs. Une page peut aussi avoir été masquée dans « Structure du Menu ».",
       },
       {
         titre: 'Mes données sont-elles en sécurité ?',
