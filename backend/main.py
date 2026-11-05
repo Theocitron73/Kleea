@@ -5,11 +5,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import create_engine, text, bindparam
 import pandas as pd
 import hmac
-import logging
 import os
 from dotenv import load_dotenv
-from pydantic import BaseModel, EmailStr, field_validator, Field
-from typing import Optional, List, Any
+from typing import Optional, List
 import io
 import secrets
 import socket
@@ -28,8 +26,6 @@ from urllib.parse import unquote, quote, urlparse
 import html
 import httpx
 import requests
-import traceback
-import calendar
 import time
 import asyncio
 import csv
@@ -37,7 +33,6 @@ from cryptography.fernet import Fernet, InvalidToken
 import jwt
 import bcrypt
 from contextlib import asynccontextmanager
-import base64
 import hashlib
 import sys
 
@@ -55,32 +50,18 @@ from imports_bancaires import (
     parse_ofx_data,
     parse_qif_data,
     normalize_powens_transactions,
-    clean_text_for_matching,
-    check_is_duplicate,
     build_powens_account_id_to_kleea_map,
     to_pure_date,
     normalize_acc_name,
-    BANQUE_STOP_WORDS,
-    clean_banking_label_py,
-    are_labels_similar_py,
     is_duplicate_py,
-    POWENS_CATEGORY_MAPPING,
     match_powens_to_user_category,
 )
 from streamdeck_calculs import (
-    STREAMDECK_MOIS,
-    STREAMDECK_MOTS_IGNORES,
-    STREAMDECK_TYPES_LIVRETS,
-    _sd_nettoyer_mois,
-    _sd_nom_compte,
-    _sd_montant,
-    _sd_annee,
     _sd_est_transfert,
     _sd_compte_cible,
     calculer_vues_streamdeck,
 )
 from schemas import (
-    _date_valide,
     Transaction,
     LoginRequest,
     RegisterRequest,
@@ -99,7 +80,6 @@ from schemas import (
     CategorieUpdate,
     CategorieAssignGroup,
     DeleteGroupRequest,
-    Memoire,
     PrevisionIn,
     Allocation,
     TricountTransaction,
@@ -107,14 +87,10 @@ from schemas import (
     SharedTransactionRequest,
     SharedTransactionUpdate,
     UpdateTransactionRequest,
-    CustomStatRule,
     CustomStatCreate,
     CustomStatUpdate,
     ChatRequest,
-    AISuggestedRule,
-    AICreationStat,
     ChatResponseSchema,
-    ConseilCategorie,
     PermanentSavingsIndicatorResponse,
     SimulationLineCreate,
     DuplicateScenarioRequest,
@@ -123,7 +99,6 @@ from schemas import (
     PropagateYearRequest,
     CongeCreate,
     CongeProfile,
-    SplitLine,
     SplitRequest,
     ThemePresetIn,
     AnnonceModel,
@@ -133,8 +108,6 @@ from schemas import (
 from journaux import (
     FiltreJournalAcces,
     FormateurSansSecrets,
-    MOTIFS_SECRETS,
-    ROUTES_A_JETON,
     chemin_journalisable,
     demarrer_suivi_erreurs,
     detail_erreur,
@@ -152,7 +125,6 @@ socket.gethostname = get_ascii_hostname
 
 load_dotenv()
 demarrer_suivi_erreurs()
-
 
 
 # 2. Configuration Base de données
@@ -379,30 +351,6 @@ async def add_security_headers_middleware(request: Request, call_next):
     return response
 
 
-
-
-
-
-
-
-def refresh_banned_ips_cache(force: bool = False):
-    """Synchronise le cache mémoire avec PostgreSQL toutes les 30 secondes max."""
-    global LAST_BANNED_SYNC, BANNED_IPS_CACHE
-    now_ts = time.time()
-    if force or (now_ts - LAST_BANNED_SYNC > 30):
-        now = datetime.now(timezone.utc)
-        try:
-            with engine.connect() as conn:
-                res = conn.execute(
-                    text("SELECT ip, banned_until FROM banned_ips WHERE banned_until > :now"), 
-                    {"now": now}
-                ).fetchall()
-                BANNED_IPS_CACHE = {row[0]: row[1] for row in res}
-            LAST_BANNED_SYNC = now_ts
-        except Exception as e:
-            logger.warning(f"⚠️ Erreur synchro cache IP : {e}")
-
-
 def ban_ip(ip: str, reason: str, duration_minutes: int):
     global LAST_BANNED_SYNC
     banned_until = datetime.now(timezone.utc) + timedelta(minutes=duration_minutes)
@@ -449,8 +397,6 @@ def check_and_record_failed_attempt(ip: str) -> tuple[bool, int]:
     return False, tentatives_restantes
 
 
-
-
 # --- ROUTE PRIVÉE THÉO : VOIR LES IP BANNIES ---
 @app.get("/api/security/banned-ips")
 def get_banned_ips(admin_user: str = Depends(get_current_admin)):
@@ -468,10 +414,6 @@ def unban_ip(ip: str, admin_user: str = Depends(get_current_admin)):
         conn.execute(text("DELETE FROM login_failed_attempts WHERE ip = :ip"), {"ip": ip})
     return {"status": "success", "message": f"IP {ip} débloquée."}
 
-
-
-
-import csv
 
 def parse_keywords_list(raw_kw) -> List[str]:
     """Parse de manière infaillible les mots-clés retournés par PostgreSQL (ARRAY ou chaîne)."""
@@ -641,7 +583,6 @@ def get_user_transactions_count(username: str, current_user: str = Depends(get_c
     except Exception as e:
         logger.error(f"Erreur lors du calcul de la stat pour {current_user}: {e}")
         raise HTTPException(status_code=500, detail="Erreur lors du calcul de la statistique.")
-
 
 
 @app.post("/register")
@@ -892,8 +833,6 @@ async def reset_password_confirm(req: NewPasswordRequest):
     return {"status": "success", "message": "Mot de passe mis à jour !"}
 
 
-
-
 # --- ROUTE : CHANGER LE MOT DE PASSE ---
 @app.put("/profile/{username}/password")
 def update_password(username: str, req: UpdatePasswordRequest, current_user: str = Depends(get_current_user)):
@@ -1094,7 +1033,6 @@ def save_theme(t: ThemeConfig, current_user: str = Depends(get_current_user)):
     return {"status": "success"}
 
 
-
 # --- 1. BLOC-NOTES ---
 @app.get("/note/{username}")
 def get_note(username: str, current_user: str = Depends(get_current_user)):
@@ -1167,8 +1105,6 @@ def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_
     with engine.begin() as conn:
         conn.execute(query, {"u": current_user, "e": c.element, "c": c.couleur})
     return {"status": "success"}
-
-
 
 
 def verifier_nom_projet_libre(conn, nom: str, profil: str, current_user: str, sauf_id: Optional[int] = None):
@@ -1264,7 +1200,6 @@ def delete_projet(projet_id: int, current_user: str = Depends(get_current_user))
         if res.rowcount == 0:
             raise HTTPException(status_code=404, detail="Projet introuvable")
     return {"status": "deleted"}
-
 
 
 # --- 1. BUDGETS ---
@@ -1546,7 +1481,6 @@ def get_memoire(username: str, current_user: str = Depends(get_current_user)):
     return fetch_memoire_data(current_user)
 
 
-
 @app.delete("/memoire/{username}/{nom}")
 def delete_from_memory(username: str, nom: str, current_user: str = Depends(get_current_user)):
     if username.lower() != current_user.lower():
@@ -1584,9 +1518,6 @@ def save_masked_categories(user: str, categories: List[str] = Body(default=[]), 
                     {"n": str(cat).strip(), "u": current_user}
                 )
     return {"status": "success"}
-
-
-
 
 
 # =========================================================================
@@ -1764,8 +1695,6 @@ async def import_file(
     
 
 
-
-
 @app.post("/transactions/batch")
 def add_transactions_batch(transactions: List[Transaction], current_user: str = Depends(get_current_user)):
     if not transactions:
@@ -1858,8 +1787,6 @@ def get_categories_config(current_user: str = Depends(get_current_user)):
         return [{"categorie": k, "mots_cles": v} for k, v in final_config.items()]
 
 
-
-
 # --- 2. PRÉVISIONS ---
 @app.get("/previsions/{utilisateur}/{mois}/{annee}")
 def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_user: str = Depends(get_current_user)):
@@ -1932,7 +1859,6 @@ def add_prevision(p: PrevisionIn, current_user: str = Depends(get_current_user))
     except Exception as e:
         return {"status": "error", "message": detail_erreur(e)}
     
-
 
 
 # 🟢 COLONNES AUTORISÉES EXCLUSIVEMENT (Anti-Injection SQL)
@@ -2186,7 +2112,6 @@ def rename_group(request: RenameGroupRequest, current_user: str = Depends(get_cu
     
 
 
-
 # ==========================================================
 # ROUTE 1 : TELECHARGEMENT DE PDF (CONNECTÉ)
 # ==========================================================
@@ -2304,11 +2229,6 @@ def download_pdf(username: str, group_name: str, sujet: str = None, current_user
     except Exception as e:
         logger.exception("Erreur de génération du PDF")
         raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur interne de PDF"))
-
-
-
-
-
 
 
 # 1. Générer ou récupérer un lien de partage unique pour un groupe
@@ -2565,10 +2485,6 @@ def download_shared_pdf(token: str, sujet: str = None):
         raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur interne de PDF"))
 
 
-
-
-
-
 # 🟢 1. SUPPRESSION / MODIFICATION DE TRANSACTIONS TRICOUNT
 @app.delete("/delete-transaction/{transaction_id}")
 def delete_transaction(transaction_id: int, current_user: str = Depends(get_current_user)):
@@ -2624,49 +2540,8 @@ def update_member_emoji(data: dict, current_user: str = Depends(get_current_user
     return {"status": "success"}
 
 
-app.get("/generate-share-link/{username}/{group_name}")
-def generate_link(username: str, group_name: str):
-    # 1. On vérifie si un token existe déjà pour ce groupe
-    check_query = text("SELECT token_partage FROM tricount WHERE utilisateur = :u AND groupe = :g LIMIT 1")
-    
-    with engine.connect() as conn:
-        row = conn.execute(check_query, {"u": username, "g": group_name}).first()
-        if row and row[0]:
-            return {"token": row[0]}
-    
-    # 2. Sinon, on en crée un nouveau
-    new_token = str(uuid.uuid4())
-    update_query = text("""
-        UPDATE tricount SET token_partage = :t 
-        WHERE utilisateur = :u AND groupe = :g
-    """)
-    
-    with engine.begin() as conn:
-        conn.execute(update_query, {"t": new_token, "u": username, "g": group_name})
-    
-    return {"token": new_token}
 
 
-@app.get("/get-shared-tricount/{token}")
-def get_shared_tricount(token: str):
-    # On récupère les data uniquement via le token
-    query = text("SELECT * FROM tricount WHERE token_partage = :t ORDER BY date DESC")
-    
-    with engine.connect() as conn:
-        res = conn.execute(query, {"t": token}).mappings().all()
-        if not res:
-            raise HTTPException(status_code=404, detail="Lien invalide")
-            
-        transactions = [dict(r) for r in res]
-        transferts = calculer_balances(transactions)
-        
-        # On renvoie aussi le nom du groupe et le proprio pour que le front sache où il est
-        return {
-            "nom_groupe": transactions[0]['groupe'],
-            "proprietaire": transactions[0]['utilisateur'],
-            "transactions": transactions,
-            "transferts": transferts
-        }
     
 @app.get("/get-members/{username}/{group_name}")
 def get_members(username: str, group_name: str, current_user: str = Depends(get_current_user)):
@@ -2693,8 +2568,6 @@ def get_members(username: str, group_name: str, current_user: str = Depends(get_
         return sorted(list(membres))
 
     
-
-
 
 
 # --- 1. AJOUTER UNE STAT PERSO (CORRIGÉ ✨) ---
@@ -2791,8 +2664,6 @@ def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str =
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=detail_erreur(e))
-
-
 
 
 # 2. La route modifiée
@@ -2948,8 +2819,6 @@ def insights_chat(req: ChatRequest, request: Request, current_user: str = Depend
     
 
 
-
-
 # 1. Initialisation du client Gemini (pense à bien définir GEMINI_API_KEY dans tes variables d'environnement)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 LIMITE_ANALYSES_ECONOMIES = 15  # par compte, sur 10 minutes
@@ -2996,8 +2865,6 @@ def get_savings_indicator(data: dict, current_user: str = Depends(get_current_us
     except Exception as e:
         logger.error(f"Erreur analyse des économies : {e}")
         raise HTTPException(status_code=500, detail="L'analyse des économies a échoué.")
-
-
 
 
 @app.post("/api/simulation-demenagement")
@@ -3818,7 +3685,6 @@ def propagate_previsions_year(
         raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur interne de propagation"))
 
 
-
 # 🟢 VÉRIFICATION DU STATUT DE SYNCHRONISATION (SÉCURISÉE SANS CONFLIT DE TYPES)
 @app.get("/powens/check-sync/{username}")
 def check_sync_status(username: str, current_user: str = Depends(get_current_user)):
@@ -3978,8 +3844,6 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
         "count": total_pending,
         "accounts": pending_by_account
     }
-
-
 
 
 # 🟢 INITIALISATION SÉCURISÉE DE FERNET
@@ -4634,7 +4498,6 @@ def reconcile_and_recalculate_all(username: str, current_user: str = Depends(get
     }
 
 # 🟢 ROUTE POUR FORCER POWENS À SE CONNECTER EN DIRECT À LA VRAIE BANQUE
-import asyncio
 
 async def declencher_actualisation_bancaire(user_token: str) -> dict:
     """Demande à Powens d'interroger chaque banque connectée, comme si l'utilisateur était présent."""
@@ -4712,8 +4575,6 @@ def test_jwt_token(current_user: str = Depends(get_current_user)):
         "message": "Token valide et authentifié !",
         "utilisateur_detecte": current_user
     }
-
-
 
 
 # =========================================================================
@@ -5541,8 +5402,6 @@ def extract_valid_photos(html_text: str, source: str) -> List[str]:
                 photos.append(m)
 
     return photos[:10]
-
-
 
 
 @app.post("/api/demenagement/scrape-listing")
