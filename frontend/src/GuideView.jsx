@@ -171,7 +171,7 @@ export default function GuideView({ ouvrirPage, pagesDisponibles }) {
   const [recherche, setRecherche] = useState('');
   const [actif, setActif] = useState(ID_PREMIERS_PAS);
   const [faites, setFaites] = useState(lireProgression);
-  const [ancreCible, setAncreCible] = useState(null);
+  const ancreCible = useRef(null);
   const zoneLecture = useRef(null);
 
   const entrees = useMemo(() => [
@@ -186,13 +186,14 @@ export default function GuideView({ ouvrirPage, pagesDisponibles }) {
 
   // Une nouvelle lecture commence en haut du chapitre, ou directement sur la section choisie dans les résultats.
   useEffect(() => {
-    if (ancreCible) {
-      document.getElementById(`guide-${ancreCible}`)?.scrollIntoView({ block: 'start' });
-      setAncreCible(null);
+    if (recherche) return;
+    if (ancreCible.current) {
+      document.getElementById(`guide-${ancreCible.current}`)?.scrollIntoView({ block: 'start' });
+      ancreCible.current = null;
     } else {
       zoneLecture.current?.scrollTo({ top: 0 });
     }
-  }, [actif, ancreCible]);
+  }, [actif, recherche]);
 
   const basculer = (id) => {
     setFaites((valeur) => {
@@ -208,9 +209,9 @@ export default function GuideView({ ouvrirPage, pagesDisponibles }) {
   };
 
   const ouvrirResultat = (resultat) => {
+    ancreCible.current = resultat.ancre;
     setRecherche('');
     setActif(resultat.chapitreId);
-    setAncreCible(resultat.ancre);
   };
 
   return (
