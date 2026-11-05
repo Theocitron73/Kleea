@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown, Tag, Layers } from 'lucide-react';
 import { CategoryIcon, getCleanCategoryName, getCategoryGroup } from '../categoryIcons';
 

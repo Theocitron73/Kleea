@@ -1,5 +1,4 @@
 // src/components/ToastProvider.jsx
-import React from 'react';
 import { Toaster as SonnerToaster } from 'sonner';
 import { Check, X, AlertTriangle, Sparkles, Loader2 } from 'lucide-react';
 

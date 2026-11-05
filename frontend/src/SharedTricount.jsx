@@ -1,11 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { createPortal } from 'react-dom';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
 import DatePicker from 'react-datepicker';
-import { 
-  Plus, Edit2, Trash2, CheckCircle, AlertCircle, Smile, FileText, ArrowUpRight, ArrowDownRight, Minus, X
-} from 'lucide-react';
+import { Trash2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { toLocalDateString, getTodayLocalDateString } from "./utils/dateUtils";
 
 export default function SharedTricount() {
@@ -31,7 +27,6 @@ export default function SharedTricount() {
 
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const [activeEmojiPicker, setActiveEmojiPicker] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "error" });
   const [mobileTab, setMobileTab] = useState('bilan');
 

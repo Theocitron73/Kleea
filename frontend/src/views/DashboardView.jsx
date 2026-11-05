@@ -1,16 +1,10 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell, LabelList, PieChart, Pie
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import { 
-  ChevronLeft, ChevronRight, List, PieChart as PieChartIcon, CalendarDays, Sparkles, 
-  Trophy, ArrowUpCircle, ArrowDownCircle, RefreshCw, BarChartHorizontal, TrendingUp, 
-  Zap, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, 
-  Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, 
-  AlertTriangle, Eye, EyeOff, Calendar, Layers, Wallet, Trash2 
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2 } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';

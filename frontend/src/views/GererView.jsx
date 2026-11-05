@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, forwardRef } from 'react';
+import { useState, useRef, forwardRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import DatePicker from 'react-datepicker';
 import { createPortal } from 'react-dom';
@@ -57,10 +57,6 @@ const CustomBadgeDate = forwardRef(({ t }, ref) => {
 });
 
 // Normalisation des mois sans accents
-const cleanMonth = (m) => {
-  if (!m) return "";
-  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-};
 
 export default function GererView(props) {
   const {

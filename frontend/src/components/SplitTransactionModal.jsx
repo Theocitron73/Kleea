@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Scissors, Plus, Trash2, X, Check, Tag, WalletCards, ArrowRight, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Scissors, Plus, Trash2, X, Check, Tag, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
-import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
+import { CategoryIcon } from '../categoryIcons';
 import CustomSelect from './CustomSelect';
 
 export default function SplitTransactionModal({

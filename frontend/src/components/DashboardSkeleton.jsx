@@ -1,4 +1,3 @@
-import React from 'react';
 import { Trophy, Search, List, PieChart, CalendarDays, Sparkles,ArrowUpCircle,ArrowDownCircle,RefreshCw,TrendingUp,Zap } from 'lucide-react';
 
 export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadingOut = false }) {

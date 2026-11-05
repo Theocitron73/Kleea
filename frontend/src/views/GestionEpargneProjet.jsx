@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Wallet, Mail, Rocket, Lock, Target, Unlock, Plus, X, 
   ShieldCheck, Trash2, Edit3, Check, Calendar 

@@ -1,14 +1,5 @@
-import React, { useState } from 'react';
-import { 
-  Sparkles, ShieldCheck, ArrowRight, Wallet, Brain, 
-  ChartCandlestick, Users2, CheckCircle2, Building2, 
-  Zap, Layers, LayoutDashboard, Settings2, FileUp, 
-  TrendingUp, Calendar, Tag, Search, ArrowUpRight, ArrowDownRight, 
-  Plus, CreditCard, Landmark, Check, Trophy, Trash2, Scale, 
-  Truck, ArrowUpCircle, ArrowDownCircle, RefreshCw, BarChartHorizontal,
-  Wand2, Pencil, Scissors, MoreHorizontal, CheckCircle, RotateCcw,
-  SlidersHorizontal, Award, Lock, ExternalLink
-} from 'lucide-react';
+import { useState } from 'react';
+import { Sparkles, ShieldCheck, ArrowRight, Wallet, Brain, ChartCandlestick, Users2, CheckCircle2, Building2, LayoutDashboard, Settings2, Plus, CreditCard, Trophy, ArrowUpCircle, ArrowDownCircle, Wand2, Pencil, Scissors } from 'lucide-react';
 
 export default function LandingPage({ onOpenAuth }) {
   // Onglet sélectionné pour le simulateur de vue
@@ -16,7 +7,6 @@ export default function LandingPage({ onOpenAuth }) {
 
   // Sous-onglets internes aux simulations
   const [dashboardFluxTab, setDashboardFluxTab] = useState('depenses');
-  const [tricountTab, setTricountTab] = useState('bilan');
 
   return (
     <div className="min-h-screen bg-[var(--surface)] text-white selection:bg-[var(--primary)] selection:text-white relative overflow-x-hidden font-sans select-none">

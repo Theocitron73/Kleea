@@ -1,14 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import * as LucideIcons from 'lucide-react';
-import { 
-  icons, Search, X, Tag, HelpCircle, Utensils, ShoppingBag, Home, 
-  Car, Briefcase, Gamepad2, Smartphone, HeartPulse, PawPrint, Sparkles,
-  Stethoscope, Milestone, Train, CircleParking, Users2, ArrowDownLeft,
-  Send, ArrowRightLeft, HandCoins, Percent, Banknote, Shirt, Scale, 
-  Landmark, Zap, Droplets, Film, Scissors, Coins, Pill, Wrench, Bus, 
-  Fuel, Wifi, Plane, Gift, Dumbbell, Coffee, Tv, Music, Ticket, 
-  PiggyBank, Armchair, Receipt, ShoppingCart, Key,Users,BookOpen 
-} from 'lucide-react';
+import { icons, Search, X, Tag, HelpCircle, Utensils, ShoppingBag, Home, Car, Briefcase, Gamepad2, Smartphone, HeartPulse, PawPrint, Sparkles, Stethoscope, Milestone, Train, CircleParking, Users2, ArrowDownLeft, Send, ArrowRightLeft, HandCoins, Percent, Banknote, Shirt, Scale, Landmark, Zap, Droplets, Scissors, Coins, Pill, Wrench, Bus, Fuel, Wifi, Plane, Gift, Dumbbell, Tv, Music, Ticket, PiggyBank, Armchair, Receipt, ShoppingCart, Key, Users, BookOpen } from 'lucide-react';
 
 // =========================================================================
 // 0. FONCTIONS UTILITAIRES (NETTOYAGE & RÉSOLUTION D'ICÔNES)

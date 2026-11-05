@@ -1,9 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Calendar, Clock, Download, Plus, Trash2, CheckCircle2, 
-  AlertCircle, Building2, User, Briefcase, ChevronLeft, ChevronRight,
-  FileText, ArrowRight, ShieldCheck, Sun, Umbrella, Calculator, Award, X
-} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Calendar, Clock, Download, Plus, Trash2, CheckCircle2, User, ChevronLeft, ChevronRight, FileText, Umbrella, Calculator, Award } from 'lucide-react';
 import DatePicker, { registerLocale } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import fr from 'date-fns/locale/fr';

@@ -1,38 +1,22 @@
 import { useState, useEffect,useMemo,useRef,forwardRef,useCallback} from 'react'
 import React from 'react'; // <-- Ajoute cette ligne tout en haut du fichier
 
-import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  AreaChart, Area, CartesianGrid, Legend, Cell,LabelList,PieChart, 
-  Pie,
-} from 'recharts';
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
-import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2,Palette,Pencil,LogOut,Menu,X,Trash2,StickyNote,Calculator,TrendingUp,CreditCard,BadgeEuro,Rocket,Edit3,GripVertical,ChevronDown,ShoppingCart,Filter,Search, Plus,ArrowUpDown,User,
-  Calendar,Check,Tag,Brain,Database,List,Eye,EyeOff,ArrowRight,TrendingDown,Target,Activity,ChevronRight,Save,Calendar1,Upload,MousePointerClick,Sparkles,HelpCircle,Banknote,Lock,Mail,Edit2,Loader,AlertCircle,CheckCircle,Smile,PieChart as PieChartIcon,
-  FileText, Layout, UploadCloud, BarChart3, CalendarDays, Wand2, Copy, Archive, MoreHorizontal,AlertTriangle,ArrowUpRight,ArrowDownRight,Lightbulb,Terminal,Flame,Grid,RefreshCw,ArrowUpCircle,ArrowDownCircle,Zap,BarChartHorizontal,Minus,Ticket,HeartPulse,Cpu,Plane,Gift,
-  Truck,Layers,Landmark,ChevronLeft, ArrowRightLeft,ArrowDownLeft,Download,Clock,Building2,ShieldCheck,SlidersHorizontal,Unlock,Link,BookOpen,Trophy,WalletCards,WifiOff,UserX,ShieldAlert,Scissors,Scale,RotateCcw 
-} from 'lucide-react';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy,verticalListSortingStrategy, } from '@dnd-kit/sortable';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import DatePicker from "react-datepicker";
+import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2, Palette, LogOut, X, Trash2, TrendingUp, ShoppingCart, Tag, ChevronRight, Sparkles, FileText, CalendarDays, Copy, AlertTriangle, Lightbulb, Terminal, Flame, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Ticket, HeartPulse, Cpu, Plane, Gift, Truck, ShieldAlert, Scissors, Scale, RotateCcw } from 'lucide-react';
+import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import "react-datepicker/dist/react-datepicker.css";
 import { registerLocale } from  "react-datepicker";
 import fr from 'date-fns/locale/fr';
 registerLocale('fr', fr); // Pour avoir le calendrier en français
-import EmojiPicker, { Theme } from 'emoji-picker-react'; // À ajouter en haut de ton fichier
-import { createPortal } from 'react-dom';
+ // À ajouter en haut de ton fichier
 import api from './axios';
-import ReactMarkdown from 'react-markdown';
 import GuideView from './GuideView';
-import { Link as RouterLink } from 'react-router-dom';
-import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap,getCategoryIconInfo,getCategoryGroup } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
+import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 import CustomSelect from './components/CustomSelect';
 import ProfileTab from './views/ProfileTab';
 import TricountManager from './views/TricountManager';
 import DemenagementPage from './views/DemenagementPage';
-import GestionEpargneProjet from './views/GestionEpargneProjet';
 import CongesPage from './views/Congespage';
 import AuthView from './views/AuthView';
 import ComptesView from './views/ComptesView';
@@ -50,13 +34,12 @@ import {
 } from './utils/finance';
 import ImportView from './views/ImportView';
 import GererView from './views/GererView';
-import PrevisionsView, { PrevisionsChartView } from './views/PrevisionsView';
-import DashboardView, { AnnualCategoriesChart, generateGradientStep, TransactionCard, CategoriesView, VariationsView, FlashInsightsView, CalendarSection, WrappedSection } from './views/DashboardView';
+import PrevisionsView from './views/PrevisionsView';
+import DashboardView from './views/DashboardView';
 import { toast } from 'sonner'
-import { toLocalDateString, getTodayLocalDateString } from './utils/dateUtils';
+import { getTodayLocalDateString } from './utils/dateUtils';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import ExportModal from './components/ExportModal';
-import DashboardSkeleton from './components/DashboardSkeleton';
 import LandingPage from './views/LandingPage';
 import DelayedDashboardLoader from './components/DelayedDashboardLoader';
 import SortableAccountCard from './components/SortableAccountCard';
@@ -64,116 +47,6 @@ import UnifiedWidgets from './components/UnifiedWidgets';
 import ImportPowensModal from './components/ImportPowensModal';
 
 
-const HelpPopover = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedBank, setSelectedBank] = useState(null);
-
-const bankGuides = [
-  { 
-    id: 'lbp', 
-    name: 'La Banque Postale', 
-    guide: 'Menu latéral gauche > OPÉRATIONS > "Téléchargement d\'opérations" > Choisir le compte > Format CSV.' 
-  },
-  { 
-    id: 'bourso', 
-    name: 'BoursoBank', 
-    guide: 'Cliquer sur le compte > Filtrer la période > Bouton "Exporter en Format CSV" (situé tout en bas sous la liste des mouvements).' 
-  },
-  { 
-    id: 'revolut', 
-    name: 'Revolut', 
-    guide: 'Accueil > Cliquer sur "..." (Plus) > Relevés > Relevé de transactions > Choisir Excel (CSV) > Générer.' 
-  },
-  { 
-    id: 'bp', 
-    name: 'Banque Populaire', 
-    guide: 'Menu "Documents" (haut) > "Vos écritures et opérations" (gauche) > Sélectionner CSV (Excel) > Choisir les dates.' 
-  },
-  { 
-    id: 'ca', 
-    name: 'Crédit Agricole', 
-    guide: 'Menu "Documents" > "Télécharger l\'historique des opérations" > Sélectionner le compte > Format CSV.' 
-  },
-  { 
-    id: 'bnplcl', 
-    name: 'BNP / LCL', 
-    guide: 'Rubrique "Comptes & Contrats" > "Télécharger vos relevés d\'opération" > Choisir le format CSV (si proposé) ou Export.' 
-  },
-  { 
-    id: 'sg', 
-    name: 'Société Générale', 
-    guide: 'Sélectionner le compte > Onglet "Autres" > "Export" > Choisir le format CSV et la période.' 
-  }
-];
-
-  return (
-    <div className="relative"> {/* Le parent reste en relative */}
-      
-      {/* BOUTON D'APPEL */}
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className={`h-[52px] px-4 rounded-2xl flex items-center gap-3 transition-all duration-300 border ${
-          isOpen ? 'bg-[var(--glass-bg)] border-[var(--primary)]/50' : 'bg-white/[0.02] border-white/10'
-        }`}
-      >
-        <div className="p-1.5 bg-[var(--glass-bg)] rounded-lg">
-          <HelpCircle size={16} className={isOpen ? 'text-[var(--secondary)]' : 'text-[var(--text-main)]/40'} />
-        </div>
-        <div className="flex flex-col items-start hidden md:flex">
-          <span className="text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-widest text-left">Guide Export CSV</span>
-          <span className="text-[8px] text-[var(--text-main)]/10 font-bold uppercase text-left">Aide banques</span>
-        </div>
-      </button>
-
-      {/* LE POPOVER ORIENTÉ VERS LE BAS */}
-      {isOpen && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => {setIsOpen(false); setSelectedBank(null);}} />
-          
-          {/* CHANGEMENT ICI : top-[110%] au lieu de bottom */}
-          <div className="absolute right-0 top-[110%] mt-2 w-72 bg-[var(--surface)] border border-white/10 rounded-[calc(var(--radius)*1.333)] shadow-[0_20px_50px_rgba(0,0,0,0.8)] z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="p-5 border-b border-white/5 bg-white/[0.02]">
-              <h4 className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-widest">Exporter mon CSV</h4>
-              <p className="text-[8px] text-[var(--text-main)]/20 uppercase font-bold mt-1">Sélectionnez votre banque</p>
-            </div>
-
-            <div className="p-2 max-h-[350px] overflow-y-auto custom-scrollbar">
-              {!selectedBank ? (
-                <div className="space-y-1">
-                  {bankGuides.map((bank) => (
-                    <button
-                      key={bank.id}
-                      onClick={() => setSelectedBank(bank)}
-                      className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-[var(--glass-bg)] transition-colors group/item text-left"
-                    >
-                      <span className="text-[10px] font-bold text-[var(--text-main)]/60 group-hover/item:text-[var(--secondary)] uppercase">{bank.name}</span>
-                      <ChevronRight size={14} className="text-[var(--text-main)]/10 group-hover/item:text-[var(--secondary)]" />
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-2 animate-in slide-in-from-right-2 duration-300">
-                  <button 
-                    onClick={() => setSelectedBank(null)}
-                    className="text-[8px] font-black text-[var(--secondary)] uppercase mb-4 flex items-center gap-2 hover:opacity-70"
-                  >
-                    ← Retour
-                  </button>
-                  <div className="bg-[var(--primary)]/5 border border-[var(--primary)]/10 p-4 rounded-2xl">
-                    <span className="text-[9px] font-black text-[var(--secondary)] uppercase block mb-2">{selectedBank.name}</span>
-                    <p className="text-[11px] text-[var(--text-main)]/80 font-medium leading-relaxed uppercase tracking-tight">
-                      {selectedBank.guide}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
 
 
 
@@ -231,48 +104,6 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
 
 
 
-function SortableItem({ id, children, disabled }) {
-  const { 
-    attributes, 
-    listeners, 
-    setNodeRef, 
-    transform, 
-    transition, 
-    isDragging 
-  } = useSortable({ id, disabled });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 100 : 'auto',
-    position: 'relative',
-    touchAction: 'none', // Important pour le drag sur mobile
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes}>
-      <div className={`group relative border-white/70 transition-all rounded-[var(--radius)] ${
-        isDragging ? 'shadow-2xl scale-[1.02] rotate-1' : ''
-      }`}>
-        
-        {/* LA POIGNÉE CENTRÉE EN HAUT */}
-        {!disabled && (
-          <div 
-            {...listeners} 
-            className="absolute top-1 left-1/2 -translate-x-1/2  w-12 h-6 flex items-center justify-center bg-[var(--glass-bg)] hover:bg-white/20 border border-white/10 rounded-full cursor-grab active:cursor-grabbing z-50 transition-colors backdrop-blur-[var(--glass-blur)]"
-          >
-            {/* Petit motif de points pour suggérer le drag */}
-            <div className="flex gap-0.5">
-              {[1, 2, 3].map(i => <div key={i} className="w-1 h-1 bg-white/40 rounded-full" />)}
-            </div>
-          </div>
-        )}
-
-        {children}
-      </div>
-    </div>
-  );
-}
 
 
 
@@ -387,44 +218,6 @@ const MAP_COULEURS = {
 
 
 // Moteur de calcul éphémère pour les statistiques créées sur-mesure
-const calculerMontantStatPerso = (config, transactions) => {
-  const transactionsFiltrees = transactions.filter(t => {
-    const montant = parseFloat(t.montant) || 0;
-    if (config.flux_type === "depenses" && montant > 0) return false;
-    if (config.flux_type === "revenus" && montant < 0) return false;
-
-    const resultatsRegles = config.regles.map(r => {
-      let valeurChamp = "";
-
-      if (r.champ === "categorie") {
-        valeurChamp = (t.categorie || "").toLowerCase();
-      } else if (r.champ === "nom") {
-        valeurChamp = (t.nom || "").toLowerCase();
-      } else if (r.champ === "jour") {
-        if (!t.date) return false;
-        const dateObj = new Date(t.date);
-        valeurChamp = dateObj.toLocaleDateString('fr-FR', { weekday: 'long' }).toLowerCase();
-      } else if (r.champ === "montant") {
-        const valeurAbsolue = Math.abs(montant);
-        const seuilCible = parseFloat(r.valeur);
-        if (r.condition === "GREATER_THAN") return valeurAbsolue > seuilCible;
-        if (r.condition === "LESS_THAN") return valeurAbsolue < seuilCible;
-      }
-
-      const valeurCible = (r.valeur || "").toLowerCase();
-      
-      if (r.condition === "EQUALS") return valeurChamp === valeurCible;
-      if (r.condition === "CONTAINS") return valeurChamp.includes(valeurCible);
-      return false;
-    });
-
-    return config.operateur === "OR" 
-      ? resultatsRegles.some(res => res === true)
-      : resultatsRegles.every(res => res === true);
-  });
-
-  return transactionsFiltrees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-};
 
 
 
@@ -463,9 +256,8 @@ const moisListe = [
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [activeRightTab, setActiveRightTab] = useState('graphs'); // 'graphs' ou 'projects'
-  const [itemToDelete, setItemToDelete] = useState(null); // Stocke le nom du projet à supprimer
+ // Stocke le nom du projet à supprimer
   const [projets, setProjets] = useState([]);
-  const [form2, setForm2] = useState({ nom: '', cout: '', capa: '', date: '2026-06-01' });
   const [user, setUser] = useState(localStorage.getItem('user'));
   const [authViewMode, setAuthViewMode] = useState(null); // null = Landing Page, 'login' ou 'register' = Formulaire
   const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'user'); // 👈 Nouvel état
@@ -507,9 +299,7 @@ const moisListe = [
     }
   }, [comptes]);
 
-  const [form, setForm] = useState({ nom: '', montant: '', categorie: 'Alimentation' })
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [activePicker, setActivePicker] = useState(null); // 'bg', 'primary', 'text' ou null
+ // 'bg', 'primary', 'text' ou null
   const [showPicker, setShowPicker] = useState(null); // Pour savoir quel picker est ouvert
   const handleColorChange = (index, color) => {
   const newComptes = [...comptes]; newComptes[index].couleur = color.hex; setComptes(newComptes);};
@@ -592,8 +382,7 @@ const setFilters = (newFiltersOrFn) => {
 
   const [deleteModal, setDeleteModal] = useState({ show: false, accountName: null });
   const [toutesLesTransactions, setToutesLesTransactions] = useState([]);
-  const [editForm, setEditForm] = useState({});
-  const [editingId, setEditingId] = useState(null); // Stocke le nom ou l'ID du projet en cours d'édition*
+ // Stocke le nom ou l'ID du projet en cours d'édition*
   const [availablePeriods, setAvailablePeriods] = useState([]);
   const [ordreComptes, setOrdreComptes] = useState(() => {
   const saved = localStorage.getItem('ordre_comptes_favoris');
@@ -606,7 +395,6 @@ const setFilters = (newFiltersOrFn) => {
     );
   };
 
-const [editingIndex, setEditingIndex] = useState(null);
 
 
 
@@ -884,14 +672,7 @@ const fetchTransactions = async () => {
 
 
 
-const [isRegistering, setIsRegistering] = useState(false);
-const [showPassword, setShowPassword] = useState(false);
 const [loginPassword, setLoginPassword] = useState(''); // Ajoute cette ligne
-const [loginEmail, setLoginEmail] = useState('');
-const [firstName, setFirstName] = useState('');
-const [lastName, setLastName] = useState('');
-const [isForgotPassword, setIsForgotPassword] = useState(false);
-const [resetEmail, setResetEmail] = useState('');
 
 
 
@@ -899,69 +680,6 @@ const [resetEmail, setResetEmail] = useState('');
 
 
 
-const handleLogin = async (e) => {
-  e.preventDefault();
-  try {
-    const res = await api.post('/login', { 
-      nom: loginName,
-      password: loginPassword 
-    });
-    
-    localStorage.setItem('token', res.data.access_token);
-    localStorage.setItem('user', res.data.user.toLowerCase());
-    setUser(res.data.user.toLowerCase());
-  } catch (err) {
-    // 🛡️ 1. IP bloquée / Pare-feu déclenché (403)
-    if (err.response && err.response.status === 403) {
-      const messageDetail = err.response.data?.detail || "Trop d'échecs. Votre adresse IP a été suspendue temporairement.";
-      toast.error(messageDetail, {
-        duration: 8000,
-        icon: (
-          <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.3)] mr-2.5">
-            <ShieldAlert size={16} strokeWidth={2.5} />
-          </div>
-        )
-      });
-    } 
-    // 🔒 2. Mot de passe incorrect avec décompte (401)
-    else if (err.response && err.response.status === 401) {
-      const messageDetail = err.response.data?.detail || "Mot de passe incorrect.";
-      toast.error(messageDetail, {
-        duration: 5000,
-        icon: (
-          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 shrink-0 shadow-[0_0_15px_rgba(245,158,11,0.3)] mr-2.5">
-            <Lock size={15} strokeWidth={2.5} />
-          </div>
-        )
-      });
-    } 
-    // 👤 3. Utilisateur ou e-mail introuvable (404)
-    else if (err.response && err.response.status === 404) {
-      toast.error("Identifiant ou adresse e-mail inconnu.", {
-        duration: 4000,
-        icon: (
-          <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.3)] mr-2.5">
-            <UserX size={16} strokeWidth={2.5} />
-          </div>
-        )
-      });
-    } 
-    // ⚠️ 4. Autre message d'erreur envoyé par FastAPI
-    else if (err.response?.data?.detail) {
-      toast.error(err.response.data.detail);
-    } 
-    // 📡 5. Panne réseau / Serveur inaccessible
-    else {
-      toast.error("Impossible de joindre le serveur Kleea.", {
-        icon: (
-          <div className="w-8 h-8 rounded-xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center text-rose-400 shrink-0 shadow-[0_0_15px_rgba(244,63,94,0.3)] mr-2.5">
-            <WifiOff size={15} strokeWidth={2.5} />
-          </div>
-        )
-      });
-    }
-  }
-};
 
 const handleLogout = () => {
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
@@ -983,56 +701,9 @@ const handleLogout = () => {
 
 
 
-const handleRegister = async (e) => {
-  e.preventDefault();
-  try {
-    const res = await api.post(`/register`, { 
-      nom: loginName, 
-      email: loginEmail,
-      password: loginPassword,
-      first_name: firstName, 
-      last_name: lastName
-    });
-
-    // 🟢 ENREGISTRER LE TOKEN D'ACCÈS IMMÉDIATEMENT
-    if (res.data?.access_token) {
-      localStorage.setItem('token', res.data.access_token);
-    }
-    
-    const usernameClean = (res.data?.user || loginName).toLowerCase();
-    localStorage.setItem('user', usernameClean);
-    setUser(usernameClean);
-
-    toast.success("Compte créé ! Bienvenue chez Kleea.");
-  } catch (err) {
-    toast.error(err.response?.data?.detail || "Erreur lors de l'inscription.");
-  }
-};
-
-const handleResetRequest = async (e) => {
-  e.preventDefault();
-  try {
-    await api.post(`forgot-password`, { email: resetEmail });
-    toast.success("Si cet email existe, un lien a été envoyé.");
-    setIsForgotPassword(false);
-  } catch (err) {
-    toast.error("Erreur lors de la demande.");
-  }
-};
 
 
-const deleteTransaction = async (id) => {
-  if (window.confirm("Supprimer cette transaction ?")) {
-    try {
-      await api.delete(`/transactions/${id}`);
-      // Mise à jour locale immédiate sans refetch
-      setToutesLesTransactions(prev => prev.filter(t => t.id !== id));
-    } catch (err) {
-      toast.error("Erreur de suppression de la transaction.");
-      fetchTransactions(); // En cas d'erreur, on resynchronise
-    }
-  }
-};
+
 
 
 useEffect(() => {
@@ -1389,7 +1060,6 @@ const statsCategories = useMemo(() => {
 
 
 
-const [showAddProject, setShowAddProject] = useState(false);
 // --- 3. La fonction handleDragEnd mise à jour ---
 const handleDragEnd = (event) => {
   const { active, over } = event;
@@ -1407,20 +1077,6 @@ const handleDragEnd = (event) => {
 };
 
 
-const handleDragEnd2 = (event) => {
-  const { active, over } = event;
-  if (active.id !== over.id) {
-    const oldIndex = projets.findIndex((i) => i.nom === active.id);
-    const newIndex = projets.findIndex((i) => i.nom === over.id);
-    
-    // On met à jour l'état local
-    const newOrder = arrayMove(projets, oldIndex, newIndex);
-    setProjets(newOrder);
-    
-    // OPTIONNEL : Sauvegarder l'ordre en BDD si tu as une colonne "position"
-    // saveNewOrder(newOrder); 
-  }
-};
 
 
 
@@ -1954,7 +1610,6 @@ const handleSort = (key) => {
 // On récupère toutes les transactions filtrées par ton useMemo financeData
 // On fusionne revenus, dépenses et transferts pour le tableau de gestion
 
-const dateInputRef = useRef(null);
 const transactionsAAfficher = useMemo(() => {
   let data = [
     ...(financeData.journal.revenus || []),
@@ -2178,7 +1833,6 @@ const handleDeleteSelected = async () => {
 
 
 const [isApprendreActive, setIsApprendreActive] = useState(false);
-const sorted = (arr) => [...arr].sort((a, b) => a.localeCompare(b));
 
 
 const fetchCategories = async () => {
@@ -2303,20 +1957,10 @@ const toggleVisibility = async (catName) => {
 };
 
 
-const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-const [newIcon, setNewIcon] = useState("🏷️");
-
-const onEmojiClick = (emojiData) => {
-  setNewIcon(emojiData.emoji); // Récupère l'emoji choisi
-  setShowEmojiPicker(false);   // Ferme le picker
-};
 
 
-const [showListPopover, setShowListPopover] = useState(false);
-const [categorySearch, setCategorySearch] = useState('');
+
 const [selectedGroupFilter, setSelectedGroupFilter] = useState('all');
-const [newGroupName, setNewGroupName] = useState('');
-const [showAddGroupInput, setShowAddGroupInput] = useState(false);
 
 
 // 🟢 Plus de localStorage : les groupes viennent de la BDD et des groupes par défaut
@@ -2333,15 +1977,6 @@ const DEFAULT_STARTER_GROUPS = [
 const [userManagedGroups, setUserManagedGroups] = useState(DEFAULT_STARTER_GROUPS);
 
 // Ajout d'un groupe en mémoire (sera persisté en BDD dès qu'une catégorie y sera assignée)
-const handleAddNewGroup = () => {
-  const clean = newGroupName.trim();
-  if (clean && !userManagedGroups.some(g => g.toLowerCase() === clean.toLowerCase())) {
-    setUserManagedGroups(prev => [...prev, clean]);
-    setSelectedGroupFilter(clean);
-    setNewGroupName('');
-    setShowAddGroupInput(false);
-  }
-};
 
 // 🟢 INDISPENSABLE : Sauvegarde le nouveau groupe de la catégorie dans la BDD
 const handleAssignGroup = async (catName, targetGroup) => {
@@ -2614,7 +2249,6 @@ const onDragOver = (e) => {
 
 // 1. L'état (Inchangé)
 const [categoriesConfig, setCategoriesConfig] = useState([]);
-const [memoireRegles, setMemoireRegles] = useState([]);
 const [signType, setSignType] = useState("both");
 
 
@@ -2901,7 +2535,6 @@ const [isSyncingPowens, setIsSyncingPowens] = useState(false);
 const [isManualSyncing, setIsManualSyncing] = useState(false);
 // Remplace ou ajoute cet état en haut de ton composant
 const [isSyncingData, setIsSyncingData] = useState(false);
-const [isOpen, setIsOpen] = useState(false);
 // 2. État pour stocker la liste des connexions et comptes
 const [powensData, setPowensData] = useState({
   connections_count: 0,
@@ -3541,7 +3174,6 @@ const handleAssociateAccount = async (powensAccountName, targetCompte) => {
   }
 };
 
-const [allPrevisions, setallPrevisions] = useState([]);
 
 
 const loadPrevisions = async () => {
@@ -3610,27 +3242,6 @@ const [excludedMonths, setExcludedMonths] = useState([]);
 
 
 // On crée une version "Année" sans le filtre du mois sélectionné
-const previsionsActivesPourRecap = useMemo(() => {
-  if (!allPrevisionsAnnee || allPrevisionsAnnee.length === 0) return [];
-
-  return allPrevisionsAnnee.filter(p => {
-    // 1. SÉCURITÉ DE L'ŒIL : Si l'œil est fermé, on jette la ligne immédiatement des calculs annuels
-    if (p.actif === false || p.actif === 0 || p.actif === "0" || p.actif === "false") return false;
-
-    // Filtre profil
-    if (filters.profil !== 'Tous') {
-        const nomSQL = String(p.compte || "").trim().toUpperCase();
-        const compteAssocie = comptes?.find(c => String(c?.compte || "").trim().toUpperCase() === nomSQL);
-        if (compteAssocie?.groupe !== filters.profil) return false;
-    }
-
-    // Filtre mois exclus (tes boutons "Masquer/Activer")
-    const d = new Date(p.date);
-    const moisP = d.toLocaleString('fr-FR', { month: 'long', year: 'numeric' });
-    const moisFormate = moisP.charAt(0).toUpperCase() + moisP.slice(1);
-    return !excludedMonths.includes(moisFormate);
-  });
-}, [allPrevisionsAnnee, filters.profil, excludedMonths, comptes]);
 
 
 const soldesPrevisionnels = useMemo(() => {
@@ -4138,7 +3749,6 @@ useEffect(() => {
 
 // --- 1. Tes States (Assure-toi que l'ordre est respecté) ---
 const [allocations, setAllocations] = useState([]);
-const [montantAiguillage, setMontantAiguillage] = useState("");
 
 // On calcule la somme de TOUTES les allocations récupérées du SQL
 const sommeAllocations = useMemo(() => {
@@ -4165,39 +3775,8 @@ const fetchAllocations = async () => {
 
 
 
-const handleSaveAllocation = async (nomEnveloppe, montant) => {
-  const userName = typeof user === 'string' ? user : (user?.username || user?.nom);
-
-  // Vérification simple
-  if (!nomEnveloppe || !montant) {
-    toast.error("Données manquantes (nom ou montant).");
-    return;
-  }
-
-  const data = {
-    utilisateur: String(userName),
-    profil: String(filters.profil),
-    projet: String(nomEnveloppe),
-    montant_alloue: parseFloat(montant)
-  };
-
-  try {
-    const res = await api.post(`/save-allocation`, data);
-    if (res.data.status === "success") {
-      // On reset tout après le succès
-      setMontantAiguillage("");
-      setNewProjet({ nom: '', cout: '' });
-      setShowAddProjet(false);
-      fetchAllocations(); // Pour mettre à jour ton solde total
-    }
-  } catch (error) {
-    console.error("Erreur SQL Save Allocation:", error.response?.data);
-  }
-};
 
 
-const [showAddProjet, setShowAddProjet] = useState(false);
-const [newProjet, setNewProjet] = useState({ nom: '', cout: '' });
 
 
 
@@ -4214,7 +3793,6 @@ useEffect(() => {
 const [deleteModal3, setDeleteModal3] = useState({ show: false, projetNom: null });
 
 
-const [pickingColor, setPickingColor] = useState(null);
 
 
 
@@ -4222,13 +3800,6 @@ const [note, setNote] = useState(""); // Initialise avec une chaîne vide
 
 
 
-const handleInput = (e) => {
-  const element = e.target;
-  // On réinitialise la hauteur pour calculer le scrollHeight réel
-  element.style.height = "auto";
-  // On applique la nouvelle hauteur basée sur le contenu
-  element.style.height = `${element.scrollHeight}px`;
-};
 
 const [showLearningList, setShowLearningList] = useState(false);
 
@@ -4299,28 +3870,6 @@ const statsAnnuellesCategories = useMemo(() => {
     overscan: 10,           // Pré-rend 10 lignes en avance pour un scroll 100% fluide
   });
 
-const recalculerSoldeInitialHisto = (soldeSaisi, moisSaisi, anneeSaisi, transactionsDuCompte) => {
-  let soldeRemonte = soldeSaisi;
-
-  // On trie les transactions pour ne traiter que celles qui sont AVANT ou PENDANT le mois saisi
-  // (Parce qu'on veut "annuler" leur effet pour remonter dans le passé)
-  transactionsDuCompte.forEach(t => {
-    const anneeT = parseInt(t.annee);
-    const indexMoisT = moisListe.findIndex(m => m.v.toLowerCase() === t.mois.toLowerCase());
-    const indexMoisSaisi = moisListe.findIndex(m => m.v.toLowerCase() === moisSaisi.toLowerCase());
-
-    // Si la transaction est dans le futur par rapport à la saisie, on s'en fiche
-    if (anneeT > anneeSaisi || (anneeT === anneeSaisi && indexMoisT >= indexMoisSaisi)) {
-      // Note: On inclut le mois saisi car le solde "à date" est souvent le solde FIN de mois
-      // ou le solde INSTANTANÉ. Si c'est le solde au 1er du mois, on retire le mois en cours.
-      
-      // Ici, on part du principe que c'est le solde AU MOMENT de la saisie (donc on soustrait l'impact passé)
-      soldeRemonte -= parseFloat(t.montant);
-    }
-  });
-
-  return soldeRemonte;
-};
 
 const [assistantData, setAssistantData] = useState({ open: false, compte: null, valeur: "" });
 const openCalculateurAssistant = (compte) => {
@@ -4394,12 +3943,9 @@ const handleClosePatchModal = () => {
 };
 
 
-const [activeDropdownId, setActiveDropdownId] = useState(null);
-const [activePrevisionDropdownId, setActivePrevisionDropdownId] = useState(null);
-const [dropdownPosition, setDropdownPosition] = useState('bottom'); // 'bottom' ou 'top'
+ // 'bottom' ou 'top'
 
 // Variable de verrouillage
-const isSyncing = useRef(false);
 
 // =========================================================================
 // 🟢 SYNCHRONISATION SAINE AU CLIC (ZÉRO BOUCLE INFINIE)
@@ -4654,7 +4200,6 @@ const [visibleAnnuel, setVisibleAnnuel] = useState({
   epargne: true
 });
 
-const [showPublicGuide, setShowPublicGuide] = useState(false);
 
 // 💡 AJOUT : Détection de l'écran de PC standard 1080p pour le mode compact
   const [isCompact, setIsCompact] = useState(false);
@@ -4674,7 +4219,6 @@ const [showPublicGuide, setShowPublicGuide] = useState(false);
 
 
 
-const [showDuplicateModal, setShowDuplicateConfirm] = useState(false);
 const [duplicateType, setDuplicateType] = useState('month'); // 'month' | 'year'
 
 
@@ -4880,10 +4424,6 @@ const [celebrationModal, setCelebrationModal] = useState({
 });
 
 // 1. États pour la création
-const [selectedIconName, setSelectedIconName] = useState('Tag');
-const [selectedCatColor, setSelectedCatColor] = useState('#818cf8');
-const [showIconPicker, setShowIconPicker] = useState(false);
-const [showCatColorPicker, setShowCatColorPicker] = useState(false);
 
 // 2. États pour la modification d'une catégorie existante
 const [editingCat, setEditingCat] = useState(null); // { nom: "Courses", icone: "ShoppingCart", couleur: "#818cf8" }

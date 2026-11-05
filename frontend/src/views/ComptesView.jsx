@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Plus, CreditCard, Building2, Pencil, Trash2, Wand2, Wallet, 
   Sparkles, ShieldCheck, Lock, FileUp, Landmark, X 
