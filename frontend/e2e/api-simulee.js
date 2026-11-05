@@ -41,7 +41,7 @@ const REPONSES = [
   [/^\/note\//, { texte: '' }],
   [/^\/api\/notes-demenagement\//, { contenu: '' }],
   [/^\/get-user-theme\//, {}],
-  [/^\/get-theme\//, {}],
+  [/^\/get-theme\//, null],
 ];
 
 /** Sert toutes les requêtes vers l'API simulée, et note celles qui partent. */

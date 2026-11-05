@@ -22,7 +22,7 @@ async function brancher(page, mode) {
     [/^\/api\/streamdeck\/token/, { active: false }],
     [/^\/note\//, { texte: '' }],
     [/^\/get-user-theme\//, {}],
-    [/^\/get-theme\//, {}],
+    [/^\/get-theme\//, null],
   ];
   await page.route('http://api.kleea.test/**', (route) => {
     const requete = route.request();
