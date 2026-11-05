@@ -441,7 +441,7 @@ export const CategoriesView = ({ statsCategories, chartData, hiddenCategories, t
   );
 };
 
-export const VariationsView = ({ statsCategories = [], userTheme = {}, prevMonthLabel }) => {
+export const VariationsView = ({ statsCategories = [], prevMonthLabel }) => {
   const shortPrevMonth = prevMonthLabel 
     ? prevMonthLabel.substring(0, 3).toLowerCase() + '.' 
     : 'm-1';
@@ -688,7 +688,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
       await api.delete(`/custom-stats/${id}`);
       setCustomStats(prev => prev.filter(stat => stat.id !== id));
       toast.success("Indicateur supprimé");
-    } catch (err) {
+    } catch  {
       toast.error("Impossible de supprimer l'indicateur");
     }
   };
@@ -751,7 +751,7 @@ export const FlashInsightsView = ({ statsCategories = [], transactions = [], use
           }
         }
       }
-    } catch (err) {
+    } catch  {
       setReponseAI("⚠️ Une erreur est survenue lors de l'analyse.");
     } finally {
       setLoading(false);
@@ -1223,7 +1223,6 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
       const montant = parseFloat(t.montant) || 0;
       const cat = (t.categorie || "").toLowerCase().trim();
       const lib = (t.nom || "").trim();
-      const libLower = lib.toLowerCase();
 
       const estTransfert = estTransfertInterne(lib, cat);
 
@@ -1463,13 +1462,12 @@ export default function DashboardView(props) {
     budgetGauges = [], carouselRef, handleScroll, totalDots = 1, activeIndex = 0,
     navigateCarousel, scrollToPage, setActiveTab, annualTab, setAnnualTab,
     soldePremierJanvier = 0, recapAnnuelStats = [], statsAnnuellesCategories = [],
-    toutesLesTransactions = [], comptesDuProfil = [], isCompact = false, totalTab, setTotalTab,
+    toutesLesTransactions = [], comptesDuProfil = [], isCompact = false, setTotalTab,
     estPeriode, moisDebut, setMoisDebut, moisFin, setMoisFin, donneesAffichees = { revenus: 0, depenses: 0, epargne: 0, tauxEffort: 0 },
     activeRightTab, setActiveRightTab, objectifAnnuelGlobal = 0, epargneReelleCumulee = 0,
     epargneProjeteeTotale = 0, pctReel = 0, pctProjete = 0, visibleAnnuel = {}, setVisibleAnnuel,
     comptes = [], hiddenComptes = {}, setHiddenComptes, allocations = [], setAllocations,
-    projets = [], setProjets, epargneCumuleeAnnuelle = 0, api, fetchAllocations,
-    CustomSelect, categoriesVisibles = [], updateCell
+    projets = [], setProjets, api, CustomSelect, categoriesVisibles = [], updateCell
   } = props;
 
   const jaugeColor = userTheme.color_jauge || '#f1c40f';

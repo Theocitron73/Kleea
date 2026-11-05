@@ -116,7 +116,7 @@ export default function SharedTricount() {
 
     try {
       const parts = Object.entries(newTransaction.details_montants || {})
-        .filter(([_, m]) => m > 0)
+        .filter(([, m]) => m > 0)
         .map(([nom, m]) => `${nom.trim()}:${m}`)
         .join(',');
 
@@ -144,7 +144,7 @@ export default function SharedTricount() {
       });
       showToast("Dépense enregistrée !", "success");
       fetchSharedData();
-    } catch (err) {
+    } catch  {
       showToast("Erreur lors de l'enregistrement.", "error");
     }
   };
@@ -160,7 +160,7 @@ export default function SharedTricount() {
     }
     try {
       const chainePourQui = Object.entries(editingTransaction.details_montants || {})
-        .filter(([_, m]) => m > 0)
+        .filter(([, m]) => m > 0)
         .map(([nom, m]) => `${nom}:${m}`)
         .join(',');
 
@@ -180,7 +180,7 @@ export default function SharedTricount() {
       setEditingTransaction(null);
       fetchSharedData();
       showToast("Dépense mise à jour !", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur lors de la modification.", "error");
     }
   };
@@ -191,7 +191,7 @@ export default function SharedTricount() {
       fetchSharedData();
       setDeletingId(null);
       showToast("Dépense supprimée.", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur lors de la suppression.", "error");
     }
   };
@@ -217,7 +217,7 @@ export default function SharedTricount() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(dUrl);
-    } catch (err) {
+    } catch  {
       alert("Erreur lors de la génération du PDF.");
     }
   };

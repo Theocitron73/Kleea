@@ -61,8 +61,7 @@ const CustomBadgeDate = forwardRef(({ t }, ref) => {
 export default function GererView(props) {
   const {
     filters, setFilters, fetchTransactions, comptes = [], soldesTries = [],
-    handleProfilChange, handleCompteChange, selectedCompte, setSelectedCompte,
-    moisListe = [], availablePeriods = [], statsFiltrées = { revenus: 0, depenses: 0, solde: 0 },
+    handleProfilChange, handleCompteChange, selectedCompte, moisListe = [], availablePeriods = [], statsFiltrées = { revenus: 0, depenses: 0, solde: 0 },
     isApprendreActive, setIsApprendreActive, showLearningList, setShowLearningList,
     elementsAppris = [], fetchMemoire, handleDeleteMemory,
     newTx, setNewTx, selectedDate, setSelectedDate, submitQuickTransaction,
@@ -78,8 +77,7 @@ export default function GererView(props) {
     setSelectedBudgetMonth, editingBudget, setEditingBudget,
     handleUpdateBudget, confirmDelete2, CustomSelect,
     toutesLesTransactions = [], userManagedGroups = [],
-    setUserManagedGroups, handleAssignGroup, handleDeleteGroup,
-    user, fetchCategories
+    setUserManagedGroups, handleAssignGroup, handleDeleteGroup
   } = props;
 
   // --- ÉTATS COMMUNS SPLIT & UNSPLIT ---
@@ -191,7 +189,7 @@ export default function GererView(props) {
       await updateCell(editingTransaction.id, 'enveloppe', editingTransaction.enveloppe);
       await updateCell(editingTransaction.id, 'prevision_id', editingTransaction.prevision_id ? parseInt(editingTransaction.prevision_id) : null);
       toast.success("Transaction modifiée ! ✨");
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la modification.");
     }
     setEditingTransaction(null);
@@ -204,7 +202,7 @@ export default function GererView(props) {
         if (!isNaN(d.getTime())) {
           return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
         }
-      } catch (e) {}
+      } catch  {}
       return t.date;
     }
     if (t.jour) return `${t.jour} ${t.mois || ''}`.trim().toUpperCase();

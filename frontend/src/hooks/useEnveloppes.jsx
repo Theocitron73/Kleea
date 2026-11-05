@@ -1,20 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../axios';
 
 // Enveloppes d'épargne.
-export default function useEnveloppes({ filters, soldeGlobal }) {
+export default function useEnveloppes({ filters }) {
   const [allocations, setAllocations] = useState([]);
 
   // On calcule la somme de TOUTES les allocations récupérées du SQL
-  const sommeAllocations = useMemo(() => {
-      return allocations.reduce((acc, curr) => {
-          // On s'assure que montant_alloue est bien traité comme un nombre
-          return acc + (parseFloat(curr.montant_alloue) || 0);
-      }, 0);
-  }, [allocations]); // Le calcul se relance dès que la liste 'allocations' change
+ // Le calcul se relance dès que la liste 'allocations' change
 
   // Le reste à ventiler se met à jour tout seul
-  const resteAVentiler = soldeGlobal - sommeAllocations;
 
   // --- 3. Tes Fonctions ---
   const fetchAllocations = async () => {

@@ -46,7 +46,7 @@ jobs:
 
   frontend:
     name: Frontend (tests et build)
-    # Playwright 1.56 ne fournit pas Chromium pour Ubuntu 26.04.
+    # Sur Ubuntu 26.04, le miroir Azure fait durer l'installation des dépendances de Chromium plus de 10 minutes (18 s ici).
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:

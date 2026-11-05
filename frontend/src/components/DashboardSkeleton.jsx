@@ -1,6 +1,6 @@
 import { Trophy, Search, List, PieChart, CalendarDays, Sparkles,ArrowUpCircle,ArrowDownCircle,RefreshCw,TrendingUp,Zap } from 'lucide-react';
 
-export default function DashboardSkeleton({ userTheme = {}, filters = {}, isFadingOut = false }) {
+export default function DashboardSkeleton({ filters = {}, isFadingOut = false }) {
   const moisAbreges = ['JAN', 'FEV', 'MAR', 'AVR', 'MAI', 'JUIN', 'JUIL', 'AOUT', 'SEPT', 'OCT', 'NOV', 'DEC'];
   const moisComplets = [
     'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',

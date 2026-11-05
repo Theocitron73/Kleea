@@ -219,7 +219,6 @@ export default function PrevisionsView(props) {
     filters,
     setFilters,
     comptes = [],
-    allPrevisionsAnnee = [],
     groupesDisponibles = [],
     handleWheelProfil,
     handleWheelMois,

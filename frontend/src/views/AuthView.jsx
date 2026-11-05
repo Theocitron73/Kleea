@@ -113,7 +113,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
       await api.post(`/forgot-password`, { email: resetEmail });
       toast.success("Si cet email existe, un lien vous a été envoyé.");
       setIsForgotPassword(false);
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la demande.");
     }
   };

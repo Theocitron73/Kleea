@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { BookOpen, LayoutDashboard, Settings2, ChartCandlestick, Wallet, Users2, Search, ChevronRight, X, AlertCircle, Database, UploadCloud, Brain, List, Plus, Edit3, Calendar, Trash2, ArrowUpDown, Target, Calculator, StickyNote } from 'lucide-react';
 
-export default function GuideView({ userTheme, setActiveTab }) {
+export default function GuideView({ userTheme }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeChapter, setActiveChapter] = useState("all");
 

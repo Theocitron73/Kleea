@@ -132,13 +132,6 @@ export default function ImportView({
 
   const isInternalTransfer = (cat) => estTransfertInterne('', cat);
 
-  const unsyncedAccounts = Object.entries(syncCountByAccount || {}).filter(([_, data]) => {
-    const count = typeof data === 'object' ? data?.count : Number(data);
-    return count > 0;
-  });
-
-  const isExecuting = isManualSyncing || isSyncingData || isCheckingSync;
-
   useEffect(() => {
     if (transactionsCalculees && transactionsCalculees.length > 0) {
       setMobileSubTab('previsu');
@@ -410,7 +403,7 @@ export default function ImportView({
             {/* ACTION 2 : SYNCHRONISER */}
             {(() => {
               const unsyncedAccs = Object.entries(syncCountByAccount || {}).filter(
-                ([_, data]) => {
+                ([, data]) => {
                   const count = typeof data === 'object' ? data?.count : Number(data);
                   return count > 0;
                 }

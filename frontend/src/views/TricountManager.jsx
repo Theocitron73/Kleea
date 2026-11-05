@@ -5,6 +5,7 @@ import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { createPortal } from 'react-dom';
 import api from '../axios';
 import { toLocalDateString, getTodayLocalDateString } from "../utils/dateUtils";
+import { appliquerMontantIndividuel, preparerEdition, repartirEquitablement, totalDesPartsCentimes } from '../utils/tricountPartage';
 
 // 🟢 Helper de conversion en centimes entiers (anti-erreur d'arrondi 0.1 + 0.2)
 const toCents = (val) => Math.round((parseFloat(val) || 0) * 100);
@@ -23,7 +24,7 @@ export default function TricountManager({ userId }) {
   const [newGroupName, setNewGroupName] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
-  const [shareToken, setShareToken] = useState(null);
+  const [, setShareToken] = useState(null);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [groupToEdit, setGroupToEdit] = useState({ oldName: "", newName: "" });
@@ -59,7 +60,7 @@ export default function TricountManager({ userId }) {
       const shareUrl = `${window.location.origin}/shared-tricount/${res.data.token}`;
       await navigator.clipboard.writeText(shareUrl);
       showToast("Lien de partage copié dans le presse-papiers !", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur lors de la génération du lien", "error");
     }
   };
@@ -71,7 +72,7 @@ export default function TricountManager({ userId }) {
         try {
           const res = await api.get(`/get-share-token/${userId}/${encodeURIComponent(groupName)}`);
           setShareToken(res.data.token);
-        } catch (err) {}
+        } catch  {}
       }
     };
     checkExistingToken();
@@ -127,7 +128,7 @@ export default function TricountManager({ userId }) {
       setIsModalOpen(false);
       fetchGroupes();
       showToast("Groupe créé avec succès !", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur création groupe", "error");
     }
   };
@@ -140,7 +141,7 @@ export default function TricountManager({ userId }) {
       setActiveTab(0);
       setIsDeleteModalOpen(false);
       showToast("Groupe supprimé", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur suppression groupe", "error");
     }
   };
@@ -159,7 +160,7 @@ export default function TricountManager({ userId }) {
       await fetchGroupes();
       setIsEditModalOpen(false);
       showToast("Groupe renommé", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur renommage", "error");
     }
   };
@@ -186,7 +187,7 @@ export default function TricountManager({ userId }) {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(downloadUrl);
-    } catch (err) {
+    } catch  {
       showToast("Impossible de générer le PDF", "error");
     }
   };
@@ -227,28 +228,21 @@ export default function TricountManager({ userId }) {
   }, [groupes, activeTab, groupData.transactions]);
 
   const updateMontantIndividuel = (nom, valeur) => {
-    const numValeur = parseFloat(valeur.replace(',', '.')) || 0;
-    const nouveauxMontants = { ...(editingTransaction.details_montants || {}) };
-    nouveauxMontants[nom] = numValeur;
-    const nouveauTotal = Object.values(nouveauxMontants).reduce((a, b) => a + b, 0);
-    const actifs = Object.keys(nouveauxMontants).filter(k => nouveauxMontants[k] > 0);
-    let pourQuiTexte = "Tous";
-    if (actifs.length !== participantsDuGroupe.length) {
-      pourQuiTexte = actifs.join(', ');
-    }
-
-    setEditingTransaction(prev => ({
-      ...prev,
-      details_montants: nouveauxMontants,
-      montant: parseFloat(nouveauTotal.toFixed(2)),
-      pour_qui: pourQuiTexte
-    }));
+    setEditingTransaction(prev => appliquerMontantIndividuel(prev, nom, valeur));
   };
 
   const handleUpdateTransaction = async () => {
+    if (!(parseFloat(editingTransaction.montant) > 0)) {
+      showToast("Le montant doit être supérieur à 0€", "error");
+      return;
+    }
+    if (totalDesPartsCentimes(editingTransaction.details_montants) !== Math.round(editingTransaction.montant * 100)) {
+      showToast("La répartition doit être égale au montant de la dépense.", "error");
+      return;
+    }
     try {
       const chainePourQui = Object.entries(editingTransaction.details_montants || {})
-        .filter(([_, montant]) => montant > 0)
+        .filter(([, montant]) => montant > 0)
         .map(([nom, montant]) => `${nom}:${montant}`)
         .join(',');
 
@@ -264,7 +258,7 @@ export default function TricountManager({ userId }) {
       setEditingTransaction(null);
       fetchDetailsGroupe();
       showToast("Dépense mise à jour", "success");
-    } catch (err) {
+    } catch  {
       showToast("Erreur lors de la mise à jour", "error");
     }
   };
@@ -275,7 +269,7 @@ export default function TricountManager({ userId }) {
       fetchDetailsGroupe();
       setDeletingId(null);
       showToast("Dépense supprimée", "success");
-    } catch (err) {
+    } catch  {
       setDeletingId(null);
     }
   };
@@ -342,7 +336,7 @@ export default function TricountManager({ userId }) {
         new_emoji: emoji
       });
       showToast(`Emoji mis à jour pour ${nom}`, "success");
-    } catch (error) {
+    } catch  {
       showToast("Erreur sauvegarde emoji", "error");
     }
   };
@@ -360,7 +354,6 @@ export default function TricountManager({ userId }) {
     (acc, curr) => acc + toCents(curr), 
     0
   );
-  const totalReparti = totalRepartiCents / 100;
   const resteARepartirCents = montantGlobalCents - totalRepartiCents;
   const resteARepartir = resteARepartirCents / 100;
   const estEquilibre = resteARepartirCents === 0;
@@ -389,7 +382,7 @@ export default function TricountManager({ userId }) {
 
     try {
       const parts = Object.entries(newTransaction.details_montants || {})
-        .filter(([_, montant]) => montant > 0)
+        .filter(([, montant]) => montant > 0)
         .map(([nom, montant]) => `${nom.trim()}:${montant}`)
         .join(',');
 
@@ -415,7 +408,7 @@ export default function TricountManager({ userId }) {
       });
       showToast("Dépense enregistrée !", "success");
       fetchDetailsGroupe();
-    } catch (err) {
+    } catch  {
       showToast("Erreur lors de l'enregistrement", "error");
     }
   };
@@ -983,32 +976,7 @@ export default function TricountManager({ userId }) {
                           <div className="flex gap-1 opacity-80 lg:opacity-0 group-hover:opacity-100 transition-all">
                             <button 
                               type="button"
-                              onClick={() => {
-                                const membres = participantsDuGroupe;
-                                const montantsInitialises = {};
-                                membres.forEach(m => montantsInitialises[m] = 0);
-
-                                if (t.pour_qui && t.pour_qui.includes(':')) {
-                                  t.pour_qui.split(',').forEach(segment => {
-                                    const [nom, montant] = segment.split(':');
-                                    if (nom && montant) montantsInitialises[nom.trim()] = parseFloat(montant);
-                                  });
-                                } else {
-                                  const beneficiaires = (t.pour_qui === 'Tous' || !t.pour_qui)
-                                    ? membres 
-                                    : t.pour_qui.split(', ').map(p => p.trim());
-                                  const partEgale = parseFloat((t.montant / (beneficiaires.length || 1)).toFixed(2));
-                                  beneficiaires.forEach(nom => {
-                                    if (membres.includes(nom)) montantsInitialises[nom] = partEgale;
-                                  });
-                                }
-
-                                setEditingTransaction({
-                                  ...t,
-                                  date: t.date.split('T')[0],
-                                  details_montants: montantsInitialises
-                                });
-                              }}
+                              onClick={() => setEditingTransaction(preparerEdition(t, participantsDuGroupe))}
                               className="p-1.5 text-white/40 hover:text-[var(--secondary)] cursor-pointer"
                               title="Modifier la dépense"
                             >
@@ -1159,13 +1127,9 @@ export default function TricountManager({ userId }) {
                   <button 
                     type="button"
                     onClick={() => {
-                      const membres = participantsDuGroupe;
-                      const part = parseFloat((editingTransaction.montant / membres.length).toFixed(2));
-                      const reset = {};
-                      membres.forEach(m => reset[m] = part);
                       setEditingTransaction({
                         ...editingTransaction, 
-                        details_montants: reset, 
+                        details_montants: repartirEquitablement(editingTransaction.montant, participantsDuGroupe), 
                         pour_qui: 'Tous'
                       });
                     }}
