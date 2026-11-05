@@ -3,7 +3,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { brancherApi, ouvrirSession } from './api-simulee.js';
+import { brancherApi, ouvrirSession, UTILISATEUR } from './api-simulee.js';
 
 const DOSSIER = process.env.KLEEA_E2E_INSTANTANE;
 
@@ -72,6 +72,17 @@ test('chaque onglet s’ouvre sans erreur', async ({ page }) => {
     expect(erreurs, `erreurs après ${libelle}`).toEqual([]);
   }
   if (DOSSIER) fs.writeFileSync(path.join(DOSSIER, 'appels.txt'), [...new Set(appels)].sort().join('\n'));
+});
+
+test('les notes de version s’ouvrent et se ferment', async ({ page }) => {
+  const erreurs = surveiller(page);
+  await demarrer(page);
+  await page.evaluate(() => localStorage.clear());
+  await page.evaluate((u) => { localStorage.setItem('user', u); localStorage.setItem('token', 'jeton-de-test'); }, UTILISATEUR);
+  await page.addInitScript(() => localStorage.removeItem(`patch_view_count_v4.3_testeur`));
+  await page.reload();
+  await expect(page.locator('.fixed.inset-0.z-\\[10000\\]').first()).toBeVisible({ timeout: 15_000 });
+  expect(erreurs).toEqual([]);
 });
 
 // Les boutons qui détruisent, quittent la page ou ouvrent un service externe ne sont pas essayés.
