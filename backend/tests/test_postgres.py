@@ -3,6 +3,7 @@
 Ces tests ne tournent que si TEST_DATABASE_URL est défini (voir .github/workflows/ci.yml) et ils effacent la base visée :
 ils refusent donc tout ce qui n'est pas une base de test locale. Le schéma vient du code, pas de la production.
 """
+import importlib.util
 import os
 import sys
 import unittest
@@ -24,8 +25,16 @@ from sqlalchemy import create_engine, text  # noqa: E402
 import main  # noqa: E402
 
 URL = os.getenv("TEST_DATABASE_URL")
-SCHEMA = Path(__file__).parent / "fixtures" / "schema_postgres_test.sql"
+REVISION = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0001_point_de_depart.py"
 PROJET = {"profil": "Theo", "nom": "Voiture", "cout": 1000, "date": "2027-01-01", "capa": 100, "apport": 250}
+
+
+def instructions_de_schema() -> list:
+    """Les instructions de la révision 0001 : les tests tournent sur la structure relevée en production."""
+    spec = importlib.util.spec_from_file_location("revision_0001", REVISION)
+    revision = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(revision)
+    return revision.TABLES + revision.INDEX
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -46,7 +55,8 @@ class RoutesSurPostgres(unittest.TestCase):
         with self.engine.begin() as conn:
             conn.execute(text("DROP SCHEMA public CASCADE"))
             conn.execute(text("CREATE SCHEMA public"))
-            conn.execute(text(SCHEMA.read_text(encoding="utf-8")))
+            for instruction in instructions_de_schema():
+                conn.execute(text(instruction))
         patcher = mock.patch.object(main, "engine", self.engine)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -94,13 +104,14 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.get("/get-allocations/Theo").json()[0]["montant_alloue"], 500)
         self.assertEqual(self.client.delete("/delete-enveloppe/Urgence", params={"profil": "Theo"}).status_code, 200)
 
-    def test_les_colonnes_de_projets_s_ajoutent_sans_erreur_meme_deja_presentes(self):
-        main.assurer_colonnes_projets()
-        main.assurer_colonnes_projets()
-
-    def test_les_tables_de_securite_se_creent_sans_erreur(self):
-        main.init_security_tables()
-        main.init_security_tables()
+    def test_les_routes_qui_creaient_leur_table_fonctionnent_sur_le_schema_alembic(self):
+        self.assertEqual(self.client.post("/api/notes-demenagement", json={"utilisateur": "theo", "contenu": "Cartons"}).status_code, 200)
+        self.assertEqual(self.client.get("/api/notes-demenagement/theo").json(), {"contenu": "Cartons"})
+        self.assertEqual(self.client.post("/api/pages-masquees", json={"pages": ["tricount"]}).status_code, 200)
+        self.assertEqual(self.client.get("/api/pages-masquees/theo").json(), ["tricount"])
+        self.assertFalse(self.client.get("/api/streamdeck/token").json()["active"])
+        self.assertEqual(self.client.post("/api/streamdeck/token").status_code, 200)
+        self.assertTrue(self.client.get("/api/streamdeck/token").json()["active"])
 
 
 class GardeFou(unittest.TestCase):

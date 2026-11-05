@@ -110,6 +110,7 @@ class RoutesStreamDeck(unittest.TestCase):
         moteur = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
         with moteur.begin() as conn:
             conn.execute(text("CREATE TABLE users (username TEXT PRIMARY KEY, powens_token TEXT)"))
+            conn.execute(text("CREATE TABLE streamdeck_tokens (utilisateur TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)"))
             conn.execute(text("CREATE TABLE configuration (compte TEXT, groupe TEXT, solde REAL, couleur TEXT, utilisateur TEXT, powens_name TEXT)"))
             conn.execute(text("CREATE TABLE transactions (date TEXT, nom TEXT, montant REAL, categorie TEXT, mois TEXT, annee INT, compte TEXT, utilisateur TEXT)"))
             conn.execute(text("INSERT INTO users VALUES ('theo', 'powens-secret'), ('aude', NULL)"))

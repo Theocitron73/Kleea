@@ -62,6 +62,7 @@ class Actualisation(unittest.TestCase):
         self.engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
         with self.engine.begin() as conn:
             conn.execute(text("CREATE TABLE banned_ips (ip TEXT, banned_until TIMESTAMP)"))
+            conn.execute(text("CREATE TABLE streamdeck_tokens (utilisateur TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)"))
             conn.execute(text("CREATE TABLE security_rate_limits (key TEXT, action TEXT, attempted_at TIMESTAMP)"))
             conn.execute(text("CREATE TABLE users (username TEXT, email TEXT, powens_token TEXT, import_mode TEXT)"))
             conn.execute(text("INSERT INTO users VALUES ('theo', 't@x', 'powens-secret', 'manual')"))

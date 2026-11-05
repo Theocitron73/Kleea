@@ -385,35 +385,6 @@ async def add_security_headers_middleware(request: Request, call_next):
 
 
 
-# 🟢 Initialisation des tables de sécurité au démarrage
-def init_security_tables():
-    with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS banned_ips (
-                ip VARCHAR(50) PRIMARY KEY,
-                reason TEXT,
-                banned_until TIMESTAMP WITH TIME ZONE,
-                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE TABLE IF NOT EXISTS login_failed_attempts (
-                id SERIAL PRIMARY KEY,
-                ip VARCHAR(50) NOT NULL,
-                attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-            -- Table centralisée pour tous les rate limits (Mot de passe, Chat IA, etc.)
-            CREATE TABLE IF NOT EXISTS security_rate_limits (
-                id SERIAL PRIMARY KEY,
-                key VARCHAR(255) NOT NULL,
-                action VARCHAR(50) NOT NULL,
-                attempted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS idx_rate_limits_lookup 
-            ON security_rate_limits (key, action, attempted_at);
-        """))
-    # Pré-charge le cache au démarrage
-    refresh_banned_ips_cache(force=True)
-
-
 def refresh_banned_ips_cache(force: bool = False):
     """Synchronise le cache mémoire avec PostgreSQL toutes les 30 secondes max."""
     global LAST_BANNED_SYNC, BANNED_IPS_CACHE
@@ -430,11 +401,6 @@ def refresh_banned_ips_cache(force: bool = False):
             LAST_BANNED_SYNC = now_ts
         except Exception as e:
             logger.warning(f"⚠️ Erreur synchro cache IP : {e}")
-
-try:
-    init_security_tables()
-except Exception as e:
-    logger.warning(f"⚠️ Initialisation table sécurité : {e}")
 
 
 def ban_ip(ip: str, reason: str, duration_minutes: int):
@@ -1087,23 +1053,6 @@ def delete_compte(compte_name: str, username: str, current_user: str = Depends(g
         conn.commit()
     return {"status": "deleted"}
 
-def assurer_colonnes_theme():
-    """Colonnes vides par défaut : les thèmes existants gardent une secondaire automatique."""
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE IF EXISTS user_theme ADD COLUMN IF NOT EXISTS secondary_color TEXT"))
-        for colonne in (
-            "secondary_color", "gradient_style", "gradient_intensity", "gradient_color",
-            "gradient_angle", "gradient_shape", "gradient_center", "gradient_spread",
-        ):
-            conn.execute(text(f"ALTER TABLE IF EXISTS theme_presets ADD COLUMN IF NOT EXISTS {colonne} TEXT"))
-
-
-try:
-    assurer_colonnes_theme()
-except Exception as e:
-    logger.warning(f"⚠️ Ajout des colonnes du thème : {e}")
-
-
 def verifier_proprietaire_theme(nom: str, current_user: str):
     """Le thème d'un compte n'est lisible et modifiable que par ce compte."""
     if nom.lower().strip() != current_user:
@@ -1220,19 +1169,6 @@ def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_
     return {"status": "success"}
 
 
-
-
-def assurer_colonnes_projets():
-    """`id` remplace le nom comme identifiant ; `ordre` conserve la priorité choisie."""
-    with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE IF EXISTS projets ADD COLUMN IF NOT EXISTS id SERIAL"))
-        conn.execute(text("ALTER TABLE IF EXISTS projets ADD COLUMN IF NOT EXISTS ordre INTEGER"))
-
-
-try:
-    assurer_colonnes_projets()
-except Exception as e:
-    logger.warning(f"⚠️ Ajout des colonnes de projets : {e}")
 
 
 def verifier_nom_projet_libre(conn, nom: str, profil: str, current_user: str, sauf_id: Optional[int] = None):
@@ -3222,13 +3158,6 @@ def get_user_notes(username: str, current_user: str = Depends(get_current_user))
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     with engine.begin() as conn:
-        # Crée la table si elle n'existe pas
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS notes_demenagement (
-                utilisateur VARCHAR(255) PRIMARY KEY,
-                contenu TEXT
-            )
-        """))
         res = conn.execute(
             text("SELECT contenu FROM notes_demenagement WHERE LOWER(utilisateur) = :u"),
             {"u": current_user.lower().strip()}
@@ -3239,13 +3168,6 @@ def get_user_notes(username: str, current_user: str = Depends(get_current_user))
 def save_user_notes(note: NoteUpdate, current_user: str = Depends(get_current_user)):
     user_clean = current_user.lower().strip()
     with engine.begin() as conn:
-        # Crée la table si nécessaire
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS notes_demenagement (
-                utilisateur VARCHAR(255) PRIMARY KEY,
-                contenu TEXT
-            )
-        """))
         # 🟢 Sauvegarde infaillible sans colonne "mis_a_jour_le" inexistante
         conn.execute(text("""
             INSERT INTO notes_demenagement (utilisateur, contenu)
@@ -5804,13 +5726,6 @@ def get_pages_masquees(username: str, current_user: str = Depends(get_current_us
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     with engine.begin() as conn:
-        # Création automatique de la table si elle n'existe pas encore
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS pages_masquees (
-                utilisateur VARCHAR(255) PRIMARY KEY,
-                pages TEXT DEFAULT '[]'
-            )
-        """))
         res = conn.execute(
             text("SELECT pages FROM pages_masquees WHERE LOWER(utilisateur) = :u"),
             {"u": current_user.lower().strip()}
@@ -5830,12 +5745,6 @@ def save_pages_masquees(data: dict = Body(...), current_user: str = Depends(get_
 
     with engine.begin() as conn:
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS pages_masquees (
-                utilisateur VARCHAR(255) PRIMARY KEY,
-                pages TEXT DEFAULT '[]'
-            )
-        """))
-        conn.execute(text("""
             INSERT INTO pages_masquees (utilisateur, pages)
             VALUES (:u, :p)
             ON CONFLICT (utilisateur) DO UPDATE
@@ -5852,18 +5761,7 @@ def save_pages_masquees(data: dict = Body(...), current_user: str = Depends(get_
 # avec le JWT de session : il ne peut que lire les soldes via /api/streamdeck/data.
 # Seule l'empreinte SHA-256 du jeton est conservée en base.
 
-def assurer_table_streamdeck(conn):
-    conn.execute(text("""
-        CREATE TABLE IF NOT EXISTS streamdeck_tokens (
-            utilisateur VARCHAR(255) PRIMARY KEY,
-            token_hash VARCHAR(64) NOT NULL UNIQUE,
-            created_at TEXT NOT NULL
-        )
-    """))
-
-
 def supprimer_jeton_streamdeck(conn, utilisateur: str):
-    assurer_table_streamdeck(conn)
     conn.execute(
         text("DELETE FROM streamdeck_tokens WHERE LOWER(utilisateur) = LOWER(:u)"),
         {"u": utilisateur},
@@ -5878,7 +5776,6 @@ def get_streamdeck_user(x_streamdeck_token: Optional[str] = Header(None)) -> str
     if not x_streamdeck_token:
         raise HTTPException(status_code=401, detail="Jeton Stream Deck manquant")
     with engine.begin() as conn:
-        assurer_table_streamdeck(conn)
         utilisateur = conn.execute(
             text("SELECT utilisateur FROM streamdeck_tokens WHERE token_hash = :h"),
             {"h": empreinte_jeton_streamdeck(x_streamdeck_token)},
@@ -5891,7 +5788,6 @@ def get_streamdeck_user(x_streamdeck_token: Optional[str] = Header(None)) -> str
 @app.get("/api/streamdeck/token")
 def statut_jeton_streamdeck(current_user: str = Depends(get_current_user)):
     with engine.begin() as conn:
-        assurer_table_streamdeck(conn)
         created_at = conn.execute(
             text("SELECT created_at FROM streamdeck_tokens WHERE LOWER(utilisateur) = LOWER(:u)"),
             {"u": current_user},

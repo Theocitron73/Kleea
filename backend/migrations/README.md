@@ -12,7 +12,7 @@ La révision `0001` décrit les 28 tables de l'application, relevées sur la pro
 - Sur une base qui a déjà ces tables, `upgrade` échoue sans rien modifier : il faut utiliser `alembic stamp 0001`.
 - `downgrade` de `0001` est refusé, car il supprimerait toutes les tables. Pour revenir en arrière, restaurer une branche Neon.
 
-Les `CREATE TABLE IF NOT EXISTS` et `ALTER TABLE` lancés par `backend/main.py` continuent de fonctionner : ils sont sans effet sur les tables et colonnes déjà présentes.
+`backend/main.py` ne crée ni ne modifie plus aucune table : toute base neuve doit passer par `alembic upgrade head` avant de démarrer l'application.
 
 ## Ajouter un changement
 
@@ -29,7 +29,3 @@ alembic upgrade head
 Le déploiement sur Render ne lance pas les migrations : `alembic upgrade head` reste une étape manuelle.
 
 Le projet n'a pas de modèles SQLAlchemy : `alembic revision --autogenerate` ne détecterait rien.
-
-## Pour aller plus loin
-
-Retirer progressivement les créations de tables et de colonnes de `backend/main.py`, en les remplaçant par des révisions.
