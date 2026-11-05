@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import { Trash2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { toLocalDateString, getTodayLocalDateString } from "./utils/dateUtils";
+import { appliquerMontantIndividuel } from './utils/tricountPartage';
 
 export default function SharedTricount() {
   const { token } = useParams();
@@ -657,10 +658,10 @@ export default function SharedTricount() {
                       <span className="text-xs font-bold text-white/80">{personne}</span>
                       <div className="flex items-center gap-1.5">
                         <input 
-                          type="text"
+                          type="number"
                           step="0.01"
                           value={editingTransaction.details_montants?.[personne] ?? ""} 
-                          onChange={(e) => updateMontantIndividuel(personne, e.target.value)}
+                          onChange={(e) => setEditingTransaction(appliquerMontantIndividuel(editingTransaction, personne, e.target.value))}
                           className="w-20 bg-black/40 border border-white/10 rounded-lg py-1 px-2.5 text-right text-xs font-mono font-bold text-white outline-none"
                         />
                         <span className="text-[9px] text-white/30">€</span>
