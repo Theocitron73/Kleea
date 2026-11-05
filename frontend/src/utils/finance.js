@@ -187,3 +187,59 @@ export function totauxRevenusDepenses(transactions) {
   });
   return { revenus, depenses, epargne: revenus - depenses };
 }
+
+const arrondi = (valeur) => Math.round(valeur * 100) / 100;
+
+/**
+ * Récap année par année, de la première année avec des transactions jusqu'à l'année en cours.
+ * Uniquement du réel : l'année en cours s'arrête aux transactions déjà enregistrées, sans les prévisions.
+ * Un virement vers un compte du profil peut venir d'un autre profil : tous les comptes sont donc suivis.
+ */
+export function recapParAnnee({ comptes, transactions, profil = 'Tous', anneeCourante }) {
+  const tous = profil === 'Tous';
+  const groupe = String(profil).toLowerCase().trim();
+  const nomsProfil = (comptes || [])
+    .filter((c) => tous || String(c.groupe || '').toLowerCase().trim() === groupe)
+    .map((c) => cleCompte(c.compte));
+  const estDuProfil = (t) => tous || nomsProfil.includes(cleCompte(t.compte));
+
+  const parAnnee = new Map();
+  (transactions || []).forEach((t) => {
+    const annee = parseInt(anneeTransaction(t) || 0, 10) || 0;
+    if (!parAnnee.has(annee)) parAnnee.set(annee, []);
+    parAnnee.get(annee).push(t);
+  });
+
+  const anneesDuProfil = [...parAnnee.keys()].filter((a) => a > 0 && parAnnee.get(a).some(estDuProfil));
+  const premiere = anneesDuProfil.length ? Math.min(...anneesDuProfil) : anneeCourante;
+  const derniere = Math.max(anneeCourante, ...anneesDuProfil);
+
+  const lire = creerLecteurMouvements(comptes, transactions);
+  const soldes = soldesDeDepart(comptes);
+  const appliquer = (liste) => liste.forEach((t) => appliquerMouvement(soldes, lire(t)));
+  const soldeProfil = () => nomsProfil.reduce((total, nom) => total + (soldes[nom] || 0), 0);
+
+  [...parAnnee.keys()].filter((a) => a < premiere).forEach((a) => appliquer(parAnnee.get(a)));
+
+  const recap = [];
+  for (let annee = premiere; annee <= derniere; annee += 1) {
+    const soldeDebut = soldeProfil();
+    const liste = parAnnee.get(annee) || [];
+    appliquer(liste);
+    const duProfil = liste.filter((t) => estDuProfil(t) && indexMois(t.mois) >= 0);
+    const { revenus, depenses, epargne } = totauxRevenusDepenses(duProfil);
+    const soldeFin = soldeProfil();
+    recap.push({
+      annee,
+      enCours: annee === anneeCourante,
+      transactions: duProfil.length,
+      revenus: arrondi(revenus),
+      depenses: arrondi(depenses),
+      epargne: arrondi(epargne),
+      tauxEpargne: revenus > 0 ? Math.round((epargne / revenus) * 100) : null,
+      soldeDebut: arrondi(soldeDebut),
+      soldeFin: arrondi(soldeFin),
+    });
+  }
+  return recap;
+}

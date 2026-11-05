@@ -17,6 +17,7 @@ import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import api from '../axios';
 import { toast } from 'sonner';
 import GestionEpargneProjet from './GestionEpargneProjet';
+import RecapAnnees from '../components/RecapAnnees';
 import { estTransfertInterne } from '../utils/finance';
 
 // =========================================================================
@@ -1479,6 +1480,26 @@ export default function DashboardView(props) {
 
   const jaugeColor = userTheme.color_jauge || '#f1c40f';
 
+  // Sous-onglets d'Analytique : les graphiques mois par mois, ou le récap année par année.
+  const [vueAnalytique, setVueAnalytique] = useState('mois'); // 'mois' | 'annees'
+  const selecteurVueAnalytique = (
+    <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 w-fit shrink-0 select-none">
+      {[{ id: 'mois', label: 'Mois' }, { id: 'annees', label: 'Années' }].map(({ id, label }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => setVueAnalytique(id)}
+          aria-pressed={vueAnalytique === id}
+          className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+            vueAnalytique === id ? 'bg-white text-slate-900 shadow-md' : 'text-[var(--text-main)]/40 hover:text-[var(--text-main)]/70'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
   // --- ÉTATS SPÉCIFIQUES DU MODE MOBILE ---
   const [mobileHub, setMobileHub] = useState('flux'); // 'flux' | 'annual' | 'graphs'
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -2381,7 +2402,7 @@ export default function DashboardView(props) {
               >
                 Analytique
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => setActiveRightTab('epargneProjets')}
                 className={`px-6 py-2 rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
@@ -2503,8 +2524,15 @@ export default function DashboardView(props) {
 
                 {/* GRAPHIQUE 1 : TENDANCES GLOBALES */}
                 <div className="flex-1 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 flex flex-col shadow-2xl backdrop-blur-[var(--glass-blur)] min-h-0">
-                  <h3 className="text-[var(--text-main)] font-bold text-sm mb-4 shrink-0">Évolution Patrimoine</h3>
-                  
+                  <div className="flex items-center justify-between gap-3 mb-3 shrink-0">
+                    <h3 className="text-[var(--text-main)] font-bold text-sm">{vueAnalytique === 'annees' ? 'Récap par année' : 'Évolution Patrimoine'}</h3>
+                    {selecteurVueAnalytique}
+                  </div>
+
+                  {vueAnalytique === 'annees' ? (
+                    <RecapAnnees comptes={comptes} transactions={toutesLesTransactions} profil={filters.profil} userTheme={userTheme} />
+                  ) : (
+                  <>
                   <div className="flex-1 w-full min-h-[200px] min-w-0 pb-2">
                     <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <AreaChart data={recapAnnuelStats} margin={{ top: 10, right: 0, left: -30, bottom: 0 }}>
@@ -2777,6 +2805,8 @@ export default function DashboardView(props) {
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
+                  </>
+                  )}
                 </div>
               </div>
             ) : (
@@ -3629,6 +3659,12 @@ export default function DashboardView(props) {
                   )}
                 </div>
 
+                <div className="flex justify-center">{selecteurVueAnalytique}</div>
+
+                {vueAnalytique === 'annees' ? (
+                  <RecapAnnees comptes={comptes} transactions={toutesLesTransactions} profil={filters.profil} userTheme={userTheme} mobile />
+                ) : (
+                <>
                 {/* GRAPHIQUE 1 : TENDANCE GLOBALE DES FLUX MOBILE */}
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-xl p-3">
                 <h3 className="text-[10px] font-black uppercase text-white/60 mb-2">Tendance Globale des Flux</h3>
@@ -4099,6 +4135,8 @@ export default function DashboardView(props) {
                   </ResponsiveContainer>
                 </div>
               </div>
+                </>
+                )}
 
               </div>
             ) : (

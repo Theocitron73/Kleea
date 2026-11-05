@@ -10,6 +10,7 @@ import {
   estTransfertInterne,
   indexMois,
   nettoyerMois,
+  recapParAnnee,
   totauxRevenusDepenses,
   trouverCompteCible,
 } from './finance.js';
@@ -111,4 +112,61 @@ test('totaux : un virement n\'est ni un revenu ni une dépense', () => {
     { montant: -30, categorie: 'Divers' },
     { montant: -999, categorie: 'Virement : A vers B' },
   ]), { revenus: 100, depenses: 30, epargne: 70 });
+});
+
+const COMPTES_RECAP = [
+  { compte: 'CCP Perso', groupe: 'Perso', solde: 1000 },
+  { compte: 'Livret Perso', groupe: 'Perso', solde: 500 },
+  { compte: 'CCP Commun', groupe: 'Commun', solde: 200 },
+];
+const TX_RECAP = [
+  { annee: 2025, mois: 'Mars', compte: 'CCP Perso', nom: 'Salaire', categorie: 'Salaire', montant: 2000 },
+  { annee: 2025, mois: 'Mars', compte: 'CCP Perso', nom: 'Courses', categorie: 'Courses', montant: -500 },
+  { annee: 2025, mois: 'Avril', compte: 'CCP Perso', nom: 'Virement vers Livret Perso', categorie: 'Virement', montant: -300 },
+  { annee: 2027, mois: 'Janvier', compte: 'CCP Perso', nom: 'Salaire', categorie: 'Salaire', montant: 1000 },
+  { annee: 2027, mois: 'Janvier', compte: 'CCP Commun', nom: 'Loyer', categorie: 'Logement', montant: -700 },
+];
+
+test('recap par année : une ligne par année, même sans transaction, et virements exclus des flux', () => {
+  const recap = recapParAnnee({ comptes: COMPTES_RECAP, transactions: TX_RECAP, anneeCourante: 2027 });
+  assert.deepEqual(recap.map((r) => r.annee), [2025, 2026, 2027]);
+  assert.equal(recap[0].revenus, 2000);
+  assert.equal(recap[0].depenses, 500);
+  assert.equal(recap[0].epargne, 1500);
+  assert.equal(recap[0].tauxEpargne, 75);
+  assert.equal(recap[0].soldeDebut, 1700);
+  assert.equal(recap[0].soldeFin, 3200);
+  assert.equal(recap[1].transactions, 0);
+  assert.equal(recap[1].tauxEpargne, null);
+  assert.equal(recap[1].soldeFin, 3200);
+  assert.equal(recap[2].soldeFin, 3500);
+  assert.deepEqual(recap.map((r) => r.enCours), [false, false, true]);
+});
+
+test("recap par année : continue jusqu'à l'année en cours et s'adapte au profil", () => {
+  const recap = recapParAnnee({ comptes: COMPTES_RECAP, transactions: TX_RECAP, anneeCourante: 2028 });
+  assert.equal(recap.at(-1).annee, 2028);
+  assert.equal(recap.at(-1).enCours, true);
+
+  const commun = recapParAnnee({ comptes: COMPTES_RECAP, transactions: TX_RECAP, profil: 'Commun', anneeCourante: 2027 });
+  assert.deepEqual(commun.map((r) => r.annee), [2027]);
+  assert.equal(commun[0].soldeDebut, 200);
+  assert.equal(commun[0].depenses, 700);
+  assert.equal(commun[0].soldeFin, -500);
+});
+
+test("recap par année : sans transaction, seule l'année en cours apparaît", () => {
+  const recap = recapParAnnee({ comptes: COMPTES_RECAP, transactions: [], anneeCourante: 2026 });
+  assert.equal(recap.length, 1);
+  assert.equal(recap[0].soldeDebut, 1700);
+  assert.equal(recap[0].soldeFin, 1700);
+});
+
+test('recap par année : le solde de fin correspond au solde du 1er janvier suivant', () => {
+  const recap = recapParAnnee({ comptes: COMPTES_RECAP, transactions: TX_RECAP, anneeCourante: 2027 });
+  recap.forEach(({ annee, soldeFin }) => {
+    const { soldesAu1erJanvier } = calculerSoldes({ comptes: COMPTES_RECAP, transactions: TX_RECAP, annee: annee + 1, moisIndex: -1 });
+    const total = Object.values(soldesAu1erJanvier).reduce((a, b) => a + b, 0);
+    assert.equal(soldeFin, total, String(annee));
+  });
 });
