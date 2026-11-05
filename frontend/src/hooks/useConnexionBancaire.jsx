@@ -133,9 +133,7 @@ export default function useConnexionBancaire({ activeTab, comptes, fetchCategori
 
         setActiveTab('comptes'); // 🟢 Redirige vers la configuration des comptes
 
-        if (actualImportMode !== 'auto') {
-          setShowPowensModal(true);
-        } else {
+        if (actualImportMode === 'auto') {
           // Mode automatique : exécution en arrière-plan et mise à jour
           try {
             setIsManualSyncing(true);
@@ -177,9 +175,7 @@ export default function useConnexionBancaire({ activeTab, comptes, fetchCategori
 
             setActiveTab('comptes'); // 🟢 Redirige vers la configuration des comptes
 
-            if (actualImportMode !== 'auto') {
-              setShowPowensModal(true);
-            } else {
+            if (actualImportMode === 'auto') {
               try {
                 setIsManualSyncing(true);
                 await api.post(`/powens/sync-user/${nomUtilisateur}`);
