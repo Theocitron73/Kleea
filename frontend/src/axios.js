@@ -35,7 +35,7 @@ api.interceptors.response.use(
       // Purge STRICTE de toutes les données sensibles de session
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      localStorage.removeItem('powens_user_token'); // 👈 Évite les fuites inter-comptes
+      localStorage.removeItem('powens_connecte'); // 👈 Évite les fuites inter-comptes
 
       // On ne redirige que si l'utilisateur était connecté ET qu'il n'est pas sur une page publique
       if (hadToken && !isPublicPage) {

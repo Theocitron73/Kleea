@@ -9,6 +9,7 @@ import {
 	fetchPowensStatus,
 	isTransient,
 	refreshIntervalMs,
+	requestPowensRefresh,
 } from "../src/api.ts";
 import { renderContent, renderMessage } from "../src/render.ts";
 import { buildKeyContent, buildPowensContent, type FinanceData, formatEuro, type PowensStatus } from "../src/views.ts";
@@ -204,7 +205,37 @@ test("fetch Powens : bonne route, réponse vérifiée", async () => {
 	await assert.rejects(fetchPowensStatus(settings, respond(401, {})), kind("auth"));
 });
 
+test("actualisation bancaire : POST, jeton en en-tête, réponse vérifiée", async () => {
+	const reponse = { ...powens, actualisees: 2, echecs: 0 };
+	let url = "";
+	let init: RequestInit | undefined;
+	const spy = (async (input: URL, options: RequestInit) => {
+		url = String(input);
+		init = options;
+		return new Response(JSON.stringify(reponse));
+	}) as unknown as typeof fetch;
+	assert.deepEqual(await requestPowensRefresh(settings, spy), reponse);
+	assert.equal(url, "https://api.exemple.fr/api/streamdeck/powens/actualiser");
+	assert.equal(init?.method, "POST");
+	assert.equal((init?.headers as Record<string, string>)["X-Streamdeck-Token"], "secret");
+	assert.equal(init?.redirect, "error");
+	await assert.rejects(requestPowensRefresh(settings, respond(200, powens)), kind("server"));
+	await assert.rejects(requestPowensRefresh(settings, respond(401, {})), kind("auth"));
+	await assert.rejects(requestPowensRefresh(settings, respond(429, {})), (e: FetchError) => e.kind === "server" && e.status === 429);
+});
+
+test("lecture des soldes : reste un GET", async () => {
+	let init: RequestInit | undefined;
+	const spy = (async (_input: URL, options: RequestInit) => {
+		init = options;
+		return new Response(JSON.stringify(data));
+	}) as unknown as typeof fetch;
+	await fetchFinanceData(settings, spy);
+	assert.equal(init?.method, "GET");
+});
+
 test("messages : la vraie cause est nommée", () => {
+	assert.deepEqual(describeError(new FetchError("server", 429)).key, ["Trop d'appuis", "Patienter 10 min"]);
 	assert.deepEqual(describeError(new FetchError("network")).key, ["Hors ligne", "Serveur injoignable"]);
 	assert.deepEqual(describeError(new FetchError("server", 500)).key, ["Erreur serveur", "Code 500"]);
 	assert.deepEqual(describeError(new FetchError("server", 404)).key, ["Route absente", "Backend à jour ?"]);

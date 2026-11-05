@@ -1,6 +1,6 @@
 /** Client de l'API Kleea. Le jeton n'est jamais écrit dans les journaux ni placé dans l'URL. */
 
-import type { FinanceData, PowensStatus } from "./views";
+import type { FinanceData, PowensRefresh, PowensStatus } from "./views";
 
 export type GlobalSettings = {
 	serverUrl?: string;
@@ -54,6 +54,9 @@ export function describeError(error: FetchError): ErrorText {
 			if (error.status === 404) {
 				return { key: ["Route absente", "Backend à jour ?"], stale: "Erreur 404", status: "Route introuvable (404) : mettez à jour et redémarrez le backend." };
 			}
+			if (error.status === 429) {
+				return { key: ["Trop d'appuis", "Patienter 10 min"], stale: "Patienter", status: "Trop d'actualisations bancaires : réessayez dans quelques minutes." };
+			}
 			const code = error.status ? `Code ${error.status}` : "Réponse invalide";
 			return {
 				key: ["Erreur serveur", code],
@@ -67,6 +70,7 @@ export function describeError(error: FetchError): ErrorText {
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 const TIMEOUT_MS = 30_000; // Large : le serveur peut devoir sortir de veille.
 const POWENS_TIMEOUT_MS = 60_000; // Le backend enchaîne deux appels à Powens, de 15 s maximum chacun.
+const BANK_REFRESH_TIMEOUT_MS = 120_000; // Interrogation des banques, puis import éventuel et nouveau comptage.
 
 /** HTTP n'est toléré qu'en local : ailleurs, le jeton et les soldes circuleraient en clair. */
 export function buildApiUrl(serverUrl: string, path = "/api/streamdeck/data"): URL {
@@ -94,6 +98,7 @@ async function getJson<T>(
 	isValid: (body: T) => boolean,
 	fetchImpl: typeof fetch,
 	timeoutMs: number,
+	method: "GET" | "POST" = "GET",
 ): Promise<T> {
 	const token = settings.token?.trim();
 	if (!settings.serverUrl?.trim() || !token) throw new FetchError("config");
@@ -102,6 +107,7 @@ async function getJson<T>(
 	let response: Response;
 	try {
 		response = await fetchImpl(url, {
+			method,
 			headers: { "X-Streamdeck-Token": token, Accept: "application/json" },
 			// Pas de redirection suivie : elle pourrait mener vers une adresse non vérifiée ci-dessus.
 			redirect: "error",
@@ -141,6 +147,18 @@ export function fetchPowensStatus(settings: GlobalSettings, fetchImpl: typeof fe
 		(status) => typeof status?.count === "number" && typeof status.comptes === "object",
 		fetchImpl,
 		POWENS_TIMEOUT_MS,
+	);
+}
+
+/** Demande aux banques de se mettre à jour, puis renvoie le nouveau nombre de transactions à importer. */
+export function requestPowensRefresh(settings: GlobalSettings, fetchImpl: typeof fetch = fetch): Promise<PowensRefresh> {
+	return getJson<PowensRefresh>(
+		settings,
+		"/api/streamdeck/powens/actualiser",
+		(status) => typeof status?.count === "number" && typeof status.comptes === "object" && typeof status.echecs === "number",
+		fetchImpl,
+		BANK_REFRESH_TIMEOUT_MS,
+		"POST",
 	);
 }
 

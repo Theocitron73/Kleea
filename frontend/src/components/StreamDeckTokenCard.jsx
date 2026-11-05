@@ -62,7 +62,7 @@ export default function StreamDeckTokenCard() {
       <div>
         <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-1">Stream Deck</h4>
         <p className="text-[10px] font-semibold text-white/50 leading-relaxed">
-          Affichez vos soldes, le bilan du mois et les transactions à importer sur vos touches. Ce jeton donne uniquement accès en lecture à ces chiffres.
+          Affichez vos soldes, le bilan du mois et les transactions à importer sur vos touches. Ce jeton permet de lire ces chiffres et de demander une actualisation bancaire, comme le bouton Actualiser de la page Importer.
         </p>
       </div>
 

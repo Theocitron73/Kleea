@@ -822,7 +822,7 @@ const calculerMontantStatPerso = (config, transactions) => {
 
 
 export function ImportPowensModal({ 
-  userToken, 
+  banqueConnectee,
   utilisateur, 
   comptes = [], 
   toutesLesTransactions = [], 
@@ -897,10 +897,10 @@ export function ImportPowensModal({
 
   useEffect(() => {
     async function fetchAccounts() {
-      if (!userToken) return;
+      if (!banqueConnectee) return;
       try {
         setLoading(true);
-        const res = await api.get(`/powens/accounts?user_token=${encodeURIComponent(userToken)}`);
+        const res = await api.get('/powens/accounts');
         const fetchedAccounts = res.data || [];
         setAccounts(fetchedAccounts);
 
@@ -920,7 +920,7 @@ export function ImportPowensModal({
     }
 
     fetchAccounts();
-  }, [userToken]);
+  }, [banqueConnectee]);
 
   const handleAccountChange = (newAccId) => {
     setSelectedAccount(newAccId);
@@ -958,7 +958,7 @@ export function ImportPowensModal({
       const targetLocalAccountName = associatedLocalAccount ? associatedLocalAccount.compte : accountName;
 
       const res = await api.get(
-        `/import-powens?utilisateur=${encodeURIComponent(utilisateur)}&user_token=${encodeURIComponent(userToken)}&account_id=${selectedAccount}&compte_nom=${encodeURIComponent(accountName)}&date_debut=${dateDebut}&date_fin=${dateFin}`
+        `/import-powens?account_id=${selectedAccount}&compte_nom=${encodeURIComponent(accountName)}&date_debut=${dateDebut}&date_fin=${dateFin}`
       );
 
       onSuccess(res.data, targetLocalAccountName);
@@ -1569,7 +1569,7 @@ const fetchTransactions = async () => {
     // Vérifications contextuelles
     const urlParams = new URLSearchParams(window.location.search);
     const isReturningFromPowens = urlParams.has('code') || urlParams.has('connection_id');
-    const hasPowensToken = Boolean(localStorage.getItem("powens_user_token"));
+    const hasPowensToken = Boolean(localStorage.getItem("powens_connecte"));
     const hasPassedOnboarding = localStorage.getItem(`onboarding_done_${user}`) === 'true';
 
     // 🟢 La modale ne s'ouvre QUE pour un premier accès réel (pas au retour de Powens)
@@ -1673,7 +1673,7 @@ const handleLogin = async (e) => {
 const handleLogout = () => {
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
   localStorage.removeItem('user');
-  localStorage.removeItem('powens_user_token'); // 👈 Évite de transmettre le jeton au prochain utilisateur
+  localStorage.removeItem('powens_connecte'); // 👈 Évite de transmettre le jeton au prochain utilisateur
   localStorage.removeItem('token');
 
   // 2. Réinitialisation des états pour la session suivante
@@ -3888,28 +3888,26 @@ const fetchPowensConnections = useCallback(async () => {
     const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
     if (!nomUtilisateur) return;
 
-    let userToken = null;
-
-    // 1. Récupération stricte depuis la BDD pour CET utilisateur
+    // 1. Le serveur garde le jeton : il indique seulement si ce compte a une banque connectée
+    let connecte = false;
     try {
-      const resToken = await api.get(`/powens/recuperer-token?utilisateur=${encodeURIComponent(nomUtilisateur)}`);
-      userToken = resToken.data?.user_token;
+      const resConnexion = await api.get('/powens/connexion-active');
+      connecte = Boolean(resConnexion.data?.connecte);
     } catch (e) {
-      console.error("Erreur vérification token BDD:", e);
+      console.error("Erreur vérification connexion bancaire:", e);
     }
 
-    // 2. S'il n'a pas de jeton en BDD, on vide le localStorage résiduel et on arrête là
-    if (!userToken) {
-      localStorage.removeItem("powens_user_token");
+    // 2. Sans banque connectée, on vide l'indicateur local et on arrête là
+    if (!connecte) {
+      localStorage.removeItem("powens_connecte");
       setPowensData({ connections_count: 0, connections: [], accounts_count: 0, accounts: [] });
       return;
     }
 
-    // 3. S'il a bien un jeton personnel, on met à jour son localStorage
-    localStorage.setItem("powens_user_token", userToken);
+    localStorage.setItem("powens_connecte", "true");
 
-    // 4. Récupération des connexions et comptes
-    const res = await api.get(`/powens/connections-and-accounts?user_token=${encodeURIComponent(userToken)}`);
+    // 3. Récupération des connexions et comptes
+    const res = await api.get('/powens/connections-and-accounts');
     if (res.data) {
       setPowensData(res.data);
     }
@@ -3921,6 +3919,7 @@ const fetchPowensConnections = useCallback(async () => {
 
 
 // 🟢 VERSION SÉCURISÉE CONTRE LE DÉCALAGE ASYNCHRONE :
+const codePowensTraite = useRef(null);
 useEffect(() => {
   const handlePowensCallback = async () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -3937,7 +3936,7 @@ useEffect(() => {
       localStorage.setItem(`onboarding_done_${nomUtilisateur}`, 'true');
     }
 
-    const existingToken = localStorage.getItem('powens_user_token');
+    const existingToken = localStorage.getItem('powens_connecte');
 
     // 🟢 Récupération immédiate et prioritaire du mode d'import réel en BDD
     let actualImportMode = 'manual';
@@ -3980,23 +3979,21 @@ useEffect(() => {
     }
 
     // CAS 2 : Tout PREMIER ajout de banque
-    if (powensCode && !existingToken) {
+    if (powensCode && !existingToken && nomUtilisateur) {
+      // Un code ne s'échange qu'une fois, même si cet effet se relance.
+      if (codePowensTraite.current === powensCode) return;
+      codePowensTraite.current = powensCode;
+
       try {
         const redirectUri = window.location.origin + window.location.pathname;
-        const res = await api.get(
-          `/powens/callback?code=${encodeURIComponent(powensCode)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(nomUtilisateur || '')}`
-        );
+        const res = await api.post('/powens/callback', {
+          code: powensCode,
+          redirect_uri: redirectUri,
+          state: urlParams.get('state') || '',
+        });
 
-        if (res.data?.access_token) {
-          const newToken = res.data.access_token;
-          localStorage.setItem('powens_user_token', newToken);
-
-          if (nomUtilisateur) {
-            await api.post('/powens/sauvegarder-token', {
-              utilisateur: nomUtilisateur,
-              user_token: newToken
-            });
-          }
+        if (res.data?.status === 'success') {
+          localStorage.setItem('powens_connecte', 'true');
 
           toast.success("Compte bancaire connecté avec succès !");
          
@@ -4023,7 +4020,10 @@ useEffect(() => {
           }
         }
       } catch (err) {
-        console.error("Erreur lors de l'échange du token Powens:", err);
+        console.error("Erreur lors de l'échange du code Powens:", err);
+        const detail = err.response?.data?.detail;
+        toast.error(typeof detail === 'string' ? detail : "La connexion bancaire a échoué. Relance-la.");
+        window.history.replaceState({}, document.title, window.location.pathname);
       }
     }
   };
@@ -4043,14 +4043,14 @@ useEffect(() => {
 const handleSyncPowens = async (overrideMode = null) => {
   const activeMode = overrideMode || importMode; // Utilise le mode forcé s'il est fourni, sinon l'état
   const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
-  const token = localStorage.getItem('powens_user_token');
+  const token = localStorage.getItem('powens_connecte');
 
   if (!token) {
     setIsSyncingPowens(true);
     try {
       const redirectUri = window.location.origin + window.location.pathname;
       const resUrl = await api.get(
-        `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}`
+        `/powens/connect-url?redirect_url=${encodeURIComponent(redirectUri)}`
       );
       
       if (resUrl.data?.url) {
@@ -4384,11 +4384,9 @@ const handlePowensImportSuccess = (transactions, accountName) => {
 const handleConnectNewBank = async (connectionId = null) => {
   setIsSyncingPowens(true);
   try {
-    const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
     const redirectUri = window.location.origin + window.location.pathname;
-    const existingToken = localStorage.getItem('powens_user_token') || '';
 
-    let urlEndpoint = `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`;
+    let urlEndpoint = `/powens/connect-url?redirect_url=${encodeURIComponent(redirectUri)}`;
     if (connectionId) {
       urlEndpoint += `&connection_id=${connectionId}`;
     }
@@ -4435,7 +4433,7 @@ const [loading, setLoading] = useState(true);
 // 🟢 APPEL DIRECT DU STATUT DE SYNCHRONISATION
 const checkNewTransactions = useCallback(async () => {
   if (!user) return;
-  const token = localStorage.getItem("powens_user_token");
+  const token = localStorage.getItem("powens_connecte");
   if (!token) return;
 
   setIsCheckingSync(true);
@@ -5788,7 +5786,7 @@ const handleChooseMode = async (mode) => {
     setShowOnboarding(false);
     
     if (mode === 'auto') {
-      const token = localStorage.getItem('powens_user_token');
+      const token = localStorage.getItem('powens_connecte');
       if (token) {
         setActiveTab('comptes'); 
       }
@@ -5821,7 +5819,7 @@ const performBackgroundSyncIfNeeded = useCallback(async (forcedMode = null) => {
   const activeMode = forcedMode || importMode;
   if (!user || activeMode !== 'auto') return;
 
-  const token = localStorage.getItem('powens_user_token');
+  const token = localStorage.getItem('powens_connecte');
   if (!token) return;
 
   const now = Date.now();
@@ -7230,7 +7228,7 @@ if (!user) {
 {/* MODALE SELECTION COMPTE POWENS */}
 {showPowensModal && (
   <ImportPowensModal
-    userToken={localStorage.getItem('powens_user_token')}
+    banqueConnectee={Boolean(localStorage.getItem('powens_connecte'))}
     utilisateur={typeof user === 'object' ? user.nom : user}
     comptes={comptes}
     toutesLesTransactions={toutesLesTransactions}

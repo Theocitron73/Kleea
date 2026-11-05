@@ -141,7 +141,7 @@ export default function ComptesView({
             </div>
           )}
 
-          {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_user_token'))) && (
+          {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_connecte'))) && (
             <div className="flex-[1.2] min-w-[170px]">
               <div className="flex items-center gap-1.5 bg-black/30 rounded-xl border border-white/10 px-2.5 h-[38px] focus-within:border-[var(--primary)]/50 transition-colors">
                 <Building2 size={12} className="text-[var(--secondary)] shrink-0 opacity-60" />
@@ -352,7 +352,7 @@ export default function ComptesView({
                 </div>
               </div>
 
-              {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_user_token'))) && (
+              {(importMode === 'auto' || (powensData?.accounts && powensData.accounts.length > 0) || Boolean(localStorage.getItem('powens_connecte'))) && (
                 <div className="space-y-2 pt-2 border-t border-white/5">
                   <label className="text-[9px] uppercase font-black text-white/40 block">
                     Liaison Compte Réel / Powens (Optionnel)

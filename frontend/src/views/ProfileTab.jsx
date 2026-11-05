@@ -147,7 +147,7 @@ export default function ProfileTab({
     try {
       setDisconnectLoading(true);
       await api.delete(`/powens/disconnect/${user}`);
-      localStorage.removeItem("powens_user_token");
+      localStorage.removeItem("powens_connecte");
       if (typeof fetchComptes === 'function') await fetchComptes();
       if (typeof fetchPowensConnections === 'function') await fetchPowensConnections();
       toast.success("Banques déconnectées et accès Powens révoqué avec succès !");
@@ -163,11 +163,9 @@ export default function ProfileTab({
   const onConnectBank = async (connectionId = null) => {
       try {
         setConnectLoading(true);
-        const nomUtilisateur = typeof user === 'object' ? user?.nom || user?.email : user;
         const redirectUri = window.location.origin + window.location.pathname;
-        const existingToken = localStorage.getItem('powens_user_token') || '';
 
-        let urlEndpoint = `/powens/connect-url?utilisateur=${encodeURIComponent(nomUtilisateur)}&redirect_url=${encodeURIComponent(redirectUri)}&user_token=${encodeURIComponent(existingToken)}`;
+        let urlEndpoint = `/powens/connect-url?redirect_url=${encodeURIComponent(redirectUri)}`;
         if (connectionId) {
           urlEndpoint += `&connection_id=${connectionId}`;
         }

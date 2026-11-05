@@ -18,6 +18,7 @@ import {
 	type GlobalSettings,
 	isTransient,
 	refreshIntervalMs,
+	requestPowensRefresh,
 } from "../api";
 import { renderContent, renderMessage } from "../render";
 import { buildKeyContent, buildPowensContent, type FinanceData, type PowensStatus, type ViewSettings } from "../views";
@@ -40,6 +41,8 @@ export class FinanceView extends SingletonAction<Settings> {
 	private timer: NodeJS.Timeout | null = null;
 	private retryTimer: NodeJS.Timeout | null = null;
 	private globals: GlobalSettings | null = null;
+	private bankRefreshing = false;
+	private bankFailures = 0;
 
 	override async onWillAppear(ev: WillAppearEvent<Settings>): Promise<void> {
 		this.settingsById.set(ev.action.id, ev.payload.settings);
@@ -65,11 +68,16 @@ export class FinanceView extends SingletonAction<Settings> {
 		if (ev.payload.settings.view === "powens" && !this.powens) await this.refresh();
 	}
 
-	/** Un appui force l'actualisation. */
+	/** Un appui force l'actualisation. Sur la touche Powens, il interroge aussi les banques. */
 	override async onKeyDown(ev: KeyDownEvent<Settings>): Promise<void> {
+		if (ev.payload.settings.view === "powens") {
+			// Une interrogation est déjà en cours : pas de second appel aux banques.
+			if (this.bankRefreshing) return;
+			await (await this.refreshFromBank() ? ev.action.showOk() : ev.action.showAlert());
+			return;
+		}
 		await this.refresh();
-		const failed = this.lastError || (ev.payload.settings.view === "powens" && this.powensError);
-		await (failed ? ev.action.showAlert() : ev.action.showOk());
+		await (this.lastError ? ev.action.showAlert() : ev.action.showOk());
 	}
 
 	/** L'inspecteur demande l'état courant, ou signale que les réglages globaux ont changé. */
@@ -79,6 +87,7 @@ export class FinanceView extends SingletonAction<Settings> {
 			this.data = null;
 			this.powens = null;
 			this.powensError = null;
+			this.bankFailures = 0;
 			this.lastSuccess = 0;
 			this.schedule(await this.loadGlobals(true));
 			await this.refresh();
@@ -108,7 +117,39 @@ export class FinanceView extends SingletonAction<Settings> {
 		return this.inFlight;
 	}
 
-	private async fetchAndDraw(): Promise<void> {
+	/** Comme le bouton Actualiser de la page Importer. Renvoie `true` si tout s'est bien passé. */
+	private async refreshFromBank(): Promise<boolean> {
+		this.bankRefreshing = true;
+		await this.drawAll();
+		let ok = false;
+		try {
+			await this.inFlight;
+			const status = await requestPowensRefresh(await this.loadGlobals());
+			this.powens = status;
+			this.powensError = null;
+			this.bankFailures = status.echecs;
+			ok = status.connecte && !status.erreur && status.echecs === 0;
+			if (status.echecs > 0) streamDeck.logger.warn(`Actualisation bancaire : ${status.echecs} échec(s)`);
+		} catch (error) {
+			this.powensError = asFetchError(error);
+			streamDeck.logger.warn(`Actualisation bancaire impossible : ${this.powensError.message}`);
+			if (!isTransient(this.powensError)) {
+				this.lastError = this.powensError;
+				this.data = null;
+				this.powens = null;
+			}
+		} finally {
+			this.bankRefreshing = false;
+		}
+		// Un import automatique a pu changer les soldes. Le compteur Powens, lui, vient d'être reçu.
+		if (!this.lastError || isTransient(this.lastError)) await this.fetchBalances();
+		await this.drawAll();
+		await this.sendStatus();
+		this.scheduleRetry();
+		return ok && !this.lastError;
+	}
+
+	private async fetchBalances(): Promise<void> {
 		try {
 			this.data = await fetchFinanceData(await this.loadGlobals());
 			this.lastSuccess = Date.now();
@@ -121,6 +162,10 @@ export class FinanceView extends SingletonAction<Settings> {
 				this.powens = null;
 			}
 		}
+	}
+
+	private async fetchAndDraw(): Promise<void> {
+		await this.fetchBalances();
 		// Les soldes s'affichent sans attendre Powens, bien plus lent à répondre.
 		await this.drawAll();
 		await this.sendStatus();
@@ -177,6 +222,7 @@ export class FinanceView extends SingletonAction<Settings> {
 	}
 
 	private imageFor(settings: Settings): string {
+		if (settings.view === "powens" && this.bankRefreshing) return renderMessage("Actualisation", "Interroge la banque", false);
 		if (settings.view === "powens" && this.data) {
 			if (this.powens) {
 				if (!this.powens.connecte) return renderMessage("Powens", "Non connecté");
@@ -204,6 +250,9 @@ export class FinanceView extends SingletonAction<Settings> {
 		}
 		if (this.wantsPowens() && this.powens?.erreur) {
 			return { ok: false, message: "Soldes OK. Powens ne répond pas ou l'accès bancaire a expiré." };
+		}
+		if (this.wantsPowens() && this.bankFailures > 0) {
+			return { ok: false, message: "Soldes OK. Une banque n'a pas pu être actualisée : elle est peut-être à reconnecter dans Kleea." };
 		}
 		return { ok: true, message: `Connecté · ${this.data.comptes.length} compte(s)` };
 	}

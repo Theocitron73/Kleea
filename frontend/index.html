@@ -29,6 +29,12 @@
         // Supprime définitivement la vieille clé qui forçait le gris-blanc
         localStorage.removeItem('mycash-theme');
 
+        // L'ancien jeton Powens ne doit plus rester dans le navigateur : seul un indicateur est conservé
+        if (localStorage.getItem('powens_user_token')) {
+          localStorage.setItem('powens_connecte', 'true');
+          localStorage.removeItem('powens_user_token');
+        }
+
         // Récupère le vrai thème actif
         const cached = localStorage.getItem('kleea-theme-cache');
         if (cached) {

@@ -22,6 +22,13 @@ export type PowensStatus = {
 	comptes: Record<string, number>;
 };
 
+export type PowensRefresh = PowensStatus & {
+	/** Banques interrogées avec succès. */
+	actualisees: number;
+	/** Banques qui n'ont pas pu être interrogées. */
+	echecs: number;
+};
+
 export type ViewId = "balance" | "total" | "expenses" | "income" | "net" | "powens";
 
 export type ViewSettings = {

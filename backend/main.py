@@ -15,6 +15,7 @@ import socket
 from datetime import date, datetime, timezone, timedelta
 from fpdf import FPDF
 from fastapi import Response
+from fastapi.concurrency import run_in_threadpool
 import uuid
 import resend
 import re
@@ -557,19 +558,21 @@ def delete_transactions(ids: List[int], current_user: str = Depends(get_current_
 
 
 @app.get("/transactions/stats/count/{username}")
-def get_user_transactions_count(username: str):
-    """Renvoie le nombre total de transactions associées à un utilisateur précis"""
+def get_user_transactions_count(username: str, current_user: str = Depends(get_current_user)):
+    """Renvoie le nombre total de transactions du compte connecté"""
+    if username.lower().strip() != current_user:
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
     query = text("SELECT COUNT(*) FROM transactions WHERE LOWER(utilisateur) = :u")
     try:
         with engine.connect() as conn:
-            result = conn.execute(query, {"u": username.lower()}).scalar()
+            result = conn.execute(query, {"u": current_user}).scalar()
             return {
                 "username": username,
                 "user_transactions_count": result
             }
     except Exception as e:
-        print(f"Erreur lors du calcul de la stat pour {username}: {e}")
-        raise HTTPException(status_code=500, detail=f"Erreur BDD: {str(e)}")
+        print(f"Erreur lors du calcul de la stat pour {current_user}: {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors du calcul de la statistique.")
 
 
 
@@ -3675,16 +3678,42 @@ POWENS_DOMAIN = os.getenv("POWENS_DOMAIN", "https://kleea-sandbox.biapi.pro/2.0"
 POWENS_DOMAIN_HOST = POWENS_DOMAIN.replace("https://", "").replace("http://", "").split("/")[0]
 
 
+POWENS_STATE_USAGE = "powens_connect"
+POWENS_STATE_MINUTES = 30
+
+
+def creer_state_powens(current_user: str) -> str:
+    """`state` signé : il prouve que le retour de Powens répond à une connexion lancée par ce compte."""
+    expire = datetime.now(timezone.utc) + timedelta(minutes=POWENS_STATE_MINUTES)
+    return jwt.encode({"sub": current_user, "usage": POWENS_STATE_USAGE, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verifier_state_powens(state: str, current_user: str):
+    try:
+        contenu = jwt.decode(state, SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=400, detail="Lien de connexion bancaire invalide ou expiré. Relance la connexion.")
+    if contenu.get("usage") != POWENS_STATE_USAGE or contenu.get("sub") != current_user:
+        raise HTTPException(status_code=400, detail="Lien de connexion bancaire invalide ou expiré. Relance la connexion.")
+
+
+def jeton_powens_du_compte(current_user: str) -> Optional[str]:
+    """Le jeton Powens reste côté serveur : il ne passe jamais par le navigateur ni par une URL."""
+    query = text("SELECT powens_token FROM users WHERE LOWER(username) = :u OR LOWER(email) = :u")
+    with engine.connect() as conn:
+        ligne = conn.execute(query, {"u": current_user}).fetchone()
+    return ligne[0] if ligne and ligne[0] else None
+
+
 @app.get("/powens/connect-url")
 def get_connect_url(
-    utilisateur: str, 
-    redirect_url: str, 
-    user_token: str = None, 
-    connection_id: int = None  # 👈 Permet de cibler la reconnexion d'une banque précise
+    redirect_url: str,
+    connection_id: int = None,  # 👈 Permet de cibler la reconnexion d'une banque précise
+    current_user: str = Depends(get_current_user),
 ):
     try:
         encoded_redirect = quote(redirect_url, safe="")
-        encoded_state = quote(utilisateur, safe="")
+        encoded_state = quote(creer_state_powens(current_user), safe="")
 
         domain = POWENS_DOMAIN.rstrip('/')
         if not domain.endswith('/2.0') and not domain.endswith('/v2'):
@@ -3703,7 +3732,8 @@ def get_connect_url(
         if connection_id:
             webview_url += f"&connection_id={connection_id}"
 
-        if user_token and user_token.strip() and user_token != "null":
+        user_token = jeton_powens_du_compte(current_user)
+        if user_token:
             try:
                 code_res = requests.get(
                     f"{domain}/auth/token/code",
@@ -3720,68 +3750,67 @@ def get_connect_url(
         return {"url": webview_url}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Erreur Webview: {str(e)}")
+        print(f"Erreur génération de l'URL Powens : {e}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la génération du lien bancaire.")
 
 
-@app.get("/powens/callback")
-def powens_callback(code: str, redirect_uri: str = None, state: str = None):
+class PowensCallback(BaseModel):
+    code: str = Field(min_length=1)
+    state: str = Field(min_length=1)
+    redirect_uri: Optional[str] = None
+
+
+@app.post("/powens/callback")
+def powens_callback(req: PowensCallback, current_user: str = Depends(get_current_user)):
     """
-    Échange le code de la WebView contre un access_token.
+    Échange le code de la WebView contre un access_token, enregistré sur le compte connecté.
     """
+    verifier_state_powens(req.state, current_user)
+
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
 
-    url = f"{domain}/auth/token/access"
-    
     payload = {
         "grant_type": "authorization_code",
         "client_id": POWENS_CLIENT_ID,
         "client_secret": POWENS_CLIENT_SECRET,
-        "code": code
+        "code": req.code
     }
+    if req.redirect_uri:
+        payload["redirect_uri"] = req.redirect_uri
 
-    if redirect_uri:
-        payload["redirect_uri"] = redirect_uri
-
-    headers = {"Content-Type": "application/json"}
-    res = requests.post(url, json=payload, headers=headers, timeout=10)
-
+    res = requests.post(f"{domain}/auth/token/access", json=payload, headers={"Content-Type": "application/json"}, timeout=10)
     if res.status_code != 200:
-        print(f"❌ ERREUR POWENS {res.status_code}: {res.text}")
-        raise HTTPException(
-            status_code=res.status_code, 
-            detail=f"Échec échange token Powens ({res.status_code}): {res.text}"
-        )
+        print(f"❌ ERREUR POWENS {res.status_code} à l'échange du code")
+        raise HTTPException(status_code=502, detail="Powens a refusé la connexion. Relance la connexion bancaire.")
 
     data = res.json()
     access_token = data.get("access_token") or data.get("token")
+    if not access_token:
+        raise HTTPException(status_code=502, detail="Réponse inattendue de Powens.")
 
-    # 🟢 AJOUT : Sauvegarde automatique du token dans la table users si 'state' (l'utilisateur) est présent
-    if state and access_token:
-        try:
-            update_query = text("""
-                UPDATE users 
-                SET powens_token = :token 
-                WHERE username = :username OR email = :username
-            """)
-            with engine.connect() as conn:
-                conn.execute(update_query, {"token": access_token, "username": state})
-                conn.commit()
-        except Exception as e:
-            print(f"⚠️ Erreur lors de l'enregistrement automatique du token en BDD : {e}")
+    with engine.begin() as conn:
+        resultat = conn.execute(text("""
+            UPDATE users
+            SET powens_token = :token
+            WHERE LOWER(username) = :u OR LOWER(email) = :u
+        """), {"token": access_token, "u": current_user})
+        if resultat.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
 
-    return {
-        "access_token": access_token,
-        "utilisateur": state
-    }
+    return {"status": "success"}
 
 
 @app.get("/powens/accounts")
-def get_powens_accounts(user_token: str):
+def get_powens_accounts(current_user: str = Depends(get_current_user)):
     """
     Récupère la liste de tous les comptes bancaires de l'utilisateur.
     """
+    user_token = jeton_powens_du_compte(current_user)
+    if not user_token:
+        return []
+
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
@@ -3794,10 +3823,9 @@ def get_powens_accounts(user_token: str):
     res = requests.get(url, headers=headers, timeout=10)
 
     if res.status_code != 200:
-        raise HTTPException(
-            status_code=res.status_code, 
-            detail=f"Erreur récupération comptes Powens: {res.text}"
-        )
+        # Pas de 401 ici : il déconnecterait l'utilisateur de Kleea pour un jeton bancaire expiré.
+        print(f"❌ ERREUR POWENS {res.status_code} à la lecture des comptes")
+        raise HTTPException(status_code=502, detail="Impossible de récupérer les comptes bancaires.")
 
     accounts = res.json().get("accounts", [])
     
@@ -3951,14 +3979,16 @@ def get_mots_cles_rules(utilisateur: str):
 
 @app.get("/import-powens")
 def import_powens(
-    utilisateur: str, 
-    user_token: str, 
     account_id: str = None, 
     compte_nom: str = "Powens",
     date_debut: str = None,
     date_fin: str = None,
     current_user: str = Depends(get_current_user)
 ):
+    user_token = jeton_powens_du_compte(current_user)
+    if not user_token:
+        raise HTTPException(status_code=409, detail="Aucune banque connectée.")
+
     try:
         user_clean = current_user.lower().strip()
         
@@ -3969,9 +3999,9 @@ def import_powens(
         powens_raw = get_powens_transactions(user_token)
 
         transactions_brutes = normalize_powens_transactions(
-            powens_raw, 
-            user_clean, 
-            compte_nom, 
+            powens_raw,
+            user_clean,
+            compte_nom,
             target_account_id=account_id,
             date_debut=d_deb,
             date_fin=d_fin
@@ -4066,7 +4096,11 @@ def import_powens(
 
 # 🟢 VERSION SÉCURISÉE : IDENTIFICATION STRICTE PAR ID_CONNECTOR (NE MÉLANGE JAMAIS 2 BANQUES)
 @app.get("/powens/connections-and-accounts")
-def get_connections_and_accounts(user_token: str):
+def get_connections_and_accounts(current_user: str = Depends(get_current_user)):
+    user_token = jeton_powens_du_compte(current_user)
+    if not user_token:
+        return {"connections_count": 0, "connections": [], "accounts_count": 0, "accounts": []}
+
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
@@ -4190,56 +4224,9 @@ def get_connections_and_accounts(user_token: str):
     }
 
 
-class SavePowensTokenRequest(BaseModel):
-    utilisateur: str
-    user_token: str
-
-# Vers la ligne 1530 :
-@app.post("/powens/sauvegarder-token")
-def sauvegarder_token(req: SavePowensTokenRequest, current_user: str = Depends(get_current_user)):
-    query = text("""
-        UPDATE users 
-        SET powens_token = :token 
-        WHERE LOWER(username) = :u OR LOWER(email) = :u
-    """)
-    with engine.begin() as conn:
-        result = conn.execute(query, {"token": req.user_token, "u": current_user.lower()})
-        if result.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
-    return {"status": "success", "message": "Token Powens sauvegardé en BDD."}
-
-
-# Vers la ligne 1552 :
-@app.get("/powens/recuperer-token")
-def recuperer_token(utilisateur: str, current_user: str = Depends(get_current_user)):
-    if utilisateur.lower().strip() != current_user.lower().strip():
-        raise HTTPException(status_code=403, detail="Accès non autorisé.")
-
-    query = text("SELECT powens_token FROM users WHERE LOWER(username) = :u OR LOWER(email) = :u")
-    with engine.connect() as conn:
-        result = conn.execute(query, {"u": current_user.lower()}).fetchone()
-        if not result or not result[0]:
-            return {"status": "success", "user_token": None}
-        return {"status": "success", "user_token": result[0]}
-
-@app.get("/powens/transactions")
-def read_powens_transactions(user_token: str):
-    """
-    Endpoint exposé au Front-end pour récupérer les transactions depuis Powens.
-    """
-    try:
-        transactions = get_powens_transactions(user_token)
-        return {"transactions": transactions}
-    except Exception as e:
-        error_msg = str(e)
-        if "unauthorized" in error_msg.lower() or "401" in error_msg:
-            raise HTTPException(
-                status_code=401, 
-                detail="Jeton Powens invalide ou expiré."
-            )
-        raise HTTPException(status_code=500, detail=error_msg)
-
-
+@app.get("/powens/connexion-active")
+def powens_connexion_active(current_user: str = Depends(get_current_user)):
+    return {"connecte": bool(jeton_powens_du_compte(current_user))}
 
 
 class PropagateYearRequest(BaseModel):
@@ -5434,21 +5421,8 @@ def reconcile_and_recalculate_all(username: str, current_user: str = Depends(get
 # 🟢 ROUTE POUR FORCER POWENS À SE CONNECTER EN DIRECT À LA VRAIE BANQUE
 import asyncio
 
-@app.post("/powens/refresh-bank-sync/{username}")
-async def refresh_bank_sync(username: str, current_user: str = Depends(get_current_user)):
-    if username.lower().strip() != current_user.lower().strip():
-        raise HTTPException(status_code=403, detail="Accès non autorisé")
-    
-    user_clean = current_user.lower().strip()
-    
-    # 1. Récupération du jeton
-    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
-    with engine.connect() as conn:
-        res = conn.execute(query_token, {"u": user_clean}).fetchone()
-        if not res or not res[0]:
-            raise HTTPException(status_code=400, detail="Aucun jeton bancaire Powens trouvé.")
-        user_token = res[0]
-
+async def declencher_actualisation_bancaire(user_token: str) -> dict:
+    """Demande à Powens d'interroger chaque banque connectée, comme si l'utilisateur était présent."""
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
         domain += '/2.0'
@@ -5457,18 +5431,19 @@ async def refresh_bank_sync(username: str, current_user: str = Depends(get_curre
 
     headers = {"Authorization": f"Bearer {user_token}"}
 
-    # 2. Récupération des connexions
     async with httpx.AsyncClient(timeout=15.0) as client:
+        # 1. Récupération des connexions
         try:
             res_conn = await client.get(f"{domain}/users/me/connections", headers=headers)
             connections = res_conn.json().get("connections", []) if res_conn.status_code == 200 else []
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Erreur de contact Powens : {str(e)}")
+            print(f"❌ Powens injoignable à la lecture des connexions : {type(e).__name__}")
+            raise HTTPException(status_code=502, detail="Impossible de contacter Powens.")
 
         if not connections:
-            return {"status": "no_connections", "message": "Aucune banque connectée."}
+            return {"status": "no_connections", "message": "Aucune banque connectée.", "synced_connections": []}
 
-        # 3. Actualisation parallèle de toutes les connexions
+        # 2. Actualisation parallèle de toutes les connexions
         async def trigger_connection_sync(conn_id):
             try:
                 r = await client.put(
@@ -5478,19 +5453,34 @@ async def refresh_bank_sync(username: str, current_user: str = Depends(get_curre
                 )
                 return {"id": conn_id, "status": r.status_code}
             except Exception as e:
-                return {"id": conn_id, "status": "error", "error": str(e)}
+                print(f"❌ Actualisation Powens de la connexion {conn_id} : {type(e).__name__}")
+                return {"id": conn_id, "status": "error"}
 
         active_connection_ids = [
             c["id"] for c in connections if c.get("id") and not c.get("deleted")
         ]
-        
+
         # Lance tous les appels simultanément
         synced = await asyncio.gather(*[trigger_connection_sync(cid) for cid in active_connection_ids])
 
-    return {
-        "status": "success",
-        "synced_connections": synced
-    }
+    return {"status": "success", "synced_connections": synced}
+
+
+@app.post("/powens/refresh-bank-sync/{username}")
+async def refresh_bank_sync(username: str, current_user: str = Depends(get_current_user)):
+    if username.lower().strip() != current_user.lower().strip():
+        raise HTTPException(status_code=403, detail="Accès non autorisé")
+
+    user_clean = current_user.lower().strip()
+
+    query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
+    with engine.connect() as conn:
+        res = conn.execute(query_token, {"u": user_clean}).fetchone()
+        if not res or not res[0]:
+            raise HTTPException(status_code=400, detail="Aucun jeton bancaire Powens trouvé.")
+        user_token = res[0]
+
+    return await declencher_actualisation_bancaire(user_token)
 
 @app.delete("/profile/me")
 def delete_my_account(current_user: str = Depends(get_current_user)):
@@ -6922,10 +6912,7 @@ def donnees_streamdeck(response: Response, utilisateur: str = Depends(get_stream
     return calculer_vues_streamdeck([dict(c) for c in comptes], [dict(t) for t in transactions], date.today())
 
 
-@app.get("/api/streamdeck/powens")
-def powens_streamdeck(response: Response, utilisateur: str = Depends(get_streamdeck_user)):
-    """Nombre de transactions à importer. Route séparée car elle interroge Powens, bien plus lent que la base."""
-    response.headers["Cache-Control"] = "no-store"
+def etat_powens_streamdeck(utilisateur: str) -> dict:
     with engine.connect() as conn:
         powens_token = conn.execute(
             text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)"),
@@ -6940,4 +6927,74 @@ def powens_streamdeck(response: Response, utilisateur: str = Depends(get_streamd
         "erreur": bool(resultat.get("error")),
         "count": resultat.get("count", 0),
         "comptes": {nom: infos["count"] for nom, infos in resultat.get("accounts", {}).items()},
+    }
+
+
+@app.get("/api/streamdeck/powens")
+def powens_streamdeck(response: Response, utilisateur: str = Depends(get_streamdeck_user)):
+    """Nombre de transactions à importer. Route séparée car elle interroge Powens, bien plus lent que la base."""
+    response.headers["Cache-Control"] = "no-store"
+    return etat_powens_streamdeck(utilisateur)
+
+
+# Une actualisation sollicite réellement les banques : un appui répété ne doit pas les saturer.
+LIMITE_ACTUALISATIONS_STREAMDECK = 6  # par compte, sur 10 minutes
+
+
+def importer_si_mode_auto(utilisateur: str) -> bool:
+    """Comme le bouton Actualiser de la page Importer. Renvoie False si l'import a échoué."""
+    with engine.connect() as conn:
+        mode = conn.execute(
+            text("SELECT import_mode FROM users WHERE LOWER(username) = LOWER(:u)"),
+            {"u": utilisateur},
+        ).scalar()
+    if mode != "auto":
+        return True
+    try:
+        exec_sync_user_transactions(utilisateur)
+        exec_recalculate_balances(utilisateur)
+        return True
+    except Exception as e:
+        print(f"❌ Import automatique après actualisation Stream Deck : {type(e).__name__}")
+        return False
+
+
+@app.post("/api/streamdeck/powens/actualiser")
+async def actualiser_powens_streamdeck(response: Response, utilisateur: str = Depends(get_streamdeck_user)):
+    """Équivalent du bouton Actualiser de la page Importer, pour la touche Powens."""
+    response.headers["Cache-Control"] = "no-store"
+
+    limite = await run_in_threadpool(
+        check_is_rate_limited,
+        key=utilisateur,
+        action="streamdeck_bank_refresh",
+        max_attempts=LIMITE_ACTUALISATIONS_STREAMDECK,
+        window_minutes=10,
+    )
+    if limite:
+        raise HTTPException(status_code=429, detail="Trop d'actualisations en peu de temps.")
+
+    user_token = await run_in_threadpool(jeton_powens_du_compte, utilisateur)
+    if not user_token:
+        return {"connecte": False, "erreur": False, "count": 0, "comptes": {}, "actualisees": 0, "echecs": 0}
+
+    actualisees, echecs = 0, 0
+    try:
+        resultat = await declencher_actualisation_bancaire(user_token)
+        for connexion in resultat["synced_connections"]:
+            statut = connexion["status"]
+            if isinstance(statut, int) and 200 <= statut < 300:
+                actualisees += 1
+            else:
+                echecs += 1
+    except HTTPException:
+        echecs += 1
+
+    import_reussi = await run_in_threadpool(importer_si_mode_auto, utilisateur) if not echecs else True
+    etat = await run_in_threadpool(etat_powens_streamdeck, utilisateur)
+    return {
+        **etat,
+        "erreur": etat["erreur"] or not import_reussi,
+        "actualisees": actualisees,
+        "echecs": echecs,
     }
