@@ -1,8 +1,8 @@
-import { useState, useEffect,useMemo,useRef,forwardRef,useCallback} from 'react'
-import React from 'react'; // <-- Ajoute cette ligne tout en haut du fichier
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+ // <-- Ajoute cette ligne tout en haut du fichier
 
 import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
-import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2, Palette, LogOut, X, Trash2, TrendingUp, ShoppingCart, Tag, ChevronRight, Sparkles, FileText, CalendarDays, Copy, AlertTriangle, Lightbulb, Terminal, Flame, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Ticket, HeartPulse, Cpu, Plane, Gift, Truck, ShieldAlert, Scissors, Scale, RotateCcw } from 'lucide-react';
+import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2, Palette, LogOut, X, Trash2, TrendingUp, Tag, ChevronRight, Sparkles, FileText, CalendarDays, Copy, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Truck, ShieldAlert, Scissors, Scale, RotateCcw } from 'lucide-react';
 import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import "react-datepicker/dist/react-datepicker.css";
@@ -45,57 +45,22 @@ import DelayedDashboardLoader from './components/DelayedDashboardLoader';
 import SortableAccountCard from './components/SortableAccountCard';
 import UnifiedWidgets from './components/UnifiedWidgets';
 import ImportPowensModal from './components/ImportPowensModal';
-
-
-
-
-
-
-const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
-  // Logique d'extraction identique
-  let displayDay = '??';
-  let displayMonth = '??';
-  let displayYear = '202X';
-
-  if (t.date) {
-    const dateSeule = t.date.includes('T') ? t.date.split('T')[0] : t.date;
-    const parties = dateSeule.split(dateSeule.includes('-') ? '-' : '/');
-    displayDay = dateSeule.includes('-') ? parties[2] : parties[0];
-    displayMonth = parties[1];
-    displayYear = parties[0]; // L'année est le premier index en format YYYY-MM-DD
-  } else if (t.annee) {
-    displayYear = t.annee;
-  }
-
-  const moisNoms = { 
-    '01': 'JAN', '02': 'FEV', '03': 'MAR', '04': 'AVR', '05': 'MAI', '06': 'JUIN', 
-    '07': 'JUIL', '08': 'AOUT', '09': 'SEPT', '10': 'OCT', '11': 'NOV', '12': 'DEC' 
-  };
-
-  return (
-    <div className="flex items-center ref={ref}">
-      {/* LE BADGE VISUEL COMPACT */}
-      <div 
-        className="relative w-[54px] h-[54px] flex flex-col items-center justify-center bg-[var(--glass-bg)] border border-white/10 rounded-xl transition-all duration-300 shadow-lg"
-      >
-        {/* L'ANNÉE intégrée en haut */}
-        <span className="text-[7px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-0.5">
-          {displayYear}
-        </span>
-
-        {/* LE JOUR */}
-        <span className="text-sm font-black text-[var(--text-main)] leading-none">
-          {displayDay}
-        </span>
-
-        {/* LE MOIS */}
-        <span className="text-[8px] font-bold text-[var(--secondary)]/60 uppercase tracking-widest mt-1">
-          {moisNoms[displayMonth] || displayMonth}
-        </span>
-      </div>
-    </div>
-  );
-});
+import NavigationPrincipale from './components/NavigationPrincipale';
+import IndicateurSynchroAuto from './components/IndicateurSynchroAuto';
+import FenetreSuppressionCompte from './components/FenetreSuppressionCompte';
+import BarreActionsTransactions from './components/BarreActionsTransactions';
+import FenetreSuppressionSelection from './components/FenetreSuppressionSelection';
+import FenetreSuppressionBudget from './components/FenetreSuppressionBudget';
+import BarreActionsPrevisions from './components/BarreActionsPrevisions';
+import FenetreSuppressionPrevisions from './components/FenetreSuppressionPrevisions';
+import AssistantSolde from './components/AssistantSolde';
+import FenetreDuplication from './components/FenetreDuplication';
+import NotesDeVersion from './components/NotesDeVersion';
+import FenetreReconduction from './components/FenetreReconduction';
+import FenetreBienvenue from './components/FenetreBienvenue';
+import FenetreModifCategorie from './components/FenetreModifCategorie';
+import FenetreCelebration from './components/FenetreCelebration';
+import FenetreReauthentification from './components/FenetreReauthentification';
 
 
 
@@ -124,54 +89,6 @@ const CustomBadgeDate = forwardRef(({ value, onClick, t }, ref) => {
 
 
 
-const GridTile = React.memo(({ jour, index, totalJours }) => {
-  const couleursIntensite = [
-    'bg-white/[0.03] border-white/5', 
-    'bg-rose-950/40 border-rose-900/20 text-rose-300', 
-    'bg-rose-800/50 border-rose-700/30 text-rose-200', 
-    'bg-rose-600/70 border-rose-500/40 text-rose-100', 
-    'bg-rose-500 border-rose-400 text-white font-bold' 
-  ];
-
-  const estAuDebut = index < 14; 
-  const estALaFin = index >= (totalJours - 14); 
-
-  let classeXTooltip = "left-1/2 -translate-x-1/2"; 
-  let classeXFleche = "left-1/2 -translate-x-1/2";
-  
-  if (estAuDebut) {
-    classeXTooltip = "left-0 translate-x-0";
-    classeXFleche = "left-1.5 translate-x-0";
-  } else if (estALaFin) {
-    classeXTooltip = "right-0 translate-x-0 left-auto";
-    classeXFleche = "right-1.5 translate-x-0 left-auto";
-  }
-
-  const indexJourSemaine = index % 7;
-  const estEnBas = indexJourSemaine >= 4; 
-
-  const classeYTooltip = estEnBas ? "bottom-full mb-2 flex-col-reverse" : "top-full mt-2 flex-col";
-  const classeYFleche = estEnBas ? "border-r border-b -mb-1" : "border-l border-t -mt-1";
-
-  return (
-    <div
-      className={`w-3.5 h-3.5 rounded-sm border transition-all duration-150 relative group/tile ${couleursIntensite[jour.niveauIntensite]}`}
-    >
-      <div className={`absolute hidden group-hover/tile:flex items-center pointer-events-none z-50 animate-in fade-in duration-150 ${classeYTooltip} ${classeXTooltip}`}>
-        <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-[var(--glass-blur)] min-w-[130px] isolate">
-          <p className="text-[8px] font-black text-white/40 uppercase tracking-wider">{jour.affichage}</p>
-          <p className="text-xs font-black tracking-tight text-rose-400 mt-0.5 whitespace-nowrap">
-            {jour.montant > 0 ? `${jour.montant.toLocaleString('fr-FR')} €` : '0,00 €'}
-          </p>
-        </div>
-        <div className={`w-1.5 h-1.5 bg-neutral-900 border-white/10 rotate-45 z-50 ${classeYFleche} ${classeXFleche}`} />
-      </div>
-    </div>
-  );
-});
-
-// 3. N'oublie pas de lui donner son displayName pour les outils de dev si nécessaire
-GridTile.displayName = 'GridTile';
 
 
 
@@ -185,35 +102,14 @@ GridTile.displayName = 'GridTile';
 
 
 
- const MAP_ICONES = {
-  fastfood: <Flame size={14} />,
-  shopping: <ShoppingCart size={14} />,
-  car: <Terminal size={14} />, 
-  home: <Lightbulb size={14} />,
-  sub: <Sparkles size={14} />,
-  salary: <ShoppingCart size={14} />, 
-  star: <Sparkles size={14} />,
-  alert: <AlertTriangle size={14} />,
-  health: <HeartPulse size={14} />,
-  leisure: <Ticket size={14} />,
-  crypto: <Wallet size={14} />,
-  tech: <Cpu size={14} />,
-  travel: <Plane size={14} />,
-  gift: <Gift size={14} />
-};
 
-const MAP_COULEURS = {
-  rose: { bg: "bg-rose-500/[0.03] border-rose-500/10", text: "text-rose-400" },
-  amber: { bg: "bg-amber-500/[0.03] border-amber-500/10", text: "text-amber-400" },
-  emerald: { bg: "bg-emerald-500/[0.03] border-emerald-500/10", text: "text-emerald-400" },
-  indigo: { bg: "bg-indigo-500/[0.02] border-indigo-500/20", text: "text-secondary-400" },
-  cyan: { bg: "bg-cyan-500/[0.03] border-cyan-500/10", text: "text-cyan-400" },
-  violet: { bg: "bg-violet-500/[0.03] border-violet-500/10", text: "text-violet-400" },
-  blue: { bg: "bg-blue-500/[0.03] border-blue-500/10", text: "text-blue-400" },
-  orange: { bg: "bg-orange-500/[0.03] border-orange-500/10", text: "text-orange-400" },
-  red: { bg: "bg-red-500/[0.03] border-red-500/10", text: "text-red-400" },
-  fuchsia: { bg: "bg-fuchsia-500/[0.03] border-fuchsia-500/10", text: "text-fuchsia-400" },
-};
+
+
+
+
+
+
+
 
 
 
@@ -4721,159 +4617,7 @@ if (!user) {
       <div className="max-w-full mx-auto">
       
       {/* NAVIGATION GLOBALE */}
-          <nav>
-            {/* --- VERSION DESKTOP (Haut) --- */}
-            <div 
-              onWheel={handleWheelNavTabs}
-              className="hidden md:flex sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl mb-8 cursor-ns-resize select-none"
-              title="Molette de la souris : changer de page"
-            >
-              
-              {/* LOGO-STYLE VERSION DE L'APP */}
-              <div className="flex items-center gap-2 px-4 py-2 bg-[var(--glass-bg)] rounded-xl border border-white/5 mr-1">
-                <div className="flex flex-col items-start leading-none">
-                  <span className="text-[10px] font-black text-[var(--text-main)] tracking-tighter uppercase">
-                    Kleea <span className="text-[var(--secondary)]">v.{CURRENT_VERSION}</span>
-                  </span>
-                  <span className="text-[6px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">
-                    Stable Build
-                  </span>
-                </div>
-              </div>
-
-              <div className="w-px h-4 bg-[var(--glass-bg)] mx-1" />
-
-              {/* Navigation Items (Vos onglets) */}
-              {visibleMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all duration-300 cursor-pointer ${
-                      isActive 
-                      ? 'bg-white text-slate-900 shadow-lg' 
-                      : 'text-[var(--text-main)]/50 hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)]'
-                    }`}
-                  >
-                    <Icon size={18} weight={isActive ? "fill" : "bold"} />
-                    <span className="text-xs font-black uppercase tracking-wider">{item.label}</span>
-                  </button>
-                );
-              })}
-              
-              <div className="w-px h-4 bg-[var(--glass-bg)] mx-2" />
-              
-              {/* --- BADGE UTILISATEUR CONNECTÉ --- */}
-              <button
-                onClick={() => setActiveTab('profile')} 
-                className={`group flex items-center gap-2.5 px-3 py-1.5 border rounded-xl ml-1 transition-all duration-300 cursor-pointer ${
-                  activeTab === 'profile'
-                  ? 'bg-white/15 border-[var(--primary)] shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_20%,transparent)]'
-                  : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/10 hover:border-white/15'
-                }`}
-                title="Accéder à mon profil et aux réglages"
-              >
-                {/* Avatar initial */}
-                <div className="w-6 h-6 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[10px] font-black text-white shadow-[0_0_10px_color-mix(in_srgb,var(--primary)_30%,transparent)] shrink-0">
-                  {user.substring(0, 1).toUpperCase()}
-                </div>
-
-                {/* Pseudo + Indication de la page */}
-                <div className="flex flex-col items-start leading-none">
-                  <span className="text-[9px] font-black text-[var(--text-main)] uppercase tracking-[0.1em]">
-                    {user}
-                  </span>
-                  <span className="text-[6.5px] font-black text-[var(--secondary)]/70 group-hover:text-[var(--secondary)] uppercase tracking-[0.15em] mt-1 transition-colors">
-                    Mon Profil
-                  </span>
-                </div>
-
-                {/* Petit chevron discret qui s'anime au survol */}
-                <ChevronRight 
-                  size={11} 
-                  className={`ml-0.5 text-[var(--text-main)]/20 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[var(--secondary)] ${
-                    activeTab === 'profile' ? 'text-[var(--secondary)]' : ''
-                  }`} 
-                />
-              </button>
-
-              <button 
-                onClick={handleLogout} 
-                className="p-2 ml-1 text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all"
-                title="Déconnexion"
-              >
-                <LogOut size={18} />
-              </button>
-            </div>
-
-           {/* --- VERSION MOBILE (Tab Bar en bas avec bouton Profil) --- */}
-            {/* 💡 px-3 au lieu de px-6 pour libérer de l'espace de chaque côté de l'écran */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] px-3 pb-6 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pointer-events-none">
-              
-              {/* 💡 max-w-lg et p-1.5 pour aérer la répartition horizontale des icônes */}
-              <div className="max-w-lg mx-auto flex items-center justify-around p-1.5 bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[calc(var(--radius)*1.167)] shadow-2xl pointer-events-auto">
-                {visibleMenuItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-                  return (
-                    /* 💡 w-11 h-11 au lieu de w-12 h-12 pour éliminer l'effet compressé sur les petits écrans */
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className="relative flex flex-col items-center justify-center w-11 h-11 transition-all"
-                    >
-                      {/* Indicateur actif (la petite bulle) */}
-                      {isActive && (
-                        <div className="absolute inset-0 bg-white rounded-2xl animate-in zoom-in duration-300" />
-                      )}
-                      
-                      <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'text-slate-900 scale-105' : 'text-[var(--text-main)]/40'}`}>
-                        {/* 💡 Taille d'icône légèrement ajustée à 21px pour garder un ratio élégant */}
-                        <Icon size={21} />
-                      </div>
-
-                      {/* Point indicateur sous l'icône non-active */}
-                      {!isActive && (
-                        <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-[var(--glass-bg)]" />
-                      )}
-                    </button>
-                  );
-                })}
-
-                {/* Bouton Profil Tactile */}
-                <button 
-                  onClick={() => setActiveTab('profile')}
-                  className="relative flex flex-col items-center justify-center w-11 h-11 transition-all cursor-pointer"
-                >
-                  {activeTab === 'profile' && (
-                    <div className="absolute inset-0 bg-white rounded-2xl animate-in zoom-in duration-300" />
-                  )}
-                  
-                  <div className={`relative z-10 transition-transform duration-300 ${activeTab === 'profile' ? 'scale-105' : ''}`}>
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-black transition-all ${
-                      activeTab === 'profile'
-                        ? 'bg-slate-950 text-white shadow-none'
-                        : 'bg-[var(--primary)] text-white shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_20%,transparent)]'
-                    }`}>
-                      {user?.charAt(0).toUpperCase()}
-                    </div>
-                  </div>
-                </button>
-
-                {/* Bouton logout mini pour mobile */}
-                <button 
-                  onClick={handleLogout}
-                  className="w-11 h-11 flex items-center justify-center text-rose-500/50 hover:text-rose-500 active:scale-95 transition-all"
-                >
-                  <LogOut size={20} />
-                </button>
-              </div>
-            </div>
-
-            
-          </nav>
+          <NavigationPrincipale CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
 
 
         <main>
@@ -5263,370 +5007,58 @@ if (!user) {
 
       {/* 🟢 INDICATEUR DE SYNCHRONISATION AUTOMATIQUE EN COURS AU DÉMARRAGE */}
       {isAutoSyncingOnLoad && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none">
-          <div className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-black/85 backdrop-blur-[var(--glass-blur)] border border-indigo-500/30 text-white shadow-[0_10px_35px_rgba(0,0,0,0.8)]">
-            {/* Animation spinner et point pulsant */}
-            <div className="relative flex items-center justify-center">
-              <span className="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin" />
-            </div>
-
-            <div className="flex flex-col text-left">
-              <span className="text-[10px] font-black uppercase tracking-wider text-secondary-300 flex items-center gap-1.5 leading-none">
-                <span>Synchronisation automatique</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping" />
-              </span>
-              <span className="text-[8px] font-bold text-white/50 uppercase tracking-widest leading-none mt-1">
-                Actualisation des comptes et Transactions...
-              </span>
-            </div>
-          </div>
-        </div>
+        <IndicateurSynchroAuto  />
       )}
      
 
       {deleteModal.show && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 animate-in fade-in duration-300">
-          {/* Overlay flou */}
-          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[var(--glass-blur)]" onClick={() => setDeleteModal({ show: false, accountName: null })} />
-          
-          {/* Contenu de la Modal */}
-          <div className="relative bg-white rounded-[var(--radius)] p-8 max-w-sm w-full shadow-2xl scale-in-center animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mb-6 mx-auto">
-              <Trash2 size={32} className="text-rose-500" />
-            </div>
-            
-            <h3 className="text-xl font-black text-slate-800 text-center mb-2">Supprimer le compte ?</h3>
-            <p className="text-slate-500 text-center text-sm mb-8">
-              Tu es sur le point de supprimer <span className="font-bold text-slate-700">"{deleteModal.accountName}"</span>. Cette action effacera toutes les données liées.
-            </p>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => setDeleteModal({ show: false, accountName: null })}
-                className="py-3 rounded-2xl font-bold text-slate-400 hover:bg-slate-50 transition-colors"
-              >
-                Annuler
-              </button>
-              <button 
-                onClick={confirmDelete}
-                className="py-3 bg-rose-500 text-[var(--text-main)] rounded-2xl font-bold shadow-lg shadow-rose-100 hover:bg-rose-600 active:scale-95 transition-all"
-              >
-                Supprimer
-              </button>
-            </div>
-          </div>
-        </div>
+        <FenetreSuppressionCompte confirmDelete={confirmDelete} deleteModal={deleteModal} setDeleteModal={setDeleteModal} />
       )}
 
 
 
       {/* BARRE D'ACTION FLOTTANTE */}
         {selectedIds.length > 0 && (
-          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
-            <div className="bg-[var(--surface)]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
-              
-              {/* Compteur */}
-              <div className="flex items-center gap-3 border-r border-white/10 pr-6">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-[var(--primary)] blur-sm opacity-50"></div>
-                  <span className="relative flex h-6 w-6 items-center justify-center rounded-lg bg-[var(--primary)] text-[10px] font-black text-[var(--text-main)]">
-                    {selectedIds.length}
-                  </span>
-                </div>
-                <span className="text-[10px] font-black text-[var(--text-main)]/70 uppercase tracking-[0.2em]">Sélectionnés</span>
-              </div>
-
-              {/* Boutons d'action */}
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={handleDeleteSelected}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-[var(--text-main)] rounded-xl transition-all text-[10px] font-black uppercase tracking-widest group shadow-lg shadow-rose-500/10"
-                >
-                  <Trash2 size={14} className="group-hover:rotate-12 transition-transform" />
-                  Supprimer la sélection
-                </button>
-                
-                <button 
-                  onClick={() => setSelectedIds([])}
-                  className="px-4 py-2.5 text-[var(--text-main)]/40 hover:text-[var(--text-main)] transition-colors text-[10px] font-black uppercase tracking-widest"
-                >
-                  Annuler
-                </button>
-              </div>
-            </div>
-          </div>
+          <BarreActionsTransactions handleDeleteSelected={handleDeleteSelected} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
         )}
 
 
 
         {/* MODALE DE CONFIRMATION CUSTOM */}
           {showDeleteConfirm && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-              {/* Overlay flouté */}
-              <div 
-                className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
-                onClick={() => setShowDeleteConfirm(false)}
-              />
-              
-              {/* Boîte de dialogue */}
-              <div className="relative bg-[var(--surface)] border border-white/10 p-8 rounded-[calc(var(--radius)*1.333)] shadow-2xl max-w-sm w-full animate-in zoom-in-95 duration-200">
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-rose-500/10 rounded-2xl flex items-center justify-center mb-6 border border-rose-500/20">
-                    <Trash2 size={28} className="text-rose-500" />
-                  </div>
-                  
-                  <h3 className="text-[var(--text-main)] text-xl font-black mb-2">Supprimer ?</h3>
-                  <p className="text-[var(--text-main)]/40 text-sm leading-relaxed mb-8">
-                    Voulez-vous vraiment supprimer la catégorie <span className="text-[var(--text-main)] font-bold">"{catToDelete}"</span> ? Cette action est irréversible.
-                  </p>
-                  
-                  <div className="flex gap-3 w-full">
-                    <button 
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="flex-1 px-6 py-3 rounded-xl bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[var(--text-main)] text-xs font-black uppercase transition-all"
-                    >
-                      Annuler
-                    </button>
-                    <button 
-                      onClick={confirmDeletecat} // <--- Appel de la fonction de suppression réelle
-                      className="flex-1 px-6 py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-[var(--text-main)] text-xs font-black uppercase transition-all"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <FenetreSuppressionSelection catToDelete={catToDelete} confirmDeletecat={confirmDeletecat} setShowDeleteConfirm={setShowDeleteConfirm} />
           )}
 
 
 
           {/* MODALE DE CONFIRMATION DE SUPPRESSION */}
 {budgetToDelete && (
-  <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4">
-    {/* Overlay sombre et flou */}
-    <div 
-      className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
-      onClick={() => setBudgetToDelete(null)}
-    />
-    
-    {/* Contenu de la modale */}
-    <div className="relative bg-[var(--surface)] border border-white/10 p-6 rounded-[calc(var(--radius)*1.333)] shadow-2xl max-w-xs w-full animate-in zoom-in-95 duration-200">
-      <div className="flex flex-col items-center text-center gap-4">
-        <div className="w-12 h-12 bg-rose-500/10 rounded-2xl flex items-center justify-center">
-          <Trash2 size={24} className="text-rose-500" />
-        </div>
-        
-        <div>
-          <h3 className="text-[var(--text-main)] text-sm font-black uppercase tracking-widest">Supprimer le budget ?</h3>
-          <p className="text-[10px] text-[var(--text-main)]/40 font-bold uppercase mt-2 px-4">
-            Voulez-vous vraiment retirer le budget <span className="text-rose-400">"{budgetToDelete?.nom}"</span> ?
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 w-full mt-2">
-          <button 
-            onClick={() => setBudgetToDelete(null)}
-            className="py-3 bg-[var(--glass-bg)] hover:bg-[var(--glass-bg)] text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all"
-          >
-            Annuler
-          </button>
-          <button 
-            onClick={executeDeleteBudget}
-            className="py-3 bg-rose-500 hover:bg-rose-600 text-[var(--text-main)] text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg shadow-rose-500/20"
-          >
-            Supprimer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <FenetreSuppressionBudget budgetToDelete={budgetToDelete} executeDeleteBudget={executeDeleteBudget} setBudgetToDelete={setBudgetToDelete} />
 )}
 
 
 {selectedIds2.length > 0 && (
-  <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] transition-all duration-500 ease-out animate-in fade-in slide-in-from-bottom-10">
-    <div className="bg-[var(--surface)]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 px-6 py-3 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-6">
-      
-      {/* Compteur */}
-      <div className="flex items-center gap-3 border-r border-white/10 pr-6">
-        <div className="relative">
-          <div className="absolute inset-0 bg-emerald-500 blur-sm opacity-50"></div>
-          <span className="relative flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500 text-[10px] font-black text-[var(--text-main)]">
-            {selectedIds2.length}
-          </span>
-        </div>
-        <span className="text-[10px] font-black text-[var(--text-main)]/70 uppercase tracking-[0.2em]">Prévisions</span>
-      </div>
-
-      {/* Boutons d'action */}
-      <div className="flex items-center gap-3">
-        <button 
-          onClick={handleDeleteSelected2}
-          className="flex items-center gap-2 px-5 py-2.5 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-[var(--text-main)] rounded-xl transition-all text-[10px] font-black uppercase tracking-widest group shadow-lg shadow-rose-500/10"
-        >
-          <Trash2 size={14} className="group-hover:rotate-12 transition-transform" />
-          Supprimer
-        </button>
-        
-        <button 
-          onClick={() => setSelectedIds2([])}
-          className="px-4 py-2.5 text-[var(--text-main)]/40 hover:text-[var(--text-main)] transition-colors text-[10px] font-black uppercase tracking-widest"
-        >
-          Annuler
-        </button>
-      </div>
-    </div>
-  </div>
+  <BarreActionsPrevisions handleDeleteSelected2={handleDeleteSelected2} selectedIds2={selectedIds2} setSelectedIds2={setSelectedIds2} />
 )}
 
 
 
 {/* --- MODAL DE CONFIRMATION PERSONNALISÉ --- */}
 {deleteModal3.show && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    {/* Overlay flou */}
-    <div 
-      className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
-      onClick={() => setDeleteModal3({ show: false, projetNom: null })}
-    />
-    
-    {/* Contenu du Modal */}
-    <div className="relative bg-[var(--surface)] border border-white/10 p-8 rounded-[calc(var(--radius)*1.333)] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
-      <div className="flex flex-col items-center text-center">
-        <div className="p-4 bg-rose-500/10 rounded-full text-rose-500 mb-4">
-          <Trash2 size={32} />
-        </div>
-        
-        <h3 className="text-[var(--text-main)] font-black text-xl uppercase tracking-tighter mb-2">
-          Supprimer l'enveloppe ?
-        </h3>
-        
-        <p className="text-[var(--text-main)]/40 text-xs leading-relaxed mb-8">
-          Êtes-vous sûr de vouloir supprimer <span className="text-[var(--text-main)] font-bold">"{deleteModal3.projetNom}"</span> ? 
-          Cette action est irréversible et libérera les fonds dans votre solde global.
-        </p>
-
-        <div className="grid grid-cols-2 gap-3 w-full">
-          <button 
-            onClick={() => setDeleteModal3({ show: false, projetNom: null })}
-            className="py-3 rounded-xl bg-[var(--glass-bg)] text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest hover:bg-[var(--glass-bg)] transition-all"
-          >
-            Annuler
-          </button>
-          <button 
-            onClick={async () => {
-              await api.delete(`/delete-enveloppe/${deleteModal3.projetNom}?profil=${filters.profil}`);
-              fetchAllocations();
-              setDeleteModal3({ show: false, projetNom: null });
-            }}
-            className="py-3 rounded-xl bg-rose-500 text-[var(--text-main)] text-[10px] font-black uppercase tracking-widest hover:bg-rose-600 shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all"
-          >
-            Supprimer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <FenetreSuppressionPrevisions deleteModal3={deleteModal3} fetchAllocations={fetchAllocations} filters={filters} setDeleteModal3={setDeleteModal3} />
 )}
 
 
 
 {assistantData.open && (
-  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-    {/* Overlay flouté */}
-    <div className="absolute inset-0 bg-black/40 backdrop-blur-[var(--glass-blur)]" onClick={() => setAssistantData({ ...assistantData, open: false })} />
-    
-    {/* Fenêtre Modale */}
-    <div className="relative w-full max-w-md bg-[var(--surface)]/90 border border-white/20 rounded-[calc(var(--radius)*1.333)] p-8 shadow-2xl backdrop-blur-[var(--glass-blur)] animate-in zoom-in-95 duration-200">
-      <div className="flex flex-col gap-6">
-        <div className="space-y-2">
-          <h3 className="text-white font-black text-xl uppercase tracking-tighter">Assistant de Solde</h3>
-          <p className="text-white/40 text-xs font-medium leading-relaxed">
-            Importez quelques transactions, Saisissez le solde actuel de votre compte <span className="text-white">"{assistantData.compte?.compte}"</span> tel qu'il apparaît sur votre banque. L'app calculera le solde initial nécessaire.
-          </p>
-        </div>
-
-        <div className="relative">
-          <input
-            autoFocus
-            type="text"
-            className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-2xl py-4 px-6 text-2xl font-black text-white outline-none focus:border-[var(--primary)] transition-colors"
-            placeholder="0,00"
-            value={assistantData.valeur}
-            onChange={(e) => setAssistantData({ ...assistantData, valeur: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && confirmerCalculAssistant()}
-          />
-          <span className="absolute right-6 top-1/2 -translate-y-1/2 text-white/20 font-black text-xl">€</span>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={() => setAssistantData({ open: false, compte: null, valeur: "" })}
-            className="flex-1 py-4 rounded-2xl bg-[var(--glass-bg)] text-white/60 font-bold hover:bg-[var(--glass-bg)] transition-all uppercase text-xs tracking-widest"
-          >
-            Annuler
-          </button>
-          <button
-            onClick={confirmerCalculAssistant}
-            className="flex-[2] py-4 rounded-2xl bg-white text-black font-black hover:scale-[1.02] active:scale-95 transition-all uppercase text-xs tracking-widest shadow-xl shadow-white/10"
-          >
-            Calculer & Appliquer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <AssistantSolde assistantData={assistantData} confirmerCalculAssistant={confirmerCalculAssistant} setAssistantData={setAssistantData} />
 )}
 
 
 
 {/* --- MODAL DE CONFIRMATION DE DUPLICATION PERSONNALISÉ --- */}
 {duplicateModal.show && (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    {/* Overlay flou */}
-    <div 
-      className="absolute inset-0 bg-black/60 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300"
-      onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })}
-    />
-    
-    {/* Contenu du Modal */}
-    <div className="relative bg-[var(--surface)] border border-white/10 p-8 rounded-[calc(var(--radius)*1.333)] w-full max-w-sm shadow-2xl animate-in zoom-in-95 duration-200">
-      <div className="flex flex-col items-center text-center">
-        {/* Badge Icône Émeraude */}
-        <div className="p-4 bg-emerald-500/10 rounded-full text-emerald-400 mb-4 animate-pulse">
-          {/* Remplace Copy par RefreshCw ou l'icône de ton choix si nécessaire */}
-          <Copy size={32} />
-        </div>
-        
-        <h3 className="text-[var(--text-main)] font-black text-xl uppercase tracking-tighter mb-2精确">
-          Dupliquer les prévisions ?
-        </h3>
-        
-        <p className="text-[var(--text-main)]/40 text-xs leading-relaxed mb-8">
-          Êtes-vous sûr de vouloir copier les <span className="text-emerald-400 font-black">{duplicateModal.count}</span> prévisions {duplicateModal.isSelection ? 'sélectionnées' : 'de ce mois'} vers le mois prochain ? 
-          <br />
-          <span className="opacity-60 text-[10px]">Les montants, catégories et comptes associés seront conservés à l'identique.</span>
-        </p>
-
-        <div className="grid grid-cols-2 gap-3 w-full">
-          <button 
-            onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })}
-            className="py-3 rounded-xl bg-[var(--glass-bg)] text-[var(--text-main)]/60 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 hover:text-[var(--text-main)] transition-all cursor-pointer"
-          >
-            Annuler
-          </button>
-          
-          <button 
-            onClick={handleConfirmDuplicate}
-            className="py-3 rounded-xl bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_25px_rgba(16,185,129,0.5)] transition-all cursor-pointer"
-          >
-            Dupliquer
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
+  <FenetreDuplication duplicateModal={duplicateModal} handleConfirmDuplicate={handleConfirmDuplicate} setDuplicateModal={setDuplicateModal} />
 )}
 
 
@@ -5636,94 +5068,7 @@ if (!user) {
     🎉 NOTES DE PATCH OFFICIELLES v4.3 : DIVISION DE TRANSACTIONS
     ========================================================================= */}
 {showPatchModal && (
-  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200 select-none">
-    
-    <div className="w-full max-w-lg bg-[var(--surface)] border border-white/10 rounded-3xl p-6 sm:p-7 shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
-      
-      {/* 1. EN-TÊTE OFFICIEL DE LA MISE À JOUR */}
-      <div className="flex items-center justify-between pb-3.5 mb-4 border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-secondary-500/15 border border-secondary-500/30 flex items-center justify-center text-secondary-400 shadow-[0_0_15px_color-mix(in_srgb,var(--secondary)_20%,transparent)] shrink-0">
-            <Sparkles size={18} />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[8px] font-black text-secondary-400 uppercase tracking-widest bg-secondary-500/10 px-2 py-0.5 rounded-sm border border-secondary-500/20">
-                Notes de version
-              </span>
-              <span className="text-[9px] font-mono text-white/30 font-bold">v{CURRENT_VERSION}</span>
-            </div>
-            <h3 className="text-sm font-black text-white uppercase tracking-tight mt-0.5">
-              Nouveautés & Améliorations
-            </h3>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-3.5 mb-6 text-left">
-        
-        {/* 2. EXPLICATION DU CONTEXTE (POURQUOI CETTE MISE À JOUR ?) */}
-        <div className="space-y-1">
-          <h4 className="text-[11px] font-black uppercase text-white/90 tracking-wider">
-            Suivi budgétaire multi-catégories
-          </h4>
-          <p className="text-[11px] text-white/60 leading-relaxed font-medium">
-            Dans la vie quotidienne, un seul paiement en magasin regroupe souvent des achats de nature différente. Pour vous offrir une comptabilité ultra-précise, Kleea vous permet désormais de <strong>diviser une dépense unique en plusieurs sous-catégories</strong>.
-          </p>
-        </div>
-
-        {/* 3. EXEMPLE CONCRET D'APPLICATION */}
-        <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-          <div className="flex justify-between items-center text-[8px] font-black uppercase text-amber-300 tracking-wider">
-            <span>Exemple d'application</span>
-            <span className="text-white/40 font-mono">Paiement réel : 90,00 €</span>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10.5px] font-bold">
-            <span className="text-white/80">Carrefour (90 €)</span>
-            <span className="text-secondary-400 font-black">➔</span>
-            <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
-              <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-sm border border-emerald-500/20">60€ Alimentation</span>
-              <span className="text-secondary-300 bg-secondary-500/20 px-2 py-0.5 rounded-sm border border-secondary-500/30">30€ Maison</span>
-            </div>
-          </div>
-          
-          <p className="text-[9px] text-white/40 italic">
-            Vos soldes bancaires restent parfaitement exacts, tandis que vos graphiques et limites de budget reflètent la réalité de vos achats.
-          </p>
-        </div>
-
-        {/* 4. CE QUI CHANGE POUR VOUS (CHANGELOG) */}
-        <div className="space-y-1.5 text-[10px] text-white/70">
-          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-            <Scissors size={13} className="text-secondary-400 shrink-0" />
-            <span><strong>Outil Ciseaux :</strong> Accessible directement sur chaque ligne dans l'onglet <strong>Gérer</strong>.</span>
-          </div>
-
-          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-            <Scale size={13} className="text-emerald-400 shrink-0" />
-            <span><strong>Équilibrage automatique :</strong> Ajuste automatiquement le reste à répartir au centime près.</span>
-          </div>
-
-          <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-            <RotateCcw size={13} className="text-rose-400 shrink-0" />
-            <span><strong>Annulation en 1 clic :</strong> Cliquez sur le badge violet <strong>[Divisée]</strong> pour refusionner l'écriture originale.</span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* 5. BOUTON DE FERMETURE */}
-      <button
-        type="button"
-        onClick={handleClosePatchModal}
-        className="w-full py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-[10px] uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-indigo-600/25 active:scale-[0.98] transition-all cursor-pointer"
-      >
-        Découvrir la mise à jour ! 🚀
-      </button>
-
-    </div>
-  </div>
+  <NotesDeVersion CURRENT_VERSION={CURRENT_VERSION} handleClosePatchModal={handleClosePatchModal} />
 )}
 
 {/* MODALE SELECTION COMPTE POWENS */}
@@ -5750,285 +5095,24 @@ if (!user) {
           💡 MODALE UNIFIÉE DE CONFIRMATION (RECONDUCTION MENSUELLE VS ANNUELLE)
           ========================================================================= */}
       {duplicateModal.show && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
-          {/* Calque de fond cliquable pour fermer */}
-          <div className="absolute inset-0" onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} />
-
-          {/* Conteneur de la Modale - Entièrement centré et overflow-visible */}
-          <div className="relative w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-200 overflow-visible">
-            {/* En-tête de la modale */}
-            <div className="flex items-center justify-between pb-2 border-b border-white/5 mb-4">
-              <div>
-                <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest leading-none">
-                  {duplicateType === 'year' ? 'Propagation Annuelle' : 'Reconduire le mois'}
-                </h4>
-                <p className="text-[9px] text-white/30 uppercase font-bold mt-1">
-                  {duplicateType === 'year' ? 'Duplication sur les mois restants' : 'Duplication vers le mois suivant'}
-                </p>
-              </div>
-              <button 
-                onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} 
-                className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            {/* Corps de texte dynamique selon l'action demandée */}
-            <div className="space-y-3 mb-6 text-xs text-white/60 leading-relaxed select-none">
-              {duplicateType === 'year' ? (
-                <p>
-                  Voulez-vous propager ces <strong className="text-white">{selectedIds2.length} prévisions sélectionnées</strong> sur l'intégralité des mois restants de l'année <strong className="text-emerald-400">{filters.annee}</strong> (jusqu'à Décembre) ?
-                </p>
-              ) : (
-                <p>
-                  Voulez-vous reconduire {selectedIds2.length > 0 ? `les ${selectedIds2.length} prévisions sélectionnées` : "l'intégralité des prévisions de ce mois"} vers le mois suivant ?
-                </p>
-              )}
-              <p className="text-[10px] text-white/30 italic">
-                Cette action va cloner et adapter automatiquement les dates d'échéance des mouvements correspondants.
-              </p>
-            </div>
-
-            {/* Actions de validation */}
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => setDuplicateModal({ show: false, count: 0, isSelection: false })} 
-                className="py-2.5 rounded-xl bg-white/5 text-[10px] font-black uppercase tracking-widest text-white/60"
-              >
-                Annuler
-              </button>
-              <button 
-                onClick={() => {
-                  if (duplicateType === 'year') {
-                    confirmPropagateToYear(); // ⚡ Appelle la propagation sur le reste de l'année
-                  } else {
-                    handleConfirmDuplicate(); // 💡 Appelle votre vraie fonction d'origine
-                  }
-                  setDuplicateModal({ show: false, count: 0, isSelection: false });
-                }} 
-                className="py-2.5 rounded-xl bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[var(--primary)]/15 cursor-pointer"
-              >
-                Confirmer
-              </button>
-            </div>
-          </div>
-        </div>
+        <FenetreReconduction confirmPropagateToYear={confirmPropagateToYear} duplicateType={duplicateType} filters={filters} handleConfirmDuplicate={handleConfirmDuplicate} selectedIds2={selectedIds2} setDuplicateModal={setDuplicateModal} />
       )}
 
 
 {showOnboarding && toutesLesTransactions.length === 0 && (
-  <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)]">
-    <div className="bg-[var(--surface)] border border-white/10 rounded-[calc(var(--radius)*1.667)] p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-6 text-center">
-      
-      {/* Icône d'en-tête */}
-      <div className="w-16 h-16 bg-[var(--secondary)]/10 text-[var(--secondary)] border border-[var(--secondary)]/20 rounded-full flex items-center justify-center mx-auto shadow-[0_0_25px_color-mix(in_srgb,var(--secondary)_15%,transparent)]">
-        <Sparkles size={28} className="animate-pulse" />
-      </div>
-
-      <div>
-        <h2 className="text-xl font-black uppercase tracking-wider text-white">Bienvenue sur Kleea</h2>
-        <p className="text-[10px] text-white/40 uppercase tracking-widest mt-1">Configurez votre espace de gestion</p>
-      </div>
-      
-      <p className="text-xs text-white/60 leading-relaxed">
-        Comment souhaitez-vous gérer l'arrivée de vos transactions ? Vous pourrez modifier ce choix à tout moment dans votre profil.
-      </p>
-
-      <div className="grid grid-cols-1 gap-3 pt-1">
-        
-        {/* OPTION 1 : SYNCHRONISATION AUTOMATIQUE */}
-        <button
-          type="button"
-          onClick={() => handleChooseMode('auto')}
-          className="p-4 bg-[var(--primary)] hover:opacity-95 text-white rounded-2xl flex flex-col items-center gap-1.5 transition-all group cursor-pointer shadow-lg shadow-[var(--primary)]/20 active:scale-[0.98]"
-        >
-          <span className="text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
-            <Zap size={14} className="shrink-0 fill-current text-amber-300" />
-            <span>Synchronisation Automatique</span>
-          </span>
-          <span className="text-[10px] opacity-80 text-center leading-relaxed font-medium">
-            Connexion bancaire avec mise à jour continue en arrière-plan (zéro action requise)
-          </span>
-        </button>
-
-        {/* OPTION 2 : MODE MANUEL (CONTRÔLE TOTAL) */}
-        <button
-          type="button"
-          onClick={() => handleChooseMode('manual')}
-          className="p-4 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-2xl flex flex-col items-center gap-1.5 transition-all cursor-pointer active:scale-[0.98] group"
-        >
-          <span className="text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 text-white/90">
-            <FileUp size={14} className="shrink-0 text-white/60 group-hover:text-white transition-colors" />
-            <span>Mode Manuel (Contrôle total)</span>
-          </span>
-          <span className="text-[10px] text-white/50 group-hover:text-white/70 text-center leading-relaxed font-medium transition-colors">
-            Vous décidez vous-même quand importer vos transactions : par <strong className="text-white">fichiers CSV</strong> ou en reliant <strong className="text-white">vos comptes bancaires réels</strong>
-          </span>
-        </button>
-
-      </div>
-    </div>
-  </div>
+  <FenetreBienvenue handleChooseMode={handleChooseMode} />
 )}
 
 {/* MODALE DE MODIFICATION D'UNE CATÉGORIE (ICÔNE & COULEUR) */}
 {editingCat && (
-  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-    <div className="absolute inset-0 bg-black/70 backdrop-blur-[var(--glass-blur)]" onClick={() => setEditingCat(null)} />
-    
-    <div className="relative w-full max-w-sm bg-[var(--surface)] border border-white/10 rounded-3xl p-6 shadow-2xl z-10 animate-in zoom-in-95 duration-200">
-      <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-5">
-        <div>
-          <h4 className="text-xs font-black uppercase text-secondary-400 tracking-widest">
-            Personnaliser la catégorie
-          </h4>
-          <p className="text-[10px] text-white/60 font-bold uppercase mt-0.5">
-            {editingCat.nom}
-          </p>
-        </div>
-        <button onClick={() => setEditingCat(null)} className="text-white/40 hover:text-white p-1">
-          <X size={16} />
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        {/* Prévisualisation */}
-        {/* Prévisualisation dans la modale d'édition */}
-          <div className="flex items-center justify-center p-6 bg-white/[0.02] border border-white/5 rounded-2xl">
-            <CategoryIcon 
-              name={editingCat.icone} 
-              size={36} 
-              color={editingCat.couleur} // 👈 Applique immédiatement la couleur choisie dans le SketchPicker
-            />
-          </div>
-
-        {/* Sélection Icône & Couleur */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Bouton Choix d'icône */}
-          <div className="relative">
-            <button 
-              type="button"
-              onClick={() => setShowEditIconPicker(!showEditIconPicker)}
-              className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <Tag size={14} />
-              <span>Changer d'icône</span>
-            </button>
-
-            {showEditIconPicker && (
-              <LucideIconPicker 
-                selectedIcon={editingCat.icone}
-                onSelectIcon={(icon) => {
-                  setEditingCat({ ...editingCat, icone: icon });
-                  setShowEditIconPicker(false);
-                }}
-                onClose={() => setShowEditIconPicker(false)}
-              />
-            )}
-          </div>
-
-          {/* Bouton Choix de couleur */}
-          <div className="relative">
-            <button 
-              type="button"
-              onClick={() => setShowEditColorPicker(!showEditColorPicker)}
-              className="w-full py-2.5 px-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-bold uppercase text-white flex items-center justify-center gap-2 transition-all cursor-pointer"
-            >
-              <div className="w-3.5 h-3.5 rounded-full border border-white/40" style={{ backgroundColor: editingCat.couleur }} />
-              <span>Couleur</span>
-            </button>
-
-            {showEditColorPicker && (
-              <div className="absolute z-[120] bottom-full mb-2 right-0 animate-in zoom-in-95 duration-150">
-                <div className="fixed inset-0" onClick={() => setShowEditColorPicker(false)} />
-                <div className="relative border border-white/20 rounded-2xl overflow-hidden shadow-2xl">
-                  <SketchPicker 
-                    color={editingCat.couleur} 
-                    onChange={(c) => setEditingCat({ ...editingCat, couleur: c.hex })} 
-                    disableAlpha 
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Bouton Valider */}
-        <button 
-          onClick={() => handleUpdateCategory(editingCat.nom, editingCat.icone, editingCat.couleur)}
-          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-black text-[10px] uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 cursor-pointer mt-2"
-        >
-          Enregistrer les modifications
-        </button>
-      </div>
-    </div>
-  </div>
+  <FenetreModifCategorie editingCat={editingCat} handleUpdateCategory={handleUpdateCategory} setEditingCat={setEditingCat} setShowEditColorPicker={setShowEditColorPicker} setShowEditIconPicker={setShowEditIconPicker} showEditColorPicker={showEditColorPicker} showEditIconPicker={showEditIconPicker} />
 )}
 
 {/* =========================================================================
     🎉 MODALE DE CÉLÉBRATION : PREMIER IMPORT AUTOMATIQUE RÉUSSI
     ========================================================================= */}
 {celebrationModal.show && (
-  <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300">
-    <div 
-      className="absolute inset-0" 
-      onClick={() => setCelebrationModal({ show: false, accountName: '', count: 0 })} 
-    />
-
-    <div className="relative w-full max-w-md bg-[var(--surface)] border border-emerald-500/30 rounded-3xl p-8 shadow-[0_20px_70px_rgba(16,185,129,0.25)] z-10 animate-in zoom-in-95 duration-300 text-center overflow-hidden">
-      
-      {/* Effets de halo néon */}
-      <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/20 blur-[50px] rounded-full pointer-events-none" />
-      <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-indigo-500/20 blur-[50px] rounded-full pointer-events-none" />
-
-      {/* Icône festive */}
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto mb-5 shadow-[0_0_25px_rgba(52,211,153,0.3)]">
-        <span className="text-3xl animate-bounce">⚡</span>
-      </div>
-
-      {/* Titres */}
-      <span className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-full text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400 inline-block mb-3">
-        Synchronisation Réussie
-      </span>
-      
-      <h3 className="text-xl font-black text-white uppercase tracking-tight mb-2">
-        Compte lié avec succès !
-      </h3>
-
-      <p className="text-xs text-white/70 leading-relaxed mb-6">
-        Votre compte <strong className="text-emerald-400">"{celebrationModal.accountName}"</strong> est désormais Connecté. Toutes vos Transactions sont importées et votre solde initial est automatiquement calibré !
-      </p>
-
-      {/* 3 points forts clés */}
-      <div className="grid grid-cols-3 gap-2 p-3 bg-black/40 rounded-2xl border border-white/5 mb-6 text-left">
-        <div className="flex flex-col">
-          <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Statut</span>
-          <span className="text-[10px] font-black text-emerald-400 uppercase mt-0.5">En direct</span>
-        </div>
-        <div className="flex flex-col border-x border-white/5 px-2">
-          <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Solde initial</span>
-          <span className="text-[10px] font-black text-white uppercase mt-0.5">Calibré ⚖️</span>
-        </div>
-        <div className="flex flex-col pl-1">
-          <span className="text-[8px] font-bold uppercase text-white/30 tracking-wider">Virements</span>
-          <span className="text-[10px] font-black text-secondary-300 uppercase mt-0.5">Auto-classés</span>
-        </div>
-      </div>
-
-      {/* Bouton d'action */}
-      <button
-        onClick={() => {
-          setCelebrationModal({ show: false, accountName: '', count: 0 });
-          setActiveTab('dashboard'); // Redirige directement vers le tableau de bord pour admirer le résultat
-        }}
-        className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-[10px] uppercase tracking-[0.2em] rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all cursor-pointer"
-      >
-        Voir mon tableau de bord 🚀
-      </button>
-
-    </div>
-  </div>
+  <FenetreCelebration celebrationModal={celebrationModal} setActiveTab={setActiveTab} setCelebrationModal={setCelebrationModal} />
 )}
 
 
@@ -6036,49 +5120,7 @@ if (!user) {
           🔒 MODALE JOUR J : RECONNEXION BANCAIRE DSP2 REQUISE
           ========================================================================= */}
       {scaExpiredConnection && (
-        <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-300 select-none">
-          <div 
-            className="relative w-full max-w-md bg-[var(--surface)] border border-rose-500/30 rounded-3xl p-6 sm:p-7 shadow-[0_20px_70px_rgba(244,63,94,0.2)] text-center space-y-5 animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-14 h-14 bg-rose-500/15 border border-rose-500/30 text-rose-400 rounded-2xl flex items-center justify-center mx-auto shadow-[0_0_20px_rgba(244,63,94,0.25)]">
-              <ShieldAlert size={28} className="animate-pulse" />
-            </div>
-
-            <div className="space-y-1">
-              <span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 text-[8px] font-black uppercase tracking-widest border border-rose-500/30 inline-block mb-1">
-                Sécurité bancaire DSP2
-              </span>
-              <h3 className="text-base font-black text-white uppercase tracking-tight">
-                Reconnexion requise : {scaExpiredConnection.connector_name}
-              </h3>
-              <p className="text-xs text-white/60 leading-relaxed font-medium pt-1">
-                La réglementation européenne exige de renouveler l'authentification de votre compte tous les 180 jours. La synchronisation automatique est suspendue jusqu'à la validation.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  sessionStorage.setItem(`sca_dismissed_${scaExpiredConnection.id}`, 'true');
-                  setScaExpiredConnection(null);
-                }}
-                className="py-3 rounded-xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white text-[9.5px] font-black uppercase tracking-wider transition-all cursor-pointer"
-              >
-                Plus tard
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => handleConnectNewBank(scaExpiredConnection.id)}
-                className="py-3 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-[9.5px] font-black uppercase tracking-wider shadow-lg shadow-rose-500/30 transition-all active:scale-95 cursor-pointer"
-              >
-                Reconnecter ma banque
-              </button>
-            </div>
-          </div>
-        </div>
+        <FenetreReauthentification handleConnectNewBank={handleConnectNewBank} scaExpiredConnection={scaExpiredConnection} setScaExpiredConnection={setScaExpiredConnection} />
       )}
 
 <style dangerouslySetInnerHTML={{__html: `
