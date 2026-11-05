@@ -115,6 +115,26 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.post("/api/streamdeck/token").status_code, 200)
         self.assertTrue(self.client.get("/api/streamdeck/token").json()["active"])
 
+    def test_modifier_une_depense_par_le_lien_de_partage(self):
+        with self.engine.begin() as conn:
+            for token, libelle in (("jeton-a", "A"), ("jeton-b", "B")):
+                conn.execute(text("""
+                    INSERT INTO tricount (date, libelle, paye_par, pour_qui, montant, groupe, utilisateur, token_partage)
+                    VALUES ('2026-11-02', :l, 'Aude', 'Aude:10,Theo:20', 30, 'Vacances', 'theo', :t)
+                """), {"l": libelle, "t": token})
+            id_a, id_b = [r[0] for r in conn.execute(text("SELECT id FROM tricount ORDER BY libelle"))]
+        corps = {"id": id_a, "date": "2026-11-03", "libelle": "Train", "paye_par": "Theo", "pour_qui": "Aude:10,Theo:25.5", "montant": 35.5}
+
+        reponse = self.client.put("/update-shared-transaction/jeton-a", json=corps)
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        with self.engine.connect() as conn:
+            ligne = conn.execute(text("SELECT libelle, paye_par, pour_qui, montant FROM tricount WHERE id = :i"), {"i": id_a}).one()
+        self.assertEqual(tuple(ligne), ("Train", "Theo", "Aude:10,Theo:25.5", 35.5))
+
+        # Un lien ne donne accès qu'aux dépenses de son propre groupe partagé.
+        refus = self.client.put("/update-shared-transaction/jeton-a", json={**corps, "id": id_b})
+        self.assertEqual(refus.status_code, 403)
+
 
 class GardeFou(unittest.TestCase):
     def test_une_base_distante_est_refusee(self):

@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appliquerMontantIndividuel } from './tricountPartage.js';
+import { appliquerMontantIndividuel, preparerEdition, repartirEquitablement, totalDesPartsCentimes } from './tricountPartage.js';
 
 const depense = { id: 1, libelle: 'Courses', montant: 30, details_montants: { Aude: 10, Theo: 20 } };
+const MEMBRES = ['Aude', 'Theo', 'Zoe'];
 
 test('la part change et le montant devient la somme des parts', () => {
   const resultat = appliquerMontantIndividuel(depense, 'Theo', '25');
@@ -29,4 +30,28 @@ test('la dépense de départ n’est pas modifiée', () => {
 
 test('une dépense sans parts accepte une première part', () => {
   assert.deepEqual(appliquerMontantIndividuel({}, 'Aude', '5').details_montants, { Aude: 5 });
+});
+
+test('le partage égal garde une somme exacte', () => {
+  assert.deepEqual(repartirEquitablement(10, MEMBRES), { Aude: 3.34, Theo: 3.33, Zoe: 3.33 });
+  const sept = repartirEquitablement(100, ['a', 'b', 'c', 'd', 'e', 'f', 'g']);
+  assert.equal(totalDesPartsCentimes(sept), 10000);
+});
+
+test('l’édition lit le format de l’API', () => {
+  const edition = preparerEdition({ id: 3, libelle: 'Train', paye_par: 'Aude', montant: '30', date: '2026-11-02T00:00:00', pour_qui: 'Aude:10,Theo:20' }, MEMBRES);
+  assert.equal(edition.libellé, 'Train');
+  assert.equal(edition.payé_par, 'Aude');
+  assert.equal(edition.date, '2026-11-02');
+  assert.equal(edition.montant, 30);
+  assert.deepEqual(edition.details_montants, { Aude: 10, Theo: 20, Zoe: 0 });
+});
+
+test('« Tous » partage entre tous les membres', () => {
+  assert.deepEqual(preparerEdition({ montant: 9, pour_qui: 'Tous' }, MEMBRES).details_montants, { Aude: 3, Theo: 3, Zoe: 3 });
+  assert.deepEqual(preparerEdition({ montant: 9 }, MEMBRES).details_montants, { Aude: 3, Theo: 3, Zoe: 3 });
+});
+
+test('une liste de noms partage entre ces seules personnes', () => {
+  assert.deepEqual(preparerEdition({ montant: 10, pour_qui: 'Aude, Zoe' }, MEMBRES).details_montants, { Aude: 5, Theo: 0, Zoe: 5 });
 });
