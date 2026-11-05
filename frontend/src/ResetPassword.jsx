@@ -28,7 +28,7 @@ const ResetPassword = () => {
             
             setMessage({ type: 'success', text: 'Mot de passe mis à jour ! Redirection...' });
             setTimeout(() => navigate('/'), 3000);
-        } catch (err) {
+        } catch  {
             setMessage({ type: 'error', text: 'Lien invalide ou expiré.' });
         }
     };

@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 
 // Import de fichiers et connexion bancaire Powens.
 export default function useConnexionBancaire({ activeTab, comptes, fetchCategoriesConfig, fetchComptes, fetchTransactions, importCompte, importMode, selectedCompte, setActiveTab, setCelebrationModal, setImportMode, setOnboardingDismissed, setShowOnboarding, setTempTransactions, toutesLesTransactions, transactionsCalculees, user }) {
-  const [fileName, setFileName] = useState("");
+  const [, setFileName] = useState("");
 
 
   // 🟢 ENVOI EXCLUSIF DES NOUVELLES TRANSACTIONS
@@ -48,7 +48,7 @@ export default function useConnexionBancaire({ activeTab, comptes, fetchCategori
   // En haut de votre composant FinanceApp / Login :
   const [isManualSyncing, setIsManualSyncing] = useState(false);
   // Remplace ou ajoute cet état en haut de ton composant
-  const [isSyncingData, setIsSyncingData] = useState(false);
+  const [isSyncingData] = useState(false);
   // 2. État pour stocker la liste des connexions et comptes
   const [powensData, setPowensData] = useState({
     connections_count: 0,
@@ -227,7 +227,7 @@ export default function useConnexionBancaire({ activeTab, comptes, fetchCategori
           window.location.href = resUrl.data.url;
           return;
         }
-      } catch (error) {
+      } catch  {
         toast.error("Erreur lors de la génération de l'URL bancaire.");
         
       } finally {

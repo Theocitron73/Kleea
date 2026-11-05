@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 export default function ProfileTab({ 
   user, powensData, comptes, syncCountByAccount = {}, 
   handleAssociateAccount, setActiveTab, importMode, setImportMode, 
-  onAutoSync, fetchPowensConnections, fetchComptes, handleConnectNewBank 
+  onAutoSync, fetchPowensConnections, fetchComptes 
 }) {
   const [profileData, setProfileData] = useState(null);
   const [transactionCount, setTransactionCount] = useState(0);
@@ -84,7 +84,7 @@ export default function ProfileTab({
       setProfileData(prev => ({ ...prev, name: editName, email: editEmail }));
       setIsEditing(false);
       toast.success("Profil mis à jour avec succès ! ✨");
-    } catch (err) {
+    } catch  {
       toast.error("Impossible de mettre à jour vos informations.");
     } finally {
       setEditLoading(false);
@@ -102,7 +102,7 @@ export default function ProfileTab({
       toast.success("Mot de passe modifié avec succès ! 🔒");
       setNewPassword('');
       setShowPasswordForm(false);
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la modification du mot de passe.");
     } finally {
       setPasswordLoading(false);
@@ -117,7 +117,7 @@ export default function ProfileTab({
       toast.success("Compte supprimé définitivement.");
       localStorage.clear(); 
       window.location.reload(); 
-    } catch (err) {
+    } catch  {
       toast.error("Une erreur est survenue lors de la suppression.");
       setDeleteLoading(false);
     }
@@ -152,7 +152,7 @@ export default function ProfileTab({
       if (typeof fetchPowensConnections === 'function') await fetchPowensConnections();
       toast.success("Banques déconnectées et accès Powens révoqué avec succès !");
       setShowDisconnectConfirm(false);
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la déconnexion des banques.");
     } finally {
       setDisconnectLoading(false);
@@ -173,7 +173,7 @@ export default function ProfileTab({
         const resUrl = await api.get(urlEndpoint);
         const url = resUrl.data?.url || resUrl.data?.redirect_url;
         if (url) window.location.href = url;
-      } catch (err) {
+      } catch  {
         toast.error("Erreur lors de la génération du lien bancaire.");
       } finally {
         setConnectLoading(false);

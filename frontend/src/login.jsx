@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
  // <-- Ajoute cette ligne tout en haut du fichier
 
-import { SketchPicker } from 'react-color'; // À mettre en haut de ton fichier
-import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2, Palette, LogOut, X, Trash2, TrendingUp, Tag, ChevronRight, Sparkles, FileText, CalendarDays, Copy, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Truck, ShieldAlert, Scissors, Scale, RotateCcw } from 'lucide-react';
+ // À mettre en haut de ton fichier
+import { LayoutDashboard, ChartCandlestick, Settings2, FileUp, Wallet, Users2, Palette, TrendingUp, FileText, CalendarDays, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Truck } from 'lucide-react';
 import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import "react-datepicker/dist/react-datepicker.css";
 import { registerLocale } from  "react-datepicker";
 import fr from 'date-fns/locale/fr';
@@ -12,7 +12,7 @@ registerLocale('fr', fr); // Pour avoir le calendrier en français
  // À ajouter en haut de ton fichier
 import api from './axios';
 import GuideView from './GuideView';
-import { CategoryIcon, getCleanCategoryName, LucideIconPicker, setGlobalCustomIconsMap } from './categoryIcons'; // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
+ // Fonction pour générer des variations HSL à partir d'un HEX (percent: 0 à 100)
 import CustomSelect from './components/CustomSelect';
 import ProfileTab from './views/ProfileTab';
 import TricountManager from './views/TricountManager';
@@ -22,23 +22,12 @@ import AuthView from './views/AuthView';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
 import { themeBackground } from './utils/gradient';
-import {
-  anneeTransaction,
-  appliquerMouvement,
-  calculerSoldes,
-  creerLecteurMouvements,
-  estTransfertInterne,
-  nettoyerMois,
-  totauxRevenusDepenses,
-  trouverCompteCible,
-} from './utils/finance';
+import { estTransfertInterne } from './utils/finance';
 import ImportView from './views/ImportView';
 import GererView from './views/GererView';
 import PrevisionsView from './views/PrevisionsView';
 import DashboardView from './views/DashboardView';
 import { toast } from 'sonner'
-import { getTodayLocalDateString } from './utils/dateUtils';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import ExportModal from './components/ExportModal';
 import LandingPage from './views/LandingPage';
 import DelayedDashboardLoader from './components/DelayedDashboardLoader';
@@ -177,7 +166,7 @@ const moisListe = [
   const [user, setUser] = useState(localStorage.getItem('user'));
   const [authViewMode, setAuthViewMode] = useState(null); // null = Landing Page, 'login' ou 'register' = Formulaire
   const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'user'); // 👈 Nouvel état
-  const [loginName, setLoginName] = useState('')
+  const [, setLoginName] = useState('')
   const [comptes, setComptes] = useState([]);
 
   // 🟢 Helper pour trouver le compte par défaut (CCP en priorité, sinon 1er compte)
@@ -536,7 +525,7 @@ const handleAddCompte = async (e) => {
       await fetchComptes();   
       await fetchCategories(); 
     }
-  } catch (err) {
+  } catch  {
     toast.error("Erreur lors de l'ajout du compte.");
   }
 };
@@ -588,7 +577,7 @@ const fetchTransactions = async () => {
 
 
 
-const [loginPassword, setLoginPassword] = useState(''); // Ajoute cette ligne
+const [, setLoginPassword] = useState(''); // Ajoute cette ligne
 
 
 
@@ -736,7 +725,7 @@ const menuItems = [
 const [hiddenPages, setHiddenPages] = useState(() => {
   try {
     return JSON.parse(localStorage.getItem('hidden_menu_pages') || '[]');
-  } catch (e) {
+  } catch  {
     return [];
   }
 });
@@ -857,7 +846,7 @@ const [deleteModal3, setDeleteModal3] = useState({ show: false, projetNom: null 
 
 
 
-const [note, setNote] = useState(""); // Initialise avec une chaîne vide
+const [, setNote] = useState(""); // Initialise avec une chaîne vide
 
 
 
@@ -920,16 +909,6 @@ const statsAnnuellesCategories = useMemo(() => {
 }, [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
 // On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
 
-// 🟢 Référence du conteneur de défilement du tableau
-  const tableContainerRef = useRef(null);
-
-  // 🟢 Virtualiseur de lignes de transactions Desktop
-  const rowVirtualizer = useVirtualizer({
-    count: transactionsFiltrees.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 54, // Hauteur moyenne d'une ligne en pixels
-    overscan: 10,           // Pré-rend 10 lignes en avance pour un scroll 100% fluide
-  });
 
 
 const [assistantData, setAssistantData] = useState({ open: false, compte: null, valeur: "" });
@@ -965,7 +944,7 @@ const confirmerCalculAssistant = async () => {
     setAssistantData({ open: false, compte: null, valeur: "" });
     
     
-  } catch (err) {
+  } catch  {
     toast.error("Erreur lors de la sauvegarde");
   }
 };
@@ -1532,7 +1511,7 @@ if (!user) {
           </button>
           
           <AuthView 
-            onLoginSuccess={(token, loggedUser, role) => {
+            onLoginSuccess={(token, loggedUser) => {
               setUser(loggedUser);
             }} 
             userTheme={userTheme} 

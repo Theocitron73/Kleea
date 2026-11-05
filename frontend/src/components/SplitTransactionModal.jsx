@@ -10,7 +10,6 @@ export default function SplitTransactionModal({
   onClose,
   transaction,
   categoriesVisibles = [],
-  allocations = [],
   onSuccess
 }) {
   const [loading, setLoading] = useState(false);
@@ -139,7 +138,7 @@ export default function SplitTransactionModal({
       await api.post(`/transactions/unsplit/${transaction.split_id}`);
       toast.success("Division annulée : écriture originale restaurée ! 🔄");
       success = true;
-    } catch (err) {
+    } catch  {
       toast.error("Impossible d'annuler la Division.");
       setLoading(false);
       return;

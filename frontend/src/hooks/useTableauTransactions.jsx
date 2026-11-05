@@ -55,25 +55,7 @@ export default function useTableauTransactions({ cleanMonth, comptes, fetchTrans
     });
   }, [financeData, sortConfig, selectedCompte]);
 
-  // 1. Filtrage des données
-  const filteredData = projets.filter(item => {
-    const matchProfil = filters.profil === 'Tous' || item.profil === filters.profil;
-    const matchMois = item.mois === filters.mois;
-    const matchAnnee = item.annee === filters.annee;
-    // Ajoute ici le filtre par compte si tu as ajouté cette colonne
-    return matchProfil && matchMois && matchAnnee;
-  });
 
-  // 2. Tri des données filtrées
-  const sortedData = [...filteredData].sort((a, b) => {
-    if (a[sortConfig.key] < b[sortConfig.key]) {
-      return sortConfig.direction === 'asc' ? -1 : 1;
-    }
-    if (a[sortConfig.key] > b[sortConfig.key]) {
-      return sortConfig.direction === 'asc' ? 1 : -1;
-    }
-    return 0;
-  });
 
 
 

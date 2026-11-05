@@ -5,11 +5,11 @@ import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 
-export default function DemenagementPage({ user, toutesLesCategories = [], comptes = [] }) {
+export default function DemenagementPage({ user, toutesLesCategories = [] }) {
   const [viewMode, setViewMode] = useState('simulator');
 
   // --- 1. ÉTATS DU SIMULATEUR ---
-  const [notesHtml, setNotesHtml] = useState('');
+  const [, setNotesHtml] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
   const [lignes, setLignes] = useState([]);
@@ -36,7 +36,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
 
   // --- 2. ÉTATS ANNONCES ---
   const [annonces, setAnnonces] = useState([]);
-  const [loadingAnnonces, setLoadingAnnonces] = useState(false);
+  const [, setLoadingAnnonces] = useState(false);
   const [isAnnonceModalOpen, setIsAnnonceModalOpen] = useState(false);
   const [scrapingUrl, setScrapingUrl] = useState('');
   const [isScraping, setIsScraping] = useState(false);
@@ -445,7 +445,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       await api.delete(`/api/simulation-demenagement/${idCle}`);
       setLignes(prev => prev.filter(l => getLigneId(l) !== idCle));
       toast.success("Ligne supprimée.");
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la suppression de la ligne.");
     }
   };
@@ -490,7 +490,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       setLignes(prev => prev.filter(l => l.scenario !== scenarioASupprimer));
       setCurrentScenario(nouveauxScenarios[0]);
       toast.success(`Scénario "${scenarioASupprimer}" supprimé.`);
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la suppression du scénario.");
     }
   };
@@ -557,7 +557,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
           toast.success("Informations de l'annonce extraites ! ✨");
         }
       }
-    } catch (err) {
+    } catch  {
       toast.warning("Lien enregistré, vous pouvez compléter les champs manuellement.");
       setAnnonceForm(prev => ({ ...prev, url: scrapingUrl }));
     } finally {
@@ -586,7 +586,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
         setPastedAdText('');
         toast.success("Texte analysé avec succès par l'IA ! 🎯");
       }
-    } catch (err) {
+    } catch  {
       toast.error("Impossible d'extraire les informations de ce texte.");
     } finally {
       setIsParsingText(false);
@@ -619,7 +619,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       setIsAnnonceModalOpen(false);
       setScrapingUrl('');
       fetchAnnonces();
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de l'enregistrement de l'annonce.");
     }
   };
@@ -630,7 +630,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
       await api.delete(`/api/demenagement/annonces/${id}`);
       setAnnonces(prev => prev.filter(a => a.id !== id));
       toast.success("Annonce supprimée.");
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la suppression.");
     }
   };
@@ -640,7 +640,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [], compt
     try {
       await api.put(`/api/demenagement/annonces/${annonce.id}`, { ...annonce, favori: updated });
       setAnnonces(prev => prev.map(a => a.id === annonce.id ? { ...a, favori: updated } : a));
-    } catch (err) {
+    } catch  {
       toast.error("Erreur favori.");
     }
   };
@@ -657,7 +657,7 @@ const handleQuickStatusChange = async (annonce, field, value) => {
       } else {
         toast.success("Statut mis à jour !");
       }
-    } catch (err) {
+    } catch  {
       toast.error("Erreur de mise à jour.");
     }
   };

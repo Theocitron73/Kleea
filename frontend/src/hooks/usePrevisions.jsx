@@ -418,7 +418,7 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   }, [previsionsFiltrees]);
 
 
-  const [moisAvecPrevisions, setMoisAvecPrevisions] = useState([]);
+  const [, setMoisAvecPrevisions] = useState([]);
 
   // On charge une fois la liste des périodes existantes en base prévisions
   const loadAvailablePreviPeriods = async () => {

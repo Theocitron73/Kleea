@@ -8,9 +8,7 @@ import { toLocalDateString } from '../utils/dateUtils';
 
 function ImportPowensModal({ 
   banqueConnectee,
-  utilisateur, 
   comptes = [], 
-  toutesLesTransactions = [], 
   syncCountByAccount = {}, // 👈 Vérification du nombre réel en attente
   onClose, 
   onSuccess 

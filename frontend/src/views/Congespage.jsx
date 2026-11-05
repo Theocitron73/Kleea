@@ -8,7 +8,7 @@ import api from '../axios';
 
 try {
   registerLocale('fr', fr);
-} catch (e) {
+} catch  {
   // Locale déjà enregistrée
 }
 
@@ -114,7 +114,7 @@ export default function CongesPage({ user }) {
   });
 
   const [conges, setConges] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   // Formulaire de saisie
   const [form, setForm] = useState({
@@ -235,7 +235,7 @@ export default function CongesPage({ user }) {
         ...profile
       });
       toast.success('Paramètres et date d\'embauche enregistrés !');
-    } catch (err) {
+    } catch  {
       toast.error('Erreur lors de la sauvegarde du profil.');
     }
   };
@@ -280,7 +280,7 @@ export default function CongesPage({ user }) {
       if (res.data?.id) {
         handleDownloadPdf(res.data.id);
       }
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de l'enregistrement de la demande.");
     }
   };
@@ -301,7 +301,7 @@ export default function CongesPage({ user }) {
       setConges(prev => prev.filter(c => c.id !== deleteModal.congeId));
       toast.success('Demande de congé supprimée avec succès.');
       setDeleteModal({ show: false, congeId: null, congeInfo: null });
-    } catch (err) {
+    } catch  {
       toast.error('Erreur lors de la suppression.');
     }
   };
@@ -318,7 +318,7 @@ export default function CongesPage({ user }) {
       link.click();
       link.remove();
       toast.success('PDF ISA Group téléchargé avec succès !');
-    } catch (err) {
+    } catch  {
       toast.error('Erreur lors de la génération du PDF.');
     }
   };

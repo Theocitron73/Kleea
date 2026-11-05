@@ -59,7 +59,7 @@ export default function ThemeStudioDesktop({
 
   // État de la bibliothèque de thèmes
   const [presets, setPresets] = useState([]);
-  const [loadingPresets, setLoadingPresets] = useState(true);
+  const [, setLoadingPresets] = useState(true);
   const [newThemeName, setNewThemeName] = useState('');
   const [savingPreset, setSavingPreset] = useState(false);
 
@@ -178,7 +178,7 @@ const handleCreatePreset = async (e) => {
       toast.success(`Thème « ${cleanNom} » sauvegardé ! 💾`);
       setNewThemeName('');
       fetchPresets();
-    } catch (err) {
+    } catch  {
       toast.error("Erreur lors de la sauvegarde du thème.");
     } finally {
       setSavingPreset(false);
@@ -192,7 +192,7 @@ const handleCreatePreset = async (e) => {
       await api.delete(`/api/themes/presets/${presetId}`);
       setPresets(prev => prev.filter(p => p.id !== presetId));
       toast.success("Thème supprimé.");
-    } catch (err) {
+    } catch  {
       toast.error("Impossible de supprimer ce thème.");
     }
   };
