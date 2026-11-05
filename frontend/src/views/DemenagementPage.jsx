@@ -1,12 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  Layers, Calculator, User, Wallet, Landmark, Tag, 
-  Plus, Calendar, Trash2, FileText, Copy, X, Check,
-  Scale, TrendingUp, TrendingDown, CheckCircle2, AlertTriangle, 
-  Sparkles, Award, ArrowRight, ShieldCheck, Home, ExternalLink,
-  Camera, Eye, Star, Clock, MapPin, ChevronLeft, ChevronRight,
-  ClipboardPaste, AlignLeft, Edit2, LayoutGrid, List, Globe
-} from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Layers, Calculator, User, Wallet, Landmark, Tag, Plus, Calendar, Trash2, FileText, Copy, X, Scale, CheckCircle2, AlertTriangle, Sparkles, Award, ArrowRight, Home, ExternalLink, Camera, Star, MapPin, ChevronLeft, ChevronRight, ClipboardPaste, AlignLeft, Edit2, LayoutGrid, List, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';

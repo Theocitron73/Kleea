@@ -1,8 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Plus, Trash2, Edit2, Smile, AlertCircle, CheckCircle, 
-  Share2, Users, Calendar, X, FileText 
-} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Edit2, AlertCircle, CheckCircle, Share2, X } from 'lucide-react';
 import DatePicker from "react-datepicker";
 import EmojiPicker, { Theme } from 'emoji-picker-react';
 import { createPortal } from 'react-dom';

@@ -20,6 +20,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 
@@ -28,7 +30,7 @@ def reponse_http(status=200, corps=None):
 
 
 def entetes(utilisateur):
-    return {"Authorization": "Bearer " + main.create_access_token(data={"sub": utilisateur})}
+    return {"Authorization": "Bearer " + aide.create_access_token(data={"sub": utilisateur})}
 
 
 class Base(unittest.TestCase):
@@ -42,11 +44,11 @@ class Base(unittest.TestCase):
             conn.execute(text("CREATE TABLE transactions (utilisateur TEXT)"))
             conn.execute(text("INSERT INTO transactions VALUES ('theo'), ('theo'), ('aude')"))
         for nom, valeur in (("engine", self.engine), ("POWENS_DOMAIN", "https://demo.biapi.pro"), ("POWENS_DOMAIN_HOST", "demo.biapi.pro")):
-            patcher = mock.patch.object(main, nom, valeur)
+            patcher = partout(nom, valeur)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.get = self.demarrer(main.requests, "get")
-        self.post = self.demarrer(main.requests, "post")
+        self.get = self.demarrer(aide.requests, "get")
+        self.post = self.demarrer(aide.requests, "post")
         self.client = TestClient(main.app)
         self.theo = entetes("theo")
         self.aude = entetes("aude")
@@ -131,7 +133,7 @@ class StateSigne(Base):
 
     def test_le_lien_contient_un_state_signe_et_pas_le_jeton(self):
         params, url = self.state_de(self.theo)
-        contenu = jwt.decode(params["state"][0], main.SECRET_KEY, algorithms=[main.ALGORITHM])
+        contenu = jwt.decode(params["state"][0], aide.SECRET_KEY, algorithms=[aide.ALGORITHM])
         self.assertEqual(contenu["sub"], "theo")
         self.assertEqual(params["code"], ["code-temporaire"])
         self.assertNotIn("jeton-theo", url)
@@ -157,15 +159,15 @@ class StateSigne(Base):
         self.verifier_refus(self.echanger("aude", self.theo), "theo", "jeton-theo")
 
     def test_state_falsifie_refuse(self):
-        faux = jwt.encode({"sub": "aude", "usage": main.POWENS_STATE_USAGE, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, "autre-secret-suffisamment-long-pour-hs256", algorithm="HS256")
+        faux = jwt.encode({"sub": "aude", "usage": aide.POWENS_STATE_USAGE, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}, "autre-secret-suffisamment-long-pour-hs256", algorithm="HS256")
         self.verifier_refus(self.echanger(faux, self.aude))
 
     def test_state_expire_refuse(self):
-        expire = jwt.encode({"sub": "aude", "usage": main.POWENS_STATE_USAGE, "exp": datetime.now(timezone.utc) - timedelta(seconds=1)}, main.SECRET_KEY, algorithm=main.ALGORITHM)
+        expire = jwt.encode({"sub": "aude", "usage": aide.POWENS_STATE_USAGE, "exp": datetime.now(timezone.utc) - timedelta(seconds=1)}, aide.SECRET_KEY, algorithm=aide.ALGORITHM)
         self.verifier_refus(self.echanger(expire, self.aude))
 
     def test_un_jeton_de_session_ne_vaut_pas_state(self):
-        session = main.create_access_token(data={"sub": "aude"})
+        session = aide.create_access_token(data={"sub": "aude"})
         self.verifier_refus(self.echanger(session, self.aude))
 
     def test_retour_sans_connexion_refuse(self):
@@ -186,7 +188,7 @@ class StateSigne(Base):
 class JetonChiffre(Base):
     def setUp(self):
         super().setUp()
-        patcher = mock.patch.object(main, "cipher", main.Fernet(main.Fernet.generate_key()))
+        patcher = partout("cipher", aide.Fernet(aide.Fernet.generate_key()))
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -201,33 +203,33 @@ class JetonChiffre(Base):
     def test_un_nouveau_jeton_est_chiffre_en_base_et_relu_en_clair(self):
         self.connecter_aude()
         self.assertNotIn("nouveau-jeton", self.jeton_en_base("aude"))
-        self.assertEqual(main.jeton_powens_du_compte("aude"), "nouveau-jeton")
+        self.assertEqual(aide.jeton_powens_du_compte("aude"), "nouveau-jeton")
         self.get.return_value = reponse_http(200, {"accounts": []})
         self.client.get("/powens/accounts", headers=self.aude)
         self.assertEqual(self.get.call_args.kwargs["headers"]["Authorization"], "Bearer nouveau-jeton")
 
     def test_un_ancien_jeton_en_clair_reste_valable(self):
         self.assertEqual(self.jeton_en_base("theo"), "jeton-theo")
-        self.assertEqual(main.jeton_powens_du_compte("theo"), "jeton-theo")
+        self.assertEqual(aide.jeton_powens_du_compte("theo"), "jeton-theo")
 
     def test_le_chiffrement_est_lu_par_toutes_les_routes(self):
         with self.engine.begin() as conn:
-            conn.execute(text("UPDATE users SET powens_token = :j WHERE username = 'theo'"), {"j": main.chiffrer_jeton("jeton-theo")})
+            conn.execute(text("UPDATE users SET powens_token = :j WHERE username = 'theo'"), {"j": aide.chiffrer_jeton("jeton-theo")})
         self.get.return_value = reponse_http(200, {"accounts": []})
         self.assertEqual(self.client.get("/powens/connexion-active", headers=self.theo).status_code, 200)
         self.client.get("/powens/accounts", headers=self.theo)
         self.assertEqual(self.get.call_args.kwargs["headers"]["Authorization"], "Bearer jeton-theo")
 
     def test_aucune_lecture_directe_du_jeton_ne_reste_dans_le_code(self):
-        source = Path(main.__file__).read_text(encoding="utf-8")
+        source = aide.source_du_backend()
         self.assertNotIn("user_token = res[0]\n", source.replace("\r\n", "\n"))
         self.assertNotIn('{"token": access_token,', source)
 
     def test_sans_cle_le_comportement_ne_change_pas(self):
-        with mock.patch.object(main, "cipher", None):
-            self.assertEqual(main.chiffrer_jeton("abc"), "abc")
-            self.assertEqual(main.dechiffrer_jeton("abc"), "abc")
-            self.assertIsNone(main.dechiffrer_jeton(None))
+        with partout("cipher", None):
+            self.assertEqual(aide.chiffrer_jeton("abc"), "abc")
+            self.assertEqual(aide.dechiffrer_jeton("abc"), "abc")
+            self.assertIsNone(aide.dechiffrer_jeton(None))
 
 
 if __name__ == "__main__":

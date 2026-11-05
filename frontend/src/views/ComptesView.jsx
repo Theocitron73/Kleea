@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Plus, CreditCard, Building2, Pencil, Trash2, Wand2, Wallet, 
   Sparkles, ShieldCheck, Lock, FileUp, Landmark, X 
@@ -410,7 +410,7 @@ export default function ComptesView({
               return (
                 <div 
                   key={c.compte} 
-                  className={`relative group p-4 sm:p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col justify-between gap-3 shadow-lg hover:border-white/40 ${showPicker === i ? 'z-50' : 'z-10'}`}
+                  className={`relative group p-4 sm:p-5 rounded-[var(--radius)] border border-white/20 transition-all duration-300 flex flex-col justify-between gap-3 shadow-lg hover:border-white/40 has-[[data-liste-ouverte]]:z-50 ${showPicker === i ? 'z-50' : 'z-10'}`}
                   style={{ 
                     backgroundColor: `${c.couleur}80`,
                     backdropFilter: 'blur(var(--glass-blur))',

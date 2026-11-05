@@ -1,6 +1,7 @@
 """Alembic : une seule tête de révisions, et l'application réelle sur la base de test locale de la CI."""
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -29,6 +30,11 @@ class Migrations(unittest.TestCase):
         config = Config(str(RACINE / "alembic.ini"))
         config.set_main_option("script_location", str(RACINE / "backend" / "migrations"))
         self.assertEqual(len(ScriptDirectory.from_config(config).get_heads()), 1)
+
+    def test_la_structure_ne_change_que_par_une_revision(self):
+        for fichier in [*(RACINE / "backend").glob("*.py"), *(RACINE / "backend" / "routes").glob("*.py")]:
+            contenu = fichier.read_text(encoding="utf-8")
+            self.assertIsNone(re.search(r"(?i)\b(create\s+(table|index)|alter\s+table|drop\s+(table|index))\b", contenu), fichier.name)
 
 
 @unittest.skipUnless(importlib.util.find_spec("alembic"), "Alembic n'est pas installé")

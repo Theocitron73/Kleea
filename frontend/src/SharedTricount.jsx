@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { createPortal } from 'react-dom';
-import EmojiPicker, { Theme } from 'emoji-picker-react';
 import DatePicker from 'react-datepicker';
-import { 
-  Plus, Edit2, Trash2, CheckCircle, AlertCircle, Smile, FileText, ArrowUpRight, ArrowDownRight, Minus, X
-} from 'lucide-react';
+import { Pencil, Trash2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { toLocalDateString, getTodayLocalDateString } from "./utils/dateUtils";
+import { appliquerMontantIndividuel, preparerEdition, repartirEquitablement, totalDesPartsCentimes } from './utils/tricountPartage';
 
 export default function SharedTricount() {
   const { token } = useParams();
@@ -31,7 +28,6 @@ export default function SharedTricount() {
 
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const [activeEmojiPicker, setActiveEmojiPicker] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "error" });
   const [mobileTab, setMobileTab] = useState('bilan');
 
@@ -154,13 +150,21 @@ export default function SharedTricount() {
   };
 
   const handleUpdateTransaction = async () => {
+    if (!(parseFloat(editingTransaction.montant) > 0)) {
+      showToast("Le montant doit être supérieur à 0€", "error");
+      return;
+    }
+    if (totalDesPartsCentimes(editingTransaction.details_montants) !== Math.round(editingTransaction.montant * 100)) {
+      showToast("La répartition doit être égale au montant de la dépense.", "error");
+      return;
+    }
     try {
       const chainePourQui = Object.entries(editingTransaction.details_montants || {})
         .filter(([_, m]) => m > 0)
         .map(([nom, m]) => `${nom}:${m}`)
         .join(',');
 
-      await fetch(`${API_BASE}/update-shared-transaction/${encodeURIComponent(token)}`, {
+      const reponse = await fetch(`${API_BASE}/update-shared-transaction/${encodeURIComponent(token)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -172,6 +176,7 @@ export default function SharedTricount() {
           montant: parseFloat(editingTransaction.montant)
         })
       });
+      if (!reponse.ok) throw new Error("Modification refusée");
       setEditingTransaction(null);
       fetchSharedData();
       showToast("Dépense mise à jour !", "success");
@@ -457,6 +462,15 @@ export default function SharedTricount() {
                 <span className="text-xs font-mono font-black text-white">
                   {parseFloat(t.montant || 0).toFixed(2)} €
                 </span>
+                <button
+                  type="button"
+                  aria-label="Modifier la dépense"
+                  title="Modifier la dépense"
+                  onClick={() => setEditingTransaction(preparerEdition(t, participantsDuGroupe))}
+                  className="text-white/20 hover:text-[var(--secondary)] transition-colors p-1"
+                >
+                  <Pencil size={12} />
+                </button>
                 <button 
                   onClick={() => setDeletingId(t.id)}
                   className="text-white/20 hover:text-rose-500 transition-colors p-1"
@@ -610,7 +624,7 @@ export default function SharedTricount() {
               <div>
                 <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
                 <input 
-                  type="text"
+                  type="number"
                   step="0.01"
                   value={editingTransaction.montant}
                   onChange={(e) => setEditingTransaction({...editingTransaction, montant: parseFloat(e.target.value) || 0})}
@@ -640,13 +654,9 @@ export default function SharedTricount() {
                   <label className="text-[9px] uppercase font-black text-emerald-400">Répartition des frais</label>
                   <button 
                     onClick={() => {
-                      const membres = participantsDuGroupe;
-                      const part = parseFloat((editingTransaction.montant / membres.length).toFixed(2));
-                      const reset = {};
-                      membres.forEach(m => reset[m] = part);
                       setEditingTransaction({
                         ...editingTransaction, 
-                        details_montants: reset, 
+                        details_montants: repartirEquitablement(editingTransaction.montant, participantsDuGroupe), 
                         pour_qui: 'Tous'
                       });
                     }}
@@ -662,10 +672,10 @@ export default function SharedTricount() {
                       <span className="text-xs font-bold text-white/80">{personne}</span>
                       <div className="flex items-center gap-1.5">
                         <input 
-                          type="text"
+                          type="number"
                           step="0.01"
                           value={editingTransaction.details_montants?.[personne] ?? ""} 
-                          onChange={(e) => updateMontantIndividuel(personne, e.target.value)}
+                          onChange={(e) => setEditingTransaction(appliquerMontantIndividuel(editingTransaction, personne, e.target.value))}
                           className="w-20 bg-black/40 border border-white/10 rounded-lg py-1 px-2.5 text-right text-xs font-mono font-bold text-white outline-none"
                         />
                         <span className="text-[9px] text-white/30">€</span>

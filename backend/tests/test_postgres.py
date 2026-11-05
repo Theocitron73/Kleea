@@ -3,6 +3,7 @@
 Ces tests ne tournent que si TEST_DATABASE_URL est défini (voir .github/workflows/ci.yml) et ils effacent la base visée :
 ils refusent donc tout ce qui n'est pas une base de test locale. Le schéma vient du code, pas de la production.
 """
+import importlib.util
 import os
 import sys
 import unittest
@@ -21,11 +22,21 @@ sys.stdout.reconfigure(encoding="utf-8")
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 URL = os.getenv("TEST_DATABASE_URL")
-SCHEMA = Path(__file__).parent / "fixtures" / "schema_postgres_test.sql"
+REVISION = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0001_point_de_depart.py"
 PROJET = {"profil": "Theo", "nom": "Voiture", "cout": 1000, "date": "2027-01-01", "capa": 100, "apport": 250}
+
+
+def instructions_de_schema() -> list:
+    """Les instructions de la révision 0001 : les tests tournent sur la structure relevée en production."""
+    spec = importlib.util.spec_from_file_location("revision_0001", REVISION)
+    revision = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(revision)
+    return revision.TABLES + revision.INDEX
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -46,11 +57,12 @@ class RoutesSurPostgres(unittest.TestCase):
         with self.engine.begin() as conn:
             conn.execute(text("DROP SCHEMA public CASCADE"))
             conn.execute(text("CREATE SCHEMA public"))
-            conn.execute(text(SCHEMA.read_text(encoding="utf-8")))
-        patcher = mock.patch.object(main, "engine", self.engine)
+            for instruction in instructions_de_schema():
+                conn.execute(text(instruction))
+        patcher = partout("engine", self.engine)
         patcher.start()
         self.addCleanup(patcher.stop)
-        main.app.dependency_overrides[main.get_current_user] = lambda: "theo"
+        main.app.dependency_overrides[aide.get_current_user] = lambda: "theo"
         self.addCleanup(main.app.dependency_overrides.clear)
         self.client = TestClient(main.app)
 
@@ -94,13 +106,34 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.get("/get-allocations/Theo").json()[0]["montant_alloue"], 500)
         self.assertEqual(self.client.delete("/delete-enveloppe/Urgence", params={"profil": "Theo"}).status_code, 200)
 
-    def test_les_colonnes_de_projets_s_ajoutent_sans_erreur_meme_deja_presentes(self):
-        main.assurer_colonnes_projets()
-        main.assurer_colonnes_projets()
+    def test_les_routes_qui_creaient_leur_table_fonctionnent_sur_le_schema_alembic(self):
+        self.assertEqual(self.client.post("/api/notes-demenagement", json={"utilisateur": "theo", "contenu": "Cartons"}).status_code, 200)
+        self.assertEqual(self.client.get("/api/notes-demenagement/theo").json(), {"contenu": "Cartons"})
+        self.assertEqual(self.client.post("/api/pages-masquees", json={"pages": ["tricount"]}).status_code, 200)
+        self.assertEqual(self.client.get("/api/pages-masquees/theo").json(), ["tricount"])
+        self.assertFalse(self.client.get("/api/streamdeck/token").json()["active"])
+        self.assertEqual(self.client.post("/api/streamdeck/token").status_code, 200)
+        self.assertTrue(self.client.get("/api/streamdeck/token").json()["active"])
 
-    def test_les_tables_de_securite_se_creent_sans_erreur(self):
-        main.init_security_tables()
-        main.init_security_tables()
+    def test_modifier_une_depense_par_le_lien_de_partage(self):
+        with self.engine.begin() as conn:
+            for token, libelle in (("jeton-a", "A"), ("jeton-b", "B")):
+                conn.execute(text("""
+                    INSERT INTO tricount (date, libelle, paye_par, pour_qui, montant, groupe, utilisateur, token_partage)
+                    VALUES ('2026-11-02', :l, 'Aude', 'Aude:10,Theo:20', 30, 'Vacances', 'theo', :t)
+                """), {"l": libelle, "t": token})
+            id_a, id_b = [r[0] for r in conn.execute(text("SELECT id FROM tricount ORDER BY libelle"))]
+        corps = {"id": id_a, "date": "2026-11-03", "libelle": "Train", "paye_par": "Theo", "pour_qui": "Aude:10,Theo:25.5", "montant": 35.5}
+
+        reponse = self.client.put("/update-shared-transaction/jeton-a", json=corps)
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        with self.engine.connect() as conn:
+            ligne = conn.execute(text("SELECT libelle, paye_par, pour_qui, montant FROM tricount WHERE id = :i"), {"i": id_a}).one()
+        self.assertEqual(tuple(ligne), ("Train", "Theo", "Aude:10,Theo:25.5", 35.5))
+
+        # Un lien ne donne accès qu'aux dépenses de son propre groupe partagé.
+        refus = self.client.put("/update-shared-transaction/jeton-a", json={**corps, "id": id_b})
+        self.assertEqual(refus.status_code, 403)
 
 
 class GardeFou(unittest.TestCase):

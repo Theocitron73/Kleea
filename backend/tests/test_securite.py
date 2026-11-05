@@ -19,6 +19,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 
@@ -32,7 +34,7 @@ class Base(unittest.TestCase):
             conn.execute(text("CREATE TABLE security_rate_limits (key TEXT, action TEXT, attempted_at TIMESTAMP)"))
         for cible, valeur in ((main, {"engine": self.engine}),):
             for nom, objet in valeur.items():
-                patcher = mock.patch.object(cible, nom, objet)
+                patcher = partout(nom, objet)
                 patcher.start()
                 self.addCleanup(patcher.stop)
         self.client = TestClient(main.app)
@@ -44,7 +46,7 @@ class SynchroMaintenance(Base):
     def setUp(self):
         super().setUp()
         for nom in ("exec_sync_user_transactions", "exec_recalculate_balances"):
-            patcher = mock.patch.object(main, nom)
+            patcher = partout(nom)
             setattr(self, nom, patcher.start())
             self.addCleanup(patcher.stop)
 
@@ -97,11 +99,11 @@ class AnalyseEconomies(Base):
 
     def setUp(self):
         super().setUp()
-        patcher = mock.patch.object(main, "client")
+        patcher = partout("client")
         self.ia = patcher.start()
         self.addCleanup(patcher.stop)
         self.ia.models.generate_content.return_value = SimpleNamespace(text=json.dumps(self.REPONSE_IA))
-        self.theo = {"Authorization": "Bearer " + main.create_access_token(data={"sub": "Theo"})}
+        self.theo = {"Authorization": "Bearer " + aide.create_access_token(data={"sub": "Theo"})}
 
     def test_sans_jeton_l_ia_n_est_pas_appelee(self):
         self.assertEqual(self.client.post(self.URL, json=self.CORPS).status_code, 401)
@@ -115,11 +117,11 @@ class AnalyseEconomies(Base):
         self.assertEqual(reponse.json()["potentiel_total"], 10)
 
     def test_le_nombre_d_appels_est_limite_par_compte(self):
-        for _ in range(main.LIMITE_ANALYSES_ECONOMIES):
+        for _ in range(aide.LIMITE_ANALYSES_ECONOMIES):
             self.assertEqual(self.client.post(self.URL, json=self.CORPS, headers=self.theo).status_code, 200)
         self.assertEqual(self.client.post(self.URL, json=self.CORPS, headers=self.theo).status_code, 429)
-        self.assertEqual(self.ia.models.generate_content.call_count, main.LIMITE_ANALYSES_ECONOMIES)
-        aude = {"Authorization": "Bearer " + main.create_access_token(data={"sub": "Aude"})}
+        self.assertEqual(self.ia.models.generate_content.call_count, aide.LIMITE_ANALYSES_ECONOMIES)
+        aude = {"Authorization": "Bearer " + aide.create_access_token(data={"sub": "Aude"})}
         self.assertEqual(self.client.post(self.URL, json=self.CORPS, headers=aude).status_code, 200)
 
     def test_une_erreur_de_l_ia_ne_fuit_pas(self):

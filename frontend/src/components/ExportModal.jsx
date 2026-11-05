@@ -1,6 +1,6 @@
 // src/components/ExportModal.jsx
-import React, { useState, useMemo } from 'react';
-import { Download, FileSpreadsheet, FileText, X, Check, Calendar, User, Wallet, Filter } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Download, FileSpreadsheet, FileText, X, Check } from 'lucide-react';
 import { exportToExcel, exportToCsv } from '../utils/exportUtils';
 import { toast } from 'sonner';
 

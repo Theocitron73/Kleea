@@ -7,8 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/utils/epargneProjet.test.js src/utils/finance.test.js src/utils/suiviErreurs.test.js",
-    "preview": "vite preview"
+    "test": "node --test src/utils/epargneProjet.test.js src/utils/finance.test.js src/utils/suiviErreurs.test.js src/utils/tricountPartage.test.js",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@playwright/test": "^1.56.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",

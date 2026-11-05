@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 PROJET = {"profil": "Theo", "nom": "Voiture", "cout": 1000, "date": "2027-01-01", "capa": 100, "apport": 250, "date_debut": "2026-01-01"}
@@ -40,11 +42,11 @@ class BaseEpargne(unittest.TestCase):
                     date_allocation TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """))
-        patcher = mock.patch.object(main, "engine", self.engine)
+        patcher = partout("engine", self.engine)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.utilisateur = "theo"
-        main.app.dependency_overrides[main.get_current_user] = lambda: self.utilisateur
+        main.app.dependency_overrides[aide.get_current_user] = lambda: self.utilisateur
         self.addCleanup(main.app.dependency_overrides.clear)
         self.client = TestClient(main.app)
 
@@ -90,11 +92,11 @@ class Projets(BaseEpargne):
         # psycopg 3 (production) ne sait pas typer un parametre NULL dans "IS NULL OR id <> :x" ; SQLite ne le voit pas.
         conn = mock.Mock()
         conn.execute.return_value.first.return_value = None
-        main.verifier_nom_projet_libre(conn, "A", "Theo", "theo")
+        aide.verifier_nom_projet_libre(conn, "A", "Theo", "theo")
         requete, params = conn.execute.call_args.args
         self.assertNotIn(":sauf", str(requete))
         self.assertNotIn("sauf", params)
-        main.verifier_nom_projet_libre(conn, "A", "Theo", "theo", sauf_id=3)
+        aide.verifier_nom_projet_libre(conn, "A", "Theo", "theo", sauf_id=3)
         requete, params = conn.execute.call_args.args
         self.assertIn(":sauf", str(requete))
         self.assertEqual(params["sauf"], 3)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronDown, Tag, Layers } from 'lucide-react';
 import { CategoryIcon, getCleanCategoryName, getCategoryGroup } from '../categoryIcons';
 
@@ -55,7 +55,7 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
   }, [filteredOptions, isCategorySelect]);
 
   return (
-    <div className={`space-y-1.5 relative ${isOpen ? 'z-[70]' : 'z-10'}`} ref={dropdownRef}>
+    <div className={`space-y-1.5 relative ${isOpen ? 'z-[70]' : 'z-10'}`} ref={dropdownRef} data-liste-ouverte={isOpen || undefined}>
       {label && (
         <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] ml-1">
           {label}

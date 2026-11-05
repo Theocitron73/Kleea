@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   User, Mail, Lock, Eye, EyeOff, BookOpen, 
   ShieldAlert, UserX, WifiOff 
 } from 'lucide-react';
-import { Link as RouterLink } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../axios';
 import GuideView from '../GuideView';

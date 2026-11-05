@@ -1,9 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Plus, Calendar, Tag, Wallet, Eye, EyeOff, 
-  PieChart as PieChartIcon, TrendingUp, X, Copy,
-  ChevronLeft, ChevronRight, Check,AlertTriangle 
-} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Plus, Calendar, Tag, Wallet, Eye, EyeOff, PieChart as PieChartIcon, TrendingUp, X, Copy, AlertTriangle } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import DatePicker from 'react-datepicker';
@@ -284,10 +280,6 @@ export default function PrevisionsView(props) {
     setEditingTx(null);
   };
 
-  const cleanMonth = (m) => {
-  if (!m) return "";
-  return m.toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-};
 
 // 🟢 Détection stricte : JAMAIS les mois passés, et JAMAIS les mois sans prévisions
 // 🟢 Alerte UNIQUEMENT sur les mois actuels/futurs qui ont de VRAIES prévisions

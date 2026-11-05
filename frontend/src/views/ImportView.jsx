@@ -1,9 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Upload, Wallet, Building2, RefreshCw, Plus, Download, Check, 
-  Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, HelpCircle, 
-  ChevronRight, Landmark, Tag
-} from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Upload, Wallet, Building2, RefreshCw, Plus, Download, Check, Brain, X, ArrowUpRight, ArrowDownLeft, ArrowRightLeft, HelpCircle, ChevronRight, Tag } from 'lucide-react';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import { toast } from 'sonner';
 import { estTransfertInterne } from '../utils/finance';
