@@ -12,6 +12,7 @@ import api from '../axios';
 import { toast } from 'sonner';
 import GestionEpargneProjet from './GestionEpargneProjet';
 import RecapAnnees from '../components/RecapAnnees';
+import VueAbonnements from '../components/VueAbonnements';
 import { estTransfertInterne } from '../utils/finance';
 
 // =========================================================================
@@ -1751,7 +1752,7 @@ export default function DashboardView(props) {
                   return (
                     <>
                       <div className="px-4 pt-3 shrink-0">
-                        {tabActive !== 'Catégories' && tabActive !== 'Variations' && tabActive !== 'flash' && (
+                        {tabActive !== 'Catégories' && tabActive !== 'Variations' && tabActive !== 'flash' && tabActive !== 'abonnements' && (
                           <div className="flex justify-between items-center px-1 pb-2 border-b border-white/[0.02] gap-3">
                             <div className="flex items-center gap-2.5 shrink-0">
                               <span className="text-[var(--text-main)]/40 text-[10px] uppercase font-black tracking-wider">
@@ -1841,7 +1842,11 @@ export default function DashboardView(props) {
                           />
                         )}
 
-                        {tabActive !== 'Variations' && tabActive !== 'flash' && (
+                        {tabActive === 'abonnements' && (
+                          <VueAbonnements transactions={toutesLesTransactions} comptesDuProfil={comptesDuProfil} profil={filters.profil} user={user} />
+                        )}
+
+                        {tabActive !== 'Variations' && tabActive !== 'flash' && tabActive !== 'abonnements' && (
                           <div className={`${tabActive === 'Catégories' ? 'hidden min-[2000px]:block' : 'block'} space-y-1.5 h-full`}>
                             {filteredTransactions.length > 0 ? (
                               filteredTransactions
@@ -3025,6 +3030,8 @@ export default function DashboardView(props) {
                           setTabActive(tab);
                           setSearchTerm('');
                         }}
+                        title={config.label}
+                        aria-label={config.label}
                         className={`p-1 rounded-sm transition-all cursor-pointer ${
                           isActive ? 'bg-[var(--glass-bg)] text-white border border-white/5' : 'text-white/30'
                         }`}
@@ -3037,7 +3044,7 @@ export default function DashboardView(props) {
               </div>
 
               {/* RECHERCHE */}
-              <div className="relative">
+              <div className={`relative ${tabActive === 'abonnements' ? 'hidden' : ''}`}>
                 <Search size={11} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
                 <input
                   type="text"
@@ -3087,6 +3094,10 @@ export default function DashboardView(props) {
                         prevMonthLabel={financeData?.periodeComparee?.mois || "M-1"}
                       />
                     );
+                  }
+
+                  if (tabActive === 'abonnements') {
+                    return <VueAbonnements transactions={toutesLesTransactions} comptesDuProfil={comptesDuProfil} profil={filters.profil} user={user} />;
                   }
 
                   if (tabActive === 'flash') {

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
  // <-- Ajoute cette ligne tout en haut du fichier
 
  // À mettre en haut de ton fichier
-import { TrendingUp, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal } from 'lucide-react';
+import { TrendingUp, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Repeat } from 'lucide-react';
 import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import "react-datepicker/dist/react-datepicker.css";
@@ -770,7 +770,8 @@ const TAB_CONFIG = {
   // ✅ Désormais synchronisé sur ton point de rupture exact (2000px)
   Catégories: { icon: BarChartHorizontal, label: 'Catégories', className: 'min-[2000px]:hidden' }, 
   Variations: { icon: TrendingUp, label: 'Variations', className: '' },
-  flash: { icon: Zap, label: 'Insights', className: '' }
+  flash: { icon: Zap, label: 'Insights', className: '' },
+  abonnements: { icon: Repeat, label: 'Abonnements', className: '' }
 };
 
 
