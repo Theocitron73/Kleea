@@ -183,5 +183,52 @@ class StateSigne(Base):
         self.assertIsNone(self.jeton_en_base("aude"))
 
 
+class JetonChiffre(Base):
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(main, "cipher", main.Fernet(main.Fernet.generate_key()))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def connecter_aude(self):
+        self.post.return_value = reponse_http(200, {"access_token": "nouveau-jeton"})
+        self.get.return_value = reponse_http(200, {"code": "code-temporaire"})
+        lien = self.client.get("/powens/connect-url?redirect_url=https://app/", headers=self.aude).json()["url"]
+        state = parse_qs(urlparse(lien).query)["state"][0]
+        reponse = self.client.post("/powens/callback", json={"code": "c", "state": state, "redirect_uri": "https://app/"}, headers=self.aude)
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+
+    def test_un_nouveau_jeton_est_chiffre_en_base_et_relu_en_clair(self):
+        self.connecter_aude()
+        self.assertNotIn("nouveau-jeton", self.jeton_en_base("aude"))
+        self.assertEqual(main.jeton_powens_du_compte("aude"), "nouveau-jeton")
+        self.get.return_value = reponse_http(200, {"accounts": []})
+        self.client.get("/powens/accounts", headers=self.aude)
+        self.assertEqual(self.get.call_args.kwargs["headers"]["Authorization"], "Bearer nouveau-jeton")
+
+    def test_un_ancien_jeton_en_clair_reste_valable(self):
+        self.assertEqual(self.jeton_en_base("theo"), "jeton-theo")
+        self.assertEqual(main.jeton_powens_du_compte("theo"), "jeton-theo")
+
+    def test_le_chiffrement_est_lu_par_toutes_les_routes(self):
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE users SET powens_token = :j WHERE username = 'theo'"), {"j": main.chiffrer_jeton("jeton-theo")})
+        self.get.return_value = reponse_http(200, {"accounts": []})
+        self.assertEqual(self.client.get("/powens/connexion-active", headers=self.theo).status_code, 200)
+        self.client.get("/powens/accounts", headers=self.theo)
+        self.assertEqual(self.get.call_args.kwargs["headers"]["Authorization"], "Bearer jeton-theo")
+
+    def test_aucune_lecture_directe_du_jeton_ne_reste_dans_le_code(self):
+        source = Path(main.__file__).read_text(encoding="utf-8")
+        self.assertNotIn("user_token = res[0]\n", source.replace("\r\n", "\n"))
+        self.assertNotIn('{"token": access_token,', source)
+
+    def test_sans_cle_le_comportement_ne_change_pas(self):
+        with mock.patch.object(main, "cipher", None):
+            self.assertEqual(main.chiffrer_jeton("abc"), "abc")
+            self.assertEqual(main.dechiffrer_jeton("abc"), "abc")
+            self.assertIsNone(main.dechiffrer_jeton(None))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,7 +33,7 @@ import calendar
 import time
 import asyncio
 import csv
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, InvalidToken
 import jwt
 import bcrypt
 from contextlib import asynccontextmanager
@@ -3839,7 +3839,7 @@ def jeton_powens_du_compte(current_user: str) -> Optional[str]:
     query = text("SELECT powens_token FROM users WHERE LOWER(username) = :u OR LOWER(email) = :u")
     with engine.connect() as conn:
         ligne = conn.execute(query, {"u": current_user}).fetchone()
-    return ligne[0] if ligne and ligne[0] else None
+    return dechiffrer_jeton(ligne[0]) if ligne and ligne[0] else None
 
 
 @app.get("/powens/connect-url")
@@ -3932,7 +3932,7 @@ def powens_callback(req: PowensCallback, current_user: str = Depends(get_current
             UPDATE users
             SET powens_token = :token
             WHERE LOWER(username) = :u OR LOWER(email) = :u
-        """), {"token": access_token, "u": current_user})
+        """), {"token": chiffrer_jeton(access_token), "u": current_user})
         if resultat.rowcount == 0:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable.")
 
@@ -4665,7 +4665,7 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             return {"has_pending": False, "count": 0, "accounts": {}}
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
         # 2. Configurations Kleea (avec déchiffrement des IBANs)
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
@@ -4839,6 +4839,23 @@ def encrypt_iban(val: str) -> str:
             return val
     return val
 
+def chiffrer_jeton(val: str) -> str:
+    """Chiffre le jeton Powens avant de l'enregistrer. Sans clé, il reste en clair, comme les IBAN."""
+    if not val or not cipher:
+        return val
+    return cipher.encrypt(val.encode()).decode()
+
+
+def dechiffrer_jeton(val: str) -> str:
+    """Lit un jeton Powens : ceux enregistrés avant le chiffrement sont en clair et restent valables."""
+    if not val or not cipher:
+        return val
+    try:
+        return cipher.decrypt(val.encode()).decode()
+    except InvalidToken:
+        return val
+
+
 def decrypt_iban(val: str) -> str:
     """Déchiffre un IBAN chiffré. Renvoie la chaîne brute si non chiffrée."""
     if not val or not cipher:
@@ -4970,7 +4987,7 @@ def exec_sync_user_transactions(username: str):
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun compte bancaire Powens lié.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
         
         query_config = text("SELECT compte, powens_name FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
@@ -5243,7 +5260,7 @@ def exec_recalculate_balances(user_clean: str):
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun jeton bancaire trouvé.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
         query_config = text("SELECT compte, powens_name, solde FROM configuration WHERE LOWER(utilisateur) = LOWER(:u)")
         config_rows = conn.execute(query_config, {"u": user_clean}).fetchall()
@@ -5373,7 +5390,7 @@ def clean_powens_duplicates(username: str, current_user: str = Depends(get_curre
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun token Powens.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
     domain = POWENS_DOMAIN.rstrip('/')
     if not domain.endswith('/2.0') and not domain.endswith('/v2'):
@@ -5431,7 +5448,7 @@ def disconnect_powens(username: str, current_user: str = Depends(get_current_use
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
-        user_token = res[0] if res else None
+        user_token = dechiffrer_jeton(res[0]) if res else None
 
     # 1. Suppression définitive chez Powens via l'API (DELETE /users/me)
     if user_token:
@@ -5614,7 +5631,7 @@ async def refresh_bank_sync(username: str, current_user: str = Depends(get_curre
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
         if not res or not res[0]:
             raise HTTPException(status_code=400, detail="Aucun jeton bancaire Powens trouvé.")
-        user_token = res[0]
+        user_token = dechiffrer_jeton(res[0])
 
     return await declencher_actualisation_bancaire(user_token)
 
