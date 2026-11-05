@@ -17,6 +17,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 COLONNES = "bg_site TEXT, primary_color TEXT, secondary_color TEXT, text_main TEXT, radius TEXT, glass_blur TEXT, glass_bg TEXT"
@@ -40,10 +42,10 @@ class CouleurSecondaire(unittest.TestCase):
                     UNIQUE (utilisateur, nom)
                 )
             """))
-        patcher = mock.patch.object(main, "engine", self.engine)
+        patcher = partout("engine", self.engine)
         patcher.start()
         self.addCleanup(patcher.stop)
-        main.app.dependency_overrides[main.get_current_user] = lambda: "theo"
+        main.app.dependency_overrides[aide.get_current_user] = lambda: "theo"
         self.addCleanup(main.app.dependency_overrides.clear)
         self.client = TestClient(main.app)
 
@@ -103,11 +105,11 @@ class AccesAuTheme(unittest.TestCase):
             conn.execute(text('CREATE TABLE theme ("user" TEXT, element TEXT, couleur TEXT, UNIQUE ("user", element))'))
             conn.execute(text("INSERT INTO user_theme (utilisateur, primary_color) VALUES ('aude', '#000001')"))
             conn.execute(text("""INSERT INTO theme ("user", element, couleur) VALUES ('aude', 'color_jauge', '#000002')"""))
-        patcher = mock.patch.object(main, "engine", self.engine)
+        patcher = partout("engine", self.engine)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.client = TestClient(main.app)
-        jeton = main.create_access_token(data={"sub": "Theo"})
+        jeton = aide.create_access_token(data={"sub": "Theo"})
         self.theo = {"Authorization": f"Bearer {jeton}"}
 
     def theme_d_aude(self):

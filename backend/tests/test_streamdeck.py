@@ -23,6 +23,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 AUJOURDHUI = date(2026, 11, 4)
@@ -40,7 +42,7 @@ def tx(compte_nom, montant, nom="Achat", categorie="Courses", mois="Novembre", a
 
 
 def vue(comptes, transactions):
-    resultat = main.calculer_vues_streamdeck(comptes, transactions, AUJOURDHUI)
+    resultat = aide.calculer_vues_streamdeck(comptes, transactions, AUJOURDHUI)
     return {c["nom"]: c for c in resultat["comptes"]}
 
 
@@ -98,7 +100,7 @@ class CalculDesVues(unittest.TestCase):
         self.assertEqual(comptes["CCP T"]["revenus_mois"], 1500)
 
     def test_mois_avec_ou_sans_accent(self):
-        resultat = main.calculer_vues_streamdeck(
+        resultat = aide.calculer_vues_streamdeck(
             [compte("CCP T", 0)], [tx("CCP T", -10, mois="Août"), tx("CCP T", -5, mois="aout")], date(2026, 8, 20)
         )
         self.assertEqual(resultat["comptes"][0]["depenses_mois"], 15)
@@ -117,13 +119,13 @@ class RoutesStreamDeck(unittest.TestCase):
             conn.execute(text("INSERT INTO configuration VALUES ('CCP T', 'Theo', 100, '#111111', 'theo', 'IBAN-SECRET')"))
             conn.execute(text("INSERT INTO configuration VALUES ('CCP A', 'Aude', 900, '#222222', 'aude', NULL)"))
             conn.execute(text("INSERT INTO transactions VALUES ('2026-01-05', 'Achat', -30, 'Courses', 'Janvier', 2026, 'CCP T', 'theo')"))
-        patcher = mock.patch.object(main, "engine", moteur)
+        patcher = partout("engine", moteur)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.client = TestClient(main.app)
 
     def entetes(self, utilisateur="theo"):
-        return {"Authorization": f"Bearer {main.create_access_token({'sub': utilisateur})}"}
+        return {"Authorization": f"Bearer {aide.create_access_token({'sub': utilisateur})}"}
 
     def creer_jeton(self, utilisateur="theo"):
         return self.client.post("/api/streamdeck/token", headers=self.entetes(utilisateur)).json()["token"]
@@ -158,10 +160,10 @@ class RoutesStreamDeck(unittest.TestCase):
 
     def test_seule_l_empreinte_est_stockee(self):
         jeton = self.creer_jeton()
-        with main.engine.connect() as conn:
+        with aide.engine.connect() as conn:
             stocke = conn.execute(text("SELECT token_hash FROM streamdeck_tokens")).scalar()
         self.assertNotEqual(stocke, jeton)
-        self.assertEqual(stocke, main.empreinte_jeton_streamdeck(jeton))
+        self.assertEqual(stocke, aide.empreinte_jeton_streamdeck(jeton))
 
     def test_regenerer_invalide_l_ancien_jeton(self):
         ancien = self.creer_jeton()
@@ -191,7 +193,7 @@ class RoutesStreamDeck(unittest.TestCase):
         self.assertEqual(self.lire_powens("kleea_sd_faux").status_code, 401)
 
     def test_powens_non_connecte_n_appelle_pas_powens(self):
-        with mock.patch.object(main, "check_sync_status") as verification:
+        with partout("check_sync_status") as verification:
             reponse = self.lire_powens(self.creer_jeton("aude"))
         verification.assert_not_called()
         self.assertEqual(reponse.json(), {"connecte": False, "erreur": False, "count": 0, "comptes": {}})
@@ -205,7 +207,7 @@ class RoutesStreamDeck(unittest.TestCase):
                 "LEP": {"count": 1, "amount": 10.0, "earliest_date": "2026-11-02"},
             },
         }
-        with mock.patch.object(main, "check_sync_status", return_value=resultat) as verification:
+        with partout("check_sync_status", return_value=resultat) as verification:
             reponse = self.lire_powens(self.creer_jeton())
         verification.assert_called_once_with("theo", "theo")
         self.assertEqual(reponse.headers["cache-control"], "no-store")
@@ -213,16 +215,16 @@ class RoutesStreamDeck(unittest.TestCase):
 
     def test_powens_en_erreur_est_signale_sans_detail(self):
         resultat = {"has_pending": False, "count": 0, "accounts": {}, "error": "detail-interne"}
-        with mock.patch.object(main, "check_sync_status", return_value=resultat):
+        with partout("check_sync_status", return_value=resultat):
             reponse = self.lire_powens(self.creer_jeton())
         self.assertTrue(reponse.json()["erreur"])
         self.assertNotIn("detail-interne", reponse.text)
 
     def test_acces_powens_refuse_signale_une_erreur(self):
         refus = mock.Mock(status_code=401)
-        with mock.patch.object(main.requests, "get", return_value=refus), \
-                mock.patch.object(main, "get_powens_transactions") as transactions:
-            resultat = main.check_sync_status("theo", "theo")
+        with mock.patch.object(aide.requests, "get", return_value=refus), \
+                partout("get_powens_transactions") as transactions:
+            resultat = aide.check_sync_status("theo", "theo")
         transactions.assert_not_called()
         self.assertIn("error", resultat)
         self.assertFalse(resultat["has_pending"])

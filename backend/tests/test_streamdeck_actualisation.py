@@ -18,6 +18,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 URL = "/api/streamdeck/powens/actualiser"
@@ -71,7 +73,7 @@ class Actualisation(unittest.TestCase):
             (main, "engine", self.engine),
             (main, "POWENS_DOMAIN", "https://demo.biapi.pro"),
         ):
-            patcher = mock.patch.object(cible, nom, valeur)
+            patcher = partout(nom, valeur)
             patcher.start()
             self.addCleanup(patcher.stop)
         self.check = self.demarrer("check_sync_status", return_value={"count": 4, "accounts": {"CCP T": {"count": 4}}})
@@ -80,18 +82,18 @@ class Actualisation(unittest.TestCase):
         self.client = TestClient(main.app)
 
     def demarrer(self, nom, **options):
-        patcher = mock.patch.object(main, nom, **options)
+        patcher = partout(nom, **options)
         objet = patcher.start()
         self.addCleanup(patcher.stop)
         return objet
 
     def jeton(self, utilisateur="theo"):
-        session = {"Authorization": "Bearer " + main.create_access_token({"sub": utilisateur})}
+        session = {"Authorization": "Bearer " + aide.create_access_token({"sub": utilisateur})}
         return {"X-Streamdeck-Token": self.client.post("/api/streamdeck/token", headers=session).json()["token"]}
 
     def powens(self, **options):
         fictif = PowensFictif(**options)
-        patcher = mock.patch.object(main.httpx, "AsyncClient", fictif)
+        patcher = mock.patch.object(aide.httpx, "AsyncClient", fictif)
         patcher.start()
         self.addCleanup(patcher.stop)
         return fictif
@@ -104,7 +106,7 @@ class Actualisation(unittest.TestCase):
         banque = self.powens()
         self.assertEqual(self.client.post(URL).status_code, 401)
         self.assertEqual(self.client.post(URL, headers={"X-Streamdeck-Token": "kleea_sd_faux"}).status_code, 401)
-        session = {"Authorization": "Bearer " + main.create_access_token({"sub": "theo"})}
+        session = {"Authorization": "Bearer " + aide.create_access_token({"sub": "theo"})}
         self.assertEqual(self.client.post(URL, headers=session).status_code, 401)
         self.assertEqual(banque.puts, [])
 
@@ -180,7 +182,7 @@ class Actualisation(unittest.TestCase):
     def test_les_appuis_sont_limites_par_compte(self):
         banque = self.powens()
         theo, aude = self.jeton(), self.jeton("aude")
-        for _ in range(main.LIMITE_ACTUALISATIONS_STREAMDECK):
+        for _ in range(aide.LIMITE_ACTUALISATIONS_STREAMDECK):
             self.assertEqual(self.client.post(URL, headers=theo).status_code, 200)
         appels = len(banque.puts)
         self.assertEqual(self.client.post(URL, headers=theo).status_code, 429)
@@ -189,7 +191,7 @@ class Actualisation(unittest.TestCase):
 
     def test_le_bouton_de_la_page_importer_marche_toujours(self):
         banque = self.powens()
-        session = {"Authorization": "Bearer " + main.create_access_token({"sub": "theo"})}
+        session = {"Authorization": "Bearer " + aide.create_access_token({"sub": "theo"})}
         reponse = self.client.post("/powens/refresh-bank-sync/theo", headers=session)
         self.assertEqual(reponse.status_code, 200)
         self.assertEqual(reponse.json()["status"], "success")

@@ -22,6 +22,8 @@ sys.stdout.reconfigure(encoding="utf-8")
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 
+import aide  # noqa: E402
+from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 URL = os.getenv("TEST_DATABASE_URL")
@@ -57,10 +59,10 @@ class RoutesSurPostgres(unittest.TestCase):
             conn.execute(text("CREATE SCHEMA public"))
             for instruction in instructions_de_schema():
                 conn.execute(text(instruction))
-        patcher = mock.patch.object(main, "engine", self.engine)
+        patcher = partout("engine", self.engine)
         patcher.start()
         self.addCleanup(patcher.stop)
-        main.app.dependency_overrides[main.get_current_user] = lambda: "theo"
+        main.app.dependency_overrides[aide.get_current_user] = lambda: "theo"
         self.addCleanup(main.app.dependency_overrides.clear)
         self.client = TestClient(main.app)
 
