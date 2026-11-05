@@ -45,6 +45,57 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # --- MODULES DU BACKEND ---
+from schemas import (
+    _date_valide,
+    Transaction,
+    LoginRequest,
+    RegisterRequest,
+    ImportModeRequest,
+    ResetRequest,
+    NewPasswordRequest,
+    UpdatePasswordRequest,
+    UpdateProfileRequest,
+    CompteConfig,
+    ThemeConfig,
+    UserColorUpdate,
+    Projet,
+    OrdreProjets,
+    Budget,
+    CategorieCreate,
+    CategorieUpdate,
+    CategorieAssignGroup,
+    DeleteGroupRequest,
+    Memoire,
+    PrevisionIn,
+    Allocation,
+    TricountTransaction,
+    RenameGroupRequest,
+    SharedTransactionRequest,
+    SharedTransactionUpdate,
+    UpdateTransactionRequest,
+    CustomStatRule,
+    CustomStatCreate,
+    CustomStatUpdate,
+    ChatRequest,
+    AISuggestedRule,
+    AICreationStat,
+    ChatResponseSchema,
+    ConseilCategorie,
+    PermanentSavingsIndicatorResponse,
+    SimulationLineCreate,
+    DuplicateScenarioRequest,
+    NoteUpdate,
+    PowensCallback,
+    PropagateYearRequest,
+    CongeCreate,
+    CongeProfile,
+    SplitLine,
+    SplitRequest,
+    ThemePresetIn,
+    AnnonceModel,
+    ScrapeUrlRequest,
+    ParseTextRequest,
+)
 from journaux import (
     FiltreJournalAcces,
     FormateurSansSecrets,
@@ -495,20 +546,6 @@ def get_transactions(username: Optional[str] = None, current_user: str = Depends
         raise HTTPException(status_code=500, detail=detail_erreur(e, "Erreur Base de données"))
 
     
-class Transaction(BaseModel):
-    nom: str
-    montant: float
-    categorie: str
-    utilisateur: str
-    mois: str
-    annee: int
-    compte: str
-    id: Optional[int] = None
-    date: Optional[str] = None
-    enveloppe: Optional[str] = None
-    prevision_id: Optional[int] = None  # 👈 AJOUT ICI
-    split_id: Optional[str] = None  # 👈 AJOUTEZ CETTE LIGNE
-
 @app.post("/transactions")
 def add_transaction(t: Transaction, current_user: str = Depends(get_current_user)):
     query = text("""
@@ -607,17 +644,6 @@ def get_user_transactions_count(username: str, current_user: str = Depends(get_c
 
 
 
-class LoginRequest(BaseModel):
-    nom: str
-    password: str
-
-class RegisterRequest(BaseModel):
-    nom: str        # Sera utilisé pour 'username'
-    email: str
-    password: str
-    first_name: str
-    last_name: str
-
 @app.post("/register")
 def register(req: RegisterRequest):
     # 🟢 VALIDATION DE LA ROBUSTESSE DU MOT DE PASSE
@@ -710,10 +736,6 @@ def login(req: LoginRequest, request: Request):
         }
 
 
-# Modèle pour la mise à jour du mode d'import
-class ImportModeRequest(BaseModel):
-    import_mode: str  # 'auto' ou 'manual'
-
 # --- ROUTE : RÉCUPÉRER LE PROFIL ---
 @app.get("/profile/{username}")
 def get_profile(username: str, current_user: str = Depends(get_current_user)):
@@ -763,9 +785,6 @@ def update_import_mode(username: str, req: ImportModeRequest, current_user: str 
         return {"status": "success", "import_mode": req.import_mode}
     except Exception as e:
         raise HTTPException(status_code=500, detail=detail_erreur(e))
-
-class ResetRequest(BaseModel):
-    email: EmailStr
 
 # Caches en mémoire pour le Rate-Limiting
 
@@ -853,10 +872,6 @@ async def forgot_password(req: ResetRequest):
     return response_msg
 
 
-class NewPasswordRequest(BaseModel):
-    token: str
-    new_password: str
-
 @app.post("/reset-password-confirm")
 async def reset_password_confirm(req: NewPasswordRequest):
     hashed_password = hash_password(req.new_password)
@@ -878,9 +893,6 @@ async def reset_password_confirm(req: NewPasswordRequest):
 
 
 
-
-class UpdatePasswordRequest(BaseModel):
-    new_password: str
 
 # --- ROUTE : CHANGER LE MOT DE PASSE ---
 @app.put("/profile/{username}/password")
@@ -940,11 +952,6 @@ def delete_account(username: str, current_user: str = Depends(get_current_user))
     return {"status": "success", "message": "Compte et données associés détruits définitivement"}
 
 
-# Modèle pour la mise à jour des infos personnelles
-class UpdateProfileRequest(BaseModel):
-    name: str
-    email: str
-
 # --- ROUTE : MODIFIER LES INFOS PERSONNELLES ---
 @app.put("/profile/{username}/details")
 def update_profile_details(username: str, req: UpdateProfileRequest, current_user: str = Depends(get_current_user)):
@@ -974,18 +981,6 @@ def update_profile_details(username: str, req: UpdateProfileRequest, current_use
         conn.commit()
         
     return {"status": "success", "message": "Profil mis à jour avec succès"}
-
-
-# 💡 1. AJOUT DE TAUX DANS LE MODÈLE PYDANTIC
-class CompteConfig(BaseModel):
-    compte: str
-    groupe: str
-    solde: float
-    objectif: float
-    couleur: str
-    utilisateur: str
-    taux: float = 0.0  # Optionnel par défaut à 0.0 si absent
-    powens_name: Optional[str] = None
 
 
 # --- ROUTE : RÉCUPÉRER LA CONFIGURATION DES COMPTES ---
@@ -1057,17 +1052,6 @@ def delete_compte(compte_name: str, username: str, current_user: str = Depends(g
         conn.execute(query, {"c": compte_name, "u": current_user})
         conn.commit()
     return {"status": "deleted"}
-
-class ThemeConfig(BaseModel):
-    utilisateur: str
-    bg_site: str
-    primary_color: str
-    text_main: str
-    radius: str
-    glass_blur: str  # <-- AJOUT
-    glass_bg: str    # <-- AJOUT
-    secondary_color: Optional[str] = None  # None : dérivée de la couleur primaire
-
 
 def assurer_colonnes_theme():
     """Colonnes vides par défaut : les thèmes existants gardent une secondaire automatique."""
@@ -1188,11 +1172,6 @@ def get_user_theme(username: str, current_user: str = Depends(get_current_user))
         return {}
     
 
-class UserColorUpdate(BaseModel):
-    user: str
-    element: str
-    couleur: str
-
 @app.post("/save-user-theme")
 def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_user)):
     verifier_proprietaire_theme(c.user, current_user)
@@ -1207,49 +1186,6 @@ def save_user_theme(c: UserColorUpdate, current_user: str = Depends(get_current_
     return {"status": "success"}
 
 
-
-
-def _date_valide(valeur: str, formats: tuple) -> str:
-    for fmt in formats:
-        try:
-            datetime.strptime(valeur, fmt)
-            return valeur
-        except ValueError:
-            continue
-    raise ValueError("Date invalide")
-
-
-class Projet(BaseModel):
-    profil: str = Field(min_length=1, max_length=100)
-    nom: str = Field(min_length=1, max_length=120)
-    cout: float = Field(ge=0)
-    date: str  # Date d'échéance / cible (Format "YYYY-MM-DD")
-    capa: float = Field(default=0, ge=0)
-    apport: float = Field(default=0, ge=0)
-    date_debut: Optional[str] = None  # Format "YYYY-MM-DD" (ou "YYYY-MM")
-    utiliser_capa_stricte: Optional[bool] = False
-
-    @field_validator("nom")
-    @classmethod
-    def nom_non_vide(cls, valeur: str) -> str:
-        valeur = valeur.strip()
-        if not valeur:
-            raise ValueError("Le nom est obligatoire")
-        return valeur
-
-    @field_validator("date")
-    @classmethod
-    def date_valide(cls, valeur: str) -> str:
-        return _date_valide(valeur, ("%Y-%m-%d",))
-
-    @field_validator("date_debut")
-    @classmethod
-    def date_debut_valide(cls, valeur: Optional[str]) -> Optional[str]:
-        return _date_valide(valeur, ("%Y-%m-%d", "%Y-%m")) if valeur else valeur
-
-
-class OrdreProjets(BaseModel):
-    ids: List[int] = Field(max_length=500)
 
 
 def assurer_colonnes_projets():
@@ -1361,16 +1297,6 @@ def delete_projet(projet_id: int, current_user: str = Depends(get_current_user))
 
 
 
-class Budget(BaseModel):
-    utilisateur: str
-    mois: str
-    annee: int = Field(default_factory=lambda: date.today().year) # Détecte l'annee actuelle par défaut (ex: 2026)
-    compte: str
-    type: str = "Categorie"
-    nom: str
-    somme: float
-
-
 # --- 1. BUDGETS ---
 @app.get("/get-budgets/{utilisateur}")
 @app.get("/get-budgets/{utilisateur}/{mois}")
@@ -1462,19 +1388,6 @@ CATEGORIES_DEFAUT = [
     "Bricolage", "Transports", "Carburant", "Auto", 
     "Retraits", "Internet", "Autre"
 ]
-
-# 1. Modèles Pydantic avec la couleur
-class CategorieCreate(BaseModel):
-    nom: str
-    icone: Optional[str] = "Tag"
-    couleur: Optional[str] = "#818cf8"
-    utilisateur: str
-
-class CategorieUpdate(BaseModel):
-    nom: str
-    icone: Optional[str] = "Tag"
-    couleur: Optional[str] = "#818cf8"
-    utilisateur: str
 
 @app.post("/api/categories")
 def add_category(cat: CategorieCreate, current_user: str = Depends(get_current_user)):
@@ -1591,11 +1504,6 @@ def delete_category(user: str, nom: str, current_user: str = Depends(get_current
     return {"status": "success"}
 
     
-class CategorieAssignGroup(BaseModel):
-    nom: str
-    groupe: str
-    utilisateur: str
-
 @app.put("/api/categories/assign-group")
 def assign_category_group(req: CategorieAssignGroup, current_user: str = Depends(get_current_user)):
     clean_user = current_user  # 👈 Token forcé
@@ -1622,12 +1530,6 @@ def assign_category_group(req: CategorieAssignGroup, current_user: str = Depends
     return {"status": "success", "nom": clean_name, "groupe": clean_group}
 
 
-# 🟢 ROUTE : SUPPRESSION D'UN GROUPE AVEC RÉASSIGNATION AUTOMATIQUE VERS "Général"
-class DeleteGroupRequest(BaseModel):
-    groupe: str
-    utilisateur: str
-    fallback_groupe: Optional[str] = "Général"
-
 @app.put("/api/categories/delete-group")
 def delete_category_group(req: DeleteGroupRequest, current_user: str = Depends(get_current_user)):
     clean_user = current_user  # 👈 Token forcé
@@ -1645,11 +1547,6 @@ def delete_category_group(req: DeleteGroupRequest, current_user: str = Depends(g
         )
 
     return {"status": "success", "deleted_group": clean_group, "fallback": clean_fallback}
-
-class Memoire(BaseModel):
-    nom: str
-    categorie: str
-    utilisateur: str
 
 @app.post("/memoire")
 def add_to_memory(m: dict, current_user: str = Depends(get_current_user)):
@@ -2119,30 +2016,6 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_use
         return []
     
 
-class PrevisionIn(BaseModel):
-    nom: str
-    montant: float
-    categorie: str
-    compte: str
-    utilisateur: str
-    mois: str
-    annee: int
-    date: str
-    actif: bool = True
-
-    # 💡 Pydantic Validator : Nettoie automatiquement le mois à l'entrée de l'API
-    @field_validator('mois')
-    @classmethod
-    def clean_mois(cls, v: str) -> str:
-        if v:
-            # Enlève les accents (Août -> Aout, Février -> Fevrier)
-            
-            v = "".join(c for c in unicodedata.normalize('NFD', v) if unicodedata.category(c) != 'Mn')
-            # Optionnel : Forcer la première lettre en Majuscule et le reste en minuscule
-            v = v.strip().capitalize()
-        return v
-
-
 @app.get("/previsions/{utilisateur}")
 def get_all_user_previsions_periods(utilisateur: str, current_user: str = Depends(get_current_user)):
     query = text("SELECT DISTINCT mois, annee FROM previsions WHERE LOWER(utilisateur) = :u ORDER BY annee DESC")
@@ -2245,12 +2118,6 @@ def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)
     
 
 
-class Allocation(BaseModel):
-    profil: str = Field(min_length=1, max_length=100)
-    projet: str = Field(min_length=1, max_length=120)
-    montant_alloue: float = Field(ge=0)
-
-
 # --- 2. ENVELOPPES D'ALLOCATIONS (RÉCUPÉRATION HISTORIQUE + SÉCURITÉ) ---
 @app.get("/get-allocations/{profil_id}")
 def get_allocations(profil_id: str, current_user: str = Depends(get_current_user)):
@@ -2323,18 +2190,6 @@ def update_enveloppe_montant(projet: str, profil: str, nouveau_montant: float, c
         conn.execute(query_ins, {"pj": projet, "pr": profil, "m": nouveau_montant, "u": current_user})
     return {"status": "success"}
 
-
-class TricountTransaction(BaseModel):
-    id: Optional[int] = None
-    date: date
-    libelle: str
-    montant: float
-    paye_par: str
-    pour_qui: str # Stocké en string séparé par des virgules (ex: "Theo, Marie, Julie")
-    utilisateur: str
-    groupe: str
-    token_partage: Optional[str] = None # <-- Nouveau champ
-    emoji: Optional[str] = None  # <--- AJOUTE CETTE LIGNE
 
 def clean_for_pdf(text_val: str) -> str:
     if not text_val:
@@ -2520,12 +2375,6 @@ def delete_group(username: str, group_name: str, current_user: str = Depends(get
         conn.execute(query, {"u": current_user.lower(), "g": group_name})
     return {"status": "success", "message": f"Groupe {group_name} supprimé"}
     
-# Modèle pour valider les données reçues lors du renommage
-class RenameGroupRequest(BaseModel):
-    userId: str
-    oldName: str
-    newName: str
-
 @app.put("/rename-group")
 def rename_group(request: RenameGroupRequest, current_user: str = Depends(get_current_user)):
     query = text("""
@@ -2771,15 +2620,6 @@ def get_shared_tricount(token: str):
             "emojis": chaine_emojis
         }
 
-# 4. Sauvegarder une transaction anonyme depuis le lien de partage
-class SharedTransactionRequest(BaseModel):
-    date: date
-    libelle: str
-    montant: float
-    paye_par: str
-    pour_qui: str
-    emoji: Optional[str] = None
-
 @app.post("/save-shared-transaction/{token}")
 def save_shared_transaction(token: str, t: SharedTransactionRequest):
     # Retrouver l'utilisateur et le groupe d'origine associés au token
@@ -2806,15 +2646,6 @@ def save_shared_transaction(token: str, t: SharedTransactionRequest):
             "m": t.montant, "u": username, "g": group_name, "token": token, "e": t.emoji
         })
     return {"status": "success"}
-
-# 5. Modifier une transaction de manière sécurisée via le token de partage
-class SharedTransactionUpdate(BaseModel):
-    id: int
-    date: date
-    libelle: str
-    paye_par: str
-    pour_qui: str
-    montant: float
 
 @app.put("/update-shared-transaction/{token}")
 def update_shared_transaction(token: str, t: SharedTransactionUpdate):
@@ -2966,15 +2797,6 @@ def download_shared_pdf(token: str, sujet: str = None):
 
 
 
-# Modèle pour la modification
-class UpdateTransactionRequest(BaseModel):
-    id: int
-    date: str
-    libelle: str
-    paye_par: str
-    pour_qui: str
-    montant: float
-
 # 🟢 1. SUPPRESSION / MODIFICATION DE TRANSACTIONS TRICOUNT
 @app.delete("/delete-transaction/{transaction_id}")
 def delete_transaction(transaction_id: int, current_user: str = Depends(get_current_user)):
@@ -3103,22 +2925,6 @@ def get_members(username: str, group_name: str, current_user: str = Depends(get_
 
 
 
-# --- SCHÉMAS PYDANTIC POUR LES STATS PERSONNALISÉES ---
-class CustomStatRule(BaseModel):
-    champ: str       # 'nom', 'categorie' ou 'jour'
-    condition: str   # 'EQUALS', 'CONTAINS', 'GREATER_THAN', 'LESS_THAN'
-    valeur: str      # ex: 'UberEats', 'Macdo', 'lundi', etc.
-
-class CustomStatCreate(BaseModel):
-    utilisateur: str
-    profil: str 
-    titre: str
-    flux_type: str   # 'depenses' ou 'revenus'
-    operateur: str   # 'AND' ou 'OR'
-    couleur: str  # 👈 Ajoute ici
-    icone: str    # 👈 Ajoute ici
-    regles: List[CustomStatRule]
-
 # --- 1. AJOUTER UNE STAT PERSO (CORRIGÉ ✨) ---
 @app.post("/custom-stats")
 def create_custom_stat(stat: CustomStatCreate, current_user: str = Depends(get_current_user)):
@@ -3183,15 +2989,6 @@ def delete_custom_stat(stat_id: int, current_user: str = Depends(get_current_use
     except Exception as e:
          raise HTTPException(status_code=500, detail=detail_erreur(e))
 
-# --- SCHÉMA DE MISE À JOUR ---
-class CustomStatUpdate(BaseModel):
-    titre: str
-    flux_type: str
-    operateur: str
-    couleur: str
-    icone: str
-    regles: List[CustomStatRule]
-
 # --- 4. MODIFIER UNE STAT PERSO (NOUVEAU ✨) ---
 @app.put("/custom-stats/{stat_id}")
 def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str = Depends(get_current_user)):
@@ -3225,33 +3022,6 @@ def update_custom_stat(stat_id: int, stat: CustomStatUpdate, current_user: str =
 
 
 
-
-# 1. PLACE LE SCHÉMA ICI EN PREMIER
-class ChatRequest(BaseModel):
-    question: str
-    transactions: List[dict]
-    custom_stats: Optional[List[dict]] = []
-
-
-# 1. Définition de la structure de sortie attendue par Gemini
-class AISuggestedRule(BaseModel):
-    champ: str = Field(description="Doit être 'nom', 'categorie', 'jour', 'montant', 'methode' ou 'frequence'")
-    condition: str = Field(description="Doit être 'EQUALS', 'CONTAINS', 'GREATER_THAN' ou 'LESS_THAN'")
-    valeur: str = Field(description="La valeur cible en minuscules (ex: 'shopping', 'loisirs', 'amazon', 'lundi')")
-
-class AICreationStat(BaseModel):
-    action: str = Field(description="Doit être 'CREATE' pour une création, 'UPDATE' pour une modification d'un indicateur existant, ou 'DELETE' si l'utilisateur veut le supprimer.")
-    id: Optional[str] = Field(default=None, description="L'ID exact de l'indicateur existant si action='UPDATE' ou 'DELETE'. Laisser null si 'CREATE'.")
-    titre: str = Field(description="Le titre de l'indicateur nettoyé (ex: 'Suivi Shopping')")
-    flux_type: str = Field(description="Doit être 'depenses' ou 'revenus'")
-    operateur: str = Field(description="Doit être 'AND' ou 'OR'")
-    couleur: str = Field(description="Choisis parmi exclusivement: 'rose', 'amber', 'emerald', 'indigo', 'cyan', 'violet', 'blue', 'orange', 'red', 'fuchsia'")
-    icone: str = Field(description="Choisis parmi exclusivement: 'fastfood', 'shopping', 'car', 'home', 'sub', 'salary', 'star', 'alert', 'health', 'leisure', 'crypto', 'tech', 'travel', 'gift'")
-    regles: List[AISuggestedRule]
-
-class ChatResponseSchema(BaseModel):
-    reponse: str = Field(description="Ta réponse d'expert financier en Français au format Markdown (tableaux, gras, listes).")
-    creation_stat: Optional[AICreationStat] = Field(default=None, description="Remplis cet objet si l'utilisateur demande explicitement de créer/suivre une stat OU s'il s'intéresse à une/plusieurs catégories/enseignes/jours spécifiques.")
 
 # 2. La route modifiée
 @app.post("/api/insights-chat")
@@ -3408,31 +3178,6 @@ def insights_chat(req: ChatRequest, request: Request, current_user: str = Depend
 
 
 
-class ConseilCategorie(BaseModel):
-  categorie: str = Field(description='Nom de la catégorie visée')
-  depense_actuelle: float = Field(
-      description='Montant dépensé ce mois-ci dans cette catégorie'
-  )
-  economie_potentielle: float = Field(
-      description='Montant réaliste économisable le mois prochain'
-  )
-  action_concrete: str = Field(
-      description='Conseil court et ultra-spécifique (1 à 2 phrases max)'
-  )
-
-
-class PermanentSavingsIndicatorResponse(BaseModel):
-  potentiel_total: float = Field(
-      description='Somme globale des économies identifiées'
-  )
-  score_sante_budget: str = Field(
-      description='Évaluation globale courte (ex: Bon, À surveiller, Critique)'
-  )
-  conseils: list[ConseilCategorie] = Field(
-      description='Liste des 2 à 3 meilleures opportunités d’économies'
-  )
-
-
 # 1. Initialisation du client Gemini (pense à bien définir GEMINI_API_KEY dans tes variables d'environnement)
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 LIMITE_ANALYSES_ECONOMIES = 15  # par compte, sur 10 minutes
@@ -3482,17 +3227,6 @@ def get_savings_indicator(data: dict, current_user: str = Depends(get_current_us
 
 
 
-
-class SimulationLineCreate(BaseModel):
-    id: int = None  # Ajout de l'ID optionnel pour l'éventuelle modification directe
-    utilisateur: str
-    scenario: str
-    titre: str
-    flux_type: str
-    categorie: str
-    montant: float
-    frequence: str
-    cible: str
 
 @app.post("/api/simulation-demenagement")
 def add_or_update_simulation_line(line: SimulationLineCreate, current_user: str = Depends(get_current_user)):
@@ -3606,10 +3340,6 @@ def delete_scenario(username: str, scenario_name: str, current_user: str = Depen
 # 📦 DUPLICATION DE SCÉNARIO DÉMÉNAGEMENT
 # =========================================================================
 
-class DuplicateScenarioRequest(BaseModel):
-    scenario_source: str
-    nouveau_scenario: str
-
 @app.post("/api/simulation-demenagement/duplicate")
 def duplicate_scenario(req: DuplicateScenarioRequest, current_user: str = Depends(get_current_user)):
     old_sc = req.scenario_source.strip()
@@ -3649,10 +3379,6 @@ def duplicate_scenario(req: DuplicateScenarioRequest, current_user: str = Depend
 # =========================================================================
 # 📝 BLOC-NOTES DÉMÉNAGEMENT (SAUVEGARDE ATOMIQUE SANS COLONNE MANQUANTE)
 # =========================================================================
-
-class NoteUpdate(BaseModel):
-    utilisateur: str
-    contenu: str
 
 @app.get("/api/notes-demenagement/{username}")
 def get_user_notes(username: str, current_user: str = Depends(get_current_user)):
@@ -3778,12 +3504,6 @@ def get_connect_url(
     except Exception as e:
         logger.error(f"Erreur génération de l'URL Powens : {e}")
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du lien bancaire.")
-
-
-class PowensCallback(BaseModel):
-    code: str = Field(min_length=1)
-    state: str = Field(min_length=1)
-    redirect_uri: Optional[str] = None
 
 
 @app.post("/powens/callback")
@@ -4253,13 +3973,6 @@ def get_connections_and_accounts(current_user: str = Depends(get_current_user)):
 @app.get("/powens/connexion-active")
 def powens_connexion_active(current_user: str = Depends(get_current_user)):
     return {"connecte": bool(jeton_powens_du_compte(current_user))}
-
-
-class PropagateYearRequest(BaseModel):
-    ids: List[int]
-    mois_actuel: Any          # Nom du mois (ex: "Juin") ou chiffre (ex: 6)
-    annee: Any                # Année cible (ex: 2026)
-    utilisateur: Optional[Any] = None  # Conservé pour compatibilité front, mais ignoré au profit du JWT
 
 
 @app.post("/api/previsions/propagate-year")
@@ -5547,25 +5260,6 @@ def test_jwt_token(current_user: str = Depends(get_current_user)):
 # 🏖️ MODULE GESTION DES CONGÉS & GÉNÉRATION PDF OFFICIEL ISA GROUP
 # =========================================================================
 
-class CongeCreate(BaseModel):
-    utilisateur: str
-    type: str  # 'CP', 'SANS_SOLDE', 'RECUP'
-    date_debut: str
-    date_fin: str
-    nb_jours: float
-    motif: Optional[str] = None
-    anticipe: Optional[bool] = False
-    jours_restants_apres: Optional[float] = None
-
-class CongeProfile(BaseModel):
-    utilisateur: str
-    nom: str
-    prenom: str
-    societe: str
-    poste: str
-    jours_acquis_annuel: Optional[float] = 25.0
-    date_embauche: Optional[str] = "2026-01-01"
-
 @app.get("/api/conges/{username}")
 def get_user_conges(username: str, current_user: str = Depends(get_current_user)):
     if username.lower().strip() != current_user:
@@ -5929,16 +5623,6 @@ def generate_isa_conge_pdf(conge_id: int, current_user: str = Depends(get_curren
 # ✂️ MODULE SPLIT TRANSACTION (VENTILATION COMPTABLE)
 # =========================================================================
 
-class SplitLine(BaseModel):
-    nom: str
-    montant: float
-    categorie: str
-    enveloppe: Optional[str] = None
-    prevision_id: Optional[int] = None
-
-class SplitRequest(BaseModel):
-    parts: List[SplitLine]
-
 @app.post("/transactions/{t_id}/split")
 def split_transaction(
     t_id: int, 
@@ -6166,23 +5850,6 @@ def match_powens_to_user_category(powens_cat_raw: str, user_available_cats: list
 # 🎨 GESTION DES PRESETS DE THÈMES (UNIQUEMENT L'HABILLAGE DU SITE)
 # =========================================================================
 
-class ThemePresetIn(BaseModel):
-    nom: str
-    bg_site: str
-    primary_color: str
-    text_main: str
-    radius: str
-    glass_blur: str
-    glass_bg: str
-    secondary_color: Optional[str] = None
-    gradient_style: Optional[str] = "radial"       # 👈 Ajout
-    gradient_intensity: Optional[str] = "50%"      # 👈 Ajout
-    gradient_color: Optional[str] = "auto"         # 👈 Ajout
-    gradient_angle: Optional[str] = None
-    gradient_shape: Optional[str] = None
-    gradient_center: Optional[str] = None
-    gradient_spread: Optional[str] = None
-
 @app.get("/api/themes/presets")
 def get_theme_presets(current_user: str = Depends(get_current_user)):
     with engine.connect() as conn:
@@ -6260,25 +5927,6 @@ def delete_theme_preset(preset_id: int, current_user: str = Depends(get_current_
 # =========================================================================
 # 🏠 ROUTES CRUD POUR LES ANNONCES DE DÉMÉNAGEMENT
 # =========================================================================
-
-# 1. Modèle Pydantic des annonces
-class AnnonceModel(BaseModel):
-    titre: str
-    url: Optional[str] = ""
-    source: Optional[str] = "Autre"
-    loyer: Optional[float] = 0.0
-    charges: Optional[float] = 0.0
-    surface: Optional[float] = 0.0
-    pieces: Optional[int] = 0
-    ville: Optional[str] = ""
-    photos: Optional[List[str]] = []
-    dossier_envoye: Optional[bool] = False
-    date_dossier: Optional[str] = None
-    visite_effectuee: Optional[bool] = False
-    date_visite: Optional[str] = None
-    statut_reponse: Optional[str] = "en_attente"
-    notes: Optional[str] = ""
-    favori: Optional[bool] = False
 
 # 2. Récupérer toutes les annonces de l'utilisateur
 @app.get("/api/demenagement/annonces/{username}")
@@ -6400,13 +6048,6 @@ def delete_annonce(annonce_id: int, current_user: str = Depends(get_current_user
         if res.rowcount == 0:
             raise HTTPException(status_code=404, detail="Annonce introuvable")
     return {"status": "deleted"}
-
-# 2. Route FastAPI
-class ScrapeUrlRequest(BaseModel):
-    url: str
-
-class ParseTextRequest(BaseModel):
-    text: str
 
 # 1. Route d'analyse de texte / partage via Gemini (100% infaillible même si DataDome bloque le lien)
 @app.post("/api/demenagement/parse-text")
