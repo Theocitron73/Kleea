@@ -46,7 +46,8 @@ jobs:
 
   frontend:
     name: Frontend (tests et build)
-    runs-on: ubuntu-latest
+    # Sur Ubuntu 26.04, le miroir Azure fait durer l'installation des dépendances de Chromium plus de 10 minutes (18 s ici).
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     defaults:
       run:
