@@ -440,8 +440,20 @@ export const CHAPITRES = [
         attention: "Cette action efface aussi les liaisons entre vos comptes bancaires et vos comptes Kleea. Après une reconnexion, il faudra les refaire sur la page « Comptes ».",
       },
       {
+        titre: 'Sauvegarder vos données',
+        texte: "« Télécharger ma sauvegarde » crée un fichier avec vos comptes, opérations, budgets, prévisions, catégories, projets, enveloppes, groupes Tricount et réglages. Vous pourrez le réimporter plus tard.",
+        attention: "Vos opérations et vos IBAN sont lisibles dans ce fichier : gardez-le en lieu sûr et ne le partagez pas.",
+        points: [
+          { l: 'Pour restaurer', d: "« Importer une sauvegarde », choisissez le fichier, vérifiez le résumé de ce qui sera ajouté, puis « Confirmer l'import »." },
+          { l: 'Rien n\'est écrasé', d: "L'import ajoute seulement ce qui manque. Ce qui existe reste tel quel, mais une ligne effacée depuis la sauvegarde revient." },
+          { l: 'Un seul compte', d: "Une sauvegarde ne s'importe que dans le compte qui l'a créée. Après une suppression, recréez un compte avec le même identifiant." },
+          { l: 'À refaire ensuite', d: "Votre mot de passe, vos connexions bancaires, votre jeton Stream Deck et vos liens de partage Tricount ne sont jamais sauvegardés. Votre nom et votre e-mail restent ceux du compte connecté." },
+        ],
+      },
+      {
         titre: 'Supprimer mon compte',
         attention: "« Supprimer mon compte » efface définitivement votre compte et vos données. L'action est irréversible et vous demande d'écrire « delete » pour confirmer.",
+        conseil: "Téléchargez d'abord votre sauvegarde : c'est le seul moyen de retrouver vos données ensuite.",
       },
       {
         titre: 'Alertes',

@@ -3,6 +3,7 @@ import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp } from 'lucide-
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
 import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
+import SauvegardeCard from '../components/SauvegardeCard';
 import { toast } from 'sonner';
 
 export default function ProfileTab({ 
@@ -619,6 +620,9 @@ export default function ProfileTab({
       {/* STREAM DECK */}
       <StreamDeckTokenCard />
 
+      {/* SAUVEGARDE PERSONNELLE */}
+      <SauvegardeCard user={user} />
+
       {/* ZONE DANGER SUPPRESSION */}
       <div className="bg-rose-500/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-rose-500/20 space-y-3">
         <div className="flex items-center justify-between">
@@ -638,7 +642,7 @@ export default function ProfileTab({
 
         {showDeleteConfirm && (
           <div className="pt-2 border-t border-rose-500/10 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-            <p className="text-[10px] font-semibold text-rose-300/80">⚠️ Attention : Action irréversible. Toutes vos données seront purgées.</p>
+            <p className="text-[10px] font-semibold text-rose-300/80">⚠️ Attention : Action irréversible. Toutes vos données seront purgées. Téléchargez d'abord votre sauvegarde si vous voulez les conserver.</p>
             <div className="flex flex-col gap-1 max-w-sm">
               <label className="text-[8px] font-black text-white/40 uppercase tracking-wider">
                 Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded-sm">delete</span> :
