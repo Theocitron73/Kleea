@@ -16,7 +16,7 @@ import {
 import SplitTransactionModal from '../components/SplitTransactionModal';
 import { toast } from 'sonner';
 import api from '../axios';
-import { estTransfertInterne } from '../utils/finance';
+import { depenseDuBudget, estTransfertInterne } from '../utils/finance';
 
 // Badge date compact pour le tableau desktop
 const CustomBadgeDate = forwardRef(({ t }, ref) => {
@@ -1768,13 +1768,7 @@ export default function GererView(props) {
             {/* Liste des budgets mobile */}
             <div className="space-y-2.5">
               {budgets.map((b) => {
-                const depenseReelle = (toutesLesTransactions || [])
-                  .filter(t => 
-                    t.categorie === b.nom && 
-                    t.compte === b.compte && 
-                    t.mois === b.mois
-                  )
-                  .reduce((acc, t) => acc + Math.abs(t.montant), 0);
+                const depenseReelle = depenseDuBudget({ ...b, annee: b.Annee || b.annee }, toutesLesTransactions);
 
                 const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
                 const estDepasse = depenseReelle > b.somme;
@@ -2194,14 +2188,7 @@ export default function GererView(props) {
                   .sort((a, b) => a.nom.localeCompare(b.nom))
                   .map((b) => {
                     const bAnnee = b.Annee || b.annee;
-                    const depenseReelle = toutesLesTransactions
-                      .filter(t => 
-                        t.categorie === b.nom && 
-                        t.compte === b.compte && 
-                        t.mois === b.mois &&
-                        (t.annee || new Date().getFullYear()) === bAnnee
-                      )
-                      .reduce((acc, t) => acc + Math.abs(t.montant), 0);
+                    const depenseReelle = depenseDuBudget({ ...b, annee: bAnnee }, toutesLesTransactions);
 
                     const pourcentage = Math.min((depenseReelle / b.somme) * 100, 100);
                     const estDepasse = depenseReelle > b.somme;

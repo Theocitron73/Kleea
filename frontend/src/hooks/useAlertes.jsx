@@ -2,37 +2,46 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import api from '../axios';
 import { calculerAlertes } from '../utils/alertes';
-import { nettoyerMois } from '../utils/finance';
 
-const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
-
-// Les données sont relues à chaque changement de page, pour tenir compte de ce qui vient d'être modifié.
-export default function useAlertes({ user, activeTab, comptes, transactions, connexions, importMode }) {
+// Les données sont relues à chaque changement de page, et dès que l'application recharge ses budgets ou ses prévisions.
+export default function useAlertes({ user, activeTab, comptes, transactions, connexions, importMode, budgetsAffiches, previsionsAffichees }) {
   const [synchro, setSynchro] = useState(null);
   const [masquees, setMasquees] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [previsions, setPrevisions] = useState([]);
 
+  const nom = encodeURIComponent(typeof user === 'object' ? user?.nom ?? '' : user ?? '');
+
+  // Une source indisponible n'empêche pas d'afficher les alertes des autres.
   useEffect(() => {
-    if (!user) return undefined;
-    const nom = encodeURIComponent(typeof user === 'object' ? user?.nom : user);
-    const maintenant = new Date();
-    const mois = encodeURIComponent(nettoyerMois(NOMS_MOIS[maintenant.getMonth()]));
+    if (!nom) return undefined;
     let annule = false;
-    // Une source indisponible n'empêche pas d'afficher les alertes des autres.
     api.get('/api/alertes/etat').then((res) => {
       if (annule) return;
       setSynchro(res.data?.synchro ?? null);
       setMasquees(Array.isArray(res.data?.masquees) ? res.data.masquees : []);
     }).catch(() => {});
-    api.get(`/get-budgets/${nom}/${mois}`).then((res) => {
+    return () => { annule = true; };
+  }, [nom, activeTab]);
+
+  // Tous les budgets : le calcul retient lui-même le mois en cours, quelle que soit l'écriture du mois en base.
+  useEffect(() => {
+    if (!nom) return undefined;
+    let annule = false;
+    api.get(`/get-budgets/${nom}`).then((res) => {
       if (!annule && Array.isArray(res.data)) setBudgets(res.data);
     }).catch(() => {});
-    api.get(`/previsions/${nom}/ALL/${maintenant.getFullYear()}`).then((res) => {
+    return () => { annule = true; };
+  }, [nom, activeTab, budgetsAffiches]);
+
+  useEffect(() => {
+    if (!nom) return undefined;
+    let annule = false;
+    api.get(`/previsions/${nom}/ALL/${new Date().getFullYear()}`).then((res) => {
       if (!annule && Array.isArray(res.data)) setPrevisions(res.data);
     }).catch(() => {});
     return () => { annule = true; };
-  }, [user, activeTab]);
+  }, [nom, activeTab, previsionsAffichees]);
 
   const toutes = useMemo(() => calculerAlertes({
     connexions, synchro, modeAuto: importMode === 'auto', budgets, previsions, comptes, transactions,

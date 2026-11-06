@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
+import { calculerJaugesBudget } from './calculsAnalyse.js';
+
 import {
+  budgetSurTousLesComptes,
+  depenseDuBudget,
+  montantDepense,
   anneeTransaction,
   appliquerMouvement,
   calculerSoldes,
@@ -169,4 +174,58 @@ test('recap par année : le solde de fin correspond au solde du 1er janvier suiv
     const total = Object.values(soldesAu1erJanvier).reduce((a, b) => a + b, 0);
     assert.equal(soldeFin, total, String(annee));
   });
+});
+
+test('la jauge d’un budget sur la page Gérer ne compte que les dépenses', () => {
+  const ligne = (montant, nom = 'Achat', categorie = 'Courses') => ({ montant, nom, categorie, compte: 'CCP', mois: 'Novembre' });
+  const [jauge] = calculerJaugesBudget({
+    activeTab: 'gerer',
+    budgets: [{ nom: 'Courses', somme: 100, compte: 'CCP' }],
+    comptesDuProfil: [],
+    filters: { mois: 'Novembre', profil: 'Tous' },
+    statsCategories: [],
+    toutesLesTransactions: [ligne(-80), ligne(50, 'Remboursement'), ligne('-10')],
+  });
+  assert.equal(jauge.reel, 90);
+  assert.equal(jauge.depasse, false);
+});
+
+test('seule une vraie dépense compte comme dépense', () => {
+  assert.equal(montantDepense({ montant: -12.5, nom: 'Achat', categorie: 'Courses' }), 12.5);
+  assert.equal(montantDepense({ montant: '-3', nom: 'Achat', categorie: 'Courses' }), 3);
+  assert.equal(montantDepense({ montant: 40, nom: 'Remboursement', categorie: 'Courses' }), 0);
+  assert.equal(montantDepense({ montant: 'n/a', nom: 'Achat', categorie: 'Courses' }), 0);
+  assert.equal(montantDepense({ montant: -40, nom: 'Virement', categorie: 'Transfert' }), estTransfertInterne('Virement', 'Transfert') ? 0 : 40);
+});
+
+test('le tableau de bord garde un budget sur tous les comptes quand un profil est choisi', () => {
+  const ligne = (compte, montant) => ({ montant, nom: 'Achat', categorie: 'Courses', compte, mois: 'Novembre', annee: 2026 });
+  const jauges = calculerJaugesBudget({
+    activeTab: 'dashboard',
+    budgets: [
+      { nom: 'Courses', somme: 100, compte: 'tous' },
+      { nom: 'Loisirs', somme: 100, compte: 'Livret' },
+    ],
+    comptesDuProfil: [{ compte: 'CCP' }],
+    filters: { mois: 'Novembre', annee: 2026, profil: 'Theo' },
+    statsCategories: [{ name: 'Courses', value: 30 }],
+    toutesLesTransactions: [ligne('CCP', -30), ligne('Livret', -50), ligne('CCP', 20), { ...ligne('CCP', -999), annee: 2025 }],
+  });
+  assert.deepEqual(jauges.map((j) => [j.nom, j.reel]), [['Courses', 80]]);
+});
+
+test('la dépense d’un budget respecte la catégorie, le mois, l’année et le compte', () => {
+  const ligne = (compte, montant, mois = 'Novembre', annee = 2026, categorie = 'Courses') => ({ montant, nom: 'Achat', categorie, compte, mois, annee });
+  const transactions = [
+    ligne('CCP', -10), ligne(' ccp ', -5), ligne('Livret', -20), ligne('CCP', 40),
+    ligne('CCP', -100, 'Octobre'), ligne('CCP', -100, 'Novembre', 2025), ligne('CCP', -100, 'Novembre', 2026, 'Loisirs'),
+  ];
+  const budget = { nom: 'Courses', mois: 'Novembre', annee: 2026 };
+  assert.equal(depenseDuBudget({ ...budget, compte: 'CCP' }, transactions), 15);
+  assert.equal(depenseDuBudget({ ...budget, compte: 'tous' }, transactions), 35);
+  assert.equal(depenseDuBudget({ ...budget, compte: null }, transactions), 35);
+  assert.equal(depenseDuBudget({ ...budget, compte: 'CCP', annee: undefined }, transactions), 115);
+  assert.equal(depenseDuBudget(budget, undefined), 0);
+  assert.equal(budgetSurTousLesComptes(' Tous '), true);
+  assert.equal(budgetSurTousLesComptes('CCP'), false);
 });
