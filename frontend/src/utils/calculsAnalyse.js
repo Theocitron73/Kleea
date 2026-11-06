@@ -1,4 +1,4 @@
-import { appliquerMouvement, calculerSoldes, creerLecteurMouvements, estTransfertInterne, totauxRevenusDepenses, trouverCompteCible } from './finance';
+import { appliquerMouvement, calculerSoldes, creerLecteurMouvements, estTransfertInterne, budgetSurTousLesComptes, depenseDuBudget, montantDepense, totauxRevenusDepenses, trouverCompteCible } from './finance.js';
 
 export function calculerRecapAnnuel({ allPrevisionsAnnee, cleanMonth, comptes, filters, getTxYear, moisListe, toutesLesTransactions }) {
     const anneeFiltre = parseInt(filters.annee);
@@ -333,7 +333,7 @@ export function calculerJaugesBudget({ activeTab, budgets, comptesDuProfil, filt
 
     // 2. On regroupe les budgets (on ne filtre par profil que si on n'est pas sur 'gerer')
     const budgetsAAfficher = budgets.filter(b => {
-      if (isGererPage || filters.profil === 'Tous') return true;
+      if (isGererPage || filters.profil === 'Tous' || budgetSurTousLesComptes(b.compte)) return true;
       const nomsComptesDuProfil = comptesDuProfil.map(c => c.compte.trim().toUpperCase());
       return nomsComptesDuProfil.includes(b.compte?.trim().toUpperCase());
     });
@@ -350,13 +350,16 @@ export function calculerJaugesBudget({ activeTab, budgets, comptesDuProfil, filt
     return Object.values(categoriesRegroupees).map(bg => {
       let reel = 0;
 
-      if (isGererPage) {
+      if (bg.comptes.some(budgetSurTousLesComptes)) {
+        // Tous les comptes : le profil affiché ne change pas ce qui a été dépensé, comme pour l'alerte.
+        reel = depenseDuBudget({ nom: bg.nom, mois: filters.mois, annee: isGererPage ? null : filters.annee }, toutesLesTransactions);
+      } else if (isGererPage) {
         // MODE GÉRER : On recalcule à la main sur la source brute pour ignorer les filtres UI
         reel = toutesLesTransactions.filter(t => 
           t.categorie === bg.nom && 
           bg.comptes.includes(t.compte) &&
           t.mois === filters.mois
-        ).reduce((acc, t) => acc + Math.abs(t.montant), 0);
+        ).reduce((acc, t) => acc + montantDepense(t), 0);
       } else {
         // MODE DASHBOARD : On utilise les stats déjà filtrées par l'interface
         reel = statsCategories.find(s => s.name === bg.nom)?.value || 0;

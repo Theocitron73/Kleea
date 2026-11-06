@@ -1686,22 +1686,21 @@ export default function DashboardView(props) {
             <div className="flex flex-col flex-1 min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 shadow-2xl backdrop-blur-[var(--glass-blur)] overflow-hidden">
               
               <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                <div className="p-4 shrink-0 border-b border-white/10 flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <div className="flex items-baseline gap-3">
-                      <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
-                        Flux mensuel
-                      </h3>
-                      <div className="border-l border-white/10 pl-3 flex flex-col">
-                        <span className="text-secondary-400 text-[10px] font-black tracking-[0.2em] uppercase">
-                          {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
-                        </span>
-                      </div>
+                {/* Même structure et mêmes marges que l'en-tête du Bilan annuel, pour rester alignés côte à côte. */}
+                <div className="p-4 lg:p-3 xl:p-2.5 shrink-0 border-b border-white/10 flex items-center justify-between gap-2">
+                  <div className="flex flex-col shrink-0">
+                    <h3 className="text-2xl lg:text-lg xl:text-2xl leading-8 font-black bg-white bg-clip-text text-transparent tracking-tight uppercase whitespace-nowrap">
+                      Flux mensuel
+                    </h3>
+                    <div className="mt-1.5 h-3 flex items-center gap-2.5">
+                      <div className="h-1 w-10 bg-indigo-500 rounded-full shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_50%,transparent)] shrink-0" />
+                      <span className="text-secondary-400 text-[9px] leading-none font-black tracking-[0.2em] uppercase whitespace-nowrap">
+                        {moisListe.find(m => m.v === filters.mois)?.l} {filters.annee}
+                      </span>
                     </div>
-                    <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full shadow-[0_0_15px_color-mix(in_srgb,var(--primary)_50%,transparent)]" />
                   </div>
 
-                  <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5">
+                  <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 lg:gap-0 min-[1500px]:gap-0.5 gap-0.5">
                     {Object.keys(TAB_CONFIG).map((tab) => {
                       const config = TAB_CONFIG[tab];
                       const IconComponent = config.icon;
@@ -1716,7 +1715,7 @@ export default function DashboardView(props) {
                             setSearchTerm('');
                           }}
                           title={config.label}
-                          className={`px-2.5 py-1.5 flex items-center justify-center rounded-lg transition-all duration-300 cursor-pointer ${config.className} ${
+                          className={`px-2.5 lg:px-0.5 xl:px-1 min-[1360px]:px-1.5 min-[1500px]:px-2.5 py-1.5 flex items-center justify-center rounded-lg transition-all duration-300 cursor-pointer ${config.className} ${
                             isActive 
                               ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md border border-white/5' 
                               : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
@@ -2024,22 +2023,22 @@ export default function DashboardView(props) {
           <div className="col-span-12 lg:col-span-4 flex flex-col h-[500px] lg:h-full min-h-0">
             <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 flex flex-col h-full overflow-hidden shadow-2xl backdrop-blur-[var(--glass-blur)]">
               
-              <div className="p-4 lg:p-3 xl:p-2.5 shrink-0 border-b border-white/10 flex items-center justify-between select-none">
-                <div className="flex flex-col">
-                  <div className="flex items-baseline gap-3">
-                    <h3 className="text-2xl font-black bg-white bg-clip-text text-transparent tracking-tight uppercase">
+              <div className="p-4 lg:p-3 xl:p-2.5 shrink-0 border-b border-white/10 flex items-center justify-between gap-2 select-none">
+                <div className="flex flex-col shrink-0">
+                  <div className="h-8 flex items-baseline gap-3 lg:gap-2 xl:gap-3">
+                    <h3 className="text-2xl lg:text-lg xl:text-2xl leading-8 font-black bg-white bg-clip-text text-transparent tracking-tight uppercase whitespace-nowrap">
                       Bilan Annuel
                     </h3>
-                    <div className="border-l border-white/10 pl-3 flex flex-col">
+                    <div className="border-l border-white/10 pl-3 lg:pl-2 xl:pl-3 flex flex-col">
                       <span className="text-emerald-500 text-[10px] font-black tracking-[0.2em]">
                         {filters.annee}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="mt-1.5 flex items-center gap-2.5">
+                  <div className="mt-1.5 h-3 flex items-center gap-2.5">
                     <div className="h-1 w-10 bg-emerald-500 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)] shrink-0" />
-                    <div className="flex items-center gap-1 leading-none">
+                    <div className="flex items-center gap-1 leading-none whitespace-nowrap">
                       <span className="text-[9px] font-bold text-[var(--text-main)]/40 uppercase tracking-wider">
                         Solde 1er janvier :
                       </span>
@@ -2054,21 +2053,21 @@ export default function DashboardView(props) {
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('list')}
-                    className={`px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
+                    className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
                   >
                     <List size={14} />
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('chart')}
-                    className={`px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
+                    className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
                   >
                     <PieChartIcon size={14} />
                   </button>
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('calendar')}
-                    className={`px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
+                    className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
                     title="Activité des dépenses"
                   >
                     <CalendarDays size={14} />
@@ -2076,7 +2075,7 @@ export default function DashboardView(props) {
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('wrapped')}
-                    className={`px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
+                    className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
                     title="Rétrospective annuelle (Wrapped)"
                   >
                     <Sparkles size={14} />

@@ -176,6 +176,29 @@ export function calculerSoldes({ comptes, transactions, annee, moisIndex }) {
 }
 
 /** Revenus et dépenses d'une liste de transactions, hors virements internes. */
+/** Ce qu'une opération pèse dans une dépense : 0 pour un remboursement, un revenu ou un transfert interne. */
+export function montantDepense(t) {
+  const montant = parseFloat(t?.montant);
+  return montant < 0 && !estTransfertInterne(t.nom, t.categorie) ? Math.abs(montant) : 0;
+}
+
+/** Un budget sans compte précis, ou sur « tous », suit tous les comptes. */
+export function budgetSurTousLesComptes(compte) {
+  const cle = cleCompte(compte);
+  return !cle || cle === 'TOUS';
+}
+
+/** Dépenses du mois comptées dans un budget. Sans `annee`, tous les ans comptent. */
+export function depenseDuBudget({ nom, compte, mois, annee }, transactions) {
+  const tous = budgetSurTousLesComptes(compte);
+  return (transactions || []).reduce((total, t) => {
+    if (t.categorie !== nom || indexMois(t.mois) !== indexMois(mois)) return total;
+    if (annee && parseInt(anneeTransaction(t) || 0, 10) !== parseInt(annee, 10)) return total;
+    if (!tous && cleCompte(t.compte) !== cleCompte(compte)) return total;
+    return total + montantDepense(t);
+  }, 0);
+}
+
 export function totauxRevenusDepenses(transactions) {
   let revenus = 0;
   let depenses = 0;

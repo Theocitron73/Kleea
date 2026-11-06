@@ -4,13 +4,15 @@ import { UTILISATEUR, ouvrirSession } from './api-simulee.js';
 
 const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 const TRANSACTIONS = [
-  { id: 1, date: '2026-11-02', nom: 'Salaire', montant: -120, categorie: 'Courses', compte: 'CCP', mois: 'Novembre', annee: 2026 },
+  { id: 1, date: '2026-11-02', nom: 'Supermarché', montant: -120, categorie: 'Courses', compte: 'CCP', mois: 'Novembre', annee: 2026 },
+  { id: 2, date: '2026-11-03', nom: 'Remboursement', montant: 50, categorie: 'Courses', compte: 'CCP', mois: 'Novembre', annee: 2026 },
 ];
 
-async function ouvrir(page, { importMode = 'auto', connexions = [] } = {}) {
+async function ouvrir(page, { importMode = 'auto', connexions = [], sansBudget = false } = {}) {
   const erreurs = [];
   page.on('pageerror', (e) => erreurs.push(e.message));
-  const serveur = page.serveur = { masquees: [] };
+  const BUDGET_COURSES = { nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'tous', id: 1, utilisateur: UTILISATEUR, type: 'Categorie' };
+  const serveur = page.serveur = { masquees: [], budgets: sansBudget ? [] : [BUDGET_COURSES] };
   const reponses = [
     [/^\/profile\//, { username: UTILISATEUR, email: 't@kleea.test', name: 'T', import_mode: importMode, role: 'admin' }],
     [/^\/config-comptes\//, [{ compte: 'CCP', groupe: 'Testeur', solde: 500, objectif: 0, couleur: '#4f46e5', taux: 0, powens_name: null }]],
@@ -19,7 +21,6 @@ async function ouvrir(page, { importMode = 'auto', connexions = [] } = {}) {
     [/^\/dashboard\/periodes\//, [{ mois: 'Novembre', annee: 2026 }]],
     [/^\/powens\/connexion-active/, { connecte: connexions.length > 0 }],
     [/^\/powens\/connections-and-accounts/, { connections_count: connexions.length, connections: connexions, accounts_count: 0, accounts: [] }],
-    [/^\/get-budgets\//, [{ nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'tous', id: 1, utilisateur: UTILISATEUR, type: 'Categorie' }]],
     [/^\/previsions\//, [{ id: 9, date: '2026-12-10', nom: '[PRÉVI] Loyer', montant: -800, compte: 'CCP', categorie: 'Logement', mois: 'Décembre', annee: 2026, actif: true }]],
     [/^\/api\/streamdeck\/token/, { active: false }],
     [/^\/note\//, { texte: '' }],
@@ -37,6 +38,15 @@ async function ouvrir(page, { importMode = 'auto', connexions = [] } = {}) {
     if (url.pathname === '/api/alertes/masquees') {
       if (requete.method() === 'POST') serveur.masquees.push(requete.postDataJSON().id);
       else serveur.masquees = [];
+      return json({ status: 'success' });
+    }
+    if (url.pathname.startsWith('/get-budgets/')) {
+      // Comme le vrai backend : le mois de l'adresse doit être écrit exactement comme en base.
+      const mois = decodeURIComponent(url.pathname.split('/')[3] || '');
+      return json(serveur.budgets.filter((b) => !mois || b.mois === mois));
+    }
+    if (url.pathname === '/save-budget') {
+      serveur.budgets = [BUDGET_COURSES];
       return json({ status: 'success' });
     }
     const trouve = reponses.find(([motif]) => motif.test(url.pathname));
@@ -96,6 +106,35 @@ test('en mode manuel, une panne de synchronisation n’alerte pas', async ({ pag
   await expect(cloche(page)).toHaveAccessibleName('Alertes : 2 en cours', { timeout: 30_000 });
   await cloche(page).click();
   await expect(panneau(page).getByText('Dernière synchronisation en échec')).toHaveCount(0);
+});
+
+test('un budget ajouté déclenche son alerte sans changer de page', async ({ page }) => {
+  await ouvrir(page, { sansBudget: true });
+  await expect(cloche(page)).toHaveAccessibleName('Alertes : 2 en cours', { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Gérer' }).locator('visible=true').first().click();
+  await page.getByRole('button', { name: 'Fixer le budget' }).locator('visible=true').first().click();
+  await expect(cloche(page)).toHaveAccessibleName('Alertes : 3 en cours');
+  await cloche(page).click();
+  await expect(panneau(page).getByText('Budget Courses dépassé')).toBeVisible();
+});
+
+test('la fenêtre de suivi compte un budget sur tous les comptes, sans les remboursements', async ({ page }) => {
+  await ouvrir(page);
+  await expect(cloche(page)).toHaveAccessibleName(/en cours/, { timeout: 30_000 });
+  await page.getByRole('button', { name: 'Gérer' }).locator('visible=true').first().click();
+  await page.getByRole('button', { name: /Suivi Budgets/ }).locator('visible=true').first().click();
+  await expect(page.getByText('120€/100€').locator('visible=true').first()).toBeVisible();
+});
+
+test('la liste mobile des budgets compte un budget sur tous les comptes, sans les remboursements', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await ouvrir(page);
+  await expect(cloche(page)).toHaveAccessibleName(/en cours/, { timeout: 30_000 });
+  // Sur mobile, les boutons de la navigation n'ont qu'une icône : Gérer est le troisième.
+  await page.locator('div.md\\:hidden.fixed.bottom-0 button').nth(2).click();
+  await page.getByRole('button', { name: /^Budgets \(/ }).locator('visible=true').first().click();
+  await expect(page.getByText('120€/100€').locator('visible=true').first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/budgets-mobile.png' });
 });
 
 test('sur grand écran, le panneau reste accroché à la cloche', async ({ page }) => {

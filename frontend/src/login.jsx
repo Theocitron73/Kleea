@@ -919,7 +919,7 @@ const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens(
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
 // =========================================================================
-const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, importMode });
+const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, importMode, budgetsAffiches: budgets, previsionsAffichees: allPrevisionsAnnee });
 
 const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
 

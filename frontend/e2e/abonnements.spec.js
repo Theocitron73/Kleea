@@ -107,3 +107,30 @@ test('l’onglet fonctionne sur mobile', async ({ page }) => {
   expect(erreurs).toEqual([]);
   await page.screenshot({ path: 'test-results/abo-mobile.png' });
 });
+
+test('l’en-tête de Flux mensuel reste sur une ligne et aligné avec le Bilan annuel', async ({ page }) => {
+  await ouvrir(page);
+  const flux = page.getByRole('heading', { name: 'Flux mensuel' });
+  const bilan = page.getByRole('heading', { name: 'Bilan Annuel' }).locator('visible=true').first();
+  await expect(flux).toBeVisible({ timeout: 30_000 });
+  const mesurer = (titre) => titre.evaluate((el) => {
+    const entete = el.closest('.border-b').getBoundingClientRect();
+    const cadre = el.getBoundingClientRect();
+    const boutons = [...el.closest('.border-b').querySelectorAll('button')].filter((b) => b.offsetParent).map((b) => b.getBoundingClientRect());
+    return {
+      lignes: Math.round(cadre.height / parseFloat(getComputedStyle(el).lineHeight)),
+      haut: Math.round(entete.top),
+      bas: Math.round(entete.bottom),
+      titreHaut: Math.round(cadre.top),
+      depasse: boutons.some((b) => b.right > entete.right + 1),
+      ongletsSurLaLigneDuTitre: boutons.every((b) => b.top < cadre.bottom && b.bottom > cadre.top),
+    };
+  });
+  for (const width of [1024, 1100, 1280, 1366, 1440, 1536, 1680, 1920, 2200]) {
+    await page.setViewportSize({ width, height: 900 });
+    const [a, b] = [await mesurer(flux), await mesurer(bilan)];
+    expect(a, `Flux à ${width}`).toMatchObject({ lignes: 1, depasse: false, ongletsSurLaLigneDuTitre: true });
+    expect({ haut: a.haut, bas: a.bas, titreHaut: a.titreHaut }, `alignement à ${width}`).toEqual({ haut: b.haut, bas: b.bas, titreHaut: b.titreHaut });
+    if (width === 1024 || width === 1366 || width === 1920) await page.screenshot({ path: `test-results/entetes-${width}.png` });
+  }
+});

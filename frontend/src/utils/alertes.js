@@ -1,4 +1,4 @@
-import { anneeTransaction, calculerSoldes, indexMois } from './finance.js';
+import { anneeTransaction, budgetSurTousLesComptes, calculerSoldes, indexMois, montantDepense } from './finance.js';
 
 // Calcul des alertes. Elles dépendent de la date du jour, jamais du mois ou du profil affichés à l'écran.
 
@@ -82,16 +82,15 @@ function alertesBudgets(budgets, transactions, aujourdhui) {
     if (!groupes.has(b.nom)) groupes.set(b.nom, { limite: 0, comptes: new Set(), tous: false });
     const groupe = groupes.get(b.nom);
     groupe.limite += Number(b.somme) || 0;
-    if (cle(b.compte) === 'TOUS' || !b.compte) groupe.tous = true;
+    if (budgetSurTousLesComptes(b.compte)) groupe.tous = true;
     else groupe.comptes.add(cle(b.compte));
   }
   const alertes = [];
   for (const [nom, groupe] of groupes) {
     if (groupe.limite <= 0) continue;
     const reel = (transactions || []).reduce((total, t) => {
-      const montant = parseFloat(t.montant);
       const bonMois = indexMois(t.mois) === mois && parseInt(anneeTransaction(t) || 0, 10) === annee;
-      return bonMois && montant < 0 && t.categorie === nom && (groupe.tous || groupe.comptes.has(cle(t.compte))) ? total + Math.abs(montant) : total;
+      return bonMois && t.categorie === nom && (groupe.tous || groupe.comptes.has(cle(t.compte))) ? total + montantDepense(t) : total;
     }, 0);
     const pourcentage = Math.round((reel / groupe.limite) * 100);
     if (reel > groupe.limite) {
