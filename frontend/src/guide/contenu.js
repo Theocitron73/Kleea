@@ -413,8 +413,14 @@ export const CHAPITRES = [
       },
       {
         titre: 'Partager avec vos proches',
-        texte: "« Partager » copie un lien vers le groupe. Vos proches n'ont pas besoin de compte : ils voient le bilan et peuvent ajouter, modifier ou supprimer des dépenses.",
-        attention: "Toute personne ayant le lien peut modifier les dépenses du groupe, et aucun historique ne garde la trace de ces changements. Ne le partagez qu'avec les personnes concernées.",
+        texte: "« Partager » ouvre la gestion du lien du groupe. Vos proches n'ont pas besoin de compte : ils voient le bilan et peuvent ajouter, modifier ou supprimer des dépenses.",
+        points: [
+          { l: 'Durée du lien', d: "Choisissez 7 jours, 30 jours, 90 jours ou 1 an. Passé ce délai, le lien ne s'ouvre plus et il faut en générer un nouveau. « Appliquer cette durée » change la limite du lien actif, à compter d'aujourd'hui." },
+          { l: 'Liens déjà partagés', d: "Un lien créé avant l'arrivée des durées reste valable sans date limite, tant que vous ne lui choisissez pas de durée et que vous ne le révoquez pas." },
+          { l: 'Révoquer ou remplacer', d: "« Révoquer le lien » le coupe aussitôt. « Générer un nouveau lien » le remplace : l'ancienne adresse cesse de fonctionner, et vos proches voient un message qui l'explique." },
+          { l: 'Historique des modifications', d: "Dans la même fenêtre, retrouvez chaque ajout, modification ou suppression faite par le lien : quand, ancienne et nouvelle valeur, et le nom du participant s'il l'a saisi. Ni adresse IP ni lien n'y sont gardés, et vos propres changements n'y figurent pas." },
+        ],
+        attention: "Toute personne ayant un lien actif peut modifier les dépenses du groupe, et le nom saisi n'est pas vérifié. Ne le partagez qu'avec les personnes concernées.",
       },
     ],
   },

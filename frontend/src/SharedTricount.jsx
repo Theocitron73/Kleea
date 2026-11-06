@@ -3,7 +3,13 @@ import { useParams } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import { Pencil, Trash2, CheckCircle, AlertCircle, X } from 'lucide-react';
 import { toLocalDateString, getTodayLocalDateString } from "./utils/dateUtils";
-import { appliquerMontantIndividuel, preparerEdition, repartirEquitablement, totalDesPartsCentimes } from './utils/tricountPartage';
+import { appliquerMontantIndividuel, avecAuteur, formaterExpiration, preparerEdition, refusDuLien, repartirEquitablement, totalDesPartsCentimes } from './utils/tricountPartage';
+
+const CLE_AUTEUR = 'kleea-tricount-auteur';
+
+const lireAuteur = () => {
+  try { return localStorage.getItem(CLE_AUTEUR) || ""; } catch { return ""; }
+};
 
 export default function SharedTricount() {
   const { token } = useParams();
@@ -30,27 +36,43 @@ export default function SharedTricount() {
   const [deletingId, setDeletingId] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "error" });
   const [mobileTab, setMobileTab] = useState('bilan');
+  const [lienRefuse, setLienRefuse] = useState(null);
+  const [expireLe, setExpireLe] = useState(null);
+  const [auteur, setAuteur] = useState(lireAuteur);
+
+  const changerAuteur = (nom) => {
+    setAuteur(nom);
+    try { localStorage.setItem(CLE_AUTEUR, nom); } catch { /* Le nom sera simplement à ressaisir. */ }
+  };
 
   const showToast = (message, type = "error") => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification(prev => ({ ...prev, show: false })), 3000);
   };
 
+  // Le lien peut être coupé pendant que la page est ouverte : chaque réponse passe par ici.
+  const lienEstRefuse = async (reponse) => {
+    if (reponse.status !== 404 && reponse.status !== 410) return false;
+    const corps = await reponse.json().catch(() => null);
+    setLienRefuse(refusDuLien(reponse.status, corps));
+    return true;
+  };
+
   const fetchSharedData = async () => {
     if (!token) return;
     try {
       const response = await fetch(`${API_BASE}/get-shared-tricount/${encodeURIComponent(token)}`);
-      if (!response.ok) {
-        throw new Error("Lien de partage introuvable ou expiré.");
-      }
+      if (await lienEstRefuse(response)) return;
+      if (!response.ok) throw new Error("Lecture refusée.");
       const data = await response.json();
       setGroupeNom(data.groupe);
       setOwner(data.utilisateur);
       setGroupData(data);
       setEmojisChaine(data.emojis || "");
+      setExpireLe(data.expire_le || null);
     } catch (err) {
       console.error(err);
-      showToast("Lien de partage introuvable ou expiré.", "error");
+      showToast("Impossible de charger ce Tricount. Réessayez dans un instant.", "error");
     } finally {
       setLoading(false);
     }
@@ -123,16 +145,17 @@ export default function SharedTricount() {
       const res = await fetch(`${API_BASE}/save-shared-transaction/${encodeURIComponent(token)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(avecAuteur({
           date: newTransaction.date,
           libelle: newTransaction.libelle,
           montant: montantGlobal,
           paye_par: newTransaction.paye_par,
           pour_qui: parts,
           emoji: getEmojiForMember(newTransaction.paye_par)
-        })
+        }, auteur))
       });
 
+      if (await lienEstRefuse(res)) return;
       if (!res.ok) throw new Error("Erreur enregistrement.");
 
       setNewTransaction({
@@ -167,15 +190,16 @@ export default function SharedTricount() {
       const reponse = await fetch(`${API_BASE}/update-shared-transaction/${encodeURIComponent(token)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(avecAuteur({
           id: editingTransaction.id,
           date: editingTransaction.date,
           libelle: editingTransaction.libellé || editingTransaction.libelle,
           paye_par: editingTransaction.payé_par || editingTransaction.paye_par,
           pour_qui: chainePourQui || "Tous",
           montant: parseFloat(editingTransaction.montant)
-        })
+        }, auteur))
       });
+      if (await lienEstRefuse(reponse)) return;
       if (!reponse.ok) throw new Error("Modification refusée");
       setEditingTransaction(null);
       fetchSharedData();
@@ -187,7 +211,13 @@ export default function SharedTricount() {
 
   const executeDelete = async (id) => {
     try {
-      await fetch(`${API_BASE}/delete-shared-transaction/${encodeURIComponent(token)}/${id}`, { method: 'DELETE' });
+      const reponse = await fetch(`${API_BASE}/delete-shared-transaction/${encodeURIComponent(token)}/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(avecAuteur({}, auteur))
+      });
+      if (await lienEstRefuse(reponse)) return;
+      if (!reponse.ok) throw new Error("Suppression refusée");
       fetchSharedData();
       setDeletingId(null);
       showToast("Dépense supprimée.", "success");
@@ -207,6 +237,7 @@ export default function SharedTricount() {
     if (sujet) url += `?sujet=${encodeURIComponent(sujet)}`;
     try {
       const response = await fetch(url);
+      if (await lienEstRefuse(response)) return;
       if (!response.ok) throw new Error();
       const blob = await response.blob();
       const dUrl = window.URL.createObjectURL(blob);
@@ -230,6 +261,20 @@ export default function SharedTricount() {
     return (
       <div className="min-h-screen bg-[var(--bg-site)] flex items-center justify-center">
         <div className="w-12 h-12 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (lienRefuse) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-site)] text-white flex items-center justify-center p-4">
+        <div role="alert" className="w-full max-w-md bg-slate-900/50 border border-white/10 rounded-2xl p-6 text-center space-y-3">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
+            <AlertCircle size={22} />
+          </div>
+          <h1 className="text-lg font-black">{lienRefuse.titre}</h1>
+          <p className="text-sm text-white/70">{lienRefuse.message}</p>
+        </div>
       </div>
     );
   }
@@ -530,6 +575,25 @@ export default function SharedTricount() {
           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white/30">Créé par</span>
           <p className="text-xs font-bold text-white/80">{owner}</p>
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto mb-6 px-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="sm:w-64 shrink-0">
+          <label htmlFor="auteur-partage" className="text-[9px] uppercase font-black text-white/40 block mb-1">Votre nom (facultatif)</label>
+          <input
+            id="auteur-partage"
+            type="text"
+            maxLength={60}
+            value={auteur}
+            onChange={(e) => changerAuteur(e.target.value)}
+            placeholder="Prénom"
+            className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold outline-none"
+          />
+        </div>
+        <p className="text-[11px] text-white/50">
+          Vos ajouts, modifications et suppressions sont visibles par la personne qui a créé ce Tricount, avec ce nom si vous l’indiquez.
+          {expireLe ? ` ${formaterExpiration(expireLe)}` : ''}
+        </p>
       </div>
 
       {/* =========================================================================
