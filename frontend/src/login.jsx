@@ -19,6 +19,7 @@ import TricountManager from './views/TricountManager';
 import DemenagementPage from './views/DemenagementPage';
 import CongesPage from './views/Congespage';
 import AuthView from './views/AuthView';
+import { deconnexionEnAttente } from './utils/sessions';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
 import { themeBackground } from './utils/gradient';
@@ -175,7 +176,7 @@ const moisListe = [
  // Stocke le nom du projet à supprimer
   const [projets, setProjets] = useState([]);
   const [user, setUser] = useState(localStorage.getItem('user'));
-  const [authViewMode, setAuthViewMode] = useState(null); // null = Landing Page, 'login' ou 'register' = Formulaire
+  const [authViewMode, setAuthViewMode] = useState(() => (deconnexionEnAttente() ? 'login' : null)); // null = Landing Page, 'login' ou 'register' = Formulaire
   const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'user'); // 👈 Nouvel état
   const [, setLoginName] = useState('')
   const [comptes, setComptes] = useState([]);
@@ -470,6 +471,13 @@ const [, setLoginPassword] = useState(''); // Ajoute cette ligne
 
 
 const handleLogout = () => {
+  // Retire l'appareil de la liste des sessions. Le jeton est passé ici car il est effacé juste après ;
+  // un échec ne doit pas empêcher la déconnexion locale.
+  const jeton = localStorage.getItem('token');
+  if (jeton) {
+    api.post('/api/sessions/deconnexion', null, { headers: { Authorization: `Bearer ${jeton}` } }).catch(() => {});
+  }
+
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
   localStorage.removeItem('user');
   localStorage.removeItem('powens_connecte'); // 👈 Évite de transmettre le jeton au prochain utilisateur

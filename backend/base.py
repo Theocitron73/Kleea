@@ -2,14 +2,17 @@
 import bcrypt
 import jwt
 import os
+import secrets
 import socket
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google import genai
-from journaux import demarrer_suivi_erreurs
+from journaux import demarrer_suivi_erreurs, logger
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import SQLAlchemyError
+from typing import Optional
 
 
 # 1. Patch Hostname
@@ -80,6 +83,126 @@ def create_access_token(data: dict):
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+# Sessions de connexion. Le jeton porte un identifiant "sid" qui renvoie à une ligne de sessions_connexion.
+# Une panne de cette table ne doit enfermer personne dehors : sans table, le jeton est émis sans "sid", comme avant.
+SESSION_DECONNECTEE = "Cette session a été déconnectée. Veuillez vous reconnecter."
+
+
+DELAI_ACTIVITE = timedelta(minutes=5)  # Au plus une écriture par session pendant ce délai.
+
+
+NAVIGATEURS = (
+    ("edg/", "Edge"), ("edge/", "Edge"), ("edgios/", "Edge"), ("opr/", "Opera"), ("opera", "Opera"),
+    ("samsungbrowser/", "Samsung Internet"), ("firefox/", "Firefox"), ("fxios/", "Firefox"),
+    ("chrome/", "Chrome"), ("crios/", "Chrome"), ("safari/", "Safari"),
+)
+
+
+SYSTEMES = (
+    ("iphone", "iPhone"), ("ipad", "iPad"), ("android", "Android"), ("windows", "Windows"),
+    ("mac os x", "macOS"), ("macintosh", "macOS"), ("cros", "ChromeOS"), ("linux", "Linux"),
+)
+
+
+def appareil_lisible(user_agent: Optional[str]) -> str:
+    """Un nom court pour l'utilisateur. L'en-tête d'origine, plus identifiant, n'est pas conservé."""
+    agent = (user_agent or "").lower()
+    navigateur = next((nom for motif, nom in NAVIGATEURS if motif in agent), None)
+    systeme = next((nom for motif, nom in SYSTEMES if motif in agent), None)
+    if navigateur and systeme:
+        return f"{navigateur} sur {systeme}"
+    return navigateur or systeme or "Appareil inconnu"
+
+
+def ouvrir_session(utilisateur: str, user_agent: Optional[str]) -> Optional[str]:
+    """Renvoie l'identifiant de la nouvelle session, ou None si la table est absente ou inaccessible."""
+    identifiant = secrets.token_urlsafe(24)
+    maintenant = datetime.now(timezone.utc)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO sessions_connexion (id, utilisateur, appareil, cree_le, derniere_activite)
+                    VALUES (:id, :u, :a, :t, :t)
+                """),
+                {"id": identifiant, "u": utilisateur.lower().strip(), "a": appareil_lisible(user_agent), "t": maintenant},
+            )
+    except SQLAlchemyError as e:
+        logger.warning(f"⚠️ Session non enregistrée, jeton émis sans identifiant : {type(e).__name__}")
+        return None
+    return identifiant
+
+
+def jeton_de_session(data: dict, user_agent: Optional[str]) -> str:
+    identifiant = ouvrir_session(data["sub"], user_agent)
+    return create_access_token({**data, "sid": identifiant} if identifiant else data)
+
+
+def en_utc(valeur) -> Optional[datetime]:
+    """SQLite renvoie du texte là où Postgres renvoie une date."""
+    if isinstance(valeur, str):
+        valeur = datetime.fromisoformat(valeur)
+    if valeur is None:
+        return None
+    return valeur if valeur.tzinfo else valeur.replace(tzinfo=timezone.utc)
+
+
+def verifier_session(identifiant: str, utilisateur: str) -> None:
+    """Refuse une session révoquée ou inconnue, et note l'activité sans écrire à chaque requête."""
+    try:
+        with engine.connect() as conn:
+            ligne = conn.execute(
+                text("SELECT utilisateur, derniere_activite, revoquee_le FROM sessions_connexion WHERE id = :id"),
+                {"id": identifiant},
+            ).first()
+    except SQLAlchemyError as e:
+        # La route elle-même a besoin de la même base : refuser ici déconnecterait tout le monde à la moindre panne.
+        logger.warning(f"⚠️ Vérification de session impossible : {type(e).__name__}")
+        return
+    if ligne is None or ligne.utilisateur != utilisateur or ligne.revoquee_le is not None:
+        raise HTTPException(status_code=401, detail=SESSION_DECONNECTEE)
+
+    maintenant = datetime.now(timezone.utc)
+    seuil = maintenant - DELAI_ACTIVITE
+    if en_utc(ligne.derniere_activite) >= seuil:
+        return
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE sessions_connexion SET derniere_activite = :t WHERE id = :id AND derniere_activite < :seuil"),
+                {"t": maintenant, "id": identifiant, "seuil": seuil},
+            )
+    except SQLAlchemyError as e:
+        logger.warning(f"⚠️ Dernière activité non enregistrée : {type(e).__name__}")
+
+
+def purger_sessions_expirees() -> None:
+    """Au-delà de la durée du jeton, la ligne ne sert plus : le jeton est refusé de toute façon."""
+    limite = datetime.now(timezone.utc) - timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS + 1)
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM sessions_connexion WHERE cree_le < :limite"), {"limite": limite})
+    except SQLAlchemyError as e:
+        logger.warning(f"⚠️ Purge des sessions impossible : {type(e).__name__}")
+
+
+def supprimer_sessions(utilisateur: str) -> None:
+    """À la suppression du compte. Une transaction à part : sans table, elle ne doit pas annuler la suppression."""
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM sessions_connexion WHERE utilisateur = :u"), {"u": utilisateur.lower().strip()})
+    except SQLAlchemyError as e:
+        logger.warning(f"⚠️ Sessions du compte non supprimées : {type(e).__name__}")
+
+
+def session_actuelle(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[str]:
+    """L'identifiant de session du jeton, None pour un jeton émis sans identifiant. À utiliser avec get_current_user."""
+    try:
+        return jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM]).get("sid")
+    except jwt.PyJWTError:
+        return None
+
+
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
     token = credentials.credentials
     try:
@@ -87,7 +210,12 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
         username: str = payload.get("sub")
         if not username:
             raise HTTPException(status_code=401, detail="Token invalide")
-        return username.lower().strip()
+        utilisateur = username.lower().strip()
+        # Les jetons émis sans identifiant restent acceptés jusqu'à leur expiration.
+        identifiant = payload.get("sid")
+        if identifiant:
+            verifier_session(identifiant, utilisateur)
+        return utilisateur
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Session expirée, veuillez vous reconnecter")
     except jwt.PyJWTError:

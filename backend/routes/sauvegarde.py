@@ -192,6 +192,9 @@ PAR_NOM = {table.nom: table for table in TABLES}
 TABLES_ECARTEES = {
     "streamdeck_tokens": "secret : un nouveau jeton se génère depuis le profil",
     "synchro_etat": "état technique, recalculé à la prochaine synchronisation",
+    "tricount_liens": "secret : ce lien donne accès au groupe sans compte, il se recrée avec « Partager »",
+    "tricount_historique": "journal de sécurité des liens partagés, propre à ce compte et non restaurable",
+    "sessions_connexion": "état de connexion des appareils, propre à ce serveur",
     "banned_ips": "sécurité du site, sans lien avec un compte",
     "login_failed_attempts": "sécurité du site, sans lien avec un compte",
     "security_rate_limits": "sécurité du site, sans lien avec un compte",

@@ -441,6 +441,16 @@ export const CHAPITRES = [
         ],
       },
       {
+        titre: 'Appareils connectés',
+        texte: "La carte « Appareils connectés » liste les navigateurs où votre compte est ouvert, avec leur dernière activité. Celui que vous utilisez porte la mention « Cet appareil ».",
+        points: [
+          { l: 'Un seul appareil', d: "« Déconnecter » le coupe immédiatement : à sa prochaine action, il revient à l'écran de connexion." },
+          { l: 'Tous les autres', d: "« Tout déconnecter » demande une confirmation, puis coupe tous vos autres appareils. Celui que vous utilisez reste connecté." },
+          { l: 'Connexion plus ancienne', d: "Une connexion ouverte avant l'arrivée de cette carte n'y figure pas et ne peut pas être coupée à distance. Elle prend fin d'elle-même sous 7 jours." },
+        ],
+        conseil: "Téléphone perdu ou doute sur un appareil ? Utilisez « Tout déconnecter », puis changez votre mot de passe : changer de mot de passe ne déconnecte pas à lui seul les autres appareils.",
+      },
+      {
         titre: 'Déconnecter vos banques',
         texte: "« Tout déconnecter » révoque l'accès de Kleea à vos banques et supprime vos connexions chez Powens. Vos opérations déjà importées restent en place.",
         attention: "Cette action efface aussi les liaisons entre vos comptes bancaires et vos comptes Kleea. Après une reconnexion, il faudra les refaire sur la page « Comptes ».",

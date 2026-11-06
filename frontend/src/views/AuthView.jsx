@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   User, Mail, Lock, Eye, EyeOff, BookOpen, 
   ShieldAlert, UserX, WifiOff 
@@ -6,6 +6,7 @@ import {
 import { toast } from 'sonner';
 import api from '../axios';
 import GuideView from '../GuideView';
+import { lireMessageDeconnexion } from '../utils/sessions';
 
 export default function AuthView({ onLoginSuccess }) {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -18,6 +19,12 @@ export default function AuthView({ onLoginSuccess }) {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [showPublicGuide, setShowPublicGuide] = useState(false);
+
+  // Retour ici après une déconnexion à distance : on dit pourquoi.
+  useEffect(() => {
+    const message = lireMessageDeconnexion();
+    if (message) toast.info(message, { duration: 8000 });
+  }, []);
 
   // 1. Connexion avec gestion des erreurs et icônes Lucide
   const handleLogin = async (e) => {
