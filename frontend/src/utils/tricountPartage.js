@@ -46,3 +46,84 @@ export function preparerEdition(depense, membres) {
     details_montants: details,
   };
 }
+
+export const DUREES_LIEN = [
+  { jours: 7, libelle: '7 jours' },
+  { jours: 30, libelle: '30 jours' },
+  { jours: 90, libelle: '90 jours' },
+  { jours: 365, libelle: '1 an' },
+];
+export const DUREE_LIEN_PAR_DEFAUT = 30;
+
+const REFUS_DU_LIEN = {
+  lien_expire: {
+    titre: 'Ce lien a expiré',
+    message: 'Sa durée de validité est dépassée. Demandez un nouveau lien à la personne qui a créé ce Tricount.',
+  },
+  lien_revoque: {
+    titre: 'Ce lien n’est plus actif',
+    message: 'La personne qui a créé ce Tricount l’a révoqué ou remplacé. Demandez-lui le nouveau lien.',
+  },
+  lien_introuvable: {
+    titre: 'Lien introuvable',
+    message: 'Vérifiez l’adresse reçue. Le groupe a peut-être été supprimé : la personne qui l’a créé pourra vous renseigner.',
+  },
+};
+
+/** Traduit le refus d'une route partagée en message. Renvoie null s'il s'agit d'une autre erreur. */
+export function refusDuLien(statut, corps) {
+  if (statut !== 404 && statut !== 410) return null;
+  const code = corps?.detail?.code;
+  return { code, ...(REFUS_DU_LIEN[code] || REFUS_DU_LIEN.lien_introuvable) };
+}
+
+const formaterJour = (iso) => new Date(iso).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' });
+
+export function formaterExpiration(expireLe) {
+  return expireLe ? `Ce lien expire le ${formaterJour(expireLe)}.` : '';
+}
+
+/** Décrit au propriétaire l'état du lien de son groupe. */
+export function descriptionDuLien(lien) {
+  if (!lien?.token) return 'Ce groupe n’a pas de lien actif.';
+  if (lien.statut === 'expire') return `Ce lien a expiré le ${formaterJour(lien.expire_le)}. Il ne fonctionne plus.`;
+  if (!lien.expire_le) return 'Sans date limite : ce lien a été créé avant l’arrivée des durées. Il reste valable tant que vous ne choisissez pas de durée et que vous ne le révoquez pas.';
+  return formaterExpiration(lien.expire_le);
+}
+
+/** Ajoute le nom du participant au corps d'une requête, seulement s'il en a saisi un. */
+export function avecAuteur(corps, auteur) {
+  const nom = (auteur || '').trim();
+  return nom ? { ...corps, auteur: nom } : corps;
+}
+
+export const LIBELLES_ACTION = { ajout: 'Ajout', modification: 'Modification', suppression: 'Suppression' };
+
+const CHAMPS_HISTORIQUE = [
+  ['libelle', 'Désignation'],
+  ['montant', 'Montant'],
+  ['date', 'Date'],
+  ['paye_par', 'Payé par'],
+  ['pour_qui', 'Répartition'],
+];
+
+const formaterChamp = (champ, valeur) => {
+  if (valeur === null || valeur === undefined || valeur === '') return '—';
+  if (champ === 'montant') return `${Number(valeur).toFixed(2)} €`;
+  if (champ === 'date') return new Date(`${valeur}T00:00:00`).toLocaleDateString('fr-FR');
+  return String(valeur);
+};
+
+/** Les lignes à afficher pour une entrée : les champs changés, ou tous pour un ajout et une suppression. */
+export function lignesHistorique(entree) {
+  const avant = entree.ancienne_valeur || {};
+  const apres = entree.nouvelle_valeur || {};
+  return CHAMPS_HISTORIQUE
+    .filter(([champ]) => avant[champ] !== apres[champ])
+    .map(([champ, libelle]) => ({
+      champ,
+      libelle,
+      avant: entree.ancienne_valeur ? formaterChamp(champ, avant[champ]) : null,
+      apres: entree.nouvelle_valeur ? formaterChamp(champ, apres[champ]) : null,
+    }));
+}

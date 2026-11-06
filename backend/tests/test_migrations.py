@@ -70,14 +70,14 @@ class MigrationsSurBaseDeTest(unittest.TestCase):
 
     def test_une_base_vide_est_reconstruite(self):
         self.reussit("upgrade", "head")
-        self.assertEqual(len(self.tables()), 31)
-        self.assertIn("0003", self.reussit("current").stdout)
+        self.assertEqual(len(self.tables()), 33)
+        self.assertIn("0004", self.reussit("current").stdout)
         self.reussit("upgrade", "head")
 
     def test_le_point_de_depart_ne_se_defait_pas(self):
         self.reussit("upgrade", "head")
         self.assertNotEqual(alembic("downgrade", "base").returncode, 0)
-        self.assertEqual(len(self.tables()), 31)
+        self.assertEqual(len(self.tables()), 33)
 
     def test_une_base_existante_refuse_upgrade_puis_accepte_stamp(self):
         from sqlalchemy import text

@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import api from '../axios';
 import { toLocalDateString, getTodayLocalDateString } from "../utils/dateUtils";
 import { appliquerMontantIndividuel, preparerEdition, repartirEquitablement, totalDesPartsCentimes } from '../utils/tricountPartage';
+import FenetrePartageTricount from '../components/FenetrePartageTricount';
 
 // 🟢 Helper de conversion en centimes entiers (anti-erreur d'arrondi 0.1 + 0.2)
 const toCents = (val) => Math.round((parseFloat(val) || 0) * 100);
@@ -24,7 +25,7 @@ export default function TricountManager({ userId }) {
   const [newGroupName, setNewGroupName] = useState("");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
-  const [, setShareToken] = useState(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [groupToEdit, setGroupToEdit] = useState({ oldName: "", newName: "" });
@@ -49,34 +50,6 @@ export default function TricountManager({ userId }) {
       setNotification(prev => ({ ...prev, show: false }));
     }, 3000);
   };
-
-  // --- PARTAGE DE GROUPE ---
-  const handleShareGroup = async () => {
-    if (!groupes[activeTab]) return;
-    const groupName = groupes[activeTab].nom;
-    try {
-      const res = await api.post(`/share-group/${userId}/${encodeURIComponent(groupName)}`);
-      setShareToken(res.data.token);
-      const shareUrl = `${window.location.origin}/shared-tricount/${res.data.token}`;
-      await navigator.clipboard.writeText(shareUrl);
-      showToast("Lien de partage copié dans le presse-papiers !", "success");
-    } catch  {
-      showToast("Erreur lors de la génération du lien", "error");
-    }
-  };
-
-  useEffect(() => {
-    const checkExistingToken = async () => {
-      if (groupes.length > 0 && groupes[activeTab]) {
-        const groupName = groupes[activeTab].nom;
-        try {
-          const res = await api.get(`/get-share-token/${userId}/${encodeURIComponent(groupName)}`);
-          setShareToken(res.data.token);
-        } catch  {}
-      }
-    };
-    checkExistingToken();
-  }, [activeTab, groupes, userId]);
 
   const fetchGroupes = async () => {
     try {
@@ -466,7 +439,7 @@ export default function TricountManager({ userId }) {
           {groupes.length > 0 && (
             <button 
               type="button"
-              onClick={handleShareGroup} 
+              onClick={() => setIsShareModalOpen(true)} 
               className="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white px-3 py-2 sm:p-3 rounded-xl flex items-center gap-1.5 sm:gap-2 font-black uppercase text-[9px] transition-all cursor-pointer shadow-md"
               title="Partager ce Tricount"
             >
@@ -1047,6 +1020,15 @@ export default function TricountManager({ userId }) {
       {/* =========================================================================
           4. MODALES PARTAGÉES (ÉCRITES UNE SEULE FOIS POUR LES DEUX MONDES)
           ========================================================================= */}
+
+      {isShareModalOpen && groupes[activeTab] && (
+        <FenetrePartageTricount
+          userId={userId}
+          groupe={groupes[activeTab].nom}
+          onFermer={() => setIsShareModalOpen(false)}
+          showToast={showToast}
+        />
+      )}
 
       {/* MODALE ÉDITION TRANSACTION */}
       {editingTransaction && (

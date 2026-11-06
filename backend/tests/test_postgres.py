@@ -47,7 +47,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -145,6 +145,38 @@ class RoutesSurPostgres(unittest.TestCase):
         # Un lien ne donne accès qu'aux dépenses de son propre groupe partagé.
         refus = self.client.put("/update-shared-transaction/jeton-a", json={**corps, "id": id_b})
         self.assertEqual(refus.status_code, 403)
+
+    def test_cycle_de_vie_d_un_lien_de_partage(self):
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO tricount (date, libelle, paye_par, pour_qui, montant, groupe, utilisateur)
+                VALUES ('2026-11-02', 'Courses', 'Aude', 'Aude:30', 30, 'Vacances', 'theo')
+            """))
+            identifiant = conn.execute(text("SELECT id FROM tricount")).scalar()
+        lien = self.client.post("/share-group/theo/Vacances", json={"duree_jours": 7}).json()
+        self.assertEqual(lien["statut"], "actif")
+        jeton = lien["token"]
+        self.assertIsNotNone(lien["expire_le"])
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{jeton}").json()["groupe"], "Vacances")
+
+        corps = {"id": identifiant, "date": "2026-11-03", "libelle": "Train", "paye_par": "Aude", "pour_qui": "Aude:35", "montant": 35, "auteur": "Zoé"}
+        self.assertEqual(self.client.put(f"/update-shared-transaction/{jeton}", json=corps).status_code, 200)
+        entree = self.client.get("/share-history/theo/Vacances").json()["historique"][0]
+        self.assertEqual((entree["action"], entree["auteur"]), ("modification", "Zoé"))
+        self.assertEqual(entree["ancienne_valeur"]["date"], "2026-11-02")
+        self.assertEqual(entree["nouvelle_valeur"]["montant"], 35)
+        self.assertIn("+00:00", entree["date"])
+
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE tricount_liens SET expire_le = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE token = :t"), {"t": jeton})
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{jeton}").status_code, 410)
+        self.assertEqual(self.client.get("/get-share-token/theo/Vacances").json()["statut"], "expire")
+
+        nouveau = self.client.post("/regenerate-share/theo/Vacances", json={"duree_jours": 30}).json()["token"]
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{nouveau}").status_code, 200)
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{jeton}").json()["detail"]["code"], "lien_revoque")
+        self.assertEqual(self.client.post("/revoke-share/theo/Vacances").json()["token"], None)
+        self.assertEqual(self.client.get(f"/download-shared-pdf/{nouveau}").status_code, 410)
 
     def test_alertes_sur_le_schema_alembic(self):
         main_noter = aide_noter()
