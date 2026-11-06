@@ -4,6 +4,7 @@ Ces tests ne tournent que si TEST_DATABASE_URL est défini (voir .github/workflo
 ils refusent donc tout ce qui n'est pas une base de test locale. Le schéma vient du code, pas de la production.
 """
 import importlib.util
+import json
 import os
 import sys
 import unittest
@@ -166,6 +167,58 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.get(url).json(), [identifiant])
         self.assertEqual(self.client.delete(url, params={"id": identifiant}).status_code, 200)
         self.assertEqual(self.client.get(url).json(), [])
+
+    def test_sauvegarde_sur_le_schema_alembic(self):
+        from routes import sauvegarde
+        from test_sauvegarde import VALEURS, ligne_type
+
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, email, password, name) VALUES ('theo', 't@exemple.test', 'x', 'Théo')"))
+            conn.execute(text("INSERT INTO split_sources (utilisateur, date, nom, montant, compte, split_id) VALUES ('aude', '2026-01-01', 'x', 1, 'x', 'split_pris')"))
+            conn.execute(text("INSERT INTO tricount (date, libelle, montant, groupe, utilisateur, token_partage) VALUES ('2026-01-01', 'x', 1, 'Ski', 'theo', 'lien-ski')"))
+        donnees = {table.nom: [ligne_type(table)] for table in sauvegarde.TABLES}
+        # Des colonnes entièrement vides dans un lot : psycopg 3 ne doit pas avoir à deviner leur type.
+        donnees["transactions"] = [
+            {**ligne_type(sauvegarde.PAR_NOM["transactions"]), "prevision_id": 3, "split_id": "split_pris"},
+            {"date": VALEURS["instant"], "nom": "Sans détail", "montant": 2},
+        ]
+        donnees["split_sources"] = [{**ligne_type(sauvegarde.PAR_NOM["split_sources"]), "split_id": "split_pris"}]
+        donnees["budgets"].append({"mois": "Mars", "compte": "CCP"})
+        donnees["projets"].append({"nom": "Sans détail"})
+        donnees["tricount"][0]["groupe"] = "Ski"
+        fichier = {"format": "kleea-sauvegarde", "version": 1, "compte": "theo", "donnees": donnees}
+
+        apercu = self.client.post("/api/sauvegarde/apercu", json=fichier)
+        self.assertEqual(apercu.status_code, 200, apercu.text)
+        reponse = self.client.post("/api/sauvegarde/import", json=fichier)
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        self.assertEqual(reponse.json()["total_a_ajouter"], apercu.json()["total_a_ajouter"])
+
+        premier = self.client.get("/api/sauvegarde/export").json()
+        self.assertTrue(all(premier["donnees"].values()))
+        self.assertNotEqual(premier["donnees"]["split_sources"][0]["split_id"], "split_pris")
+        self.assertEqual(self.client.post("/api/sauvegarde/import", json=premier).json()["total_a_ajouter"], 0)
+        with self.engine.connect() as conn:
+            jetons = {l[0]: l[1] for l in conn.execute(text("SELECT libelle, token_partage FROM tricount"))}
+        self.assertEqual(jetons["Valeur"], "lien-ski")
+
+        with self.engine.begin() as conn:
+            for table in sauvegarde.TABLES:
+                conn.execute(text(f'DELETE FROM {table.nom} WHERE "{table.utilisateur}" = \'theo\''))
+            # Le décalage des identifiants vérifie que les liens suivent.
+            conn.execute(text("INSERT INTO previsions (date, nom, montant, utilisateur) VALUES ('2026-01-01', 'Décalage', 1, 'aude')"))
+        self.assertEqual(self.client.post("/api/sauvegarde/import", json=premier).status_code, 200)
+        second = self.client.get("/api/sauvegarde/export").json()
+
+        def comparable(export):
+            contenu = json.loads(json.dumps(export["donnees"]))
+            noms = {p.pop("id"): p["nom"] for p in contenu["previsions"]}
+            for operation in contenu["transactions"]:
+                operation["prevision_id"] = noms.get(operation["prevision_id"])
+            return contenu
+
+        self.assertEqual(comparable(second), comparable(premier))
+        self.assertEqual(second["donnees"]["custom_stats"][0]["regles"], VALEURS["structure"])
 
 
 class GardeFou(unittest.TestCase):
