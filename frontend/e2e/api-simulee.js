@@ -38,6 +38,7 @@ const REPONSES = [
   [/^\/powens\/accounts/, { accounts: [] }],
   [/^\/powens\/check-sync\//, { nouvelles: 0, count: 0 }],
   [/^\/api\/streamdeck\/token/, { active: false, created_at: null }],
+  [/^\/api\/sessions$/, { disponible: true, session_suivie: false, sessions: [] }],
   [/^\/note\//, { texte: '' }],
   [/^\/api\/notes-demenagement\//, { contenu: '' }],
   [/^\/get-user-theme\//, {}],

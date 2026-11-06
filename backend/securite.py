@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 from journaux import logger
 from sqlalchemy import text
-from base import engine, get_current_admin
+from base import engine, get_current_admin, purger_sessions_expirees
 
 
 router = APIRouter()
@@ -45,6 +45,8 @@ async def periodic_cleanup_task():
             with engine.begin() as conn:
                 conn.execute(text("DELETE FROM security_rate_limits WHERE attempted_at < :old"), {"old": now - timedelta(hours=24)})
                 conn.execute(text("DELETE FROM login_failed_attempts WHERE attempted_at < :old"), {"old": now - timedelta(hours=2)})
+            # Hors de la transaction ci-dessus : l'absence de cette table ne doit pas annuler les autres purges.
+            purger_sessions_expirees()
             logger.info("🧹 [MAINTENANCE] Tables de sécurité nettoyées.")
         except asyncio.CancelledError:
             break

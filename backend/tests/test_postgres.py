@@ -46,7 +46,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_sessions_connexion").CREATIONS
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -157,6 +157,48 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.get("/api/alertes/etat").json()["masquees"], ["a"])
         self.assertEqual(self.client.delete("/api/alertes/masquees").status_code, 200)
         self.assertEqual(self.client.get("/api/alertes/etat").json()["masquees"], [])
+
+    def test_sessions_sur_le_schema_alembic(self):
+        main.app.dependency_overrides.clear()  # Ici, le vrai contrôle du jeton est justement ce qu'on vérifie.
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, password) VALUES ('theo', :p)"), {"p": aide.hash_password("motdepasse1")})
+
+        def connexion(navigateur):
+            reponse = self.client.post("/login", json={"nom": "theo", "password": "motdepasse1"}, headers={"User-Agent": navigateur})
+            self.assertEqual(reponse.status_code, 200, reponse.text)
+            return {"Authorization": f"Bearer {reponse.json()['access_token']}"}
+
+        ici = connexion("Mozilla/5.0 (Windows NT 10.0) Chrome/120.0 Safari/537.36")
+        ailleurs = connexion("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Version/17.0 Safari/605.1")
+        liste = self.client.get("/api/sessions", headers=ici).json()
+        self.assertTrue(liste["session_suivie"])
+        self.assertEqual([s["appareil"] for s in liste["sessions"]], ["Chrome sur Windows", "Safari sur iPhone"])
+
+        # La dernière activité ancienne est rafraîchie : la comparaison de dates passe par le pilote réel.
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE sessions_connexion SET derniere_activite = CURRENT_TIMESTAMP - INTERVAL '1 hour'"))
+        self.assertEqual(self.client.get("/auth/test-token", headers=ailleurs).status_code, 200)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT count(*) FROM sessions_connexion WHERE derniere_activite > CURRENT_TIMESTAMP - INTERVAL '1 minute'")).scalar(), 1)
+
+        self.assertEqual(self.client.post("/api/sessions/revoquer-autres", headers=ici).json()["revoquees"], 1)
+        self.assertEqual(self.client.get("/auth/test-token", headers=ailleurs).status_code, 401)
+        self.assertEqual(self.client.get("/auth/test-token", headers=ici).status_code, 200)
+        actuelle = self.client.get("/api/sessions", headers=ici).json()["sessions"][0]["id"]
+        self.assertEqual(self.client.delete(f"/api/sessions/{actuelle}", headers=ici).status_code, 200)
+        self.assertEqual(self.client.get("/auth/test-token", headers=ici).status_code, 401)
+
+    def test_sans_la_table_des_sessions_la_connexion_reste_possible(self):
+        # Sur Postgres, une table absente fait échouer la transaction : c'est le cas réel avant la migration.
+        main.app.dependency_overrides.clear()
+        with self.engine.begin() as conn:
+            conn.execute(text("DROP TABLE sessions_connexion"))
+            conn.execute(text("INSERT INTO users (username, password) VALUES ('theo', :p)"), {"p": aide.hash_password("motdepasse1")})
+        reponse = self.client.post("/login", json={"nom": "theo", "password": "motdepasse1"})
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        entetes = {"Authorization": f"Bearer {reponse.json()['access_token']}"}
+        self.assertEqual(self.client.get("/auth/test-token", headers=entetes).status_code, 200)
+        self.assertFalse(self.client.get("/api/sessions", headers=entetes).json()["disponible"])
 
     def test_lignes_ignorees_sur_le_schema_alembic(self):
         url = "/api/abonnements/ignores"

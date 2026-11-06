@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { noterDeconnexion } from './utils/sessions';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -39,6 +40,7 @@ api.interceptors.response.use(
 
       // On ne redirige que si l'utilisateur était connecté ET qu'il n'est pas sur une page publique
       if (hadToken && !isPublicPage) {
+        noterDeconnexion(error.response?.data?.detail);
         console.warn("🔒 Session Kleea expirée. Redirection sécurisée vers la connexion...");
         window.location.href = '/';
       }

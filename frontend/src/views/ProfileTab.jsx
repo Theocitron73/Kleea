@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp } from 'lucide-react';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
+import SessionsActivesCard from '../components/SessionsActivesCard';
 import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
 import { toast } from 'sonner';
 
@@ -615,6 +616,9 @@ export default function ProfileTab({
           </div>
         )}
       </div>
+
+      {/* APPAREILS CONNECTÉS */}
+      <SessionsActivesCard />
 
       {/* STREAM DECK */}
       <StreamDeckTokenCard />
