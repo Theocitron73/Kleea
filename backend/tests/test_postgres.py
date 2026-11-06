@@ -27,16 +27,21 @@ from aide import partout  # noqa: E402
 import main  # noqa: E402
 
 URL = os.getenv("TEST_DATABASE_URL")
-REVISION = Path(__file__).resolve().parents[1] / "migrations" / "versions" / "0001_point_de_depart.py"
+VERSIONS = Path(__file__).resolve().parents[1] / "migrations" / "versions"
 PROJET = {"profil": "Theo", "nom": "Voiture", "cout": 1000, "date": "2027-01-01", "capa": 100, "apport": 250}
 
 
-def instructions_de_schema() -> list:
-    """Les instructions de la révision 0001 : les tests tournent sur la structure relevée en production."""
-    spec = importlib.util.spec_from_file_location("revision_0001", REVISION)
+def charger_revision(nom: str):
+    spec = importlib.util.spec_from_file_location(nom, VERSIONS / f"{nom}.py")
     revision = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(revision)
-    return revision.TABLES + revision.INDEX
+    return revision
+
+
+def instructions_de_schema() -> list:
+    """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
+    depart = charger_revision("0001_point_de_depart")
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION]
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -134,6 +139,15 @@ class RoutesSurPostgres(unittest.TestCase):
         # Un lien ne donne accès qu'aux dépenses de son propre groupe partagé.
         refus = self.client.put("/update-shared-transaction/jeton-a", json={**corps, "id": id_b})
         self.assertEqual(refus.status_code, 403)
+
+    def test_lignes_ignorees_sur_le_schema_alembic(self):
+        url = "/api/abonnements/ignores"
+        identifiant = "ORANGE|16"
+        for _ in range(2):
+            self.assertEqual(self.client.post(url, json={"id": identifiant}).status_code, 200)
+        self.assertEqual(self.client.get(url).json(), [identifiant])
+        self.assertEqual(self.client.delete(url, params={"id": identifiant}).status_code, 200)
+        self.assertEqual(self.client.get(url).json(), [])
 
 
 class GardeFou(unittest.TestCase):

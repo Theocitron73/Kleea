@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detecterAbonnements, nomMarchand, totauxAbonnements } from './abonnements.js';
+import { detecterAbonnements, nomMarchand, previsionsAAjouter, totauxAbonnements } from './abonnements.js';
 
 const AUJOURDHUI = new Date('2026-11-05T12:00:00');
 const tx = (date, nom, montant, categorie = 'Divers', compte = 'CCP') => ({ date, nom, montant: -montant, categorie, compte });
@@ -130,4 +130,48 @@ test('les données invalides sont ignorées sans erreur', () => {
 test('les totaux ne comptent que les abonnements actifs', () => {
   const liste = detecter([...mensuel('NETFLIX COM', 14.99), ...mensuel('SOUNDLY', 17.34, [1, 2, 3, 4, 5], 21)]);
   assert.deepEqual(totauxAbonnements(liste), { nombre: 1, mensuel: 14.99, annuel: 179.88 });
+});
+
+test('une hausse de prix garde le même identifiant', () => {
+  const avant = detecter(mensuel('HBOMAX', 9.99, [6, 7, 8]))[0];
+  const apres = detecter([...mensuel('HBOMAX', 9.99, [6, 7, 8]), ...mensuel('HBOMAX', 10.99, [9, 10])])[0];
+  assert.equal(apres.id, avant.id);
+});
+
+const netflix = () => detecter(mensuel('NETFLIX COM', 14.99))[0];
+
+test('les prévisions couvrent les échéances restantes de l’année', () => {
+  const liste = previsionsAAjouter(netflix(), [], { aujourdhui: AUJOURDHUI });
+  assert.deepEqual(liste.map((p) => p.date), ['2026-11-05', '2026-12-05']);
+  assert.deepEqual(liste[0], { nom: 'Netflix', montant: -14.99, categorie: 'Divers', compte: 'CCP', date: '2026-11-05', mois: 'Novembre', annee: 2026, actif: true });
+});
+
+test('une échéance déjà passée n’est pas recréée', () => {
+  const liste = previsionsAAjouter(netflix(), [], { aujourdhui: new Date('2026-11-06T13:00:00') });
+  assert.deepEqual(liste.map((p) => p.date), ['2026-12-05']);
+});
+
+test('une prévision existante du même marchand n’est pas doublée', () => {
+  const existantes = [{ nom: '[PRÉVI] Netflix', montant: -14.99, date: '2026-11-10T00:00:00' }];
+  assert.deepEqual(previsionsAAjouter(netflix(), existantes, { aujourdhui: AUJOURDHUI }).map((p) => p.date), ['2026-12-05']);
+});
+
+test('un autre forfait du même opérateur reste à prévoir', () => {
+  const existantes = [{ nom: '[PRÉVI] Netflix', montant: -33.99, date: '2026-11-10' }];
+  assert.equal(previsionsAAjouter(netflix(), existantes, { aujourdhui: AUJOURDHUI }).length, 2);
+});
+
+test('la fin de mois reste valide', () => {
+  const abo = detecter(['2026-08-31', '2026-09-30', '2026-10-31'].map((d) => tx(d, 'LOYER', 500)))[0];
+  assert.deepEqual(previsionsAAjouter(abo, [], { aujourdhui: AUJOURDHUI }).map((p) => p.date), ['2026-11-30', '2026-12-31']);
+});
+
+test('un abonnement trimestriel ne crée qu’une échéance par trimestre', () => {
+  const abo = detecter(['2026-04-06', '2026-07-06', '2026-10-05'].map((d) => tx(d, 'COTISATION', 21.3)))[0];
+  assert.deepEqual(previsionsAAjouter(abo, [], { aujourdhui: AUJOURDHUI }).map((p) => p.date), ['2027-01-05']);
+});
+
+test('un abonnement arrêté ne crée aucune prévision', () => {
+  const abo = detecter(mensuel('SOUNDLY', 17.34, [1, 2, 3, 4, 5], 21))[0];
+  assert.deepEqual(previsionsAAjouter(abo, [], { aujourdhui: AUJOURDHUI }), []);
 });

@@ -95,7 +95,9 @@ function construire(cle, lignes, frequence, variable, aujourdhui) {
   const nouveau = (aujourdhui.getTime() - lignes[0].date.getTime()) / JOUR <= 90;
   const coutMensuel = montant * frequence.parMois;
   return {
-    id: `${cle}|${variable ? 'variable' : Math.round(mediane(lignes.map((l) => l.montant)))}`,
+    // Le premier montant, et non le dernier : une hausse de prix ne doit pas faire réapparaître une ligne ignorée.
+    id: `${cle}|${variable ? 'variable' : Math.round(lignes[0].montant)}`,
+    cle,
     nom: derniere.nomAffiche,
     categorie: derniere.categorie,
     compte: derniere.compte,
@@ -157,6 +159,61 @@ export function detecterAbonnements(transactions, { aujourdhui = new Date(), com
     }
   }
   return resultats.sort((a, b) => Number(b.actif) - Number(a.actif) || b.coutMensuel - a.coutMensuel);
+}
+
+const MOIS_PAR_FREQUENCE = { mensuel: 1, bimestriel: 2, trimestriel: 3, semestriel: 6, annuel: 12 };
+
+// jour : le jour du prélèvement d'origine, pour qu'un passage par un mois court ne le décale pas durablement.
+function ajouterPeriode(date, frequence, jour) {
+  const suivante = new Date(date);
+  if (frequence.id === 'hebdomadaire') {
+    suivante.setDate(suivante.getDate() + 7);
+    return suivante;
+  }
+  suivante.setDate(1);
+  suivante.setMonth(suivante.getMonth() + MOIS_PAR_FREQUENCE[frequence.id]);
+  const dernierJour = new Date(suivante.getFullYear(), suivante.getMonth() + 1, 0).getDate();
+  suivante.setDate(Math.min(jour, dernierJour));
+  return suivante;
+}
+
+const enIso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Prévisions à créer pour un abonnement : ses échéances d'aujourd'hui à la fin de l'année, ou la suivante s'il n'y en a plus cette année.
+ * Une échéance est écartée si le même marchand a déjà une prévision de montant proche ce mois-là.
+ */
+export function previsionsAAjouter(abonnement, previsionsExistantes = [], { aujourdhui = new Date() } = {}) {
+  const frequence = FREQUENCES.find((f) => f.id === abonnement.frequence);
+  if (!frequence || !abonnement.actif) return [];
+  let date = new Date(`${abonnement.derniere}T12:00:00`);
+  const jour = date.getDate();
+  while (date < aujourdhui) date = ajouterPeriode(date, frequence, jour);
+  const echeances = [date];
+  for (date = ajouterPeriode(date, frequence, jour); date.getFullYear() === aujourdhui.getFullYear(); date = ajouterPeriode(date, frequence, jour)) {
+    echeances.push(date);
+  }
+  const dejaPrevue = (echeance) => previsionsExistantes.some((p) => {
+    const datePrevue = versDate(p.date);
+    const montant = Math.abs(parseFloat(p.montant));
+    const nom = nomMarchand(String(p.nom || '').replace(/^\[PR[ÉE]VI\]\s*/i, ''));
+    return datePrevue && nom.split(' ')[0] === abonnement.cle
+      && datePrevue.getFullYear() === echeance.getFullYear() && datePrevue.getMonth() === echeance.getMonth()
+      && Math.abs(montant - abonnement.montant) <= Math.max(abonnement.montant * 0.15, 0.5);
+  });
+  return echeances.filter((e) => !dejaPrevue(e)).map((e) => {
+    const mois = e.toLocaleDateString('fr-FR', { month: 'long' });
+    return {
+      nom: abonnement.nom.length <= 4 ? abonnement.nom : abonnement.nom.charAt(0) + abonnement.nom.slice(1).toLowerCase(),
+      montant: -abonnement.montant,
+      categorie: abonnement.categorie,
+      compte: abonnement.compte,
+      date: enIso(e),
+      mois: mois.charAt(0).toUpperCase() + mois.slice(1),
+      annee: e.getFullYear(),
+      actif: true,
+    };
+  });
 }
 
 /** Totaux des dépenses récurrentes actives. */

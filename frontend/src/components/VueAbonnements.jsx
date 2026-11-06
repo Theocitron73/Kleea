@@ -1,21 +1,14 @@
-import { useMemo, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, EyeOff, Repeat, RotateCcw, Sparkles, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDownRight, ArrowUpRight, CalendarPlus, EyeOff, Repeat, RotateCcw, Sparkles, X } from 'lucide-react';
+import { toast } from 'sonner';
+import api from '../axios';
 import { CategoryIcon } from '../categoryIcons';
-import { detecterAbonnements, totauxAbonnements } from '../utils/abonnements';
+import { detecterAbonnements, previsionsAAjouter, totauxAbonnements } from '../utils/abonnements';
 
 const euros = (valeur) => `${Number(valeur || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 const dateCourte = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 // Les noms courts sont le plus souvent des sigles : SFR, EDF…
 const titre = (nom) => (nom.length <= 4 ? nom : nom.charAt(0) + nom.slice(1).toLowerCase());
-
-function lireIgnores(cle) {
-  try {
-    const valeur = JSON.parse(localStorage.getItem(cle) || '[]');
-    return Array.isArray(valeur) ? valeur : [];
-  } catch {
-    return [];
-  }
-}
 
 function Tuile({ libelle, valeur }) {
   return (
@@ -58,21 +51,66 @@ function Ligne({ abonnement: a, action }) {
 }
 
 /** Dépenses récurrentes détectées dans tout l'historique du profil, indépendamment du mois affiché. */
-export default function VueAbonnements({ transactions = [], comptesDuProfil = [], profil = 'Tous', user }) {
-  const cleIgnores = `kleea_abonnements_ignores_${typeof user === 'object' ? user?.nom : user}`;
-  const [ignores, setIgnores] = useState(() => lireIgnores(cleIgnores));
+export default function VueAbonnements({ transactions = [], comptesDuProfil = [], profil = 'Tous', user, rechargerPrevisions }) {
+  const [ignores, setIgnores] = useState([]);
+  const [enCours, setEnCours] = useState(null);
   const [voirIgnores, setVoirIgnores] = useState(false);
 
   const detectes = useMemo(() => detecterAbonnements(transactions, {
     comptes: profil === 'Tous' ? null : comptesDuProfil.map((c) => c.compte),
   }), [transactions, comptesDuProfil, profil]);
 
-  const modifierIgnores = (nouveaux) => {
-    setIgnores(nouveaux);
+  useEffect(() => {
+    let annule = false;
+    api.get('/api/abonnements/ignores')
+      .then((res) => { if (!annule && Array.isArray(res.data)) setIgnores(res.data); })
+      .catch(() => { if (!annule) toast.error('Impossible de charger les lignes ignorées.'); });
+    return () => { annule = true; };
+  }, []);
+
+  const ignorer = async (a) => {
+    setIgnores((liste) => [...liste, a.id]);
     try {
-      localStorage.setItem(cleIgnores, JSON.stringify(nouveaux));
+      await api.post('/api/abonnements/ignores', { id: a.id });
     } catch {
-      // Sans stockage disponible, le choix vaut seulement pour cette visite.
+      setIgnores((liste) => liste.filter((id) => id !== a.id));
+      toast.error("Impossible d'ignorer cette ligne.");
+    }
+  };
+
+  const reafficher = async (a) => {
+    setIgnores((liste) => liste.filter((id) => id !== a.id));
+    try {
+      await api.delete('/api/abonnements/ignores', { params: { id: a.id } });
+    } catch {
+      setIgnores((liste) => [...liste, a.id]);
+      toast.error('Impossible de réafficher cette ligne.');
+    }
+  };
+
+  const prevoir = async (a) => {
+    const nomUtilisateur = typeof user === 'object' ? user?.nom : user;
+    setEnCours(a.id);
+    try {
+      // Les prévisions déjà enregistrées sont relues à chaque clic, pour ne jamais en créer deux fois.
+      const annee = new Date().getFullYear();
+      const reponses = await Promise.all([annee, annee + 1].map((an) => api.get(`/previsions/${encodeURIComponent(nomUtilisateur)}/ALL/${an}`)));
+      const existantes = reponses.flatMap((res) => (Array.isArray(res.data) ? res.data : []));
+      const aCreer = previsionsAAjouter(a, existantes);
+      if (!aCreer.length) {
+        toast.info(`${titre(a.nom)} est déjà dans vos prévisions.`);
+        return;
+      }
+      for (const prevision of aCreer) {
+        const res = await api.post('/previsions', { ...prevision, utilisateur: nomUtilisateur });
+        if (res.data?.status === 'error') throw new Error('Prévision refusée');
+      }
+      toast.success(`${aCreer.length} prévision${aCreer.length > 1 ? 's' : ''} ajoutée${aCreer.length > 1 ? 's' : ''} pour ${titre(a.nom)}.`);
+      await rechargerPrevisions?.();
+    } catch {
+      toast.error("Impossible d'ajouter les prévisions. Vérifiez la page Prévisionnel avant de réessayer.");
+    } finally {
+      setEnCours(null);
     }
   };
 
@@ -84,9 +122,18 @@ export default function VueAbonnements({ transactions = [], comptesDuProfil = []
   const aChange = actifs.filter((a) => a.changementPrix && a.changementPrix.nouveau > a.changementPrix.ancien).length;
 
   const boutonIgnorer = (a) => (
-    <button type="button" title="Ce n'est pas une dépense récurrente" aria-label={`Ignorer ${titre(a.nom)}`} onClick={() => modifierIgnores([...ignores, a.id])} className="p-1 shrink-0 text-[var(--text-main)]/30 hover:text-[var(--text-main)] cursor-pointer">
+    <button type="button" title="Ce n'est pas une dépense récurrente" aria-label={`Ignorer ${titre(a.nom)}`} onClick={() => ignorer(a)} className="p-1 shrink-0 text-[var(--text-main)]/30 hover:text-[var(--text-main)] cursor-pointer">
       <X size={12} />
     </button>
+  );
+
+  const actionsActif = (a) => (
+    <>
+      <button type="button" title="Ajouter aux prévisions" aria-label={`Ajouter ${titre(a.nom)} aux prévisions`} disabled={enCours === a.id} onClick={() => prevoir(a)} className="p-1 shrink-0 text-[var(--text-main)]/40 hover:text-[var(--text-main)] disabled:opacity-40 cursor-pointer">
+        <CalendarPlus size={13} />
+      </button>
+      {boutonIgnorer(a)}
+    </>
   );
 
   if (!detectes.length) {
@@ -116,7 +163,7 @@ export default function VueAbonnements({ transactions = [], comptesDuProfil = []
 
       {actifs.length > 0 && (
         <ul className="space-y-1.5" aria-label="Dépenses récurrentes en cours">
-          {actifs.map((a) => <Ligne key={a.id} abonnement={a} action={boutonIgnorer(a)} />)}
+          {actifs.map((a) => <Ligne key={a.id} abonnement={a} action={actionsActif(a)} />)}
         </ul>
       )}
 
@@ -141,7 +188,7 @@ export default function VueAbonnements({ transactions = [], comptesDuProfil = []
                   key={a.id}
                   abonnement={a}
                   action={(
-                    <button type="button" title="Réafficher" aria-label={`Réafficher ${titre(a.nom)}`} onClick={() => modifierIgnores(ignores.filter((id) => id !== a.id))} className="p-1 shrink-0 text-[var(--text-main)]/40 hover:text-[var(--text-main)] cursor-pointer">
+                    <button type="button" title="Réafficher" aria-label={`Réafficher ${titre(a.nom)}`} onClick={() => reafficher(a)} className="p-1 shrink-0 text-[var(--text-main)]/40 hover:text-[var(--text-main)] cursor-pointer">
                       <RotateCcw size={12} />
                     </button>
                   )}

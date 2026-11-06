@@ -1468,7 +1468,7 @@ export default function DashboardView(props) {
     activeRightTab, setActiveRightTab, objectifAnnuelGlobal = 0, epargneReelleCumulee = 0,
     epargneProjeteeTotale = 0, pctReel = 0, pctProjete = 0, visibleAnnuel = {}, setVisibleAnnuel,
     comptes = [], hiddenComptes = {}, setHiddenComptes, allocations = [], setAllocations,
-    projets = [], setProjets, api, CustomSelect, categoriesVisibles = [], updateCell
+    projets = [], setProjets, api, CustomSelect, categoriesVisibles = [], updateCell, loadPrevisions
   } = props;
 
   const jaugeColor = userTheme.color_jauge || '#f1c40f';
@@ -1843,7 +1843,7 @@ export default function DashboardView(props) {
                         )}
 
                         {tabActive === 'abonnements' && (
-                          <VueAbonnements transactions={toutesLesTransactions} comptesDuProfil={comptesDuProfil} profil={filters.profil} user={user} />
+                          <VueAbonnements transactions={toutesLesTransactions} comptesDuProfil={comptesDuProfil} profil={filters.profil} user={user} rechargerPrevisions={loadPrevisions} />
                         )}
 
                         {tabActive !== 'Variations' && tabActive !== 'flash' && tabActive !== 'abonnements' && (
@@ -3097,7 +3097,7 @@ export default function DashboardView(props) {
                   }
 
                   if (tabActive === 'abonnements') {
-                    return <VueAbonnements transactions={toutesLesTransactions} comptesDuProfil={comptesDuProfil} profil={filters.profil} user={user} />;
+                    return <VueAbonnements transactions={toutesLesTransactions} comptesDuProfil={comptesDuProfil} profil={filters.profil} user={user} rechargerPrevisions={loadPrevisions} />;
                   }
 
                   if (tabActive === 'flash') {

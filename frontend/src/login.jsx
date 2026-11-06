@@ -983,7 +983,6 @@ if (!user) {
             onLoginSuccess={(token, loggedUser) => {
               setUser(loggedUser);
             }} 
-            userTheme={userTheme} 
           />
         </div>
       );
@@ -1038,6 +1037,7 @@ if (!user) {
       soldeGlobal={soldeGlobal}
       soldesTries={soldesTries}
       sensors={sensors}
+      loadPrevisions={loadPrevisions}
       handleDragEnd={handleDragEnd}
       SortableAccountCard={SortableAccountCard}
       TAB_CONFIG={TAB_CONFIG}
@@ -1327,8 +1327,7 @@ if (!user) {
 
 {activeTab === 'Guide' && (
   <div className="w-full">
-    {/* 💡 On passe l'état de changement d'onglet pour lier le bouton du bas */}
-    <GuideView userTheme={userTheme} setActiveTab={setActiveTab} />
+    <GuideView ouvrirPage={setActiveTab} pagesDisponibles={[...visibleMenuItems.map(item => item.id), 'profile']} />
   </div>
 )}
 

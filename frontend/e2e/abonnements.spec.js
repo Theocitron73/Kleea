@@ -16,6 +16,7 @@ const TRANSACTIONS = [
 
 async function ouvrir(page) {
   const erreurs = [];
+  const serveur = page.serveur = { ignores: [], previsions: [] };
   page.on('pageerror', (e) => erreurs.push(e.message));
   const reponses = [
     [/^\/profile\//, { username: UTILISATEUR, email: 't@kleea.test', name: 'T', import_mode: 'manual', role: 'admin' }],
@@ -32,6 +33,18 @@ async function ouvrir(page) {
   await page.route('http://api.kleea.test/**', (route) => {
     const requete = route.request();
     if (requete.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: ENTETES });
+    const url = new URL(requete.url());
+    const json = (corps) => route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify(corps) });
+    if (url.pathname === '/api/abonnements/ignores') {
+      if (requete.method() === 'POST') serveur.ignores.push(requete.postDataJSON().id);
+      if (requete.method() === 'DELETE') serveur.ignores = serveur.ignores.filter((id) => id !== url.searchParams.get('id'));
+      return json(requete.method() === 'GET' ? serveur.ignores : { status: 'success' });
+    }
+    if (url.pathname === '/previsions' && requete.method() === 'POST') {
+      serveur.previsions.push(requete.postDataJSON());
+      return json({ status: 'success' });
+    }
+    if (url.pathname.startsWith('/previsions/')) return json(serveur.previsions.map((p) => ({ ...p, nom: `[PRÉVI] ${p.nom}` })));
     const trouve = reponses.find(([motif]) => motif.test(new URL(requete.url()).pathname));
     return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify(trouve ? trouve[1] : []) });
   });
@@ -54,20 +67,36 @@ test('l’onglet liste les abonnements et écarte les courses', async ({ page })
   await page.screenshot({ path: 'test-results/abo-pc.png' });
 });
 
-test('ignorer une ligne est mémorisé et réversible', async ({ page }) => {
+test('une ligne ignorée est enregistrée sur le compte et réversible', async ({ page }) => {
   const erreurs = await ouvrir(page);
   const enCours = page.getByRole('list', { name: 'Dépenses récurrentes en cours' });
   await page.getByRole('button', { name: 'Ignorer Netflix' }).click();
   await expect(enCours.getByText('Netflix')).toHaveCount(0);
   await expect(page.getByText('80,00 €').first()).toBeVisible();
+  await expect.poll(() => page.serveur.ignores).toEqual(['NETFLIX|15']);
 
   await page.reload();
   await page.locator('button[title="Abonnements"]:visible').first().click({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: '1 ignorée' })).toBeVisible();
   await expect(page.getByRole('list', { name: 'Dépenses récurrentes en cours' }).getByText('Netflix')).toHaveCount(0);
 
   await page.getByRole('button', { name: '1 ignorée' }).click();
   await page.getByRole('button', { name: 'Réafficher Netflix' }).click();
   await expect(page.getByRole('list', { name: 'Dépenses récurrentes en cours' }).getByText('Netflix')).toBeVisible();
+  await expect.poll(() => page.serveur.ignores).toEqual([]);
+  expect(erreurs).toEqual([]);
+});
+
+test('ajouter aux prévisions crée les échéances restantes, sans doublon au second clic', async ({ page }) => {
+  const erreurs = await ouvrir(page);
+  await page.getByRole('button', { name: 'Ajouter Netflix aux prévisions' }).click();
+  await expect(page.getByText('2 prévisions ajoutées pour Netflix.')).toBeVisible();
+  expect(page.serveur.previsions.map((p) => p.date)).toEqual(['2026-11-05', '2026-12-05']);
+  expect(page.serveur.previsions[0]).toMatchObject({ nom: 'Netflix', montant: -14.99, categorie: 'Abonnements', compte: 'CCP', mois: 'Novembre', annee: 2026, utilisateur: UTILISATEUR });
+
+  await page.getByRole('button', { name: 'Ajouter Netflix aux prévisions' }).click();
+  await expect(page.getByText('Netflix est déjà dans vos prévisions.')).toBeVisible();
+  expect(page.serveur.previsions).toHaveLength(2);
   expect(erreurs).toEqual([]);
 });
 
