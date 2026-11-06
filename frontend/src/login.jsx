@@ -34,6 +34,7 @@ import SortableAccountCard from './components/SortableAccountCard';
 import UnifiedWidgets from './components/UnifiedWidgets';
 import ImportPowensModal from './components/ImportPowensModal';
 import NavigationPrincipale from './components/NavigationPrincipale';
+import useAlertes from './hooks/useAlertes';
 import IndicateurSynchroAuto from './components/IndicateurSynchroAuto';
 import FenetreSuppressionCompte from './components/FenetreSuppressionCompte';
 import BarreActionsTransactions from './components/BarreActionsTransactions';
@@ -918,6 +919,8 @@ const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens(
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
 // =========================================================================
+const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, importMode });
+
 const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
 
 
@@ -1013,7 +1016,7 @@ if (!user) {
       <div className="max-w-full mx-auto">
       
       {/* NAVIGATION GLOBALE */}
-          <NavigationPrincipale CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
+          <NavigationPrincipale centreAlertes={centreAlertes} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
 
 
         <main>

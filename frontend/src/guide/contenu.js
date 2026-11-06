@@ -444,6 +444,18 @@ export const CHAPITRES = [
         attention: "« Supprimer mon compte » efface définitivement votre compte et vos données. L'action est irréversible et vous demande d'écrire « delete » pour confirmer.",
       },
       {
+        titre: 'Alertes',
+        texte: "La cloche de la navigation signale ce qui demande votre attention, quels que soient le mois et le profil affichés. Son nombre devient rouge dès qu'une alerte est importante.",
+        points: [
+          { l: 'Banque', d: "Une connexion à renouveler, ou qui expire dans moins de 7 jours." },
+          { l: 'Synchronisation', d: "En mode automatique : une dernière synchronisation en échec, ou aucun succès depuis plus de 3 jours." },
+          { l: 'Découvert', d: "Un compte dont le solde estimé passe sous zéro d'ici la fin de l'année, d'après vos prévisions à venir." },
+          { l: 'Budget', d: "Une catégorie à 80 % de sa limite du mois, ou qui la dépasse." },
+          { l: 'Masquer', d: "La croix retire une alerte sur tous vos appareils. Elle revient si la situation change, par exemple le mois suivant ou lors d'une nouvelle panne." },
+        ],
+        conseil: "Les alertes s'affichent dans l'application : aucun e-mail n'est envoyé pour le moment.",
+      },
+      {
         titre: 'Widgets',
         texte: "Le bouton rond en bas à droite ouvre le menu des widgets.",
         points: [

@@ -4,7 +4,7 @@ Alembic garde l'historique des changements de structure (tables, colonnes). Vos 
 
 ## État actuel
 
-La production Neon est marquée à la révision `0001` depuis le 5 novembre 2026 (table `alembic_version`), et la révision `0002` y a été appliquée le 6 novembre 2026.
+La production Neon est marquée à la révision `0001` depuis le 5 novembre 2026 (table `alembic_version`), et les révisions suivantes doivent y être appliquées avant le déploiement du code qui les utilise.
 
 La révision `0001` décrit les 28 tables de l'application, relevées sur la production. Le schéma `neon_auth` est géré par Neon et n'en fait pas partie.
 

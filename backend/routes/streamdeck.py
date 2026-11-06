@@ -9,7 +9,7 @@ from sqlalchemy import text
 from streamdeck_calculs import calculer_vues_streamdeck
 from typing import Optional
 from base import engine, get_current_user
-from routes.powens import check_sync_status, declencher_actualisation_bancaire, exec_recalculate_balances, exec_sync_user_transactions, jeton_powens_du_compte
+from routes.powens import check_sync_status, declencher_actualisation_bancaire, exec_recalculate_balances, synchroniser_et_noter, jeton_powens_du_compte
 from securite import check_is_rate_limited
 
 
@@ -126,7 +126,7 @@ def importer_si_mode_auto(utilisateur: str) -> bool:
     if mode != "auto":
         return True
     try:
-        exec_sync_user_transactions(utilisateur)
+        synchroniser_et_noter(utilisateur)
         exec_recalculate_balances(utilisateur)
         return True
     except Exception as e:
