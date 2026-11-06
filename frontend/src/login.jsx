@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
  // <-- Ajoute cette ligne tout en haut du fichier
 
  // À mettre en haut de ton fichier
-import { TrendingUp, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal } from 'lucide-react';
+import { TrendingUp, RefreshCw, ArrowUpCircle, ArrowDownCircle, Zap, BarChartHorizontal, Repeat } from 'lucide-react';
 import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import "react-datepicker/dist/react-datepicker.css";
@@ -34,6 +34,7 @@ import SortableAccountCard from './components/SortableAccountCard';
 import UnifiedWidgets from './components/UnifiedWidgets';
 import ImportPowensModal from './components/ImportPowensModal';
 import NavigationPrincipale from './components/NavigationPrincipale';
+import useAlertes from './hooks/useAlertes';
 import IndicateurSynchroAuto from './components/IndicateurSynchroAuto';
 import FenetreSuppressionCompte from './components/FenetreSuppressionCompte';
 import BarreActionsTransactions from './components/BarreActionsTransactions';
@@ -770,7 +771,8 @@ const TAB_CONFIG = {
   // ✅ Désormais synchronisé sur ton point de rupture exact (2000px)
   Catégories: { icon: BarChartHorizontal, label: 'Catégories', className: 'min-[2000px]:hidden' }, 
   Variations: { icon: TrendingUp, label: 'Variations', className: '' },
-  flash: { icon: Zap, label: 'Insights', className: '' }
+  flash: { icon: Zap, label: 'Insights', className: '' },
+  abonnements: { icon: Repeat, label: 'Abonnements', className: '' }
 };
 
 
@@ -917,6 +919,8 @@ const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens(
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
 // =========================================================================
+const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, importMode });
+
 const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
 
 
@@ -982,7 +986,6 @@ if (!user) {
             onLoginSuccess={(token, loggedUser) => {
               setUser(loggedUser);
             }} 
-            userTheme={userTheme} 
           />
         </div>
       );
@@ -1013,7 +1016,7 @@ if (!user) {
       <div className="max-w-full mx-auto">
       
       {/* NAVIGATION GLOBALE */}
-          <NavigationPrincipale CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
+          <NavigationPrincipale centreAlertes={centreAlertes} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
 
 
         <main>
@@ -1037,6 +1040,7 @@ if (!user) {
       soldeGlobal={soldeGlobal}
       soldesTries={soldesTries}
       sensors={sensors}
+      loadPrevisions={loadPrevisions}
       handleDragEnd={handleDragEnd}
       SortableAccountCard={SortableAccountCard}
       TAB_CONFIG={TAB_CONFIG}
@@ -1326,8 +1330,7 @@ if (!user) {
 
 {activeTab === 'Guide' && (
   <div className="w-full">
-    {/* 💡 On passe l'état de changement d'onglet pour lier le bouton du bas */}
-    <GuideView userTheme={userTheme} setActiveTab={setActiveTab} />
+    <GuideView ouvrirPage={setActiveTab} pagesDisponibles={[...visibleMenuItems.map(item => item.id), 'profile']} />
   </div>
 )}
 

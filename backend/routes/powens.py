@@ -14,6 +14,7 @@ from sqlalchemy import text
 from typing import Optional
 from urllib.parse import quote
 from base import ALGORITHM, SECRET_KEY, engine, get_current_user
+from routes.alertes import noter_synchro
 from chiffrement import chiffrer_jeton, dechiffrer_jeton, decrypt_iban
 from routes.categories import CATEGORIES_DEFAUT, fetch_memoire_data, get_mots_cles_rules, matches_keyword_boundary
 
@@ -859,6 +860,17 @@ def exec_sync_user_transactions(username: str):
 
 
 # 🟢 ROUTE API SÉCURISÉE AVEC JWT (Sans paramètre inutilisé)
+def synchroniser_et_noter(username: str):
+    """Lance la synchronisation et garde son résultat pour le centre d'alertes."""
+    try:
+        resultat = exec_sync_user_transactions(username)
+    except Exception as e:
+        noter_synchro(username, e)
+        raise
+    noter_synchro(username)
+    return resultat
+
+
 @router.post("/powens/sync-user/{username}")
 def sync_user_transactions(
     username: str, 
@@ -866,7 +878,7 @@ def sync_user_transactions(
 ):
     if username.lower().strip() != current_user.lower().strip():
         raise HTTPException(status_code=403, detail="Accès non autorisé.")
-    return exec_sync_user_transactions(username)
+    return synchroniser_et_noter(username)
 
 
 # 🟢 LOGIQUE DE CALCUL DU SOLDE INITIAL
@@ -988,7 +1000,7 @@ def sync_all_users_background(
         for u in users:
             try:
                 # Appel direct des fonctions métiers
-                exec_sync_user_transactions(u[0])
+                synchroniser_et_noter(u[0])
                 exec_recalculate_balances(u[0])
                 synced_users.append(u[0])
             except Exception as e:

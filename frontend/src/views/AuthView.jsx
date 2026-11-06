@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import api from '../axios';
 import GuideView from '../GuideView';
 
-export default function AuthView({ onLoginSuccess, userTheme }) {
+export default function AuthView({ onLoginSuccess }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loginName, setLoginName] = useState('');
@@ -142,7 +142,7 @@ export default function AuthView({ onLoginSuccess, userTheme }) {
         </div>
 
         <div className="flex-1 max-w-7xl w-full mx-auto relative z-10 overflow-hidden">
-          <GuideView userTheme={userTheme} setActiveTab={() => setShowPublicGuide(false)} />
+          <GuideView />
         </div>
       </div>
     );

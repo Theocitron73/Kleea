@@ -1,9 +1,12 @@
 import { LogOut, ChevronRight } from 'lucide-react';
+import CentreAlertes from './CentreAlertes';
 
 // Navigation entre les pages, sur ordinateur et sur mobile.
-function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handleWheelNavTabs, setActiveTab, user, visibleMenuItems }) {
+function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handleWheelNavTabs, setActiveTab, user, visibleMenuItems, centreAlertes }) {
   return (
     <nav>
+      <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} variante="mobile" />
+
       {/* --- VERSION DESKTOP (Haut) --- */}
       <div 
         onWheel={handleWheelNavTabs}
@@ -47,6 +50,8 @@ function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handle
         
         <div className="w-px h-4 bg-[var(--glass-bg)] mx-2" />
         
+        <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} />
+
         {/* --- BADGE UTILISATEUR CONNECTÉ --- */}
         <button
           onClick={() => setActiveTab('profile')} 

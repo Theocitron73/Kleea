@@ -1,451 +1,308 @@
-import { useState, useMemo } from 'react';
-import { BookOpen, LayoutDashboard, Settings2, ChartCandlestick, Wallet, Users2, Search, ChevronRight, X, AlertCircle, Database, UploadCloud, Brain, List, Plus, Edit3, Calendar, Trash2, ArrowUpDown, Target, Calculator, StickyNote } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Clock, ExternalLink, Lightbulb, Rocket, Search, X } from 'lucide-react';
+import { CHAPITRES, PREMIERS_PAS, rechercher } from './guide/contenu';
 
-export default function GuideView({ userTheme }) {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeChapter, setActiveChapter] = useState("all");
+const CLE_PROGRESSION = 'kleea_guide_premiers_pas';
+const ID_PREMIERS_PAS = 'premiers-pas';
 
-  const colorPrimary = userTheme?.color_patrimoine || "#6366f1";
+function lireProgression() {
+  try {
+    const valeur = JSON.parse(localStorage.getItem(CLE_PROGRESSION) || '[]');
+    return Array.isArray(valeur) ? valeur : [];
+  } catch {
+    return [];
+  }
+}
 
-  // Base de données fusionnée des chapitres de documentation
-  const chapters = [
-    {
-      id: "fondations",
-      title: "1. Les Fondations",
-      subtitle: "Comptes & Imports CSV",
-      icon: Database,
-      color: "text-blue-400",
-      bg: "bg-blue-500/5",
-      border: "border-blue-500/20",
-      content: [
-        {
-          type: "card",
-          title: "La Page Comptes",
-          icon: Wallet,
-          list: [
-            { label: "Création", desc: "Définissez vos comptes (CCP, Livrets, etc.), leur solde initial et assignez-les à un Groupe/Profil (ex: Perso, Pro, Commun)." },
-            { label: "Sélecteur de Type", desc: "Le sélecteur de type pré-remplit et verrouille automatiquement le préfixe dans le nom de votre compte (ex: 'LEP - ') pour qu'il soit impossible à modifier par erreur." },
-            { label: "Objectifs d'épargne", desc: "Saisissez une cible financière. Le Dashboard calculera automatiquement votre progression sous forme de jauge." },
-            { label: "Personnalisation", desc: "Modifiez la couleur de chaque compte d'un simple clic sur sa pastille colorée. C'est cette couleur qui représentera le compte sur tous les graphiques." },
-            { label: "Calcul automatique du solde de départ", desc: "Importez voir premières transactions et grâce à l'icône de baguette magique à côté du solde initial des comptes, rentrez le solde actuel de votre compte en banque, un calcul s'effectue pour trouver le solde initial du compte kleea" }
-          ]
-        },
-        {
-          type: "card",
-          title: "Le Moteur d'Importation",
-          icon: UploadCloud,
-          list: [
-            { label: "Glisser-Déposer / CSV", desc: "Récupérez le fichier CSV fourni par votre banque et glissez-le dans la zone dédiée de l'onglet d'importation." },
-            { label: "Guide des banques", desc: "Un bouton '?' en haut à droite vous explique comment extraire un CSV propre depuis Boursorama, Crédit Agricole, Revolut, etc." },
-            { label: "Liaison Bancaire Powens", desc: "Connectez et centralisez vos banques réelles de manière sécurisée en API. Associez vos comptes Powens à vos comptes locaux Kleea pour synchroniser vos soldes en temps réel." },
-            { label: "Catégorisation automatique", desc: "Grâce au lexique, remplissez les mots clés que vous trouvez pertinents pour que la catégorisation soit meilleure à chaque importation de données" },
-            { label: "Validation des doublons", desc: "Le système sépare visuellement vos nouvelles transactions de celles déjà importées pour éviter tout doublon dans votre historique." }
-          ]
-        }
-      ]
-    },
-    {
-      id: "controle",
-      title: "2. Le Centre de Contrôle",
-      subtitle: "Page Gérer & Intelligence",
-      icon: Settings2,
-      color: "text-purple-400",
-      bg: "bg-purple-500/5",
-      border: "border-purple-500/20",
-      content: [
-        {
-          type: "card-large",
-          title: "Le Tableau d'Édition",
-          icon: List,
-          desc: "C'est ici que vous gérez vos flux financiers au quotidien. Le tableau et les fiches mobiles sont entièrement interactifs :",
-          items: [
-            { icon: Plus, title: "Ajout Manuel", desc: "Utilisez le bouton 'Ajouter une transaction' pour saisir instantanément un achat en espèces ou une opération non présente sur votre CSV." },
-            { icon: Edit3, title: "Édition Rapide (PC & Mobile)", desc: "Sur ordinateur, cliquez sur une cellule pour modifier. Sur mobile, touchez simplement une carte pour ouvrir un tiroir d'édition (Bottom Sheet) pour modifier montant, date, compte ou catégorie." },
-            { icon: Calendar, title: "Changement de mois", desc: "Vous pouvez réaffecter une dépense à un autre mois. Très utile pour une dépense effectuée le 30 du mois que vous souhaitez imputer au budget du mois suivant." },
-            { icon: Trash2, title: "Sélection multiple", desc: "Utilisez les cases à cocher à gauche des lignes pour supprimer plusieurs transactions d'un coup via le menu contextuel qui apparaît en bas de l'écran." }
-          ]
-        },
-        {
-          type: "brain-card",
-          title: "Le Système Kleea Brain & Catégories",
-          icon: Brain,
-          desc: "L'application apprend de vous. Dans la barre de droite (ou l'onglet Intelligence sur mobile), configurez l'apprentissage par mots-clés :",
-          extra: "Dès lors, si vous recatégorisez un libellé (ex: 'Uber') en 'Alimentation', le système mémorisera cette association. Au prochain import CSV, tous les futurs 'Uber' seront automatiquement classés dans la bonne catégorie !"
-        },
-        {
-          type: "rule-box",
-          title: "Règle de Transfert Interne",
-          icon: ArrowUpDown,
-          desc: "Pour que les virements entre vos propres comptes ne soient pas comptés comme des dépenses réelles, veillez à ce que vos transactions soit bien sur une catégorie qui ressemble à ceci :",
-          code: "🔄 Virement : Compte A VERS Compte B",
-          // 💡 Remplacement de "desc" par "extra" pour éviter la collision de clé JavaScript
-          extra: "Les catégories de virement interne sont créées automatiquement en fonction des types de comptes que vous avez créés"
-        },
-        {
-          type: "card",
-          title: "Limites Budgétaires",
-          icon: Target,
-          list: [
-            { label: "Plafonds par catégorie", desc: "Fixez un plafond maximum pour une catégorie donnée sur un mois précis (ex: 200€ de Courses en Février)." },
-            { label: "Alertes néon", desc: "Des jauges de progression apparaîtront sur votre Dashboard, virant au rouge si vous dépassez le montant alloué." },
-            { label: "Indépendance", desc: "Les limites sont indépendantes par mois pour s'adapter à vos imprévus." }
-          ]
-        }
-      ]
-    },
-    {
-      id: "analyse",
-      title: "3. L'Analyse Globale",
-      subtitle: "Page Dashboard",
-      icon: LayoutDashboard,
-      color: "text-orange-400",
-      bg: "bg-orange-500/5",
-      border: "border-orange-500/20",
-      content: [
-        {
-          type: "grid-3",
-          title: "Structure du Dashboard",
-          blocks: [
-            {
-              title: "A. Flux Mensuel",
-              desc: "Résume ce qui est entré et sorti sur le mois sélectionné. L'onglet 'Catégories' génère un graphique en barre horizontal de vos dépenses avec flèches d'évolution."
-            },
-            {
-              title: "B. Bilan Annuel",
-              desc: "Un tableau mois par mois calculant automatiquement votre Net Épargné et votre Taux d'effort (pourcentage de revenus mis de côté). Comprend un graphique d'analyse par émojis."
-            },
-            {
-              title: "C. Tendances & Enveloppes",
-              desc: "Le panneau latéral offre une vue puissante : courbes de patrimoine annuel cumulé, allocation virtuelle en enveloppes (Provision Impôts, Vacances) et calcul de faisabilité de projets."
-            }
-          ]
-        }
-      ]
-    },
-    {
-      id: "previsionnel",
-      title: "4. Le Prévisionnel",
-      subtitle: "La Machine à Voyager dans le Temps",
-      icon: ChartCandlestick,
-      color: "text-pink-400",
-      bg: "bg-pink-500/5",
-      border: "border-pink-500/20",
-      content: [
-        {
-          type: "card",
-          title: "Anticipez vos soldes futurs",
-          icon: Calendar,
-          list: [
-            { label: "Projections holographiques", desc: "Saisissez vos dépenses et revenus récurrents à venir (loyer, salaires, abonnements). L'application génère des soldes estimés à la fin du mois." },
-            { label: "Simulation dynamique", desc: "Dans le tableau annuel, activez ou désactivez temporairement des mois de projection pour voir l'impact immédiat sur votre épargne de fin d'année." },
-            { label: "Bouton d'activation Œil", desc: "Désactivez temporairement une ligne de transaction spécifique de vos calculs prévisionnels d'un simple clic pour simuler différents scénarios." }
-          ]
-        }
-      ]
-    },
-    {
-      id: "outils",
-      title: "5. Outils Avancés & Tricount",
-      subtitle: "Le couteau suisse financier",
-      icon: Users2,
-      color: "text-amber-500",
-      bg: "bg-amber-500/5",
-      border: "border-amber-500/20",
-      content: [
-        {
-          type: "card",
-          title: "Module Tricount",
-          icon: Users2,
-          list: [
-            { label: "Indépendance", desc: "Idéal pour les colocations, les vacances ou les sorties. Ce module est totalement séparé de vos statistiques personnelles de patrimoine." },
-            { label: "Gestion des membres", desc: "Ajoutez des participants et attribuez-leur un émoji d'avatar dynamique." },
-            { label: "Répartitions inégales", desc: "Saisissez une dépense et choisissez de la diviser équitablement ou en parts asymétriques précises pour chaque membre." },
-            { label: "Bilan & PDF", desc: "L'algorithme calcule le remboursement de dettes croisées le plus optimisé. Générez le rapport au format PDF global ou individuel." },
-            { label: "Lien de partage public", desc: "Copiez un lien sécurisé d'un clic. Vos proches peuvent ajouter ou éditer des dépenses sans posséder de compte sur l'application." }
-          ]
-        },
-        {
-          type: "widgets-list",
-          title: "Widgets Flottants & Paramètres",
-          items: [
-            { icon: Calculator, title: "Prorata Calculateur", desc: "Un outil pour calculer la répartition équitable d'une dépense commune (ex: loyer du couple) basée sur les revenus respectifs de chacun." },
-            { icon: StickyNote, title: "Bloc-notes Auto-save", desc: "Un pense-bête persistant lié à votre profil pour noter vos investissements ou rappels financiers sans quitter l'écran." },
-            
-          ]
-        }
-      ]
+function enregistrerProgression(valeur) {
+  try {
+    localStorage.setItem(CLE_PROGRESSION, JSON.stringify(valeur));
+  } catch {
+    // Sans stockage disponible, la progression vaut seulement pour cette visite.
+  }
+}
+
+function BoutonPage({ page, libelle, pagesDisponibles, ouvrirPage }) {
+  if (!page || !ouvrirPage || !pagesDisponibles?.includes(page)) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => ouvrirPage(page)}
+      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--primary)] text-white text-[10px] font-black uppercase tracking-wider hover:brightness-110 transition-all cursor-pointer"
+    >
+      {libelle}
+      <ExternalLink size={11} />
+    </button>
+  );
+}
+
+function Encadre({ type, children }) {
+  const attention = type === 'attention';
+  const Icone = attention ? AlertTriangle : Lightbulb;
+  return (
+    <div className={`flex gap-2.5 p-3 rounded-xl border text-[12px] leading-relaxed ${attention ? 'bg-amber-500/10 border-amber-500/25' : 'bg-[var(--primary)]/10 border-[var(--primary)]/25'}`}>
+      <Icone size={14} className={`shrink-0 mt-0.5 ${attention ? 'text-amber-400' : 'text-[var(--secondary)]'}`} />
+      <p className="text-[var(--text-main)]/85">{children}</p>
+    </div>
+  );
+}
+
+function Etapes({ etapes }) {
+  return (
+    <ol className="space-y-2.5">
+      {etapes.map((etape, i) => (
+        <li key={etape} className="flex gap-3 text-[13px] leading-relaxed text-[var(--text-main)]/80">
+          <span className="shrink-0 w-5 h-5 rounded-full bg-white/10 text-[var(--text-main)] text-[10px] font-black flex items-center justify-center mt-0.5">{i + 1}</span>
+          <span>{etape}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function Section({ section }) {
+  return (
+    <section id={`guide-${section.titre}`} className="scroll-mt-4 bg-white/[0.02] border border-white/5 rounded-[var(--radius)] p-5 space-y-3">
+      <h3 className="text-sm font-black text-[var(--text-main)]">{section.titre}</h3>
+      {section.texte && <p className="text-[13px] leading-relaxed text-[var(--text-main)]/70">{section.texte}</p>}
+      {section.etapes && <Etapes etapes={section.etapes} />}
+      {section.points && (
+        <dl className="space-y-2.5">
+          {section.points.map((p) => (
+            <div key={p.l} className="text-[13px] leading-relaxed">
+              <dt className="inline font-bold text-[var(--text-main)]">{p.l} : </dt>
+              <dd className="inline text-[var(--text-main)]/70">{p.d}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {section.conseil && <Encadre type="conseil">{section.conseil}</Encadre>}
+      {section.attention && <Encadre type="attention">{section.attention}</Encadre>}
+    </section>
+  );
+}
+
+function PremiersPas({ faites, basculer, pagesDisponibles, ouvrirPage }) {
+  const total = PREMIERS_PAS.length;
+  const nombre = PREMIERS_PAS.filter((e) => faites.includes(e.id)).length;
+  const prochaine = PREMIERS_PAS.find((e) => !faites.includes(e.id));
+  return (
+    <div className="space-y-5">
+      <header className="p-6 rounded-[var(--radius)] border border-white/10 bg-white/[0.03] space-y-4">
+        <div>
+          <h2 className="text-2xl md:text-3xl font-black tracking-tight text-[var(--text-main)]">Bien démarrer avec Kleea</h2>
+          <p className="text-[13px] leading-relaxed text-[var(--text-main)]/70 mt-2 max-w-2xl">
+            Suivez ces {total} étapes dans l'ordre : comptez une vingtaine de minutes pour passer d'un compte vide à un suivi complet de vos finances.
+          </p>
+        </div>
+        <div>
+          <div className="flex justify-between text-[11px] font-bold text-[var(--text-main)]/70 mb-1.5">
+            <span>{nombre === total ? 'Tout est prêt, bravo !' : prochaine ? `Prochaine étape : ${prochaine.titre}` : ''}</span>
+            <span>{nombre} / {total}</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={nombre} aria-label="Progression des premiers pas">
+            <div className="h-full rounded-full bg-[var(--primary)] transition-all duration-500" style={{ width: `${(nombre / total) * 100}%` }} />
+          </div>
+        </div>
+      </header>
+
+      {PREMIERS_PAS.map((etape, i) => {
+        const faite = faites.includes(etape.id);
+        return (
+          <section key={etape.id} id={`guide-${etape.id}`} className={`scroll-mt-4 rounded-[var(--radius)] border p-5 space-y-3 transition-colors ${faite ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/[0.02] border-white/5'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-wider text-[var(--secondary)] flex items-center gap-2">
+                  Étape {i + 1}
+                  <span className="inline-flex items-center gap-1 text-[var(--text-main)]/50 font-bold normal-case tracking-normal"><Clock size={10} /> {etape.duree}</span>
+                </p>
+                <h3 className="text-base font-black text-[var(--text-main)] mt-0.5">{etape.titre}</h3>
+              </div>
+            </div>
+            <p className="text-[13px] leading-relaxed text-[var(--text-main)]/70">{etape.pourquoi}</p>
+            <Etapes etapes={etape.etapes} />
+            {etape.conseil && <Encadre type="conseil">{etape.conseil}</Encadre>}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <BoutonPage page={etape.page} libelle={etape.pageLibelle} pagesDisponibles={pagesDisponibles} ouvrirPage={ouvrirPage} />
+              <button
+                type="button"
+                aria-pressed={faite}
+                onClick={() => basculer(etape.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${faite ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' : 'bg-white/5 border-white/10 text-[var(--text-main)]/70 hover:bg-white/10'}`}
+              >
+                <Check size={11} /> {faite ? 'Étape terminée' : 'Marquer comme fait'}
+              </button>
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function Chapitre({ chapitre, pagesDisponibles, ouvrirPage }) {
+  const Icone = chapitre.icone;
+  return (
+    <div className="space-y-4">
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-11 h-11 rounded-2xl bg-[var(--primary)]/15 border border-[var(--primary)]/25 flex items-center justify-center shrink-0">
+            <Icone size={20} className="text-[var(--secondary)]" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-xl font-black tracking-tight text-[var(--text-main)]">{chapitre.titre}</h2>
+            <p className="text-[11px] font-bold text-[var(--text-main)]/50">{chapitre.sousTitre}</p>
+          </div>
+        </div>
+        <BoutonPage page={chapitre.page} libelle={`Ouvrir ${chapitre.titre}`} pagesDisponibles={pagesDisponibles} ouvrirPage={ouvrirPage} />
+      </header>
+      <p className="text-[13px] leading-relaxed text-[var(--text-main)]/75">{chapitre.intro}</p>
+      {chapitre.sections.map((s) => <Section key={s.titre} section={s} />)}
+    </div>
+  );
+}
+
+/**
+ * ouvrirPage et pagesDisponibles ne sont fournis qu'à une personne connectée :
+ * sur le guide public, les boutons menant vers l'application restent masqués.
+ */
+export default function GuideView({ ouvrirPage, pagesDisponibles }) {
+  const [recherche, setRecherche] = useState('');
+  const [actif, setActif] = useState(ID_PREMIERS_PAS);
+  const [faites, setFaites] = useState(lireProgression);
+  const ancreCible = useRef(null);
+  const zoneLecture = useRef(null);
+
+  const entrees = useMemo(() => [
+    { id: ID_PREMIERS_PAS, titre: 'Premiers pas', icone: Rocket },
+    ...CHAPITRES,
+  ], []);
+  const resultats = useMemo(() => rechercher(recherche), [recherche]);
+  const indexActif = entrees.findIndex((e) => e.id === actif);
+  const precedent = entrees[indexActif - 1];
+  const suivant = entrees[indexActif + 1];
+  const chapitreActif = CHAPITRES.find((c) => c.id === actif);
+
+  // Une nouvelle lecture commence en haut du chapitre, ou directement sur la section choisie dans les résultats.
+  useEffect(() => {
+    if (recherche) return;
+    if (ancreCible.current) {
+      document.getElementById(`guide-${ancreCible.current}`)?.scrollIntoView({ block: 'start' });
+      ancreCible.current = null;
+    } else {
+      zoneLecture.current?.scrollTo({ top: 0 });
     }
-  ];
+  }, [actif, recherche]);
 
-  // Filtrage intelligent selon la recherche et le chapitre sélectionné
-  const filteredChapters = useMemo(() => {
-    return chapters
-      .filter(ch => activeChapter === "all" || ch.id === activeChapter)
-      .map(ch => {
-        const filteredContent = ch.content.filter(item => {
-          const matchTitle = ch.title.toLowerCase().includes(searchTerm.toLowerCase());
-          const matchSub = ch.subtitle.toLowerCase().includes(searchTerm.toLowerCase());
-          const matchBlockTitle = item.title?.toLowerCase().includes(searchTerm.toLowerCase());
-          const matchDesc = item.desc?.toLowerCase().includes(searchTerm.toLowerCase());
-          
-          let matchInner = false;
-          if (item.list) {
-            matchInner = item.list.some(l => l.label.toLowerCase().includes(searchTerm.toLowerCase()) || l.desc.toLowerCase().includes(searchTerm.toLowerCase()));
-          }
-          if (item.items) {
-            matchInner = item.items.some(i => i.title.toLowerCase().includes(searchTerm.toLowerCase()) || i.desc.toLowerCase().includes(searchTerm.toLowerCase()));
-          }
-          if (item.blocks) {
-            matchInner = item.blocks.some(b => b.title.toLowerCase().includes(searchTerm.toLowerCase()) || b.desc.toLowerCase().includes(searchTerm.toLowerCase()));
-          }
+  const basculer = (id) => {
+    setFaites((valeur) => {
+      const nouvelle = valeur.includes(id) ? valeur.filter((x) => x !== id) : [...valeur, id];
+      enregistrerProgression(nouvelle);
+      return nouvelle;
+    });
+  };
 
-          return matchTitle || matchSub || matchBlockTitle || matchDesc || matchInner;
-        });
-        return { ...ch, content: filteredContent };
-      })
-      .filter(ch => ch.content.length > 0);
-  }, [searchTerm, activeChapter]);
+  const choisir = (id) => {
+    setRecherche('');
+    setActif(id);
+  };
+
+  const ouvrirResultat = (resultat) => {
+    ancreCible.current = resultat.ancre;
+    setRecherche('');
+    setActif(resultat.chapitreId);
+  };
 
   return (
-    <div className="h-full w-full flex flex-col lg:flex-row gap-6 animate-in fade-in duration-500 overflow-hidden px-1 py-1">
-      
-      {/* 1. SOMMAIRE INTERACTIF (Gauche) */}
-      <div className="w-full lg:w-64 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl p-4 flex flex-col gap-4 shrink-0 shadow-xl h-fit">
-        <div className="flex items-center gap-2 pb-2 border-b border-white/5">
-          <BookOpen size={16} style={{ color: colorPrimary }} />
-          <h3 className="text-[10px] font-black uppercase text-white/50 tracking-[0.2em]">Sommaire</h3>
+    <div className="h-full w-full flex flex-col lg:flex-row gap-4 lg:gap-6 animate-in fade-in duration-500 px-1 py-1 min-w-0">
+      {/* SOMMAIRE */}
+      <nav aria-label="Sommaire du guide" className="w-full lg:w-64 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl p-3 lg:p-4 flex flex-col gap-3 shrink-0 shadow-xl h-fit min-w-0">
+        <div className="hidden lg:flex items-center gap-2 pb-2 border-b border-white/5">
+          <BookOpen size={15} className="text-[var(--secondary)]" />
+          <h2 className="text-[10px] font-black uppercase text-[var(--text-main)]/60 tracking-[0.2em]">Sommaire</h2>
         </div>
 
-        {/* Barre de recherche */}
         <div className="relative">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30" />
-          <input 
-            type="text"
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-main)]/40" />
+          <input
+            type="search"
+            aria-label="Rechercher dans le guide"
             placeholder="Rechercher une aide..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-7 py-2 text-xs font-bold text-white outline-none placeholder:text-white/20"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+            className="w-full bg-black/30 border border-white/10 rounded-xl pl-8 pr-8 py-2 text-xs font-bold text-[var(--text-main)] outline-none placeholder:text-[var(--text-main)]/30 focus:border-[var(--primary)]/60 [&::-webkit-search-cancel-button]:hidden"
           />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40">
-              <X size={10} />
+          {recherche && (
+            <button type="button" aria-label="Effacer la recherche" onClick={() => setRecherche('')} className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-[var(--text-main)]/50 cursor-pointer">
+              <X size={12} />
             </button>
           )}
         </div>
 
-        {/* Boutons Chapitres */}
-        <div className="flex flex-col gap-1 overflow-x-auto lg:overflow-visible no-scrollbar flex-row lg:flex-col pb-2 lg:pb-0 select-none">
-          <button
-            onClick={() => setActiveChapter("all")}
-            className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-between shrink-0 ${
-              activeChapter === "all" ? "bg-white text-slate-900 font-black shadow-md" : "text-white/40 hover:bg-white/5"
-            }`}
-          >
-            <span>📖 Tout afficher</span>
-            <ChevronRight size={10} className="hidden lg:block opacity-40" />
-          </button>
-
-          {chapters.map(ch => {
-            const Icon = ch.icon;
-            const isCurrent = activeChapter === ch.id;
+        <div className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible no-scrollbar select-none">
+          {entrees.map((e) => {
+            const Icone = e.icone;
+            const courant = !recherche && actif === e.id;
             return (
               <button
-                key={ch.id}
-                onClick={() => setActiveChapter(ch.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center justify-between shrink-0 ${
-                  isCurrent ? "bg-white text-slate-900 font-black shadow-md" : "text-white/40 hover:bg-white/5"
-                }`}
+                key={e.id}
+                type="button"
+                aria-current={courant ? 'page' : undefined}
+                onClick={() => choisir(e.id)}
+                className={`lg:w-full text-left px-3 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between gap-2 shrink-0 cursor-pointer ${courant ? 'bg-white text-slate-900 shadow-md' : 'text-[var(--text-main)]/60 hover:bg-white/5'}`}
               >
-                <div className="flex items-center gap-2">
-                  <Icon size={12} className={isCurrent ? "text-slate-900" : ch.color} />
-                  <span className="truncate">{ch.title.substring(3)}</span>
-                </div>
-                <ChevronRight size={10} className="hidden lg:block opacity-40" />
+                <span className="flex items-center gap-2 whitespace-nowrap">
+                  <Icone size={13} className={courant ? 'text-slate-900' : 'text-[var(--secondary)]'} />
+                  {e.titre}
+                </span>
+                <ChevronRight size={11} className="hidden lg:block opacity-40" />
               </button>
             );
           })}
         </div>
-      </div>
+      </nav>
 
-      {/* 2. ZONE DE LECTURE (Droite) */}
-      <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar space-y-8 max-h-[calc(100vh-230px)] lg:max-h-[calc(100vh-170px)] pb-16">
-        
-        {/* INTRO HERO (S'affiche uniquement en mode "Tout afficher" et sans recherche en cours) */}
-        {activeChapter === "all" && !searchTerm && (
-          <div className="relative p-8 md:p-10 rounded-3xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10 overflow-hidden text-center flex flex-col items-center animate-in fade-in duration-500">
-            <div className="absolute top-[-50%] left-[-10%] w-[50%] h-[150%] bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
-            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tighter text-white mb-4 relative z-10 leading-none">
-              Maîtrisez <span className="text-[var(--secondary)] italic">Kleea</span>
+      {/* LECTURE */}
+      <main ref={zoneLecture} className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar max-h-[calc(100vh-290px)] lg:max-h-[calc(100vh-170px)] pb-12">
+        {recherche.trim() ? (
+          <div className="space-y-3">
+            <h2 className="text-lg font-black text-[var(--text-main)]" aria-live="polite">
+              {resultats.length === 0 ? 'Aucun résultat' : `${resultats.length} résultat${resultats.length > 1 ? 's' : ''}`}
             </h2>
-            <p className="text-white/50 text-xs md:text-sm max-w-2xl font-medium leading-relaxed relative z-10">
-              Découvrez comment exploiter chaque module de votre écosystème financier. De l'importation automatisée par l'apprentissage intelligent jusqu'aux projections annuelles et enveloppes virtuelles.
-            </p>
+            {resultats.length === 0 && <p className="text-[13px] text-[var(--text-main)]/60">Essayez un autre mot, par exemple « virement », « doublon » ou « budget ».</p>}
+            {resultats.map((r) => (
+              <button
+                key={`${r.chapitreId}-${r.ancre}`}
+                type="button"
+                onClick={() => ouvrirResultat(r)}
+                className="w-full text-left p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-all cursor-pointer"
+              >
+                <p className="text-[10px] font-black uppercase tracking-wider text-[var(--secondary)]">{r.chapitre}</p>
+                <p className="text-[13px] font-bold text-[var(--text-main)] mt-0.5">{r.section}</p>
+              </button>
+            ))}
           </div>
-        )}
-
-        {/* BOUCLE DYNAMIQUE DES CHAPITRES */}
-        {filteredChapters.length > 0 ? (
-          filteredChapters.map(ch => {
-            const Icon = ch.icon;
-            return (
-              <div key={ch.id} className="space-y-6">
-                
-                {/* Séparateur/En-tête de chapitre */}
-                <div className="flex items-center gap-4 border-b border-white/10 pb-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border shrink-0 ${ch.bg} ${ch.border}`}>
-                    <Icon size={22} className={ch.color} />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black uppercase tracking-tight text-white">{ch.title}</h3>
-                    <p className={`${ch.color}/60 text-[10px] font-black uppercase tracking-widest mt-0.5`}>{ch.subtitle}</p>
-                  </div>
-                </div>
-
-                {/* Blocs de contenu */}
-                <div className="grid grid-cols-1 gap-6">
-                  {ch.content.map((block, bIdx) => {
-                    const BlockIcon = block.icon;
-
-                    // CAS 1 : CARTE STANDARD DE LISTE (ex: Page Comptes, Importation, Prévisionnel)
-                    if (block.type === "card") {
-                      return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] hover:bg-white/[0.03] transition-all">
-                          {BlockIcon && <BlockIcon className={`${ch.color} mb-4`} size={24} />}
-                          <h4 className="text-white font-bold text-sm uppercase mb-4">{block.title}</h4>
-                          <ul className="space-y-4 text-xs text-white/50 leading-relaxed">
-                            {block.list.map((li, lIdx) => (
-                              <li key={lIdx}>
-                                <strong className="text-white font-black uppercase tracking-wider block mb-0.5">• {li.label} :</strong>
-                                <span className="text-[12px]">{li.desc}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      );
-                    }
-
-                    // CAS 2 : GRAND CONTENEUR DE DETAILS (ex: Tableau d'Édition)
-                    if (block.type === "card-large") {
-                      return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] relative overflow-hidden">
-                          {BlockIcon && <BlockIcon className={`${ch.color} mb-4`} size={24} />}
-                          <h4 className="text-white font-bold text-sm uppercase mb-3">{block.title}</h4>
-                          <p className="text-white/50 text-xs leading-relaxed mb-4">{block.desc}</p>
-                          <ul className="space-y-4 text-xs text-white/40">
-                            {block.items.map((it, iIdx) => {
-                              const ItemIcon = it.icon;
-                              return (
-                                <li key={iIdx}>
-                                  <div className="flex items-center gap-2 mb-1.5">
-                                    <ItemIcon size={12} className={ch.color} />
-                                    <strong className="text-white font-black uppercase tracking-tighter">{it.title} :</strong>
-                                  </div>
-                                  <p className="ml-5 text-[12px] leading-relaxed">{it.desc}</p>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      );
-                    }
-
-                    // CAS 3 : CARTES SYSTEME INTUITIVES (ex: Kleea Brain)
-                    if (block.type === "brain-card") {
-                      return (
-                        <div key={bIdx} className={`p-6 rounded-[calc(var(--radius)*1.333)] border ${ch.border} ${ch.bg} shadow-[0_0_30px_color-mix(in_srgb,var(--secondary)_2%,transparent)]`}>
-                          {BlockIcon && <BlockIcon className={`${ch.color} mb-4`} size={24} />}
-                          <h4 className="text-white font-bold text-sm uppercase mb-3">{block.title}</h4>
-                          <p className="text-white/50 text-xs leading-relaxed mb-3">{block.desc}</p>
-                          <p className="text-white/60 text-xs font-semibold leading-relaxed">{block.extra}</p>
-                        </div>
-                      );
-                    }
-
-                    // CAS 4 : CARTES DE RÈGLES DE TRANSFERT AVEC CONTEXTE DE CODE
-                    if (block.type === "rule-box") {
-                      return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] flex flex-col justify-between">
-                          <div>
-                            {BlockIcon && <BlockIcon className="text-white/40 mb-3" size={20} />}
-                            <h4 className="text-white font-bold text-sm uppercase mb-2">{block.title}</h4>
-                            <p className="text-white/50 text-xs leading-relaxed mb-4">{block.desc}</p>
-                          </div>
-                          
-                          <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl">
-                            <code className="text-blue-300 font-mono text-[11px] block bg-black/30 p-2.5 rounded-sm border border-white/5">
-                              {block.code}
-                            </code>
-                          </div>
-
-                          {/* 💡 AJOUT : Rendu du texte de précision sous la boîte de code si présent */}
-                          {block.extra && (
-                            <p className="text-white/40 text-[11px] leading-relaxed mt-4 italic">
-                              {block.extra}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    // CAS 5 : GRILLE DE BLOCS D'ANALYSES (ex: Dashboard A, B, C)
-                    if (block.type === "grid-3") {
-                      return (
-                        <div key={bIdx} className="space-y-4">
-                          <h4 className="text-white font-bold text-sm uppercase px-1">{block.title}</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {block.blocks.map((bl, blIdx) => (
-                              <div key={blIdx} className="bg-white/[0.01] border border-white/5 p-5 rounded-2xl">
-                                <h5 className={`${ch.color} font-black text-xs uppercase mb-2 tracking-wider`}>{bl.title}</h5>
-                                <p className="text-white/50 text-[11.5px] leading-relaxed">{bl.desc}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    // CAS 6 : GESTION DES WIDGETS AVEC ICONS
-                    if (block.type === "widgets-list") {
-                      return (
-                        <div key={bIdx} className="bg-white/[0.01] border border-white/5 p-6 rounded-[calc(var(--radius)*1.333)] flex flex-col justify-center">
-                          <h4 className="text-white font-bold text-sm uppercase mb-5">{block.title}</h4>
-                          <div className="space-y-5">
-                            {block.items.map((it, itIdx) => {
-                              const WidgetIcon = it.icon;
-                              return (
-                                <div key={itIdx} className="flex items-start gap-3">
-                                  <div className="p-2 bg-[var(--secondary)]/10 rounded-xl border border-[var(--secondary)]/20 shrink-0 text-[var(--secondary)]">
-                                    <WidgetIcon size={14} />
-                                  </div>
-                                  <div>
-                                    <strong className="text-white text-xs block uppercase mb-1">{it.title}</strong>
-                                    <span className="text-white/40 text-[11.5px] leading-relaxed block">{it.desc}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return null;
-                  })}
-                </div>
-
-              </div>
-            );
-          })
         ) : (
-          <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-white/5 rounded-3xl text-center">
-            <AlertCircle size={24} className="text-white/20 mb-2" />
-            <p className="text-[10px] text-white/40 uppercase font-black">Aucun résultat</p>
-            <p className="text-[9px] text-white/20 uppercase font-bold mt-1">Recherchez d'autres mots-clés dans le sommaire.</p>
-          </div>
+          <>
+            {actif === ID_PREMIERS_PAS
+              ? <PremiersPas faites={faites} basculer={basculer} pagesDisponibles={pagesDisponibles} ouvrirPage={ouvrirPage} />
+              : <Chapitre chapitre={chapitreActif} pagesDisponibles={pagesDisponibles} ouvrirPage={ouvrirPage} />}
+
+            <div className="flex justify-between gap-3 pt-6">
+              {precedent ? (
+                <button type="button" onClick={() => choisir(precedent.id)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-bold text-[var(--text-main)]/70 hover:bg-white/10 cursor-pointer">
+                  <ArrowLeft size={12} /> {precedent.titre}
+                </button>
+              ) : <span />}
+              {suivant && (
+                <button type="button" onClick={() => choisir(suivant.id)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-[11px] font-bold text-[var(--text-main)]/70 hover:bg-white/10 cursor-pointer">
+                  {suivant.titre} <ArrowRight size={12} />
+                </button>
+              )}
+            </div>
+          </>
         )}
-
-      </div>
-
+      </main>
     </div>
   );
 }

@@ -2,8 +2,6 @@ import { Link } from 'react-router-dom';
 import GuideView from './GuideView';
 
 export default function PublicGuide() {
-  // Thème de secours standard pour la version publique
-  const fallbackTheme = { color_patrimoine: "#6366f1" };
 
   return (
     <div className="min-h-screen bg-[var(--surface)] text-white p-4 md:p-8 flex flex-col justify-between relative overflow-hidden">
@@ -32,7 +30,7 @@ export default function PublicGuide() {
 
       {/* ZONE DE LECTURE DU GUIDE */}
       <div className="flex-1 max-w-7xl w-full mx-auto relative z-10 overflow-hidden">
-        <GuideView userTheme={fallbackTheme} setActiveTab={() => {}} />
+        <GuideView />
       </div>
     </div>
   );
