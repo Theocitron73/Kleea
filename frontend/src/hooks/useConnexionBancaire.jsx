@@ -27,9 +27,20 @@ export default function useConnexionBancaire({ activeTab, comptes, fetchCategori
          setTempTransactions([]);
          setFileName("");
          
+         const annulerImport = async () => {
+           try {
+             await api.delete(`/transactions/batch`, { data: response.data.ids });
+             toast.success('Import annulé.');
+             await fetchTransactions();
+             await fetchComptes();
+             await checkNewTransactions();
+           } catch {
+             toast.error("Impossible d'annuler cet import. Supprimez ces lignes depuis la page Gérer.");
+           }
+         };
          toast.success(
-           `${response.data.added} nouvelle(s) transaction(s) importée(s) avec succès ! ⚡`
-         
+           `${response.data.added} nouvelle(s) transaction(s) importée(s) avec succès ! ⚡`,
+           response.data.ids?.length ? { duration: 15000, action: { label: 'Annuler', onClick: annulerImport } } : undefined
          );
 
          

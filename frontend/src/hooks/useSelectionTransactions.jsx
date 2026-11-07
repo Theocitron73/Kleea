@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import api from '../axios';
+import { suppressionAnnulable } from '../utils/annulation';
 
 // Sélection et suppression de transactions.
-export default function useSelectionTransactions({ setToutesLesTransactions, transactionsAAfficher }) {
+export default function useSelectionTransactions({ setToutesLesTransactions, toutesLesTransactions, transactionsAAfficher }) {
   const [selectedIds, setSelectedIds] = useState([]);
 
     // A mettre dans ton composant parent
@@ -30,31 +31,23 @@ export default function useSelectionTransactions({ setToutesLesTransactions, tra
     };
 
 
-    const handleDeleteSelected = async () => {
-      // Sécurité : on sort si rien n'est sélectionné
+    const handleDeleteSelected = () => {
       if (selectedIds.length === 0) return;
 
-      try {
-        // Envoi de la liste d'IDs au backend
-        const res = await api.delete(`/transactions/batch`, { 
-          data: selectedIds 
-        });
-
-        if (res.data.status === "success") {
-          // 1. Mise à jour instantanée du tableau local (UX fluide)
-          setToutesLesTransactions(prev => 
-            prev.filter(t => !selectedIds.includes(t.id))
-          );
-          
-          // 2. Reset de la sélection pour la prochaine fois
+      const ids = selectedIds;
+      const retirees = toutesLesTransactions.filter(t => ids.includes(t.id));
+      suppressionAnnulable({
+        message: ids.length > 1 ? `${ids.length} transactions supprimées` : 'Transaction supprimée',
+        retirer: () => {
+          setToutesLesTransactions(prev => prev.filter(t => !ids.includes(t.id)));
           setSelectedIds([]);
-          
-         // console.log(`Suppression réussie : ${res.data.deleted_count} éléments.`);
-        }
-      } catch (err) {
-        console.error("Erreur lors de la suppression :", err);
-        // Ici tu peux appeler ta propre notif d'erreur si tu en as une
-      }
+        },
+        restaurer: () => setToutesLesTransactions(prev => [...prev.filter(t => !ids.includes(t.id)), ...retirees]),
+        supprimer: async () => {
+          const res = await api.delete(`/transactions/batch`, { data: ids });
+          if (res.data.status !== 'success') throw new Error(res.data.message);
+        },
+      });
     };
 
   return { handleDeleteSelected, selectedIds, setSelectedIds, toggleAll, toggleSelect };

@@ -8,7 +8,7 @@ const TRANSACTIONS = [
   { id: 2, date: '2026-11-03', nom: 'Remboursement', montant: 50, categorie: 'Courses', compte: 'CCP', mois: 'Novembre', annee: 2026 },
 ];
 
-async function ouvrir(page, { importMode = 'auto', connexions = [], sansBudget = false } = {}) {
+async function ouvrir(page, { importMode = 'auto', connexions = [], sansBudget = false, aImporter = {} } = {}) {
   const erreurs = [];
   page.on('pageerror', (e) => erreurs.push(e.message));
   const BUDGET_COURSES = { nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'tous', id: 1, utilisateur: UTILISATEUR, type: 'Categorie' };
@@ -19,6 +19,7 @@ async function ouvrir(page, { importMode = 'auto', connexions = [], sansBudget =
     [/^\/transactions\/stats\/count\//, { count: 1 }],
     [/^\/transactions\//, TRANSACTIONS],
     [/^\/dashboard\/periodes\//, [{ mois: 'Novembre', annee: 2026 }]],
+    [/^\/powens\/check-sync\//, { has_pending: Object.keys(aImporter).length > 0, accounts: aImporter }],
     [/^\/powens\/connexion-active/, { connecte: connexions.length > 0 }],
     [/^\/powens\/connections-and-accounts/, { connections_count: connexions.length, connections: connexions, accounts_count: 0, accounts: [] }],
     [/^\/previsions\//, [{ id: 9, date: '2026-12-10', nom: '[PRÉVI] Loyer', montant: -800, compte: 'CCP', categorie: 'Logement', mois: 'Décembre', annee: 2026, actif: true }]],
@@ -135,6 +136,17 @@ test('la liste mobile des budgets compte un budget sur tous les comptes, sans le
   await page.getByRole('button', { name: /^Budgets \(/ }).locator('visible=true').first().click();
   await expect(page.getByText('120€/100€').locator('visible=true').first()).toBeVisible();
   await page.screenshot({ path: 'test-results/budgets-mobile.png' });
+});
+
+test('des transactions à importer sont signalées et mènent à la page Importer', async ({ page }) => {
+  await ouvrir(page, { connexions: [{ id: 5, connector_name: 'Bourso', days_left: 90, accounts: [] }], aImporter: { CCP: { count: 3 } } });
+  await expect(cloche(page)).toHaveAccessibleName(/en cours/, { timeout: 30_000 });
+  await cloche(page).click();
+  const article = panneau(page).getByRole('article').filter({ hasText: '3 transactions à importer' });
+  await expect(article.getByText('Sur CCP.')).toBeVisible();
+  await article.getByRole('button', { name: 'Importer', exact: true }).click();
+  await expect(panneau(page)).toBeHidden();
+  await expect(page.getByText('Compte de destination').first()).toBeVisible();
 });
 
 test('sur grand écran, le panneau reste accroché à la cloche', async ({ page }) => {

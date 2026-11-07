@@ -183,16 +183,17 @@ def add_transactions_batch(transactions: List[Transaction], current_user: str = 
     try:
         # Un seul bloc begin() = 1 seule transaction réseau atomique
         with engine.begin() as conn:
-            inserted_count = 0
+            ids = []
             for row in rows_to_insert:
-                res = conn.execute(insert_query, row)
-                if res.fetchone():
-                    inserted_count += 1
+                ligne = conn.execute(insert_query, row).fetchone()
+                if ligne:
+                    ids.append(ligne[0])
 
-        has_ignored = (len(rows_to_insert) - inserted_count) > 0
+        has_ignored = (len(rows_to_insert) - len(ids)) > 0
         return {
             "status": "success",
-            "added": inserted_count,
+            "added": len(ids),
+            "ids": ids,
             "warning": has_ignored
         }
     except Exception as e:

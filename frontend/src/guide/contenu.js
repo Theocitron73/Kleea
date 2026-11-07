@@ -55,6 +55,7 @@ export const PREMIERS_PAS = [
       "Page « Importer » : choisissez le « Compte de destination », puis déposez votre fichier. Pour une banque reliée, utilisez « Synchroniser ».",
       "Vérifiez l'aperçu : les lignes « Nouveau » seront ajoutées, celles marquées « Déjà importé (Ignoré) » ne le seront pas.",
       "Corrigez une catégorie si besoin, puis cliquez sur « Importer ».",
+      "Une erreur ? Le message de confirmation propose « Annuler » pendant 15 secondes : seules les lignes de cet import sont retirées.",
     ],
     conseil: "En mode automatique, cette étape se fait toute seule à l'ouverture de Kleea.",
     page: 'importer',
@@ -451,6 +452,16 @@ export const CHAPITRES = [
         conseil: "Téléphone perdu ou doute sur un appareil ? Utilisez « Tout déconnecter », puis changez votre mot de passe : changer de mot de passe ne déconnecte pas à lui seul les autres appareils.",
       },
       {
+        titre: 'Double authentification',
+        texte: "Facultative : rien ne change tant que vous ne l'activez pas. Une fois activée, votre mot de passe seul ne suffit plus : chaque connexion demande aussi un code à 6 chiffres reçu par e-mail, valable 10 minutes.",
+        points: [
+          { l: 'Activer', d: "Dans la carte « Double authentification », confirmez que c'est bien vous avec votre mot de passe actuel, puis saisissez le code reçu à l'adresse de votre compte. Cela vérifie que cette adresse reçoit bien vos codes." },
+          { l: 'À la connexion', d: "Après le mot de passe, saisissez le code reçu. Rien reçu ? Regardez vos indésirables, ou utilisez « Renvoyer un code »." },
+          { l: 'Désactiver', d: "Confirmez avec votre mot de passe actuel, depuis une session déjà ouverte. Ainsi, quelqu'un qui trouverait votre session ouverte ne peut pas couper cette protection." },
+        ],
+        attention: "Cette protection vaut ce que vaut votre boîte mail : sécurisez-la bien, car elle reçoit aussi le lien « Mot de passe oublié ». Si vous perdez l'accès à cette boîte, vous ne pourrez plus vous connecter.",
+      },
+      {
         titre: 'Déconnecter vos banques',
         texte: "« Tout déconnecter » révoque l'accès de Kleea à vos banques et supprime vos connexions chez Powens. Vos opérations déjà importées restent en place.",
         attention: "Cette action efface aussi les liaisons entre vos comptes bancaires et vos comptes Kleea. Après une reconnexion, il faudra les refaire sur la page « Comptes ».",
@@ -472,10 +483,21 @@ export const CHAPITRES = [
         conseil: "Téléchargez d'abord votre sauvegarde : c'est le seul moyen de retrouver vos données ensuite.",
       },
       {
+        titre: 'Recherche globale',
+        texte: "La loupe de la navigation, ou Ctrl + K sur ordinateur, retrouve une opération, une catégorie ou un compte depuis n'importe quelle page, sur tout votre historique. Les accents et les majuscules ne comptent pas.",
+        points: [
+          { l: 'Opération', d: "Ouvre la page Gérer sur le mois et le compte de cette opération." },
+          { l: 'Catégorie', d: "Ouvre la page Gérer sur le dernier mois où elle apparaît, avec tous les comptes de ce profil." },
+          { l: 'Compte', d: "Ouvre la page Comptes." },
+        ],
+        conseil: "Le filtre reste actif dans la page Gérer : effacez le champ de recherche pour revoir toutes les opérations du mois.",
+      },
+      {
         titre: 'Alertes',
         texte: "La cloche de la navigation signale ce qui demande votre attention, quels que soient le mois et le profil affichés. Son nombre devient rouge dès qu'une alerte est importante.",
         points: [
           { l: 'Banque', d: "Une connexion à renouveler, ou qui expire dans moins de 7 jours." },
+          { l: 'À importer', d: "Avec une banque connectée : des opérations attendent d'être importées dans Kleea." },
           { l: 'Synchronisation', d: "En mode automatique : une dernière synchronisation en échec, ou aucun succès depuis plus de 3 jours." },
           { l: 'Découvert', d: "Un compte dont le solde estimé passe sous zéro d'ici la fin de l'année, d'après vos prévisions à venir." },
           { l: 'Budget', d: "Une catégorie à 80 % de sa limite du mois, ou qui la dépasse." },

@@ -4,7 +4,7 @@ import api from '../axios';
 import { calculerAlertes } from '../utils/alertes';
 
 // Les données sont relues à chaque changement de page, et dès que l'application recharge ses budgets ou ses prévisions.
-export default function useAlertes({ user, activeTab, comptes, transactions, connexions, importMode, budgetsAffiches, previsionsAffichees }) {
+export default function useAlertes({ user, activeTab, comptes, transactions, connexions, aImporter, importMode, budgetsAffiches, previsionsAffichees }) {
   const [synchro, setSynchro] = useState(null);
   const [masquees, setMasquees] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -44,8 +44,8 @@ export default function useAlertes({ user, activeTab, comptes, transactions, con
   }, [nom, activeTab, previsionsAffichees]);
 
   const toutes = useMemo(() => calculerAlertes({
-    connexions, synchro, modeAuto: importMode === 'auto', budgets, previsions, comptes, transactions,
-  }), [connexions, synchro, importMode, budgets, previsions, comptes, transactions]);
+    connexions, aImporter, synchro, modeAuto: importMode === 'auto', budgets, previsions, comptes, transactions,
+  }), [connexions, aImporter, synchro, importMode, budgets, previsions, comptes, transactions]);
 
   const alertes = useMemo(() => toutes.filter((a) => !masquees.includes(a.id)), [toutes, masquees]);
   const nombreMasquees = toutes.length - alertes.length;

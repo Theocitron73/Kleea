@@ -1,11 +1,19 @@
-import { LogOut, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, ChevronRight, Search } from 'lucide-react';
 import CentreAlertes from './CentreAlertes';
+import RechercheGlobale from './RechercheGlobale';
 
 // Navigation entre les pages, sur ordinateur et sur mobile.
-function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handleWheelNavTabs, setActiveTab, user, visibleMenuItems, centreAlertes }) {
+function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handleWheelNavTabs, setActiveTab, user, visibleMenuItems, centreAlertes, recherche }) {
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
+
   return (
     <nav>
       <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} variante="mobile" />
+      <button type="button" aria-label="Rechercher" title="Rechercher (Ctrl + K)" onClick={() => setRechercheOuverte(true)} className="md:hidden fixed top-3 right-[3.75rem] z-[60] w-10 h-10 flex items-center justify-center rounded-xl bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 text-[var(--text-main)]/70 cursor-pointer">
+        <Search size={18} aria-hidden="true" />
+      </button>
+      <RechercheGlobale ouverte={rechercheOuverte} setOuverte={setRechercheOuverte} {...recherche} />
 
       {/* --- VERSION DESKTOP (Haut) --- */}
       <div 
@@ -50,6 +58,9 @@ function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handle
         
         <div className="w-px h-4 bg-[var(--glass-bg)] mx-2" />
         
+        <button type="button" aria-label="Rechercher" title="Rechercher (Ctrl + K)" onClick={() => setRechercheOuverte(true)} className="shrink-0 w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/10 text-[var(--text-main)]/70 hover:text-[var(--text-main)] transition-colors cursor-pointer">
+          <Search size={18} aria-hidden="true" />
+        </button>
         <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} />
 
         {/* --- BADGE UTILISATEUR CONNECTÉ --- */}

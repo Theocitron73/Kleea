@@ -722,6 +722,22 @@ const transactionsFiltrees = transactionsAAfficher.filter(t =>
   t.categorie?.toLowerCase().includes(searchTerm.toLowerCase())
 );
 
+// Un résultat de la recherche globale : la page Gérer s'ouvre sur sa période et sur le profil de son compte.
+// Pas de profil « Tous » : l'app le remplacerait aussitôt par le premier profil, et le résultat disparaîtrait.
+const ouvrirResultatRecherche = (cible) => {
+  if (cible.type === 'compte') {
+    setActiveTab('comptes');
+    return;
+  }
+  const memeNom = (a, b) => a?.trim().toUpperCase() === b?.trim().toUpperCase();
+  const groupe = comptes.find(c => memeNom(c.compte, cible.compte))?.groupe;
+  const mois = moisListe.find(m => cleanMonth(m.v) === cleanMonth(cible.mois))?.v || cible.mois;
+  setFiltersByPage(prev => ({ ...prev, gerer: { ...prev.gerer, ...(groupe ? { profil: groupe } : {}), mois, annee: String(cible.annee) } }));
+  setSelectedCompte(cible.type === 'operation' ? cible.compte : 'tous');
+  setSearchTerm(cible.nom);
+  setActiveTab('gerer');
+};
+
 const [annualTab, setAnnualTab] = useState('list'); // 'list' sera la vue par défaut
 const statsAnnuellesCategories = useMemo(() => calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTransactions }), [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
 // On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
@@ -927,7 +943,7 @@ const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens(
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
 // =========================================================================
-const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, importMode, budgetsAffiches: budgets, previsionsAffichees: allPrevisionsAnnee });
+const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, aImporter: syncCountByAccount, importMode, budgetsAffiches: budgets, previsionsAffichees: allPrevisionsAnnee });
 
 const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
 
@@ -1024,7 +1040,7 @@ if (!user) {
       <div className="max-w-full mx-auto">
       
       {/* NAVIGATION GLOBALE */}
-          <NavigationPrincipale centreAlertes={centreAlertes} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
+          <NavigationPrincipale centreAlertes={centreAlertes} recherche={{ transactions: toutesLesTransactions, comptes, ouvrirResultat: ouvrirResultatRecherche }} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
 
 
         <main>
@@ -1468,7 +1484,7 @@ if (!user) {
 
 
 {/* =========================================================================
-    🎉 NOTES DE PATCH OFFICIELLES v4.3 : DIVISION DE TRANSACTIONS
+    🎉 NOTES DE PATCH OFFICIELLES v4.4
     ========================================================================= */}
 {showPatchModal && (
   <NotesDeVersion CURRENT_VERSION={CURRENT_VERSION} handleClosePatchModal={handleClosePatchModal} />

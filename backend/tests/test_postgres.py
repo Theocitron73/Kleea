@@ -47,7 +47,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION]
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -190,6 +190,60 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.get("/api/alertes/etat").json()["masquees"], ["a"])
         self.assertEqual(self.client.delete("/api/alertes/masquees").status_code, 200)
         self.assertEqual(self.client.get("/api/alertes/etat").json()["masquees"], [])
+
+    def test_annuler_un_import_ne_retire_que_les_lignes_creees(self):
+        ligne = {"date": "2026-11-05", "nom": "Achat", "montant": -10, "categorie": "Courses", "utilisateur": "theo", "mois": "Novembre", "annee": 2026, "compte": "CCP"}
+        premier = self.client.post("/transactions/batch", json=[ligne]).json()
+        self.assertEqual(len(premier["ids"]), 1)
+        second = self.client.post("/transactions/batch", json=[ligne, {**ligne, "nom": "Autre"}]).json()
+        self.assertEqual((second["added"], len(second["ids"])), (1, 1))
+        self.assertTrue(second["warning"])
+        self.assertEqual(self.client.request("DELETE", "/transactions/batch", json=second["ids"]).json()["status"], "success")
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT nom FROM transactions")).scalars().all(), ["Achat"])
+
+    def test_double_auth_sur_le_schema_alembic(self):
+        from routes import double_auth as da
+
+        main.app.dependency_overrides.clear()  # Ici, le vrai contrôle du jeton est justement ce qu'on vérifie.
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, email, password) VALUES ('theo', 't@kleea.test', :p)"), {"p": aide.hash_password("motdepasse1")})
+        envois = []
+        envoi = mock.patch.object(da, "envoyer_code", side_effect=lambda email, code: envois.append(code))
+        envoi.start()
+        self.addCleanup(envoi.stop)
+
+        def login():
+            reponse = self.client.post("/login", json={"nom": "theo", "password": "motdepasse1"})
+            self.assertEqual(reponse.status_code, 200, reponse.text)
+            return reponse.json()
+
+        ici = {"Authorization": f"Bearer {login()['access_token']}"}
+        for _ in range(2):  # Recommencer une activation inachevée reste possible.
+            reponse = self.client.post("/api/double-auth/preparer", json={"password": "motdepasse1"}, headers=ici)
+            self.assertEqual(reponse.status_code, 200, reponse.text)
+        activation = self.client.post("/api/double-auth/activer", json={"code": envois[-1]}, headers=ici)
+        self.assertEqual(activation.status_code, 200, activation.text)
+        self.assertEqual(self.client.post("/api/double-auth/preparer", json={"password": "motdepasse1"}, headers=ici).status_code, 409)
+
+        etape = login()
+        self.assertNotIn("access_token", etape)
+        with self.engine.connect() as conn:  # La date d'expiration revient du pilote réel, avec son fuseau.
+            self.assertIsNotNone(conn.execute(text("SELECT code_expire_le FROM double_auth")).scalar().tzinfo)
+        faux = "000000" if envois[-1] != "000000" else "000001"
+        self.assertEqual(self.client.post("/login/double-auth", json={"jeton": etape["jeton_double_auth"], "code": faux}).status_code, 401)
+        seconde = self.client.post("/login/double-auth", json={"jeton": etape["jeton_double_auth"], "code": envois[-1]})
+        self.assertEqual(seconde.status_code, 200, seconde.text)
+        self.assertEqual(self.client.post("/login/double-auth", json={"jeton": etape["jeton_double_auth"], "code": envois[-1]}).status_code, 401)
+
+        self.assertEqual(self.client.post("/api/double-auth/desactiver", json={"password": "motdepasse1"}, headers=ici).status_code, 200)
+        self.assertIn("access_token", login())
+
+        # Sans la révision en production, la connexion ne doit pas tomber.
+        with self.engine.begin() as conn:
+            conn.execute(text("DROP TABLE double_auth"))
+        self.assertIn("access_token", login())
+        self.assertFalse(self.client.get("/api/double-auth", headers=ici).json()["disponible"])
 
     def test_sessions_sur_le_schema_alembic(self):
         main.app.dependency_overrides.clear()  # Ici, le vrai contrôle du jeton est justement ce qu'on vérifie.

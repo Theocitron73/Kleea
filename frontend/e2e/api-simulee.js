@@ -67,6 +67,6 @@ export async function ouvrirSession(page) {
     localStorage.setItem('token', 'jeton-de-test');
     localStorage.setItem(`onboarding_done_${utilisateur}`, 'true');
     // Les notes de version ne doivent pas recouvrir l'écran pendant le parcours.
-    localStorage.setItem(`patch_view_count_v4.3_${utilisateur}`, '99');
+    localStorage.setItem(`patch_view_count_v4.4_${utilisateur}`, '99');
   }, UTILISATEUR);
 }

@@ -47,14 +47,14 @@ export default function SessionsActivesCard() {
     }
   };
 
-  const secondaire = 'bg-white/5 hover:bg-white/10 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer disabled:opacity-40 shrink-0';
+  const secondaire = 'bg-white/5 hover:bg-white/10 text-white/70 font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer disabled:opacity-40 shrink-0';
 
   return (
     <section aria-label="Appareils connectés" className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-1">Appareils connectés</h4>
-          <p className="text-[10px] font-semibold text-white/50 leading-relaxed">
+          <h4 className="text-[13px] font-bold text-white/90 mb-1">Appareils connectés</h4>
+          <p className="text-[11px] font-semibold text-white/65 leading-relaxed">
             Vérifiez où votre compte est ouvert, et déconnectez un appareil que vous ne reconnaissez pas ou que vous n'utilisez plus.
           </p>
         </div>
@@ -65,9 +65,9 @@ export default function SessionsActivesCard() {
         )}
       </div>
 
-      {etat === null && <p className="text-[10px] font-semibold text-white/30">Chargement…</p>}
+      {etat === null && <p className="text-[11px] font-semibold text-white/65">Chargement…</p>}
       {etat && !etat.disponible && (
-        <p className="text-[10px] font-semibold text-white/40">La liste de vos appareils n'est pas disponible pour le moment.</p>
+        <p className="text-[11px] font-semibold text-white/65">La liste de vos appareils n'est pas disponible pour le moment.</p>
       )}
 
       {confirmation && (
@@ -80,7 +80,7 @@ export default function SessionsActivesCard() {
               type="button"
               disabled={occupe}
               onClick={toutDeconnecter}
-              className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-40"
+              className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-40"
             >
               Confirmer
             </button>
@@ -103,12 +103,12 @@ export default function SessionsActivesCard() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold text-white truncate">{session.appareil}</span>
                       {session.actuelle && (
-                        <span className="px-1.5 py-0.5 rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[7px] font-black uppercase tracking-wider">
+                        <span className="px-1.5 py-0.5 rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-black uppercase tracking-wider">
                           Cet appareil
                         </span>
                       )}
                     </div>
-                    <span className="text-[9px] font-semibold text-white/40">
+                    <span className="text-[11px] font-semibold text-white/65">
                       {session.actuelle ? 'En ligne' : activiteLisible(session.derniere_activite)}
                       {session.cree_le ? ` · connecté le ${new Date(session.cree_le).toLocaleDateString('fr-FR')}` : ''}
                     </span>
@@ -126,7 +126,7 @@ export default function SessionsActivesCard() {
       )}
 
       {etat?.disponible && !etat.session_suivie && (
-        <p className="text-[10px] font-semibold text-white/40 leading-relaxed">
+        <p className="text-[11px] font-semibold text-white/65 leading-relaxed">
           Cet appareil n'apparaît pas ici : sa connexion date d'avant cette fonction, et elle ne peut pas être déconnectée à distance. Elle prendra fin d'elle-même sous 7 jours. Reconnectez-vous pour qu'il soit suivi.
         </p>
       )}

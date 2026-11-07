@@ -54,19 +54,19 @@ export default function StreamDeckTokenCard() {
     }
   };
 
-  const secondaryButton = 'bg-white/5 hover:bg-white/10 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer disabled:opacity-40';
-  const primaryButton = 'bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-40';
+  const secondaryButton = 'bg-white/5 hover:bg-white/10 text-white/70 font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer disabled:opacity-40';
+  const primaryButton = 'bg-[var(--primary)] text-white font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-40';
 
   return (
     <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3">
       <div>
-        <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-1">Stream Deck</h4>
-        <p className="text-[10px] font-semibold text-white/50 leading-relaxed">
+        <h4 className="text-[13px] font-bold text-white/90 mb-1">Stream Deck</h4>
+        <p className="text-[11px] font-semibold text-white/65 leading-relaxed">
           Affichez vos soldes, le bilan du mois et les transactions à importer sur vos touches. Ce jeton permet de lire ces chiffres et de demander une actualisation bancaire, comme le bouton Actualiser de la page Importer.
         </p>
       </div>
 
-      {status === null && <p className="text-[10px] font-semibold text-white/30">Chargement…</p>}
+      {status === null && <p className="text-[11px] font-semibold text-white/65">Chargement…</p>}
       {status?.error && <p className="text-[10px] font-semibold text-rose-400">Statut du jeton indisponible.</p>}
 
       {newToken && (
@@ -82,7 +82,7 @@ export default function StreamDeckTokenCard() {
       {status && !status.error && (
         <>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[8px] font-bold text-white/20 uppercase tracking-wider">URL du serveur (à saisir dans le plugin)</span>
+            <span className="text-[11px] font-medium text-white/55">URL du serveur (à saisir dans le plugin)</span>
             <button type="button" onClick={() => copy(API_URL)} className={secondaryButton}>Copier</button>
           </div>
           <code className="block text-[10px] text-white/60 break-all">{API_URL}</code>
@@ -105,7 +105,7 @@ export default function StreamDeckTokenCard() {
                   type="button"
                   disabled={busy}
                   onClick={confirming === 'regenerate' ? generate : revoke}
-                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-40"
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md cursor-pointer disabled:opacity-40"
                 >
                   Confirmer
                 </button>

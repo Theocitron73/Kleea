@@ -7,8 +7,8 @@ import { dateSauvegarde, lignesApercu, messageErreurSauvegarde, nomFichierSauveg
 const DELAI = 180000;
 const ENVOI = { headers: { 'Content-Type': 'application/json' }, timeout: DELAI };
 
-const BOUTON_SECONDAIRE = 'bg-white/5 hover:bg-white/10 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer disabled:opacity-40';
-const BOUTON_PRINCIPAL = 'bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-40';
+const BOUTON_SECONDAIRE = 'bg-white/5 hover:bg-white/10 text-white/70 font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer disabled:opacity-40';
+const BOUTON_PRINCIPAL = 'bg-[var(--primary)] text-white font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer disabled:opacity-40';
 
 export default function SauvegardeCard({ user }) {
   const champFichier = useRef(null);
@@ -86,8 +86,8 @@ export default function SauvegardeCard({ user }) {
   return (
     <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3">
       <div>
-        <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-1">Ma sauvegarde</h4>
-        <p className="text-[10px] font-semibold text-white/50 leading-relaxed">
+        <h4 className="text-[13px] font-bold text-white/90 mb-1">Ma sauvegarde</h4>
+        <p className="text-[11px] font-semibold text-white/65 leading-relaxed">
           Téléchargez toutes vos données dans un fichier que vous pourrez réimporter plus tard. Votre mot de passe et vos jetons n'y figurent jamais, mais vos opérations et vos IBAN y sont lisibles : gardez ce fichier en lieu sûr.
         </p>
       </div>
@@ -124,7 +124,7 @@ export default function SauvegardeCard({ user }) {
               </li>
             ))}
           </ul>
-          <p className="text-[10px] font-semibold text-white/50 leading-relaxed">
+          <p className="text-[11px] font-semibold text-white/65 leading-relaxed">
             {aAjouter
               ? "L'import ne fait qu'ajouter ce qui manque : rien de ce qui existe n'est modifié ni supprimé."
               : 'Rien à ajouter : tout le contenu de ce fichier est déjà dans votre compte.'}

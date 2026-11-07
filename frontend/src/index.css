@@ -1131,3 +1131,15 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
     padding: 0.35rem 0.3rem !important;
   }
 }
+
+/* Page Profil : le bouton répond dès la pression. */
+.page-profil button:not(:disabled):active {
+  transform: scale(0.97);
+  transition: transform 100ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-profil button:not(:disabled):active {
+    transform: none;
+  }
+}

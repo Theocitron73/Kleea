@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../axios';
+import { suppressionAnnulable } from '../utils/annulation';
 import { toast } from 'sonner';
 import { getTodayLocalDateString } from '../utils/dateUtils';
 import { calculerRecapPrevisions } from '../utils/calculsPrevisions';
@@ -183,20 +184,22 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   };
 
   // Suppression groupée
-  const handleDeleteSelected2 = async () => {
+  const handleDeleteSelected2 = () => {
+    if (selectedIds2.length === 0) return;
 
-
-    try {
-      // On peut soit faire une boucle, soit créer une route backend DELETE avec un body [ids]
-      await Promise.all(selectedIds2.map(id => 
-        api.delete(`/previsions/${id}`)
-      ));
-      
-      setSelectedIds2([]);
-      loadPrevisions(); // Rafraîchir le tableau et les soldes
-    } catch (err) {
-      console.error("Erreur suppression groupée:", err);
-    }
+    const ids = selectedIds2;
+    suppressionAnnulable({
+      message: ids.length > 1 ? `${ids.length} prévisions supprimées` : 'Prévision supprimée',
+      retirer: () => {
+        setallPrevisionsAnnee(prev => prev.filter(p => !ids.includes(p.id)));
+        setSelectedIds2([]);
+      },
+      restaurer: () => loadPrevisions(),
+      supprimer: async () => {
+        await Promise.all(ids.map(id => api.delete(`/previsions/${id}`)));
+        loadPrevisions(); // Rafraîchir le tableau et les soldes
+      },
+    });
   };
 
 

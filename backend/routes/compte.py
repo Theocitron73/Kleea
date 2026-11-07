@@ -8,6 +8,7 @@ from journaux import detail_erreur, logger
 from schemas import ImportModeRequest, LoginRequest, NewPasswordRequest, RegisterRequest, ResetRequest, UpdatePasswordRequest, UpdateProfileRequest
 from sqlalchemy import text
 from base import engine, get_current_user, hash_password, jeton_de_session, supprimer_sessions, verify_password
+from routes.double_auth import double_auth_active, emettre_code, jeton_etape_connexion, supprimer_double_auth
 from routes.streamdeck import supprimer_jeton_streamdeck
 from securite import HONEYPOT_USERNAMES, ban_ip, check_and_record_failed_attempt, check_is_rate_limited, get_client_ip
 
@@ -95,6 +96,9 @@ def login(req: LoginRequest, request: Request):
             pluriel = "s" if remaining > 1 else ""
             raise HTTPException(status_code=401, detail=f"Mot de passe incorrect. Il vous reste {remaining} tentative{pluriel} avant suspension.")
             
+    if double_auth_active(db_username):
+        return {"status": "double_auth", "double_auth_requise": True, "jeton_double_auth": jeton_etape_connexion(db_username), "email_masque": emettre_code(db_username)}
+
     # Création du Token JWT en intégrant le rôle dans le payload
     role_final = db_role if db_role else "user"
     token = jeton_de_session({"sub": db_username, "role": role_final}, request.headers.get("user-agent"))
@@ -295,6 +299,7 @@ def delete_account(username: str, current_user: str = Depends(get_current_user))
         conn.commit()
 
     supprimer_sessions(current_user)
+    supprimer_double_auth(current_user)
     return {"status": "success", "message": "Compte et données associés détruits définitivement"}
 
 
@@ -357,6 +362,7 @@ def delete_my_account(current_user: str = Depends(get_current_user)):
         conn.execute(text("DELETE FROM users WHERE LOWER(username) = :u"), {"u": current_user})
         supprimer_jeton_streamdeck(conn, current_user)
     supprimer_sessions(current_user)
+    supprimer_double_auth(current_user)
     return {"status": "success"}
 
 
