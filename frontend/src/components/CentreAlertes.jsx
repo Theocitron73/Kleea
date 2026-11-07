@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { AlertTriangle, Bell, Building2, CheckCircle2, RefreshCw, Target, TrendingDown, X } from 'lucide-react';
+import { AlertTriangle, Bell, Building2, CheckCircle2, Download, RefreshCw, Target, TrendingDown, X } from 'lucide-react';
 
-const ICONES = { banque: Building2, synchro: RefreshCw, decouvert: TrendingDown, budget: Target };
+const ICONES = { import: Download, banque: Building2, synchro: RefreshCw, decouvert: TrendingDown, budget: Target };
 
 /** Cloche et liste des alertes. `variante` adapte la cloche à la navigation d'ordinateur ou de mobile. */
 export default function CentreAlertes({ alertes = [], nombreMasquees = 0, masquer, toutReafficher, ouvrirPage, variante = 'ordinateur' }) {

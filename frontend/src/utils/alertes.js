@@ -42,6 +42,27 @@ function alertesBanques(connexions) {
   return alertes;
 }
 
+function alertesImport(connexions, aImporter) {
+  if (!connexions?.length) return [];
+  // Le serveur renvoie un nombre ou un objet { count } selon les cas, comme le gère déjà la page Importer.
+  const comptes = Object.entries(aImporter || {})
+    .map(([compte, valeur]) => [compte, Number(typeof valeur === 'object' ? valeur?.count : valeur) || 0])
+    .filter(([, nombre]) => nombre > 0);
+  const total = comptes.reduce((somme, [, nombre]) => somme + nombre, 0);
+  if (!total) return [];
+  const pluriel = total > 1;
+  return [{
+    // Le nombre fait partie de l'identifiant : masquée, l'alerte revient si d'autres opérations arrivent.
+    id: `import:${total}`,
+    type: 'import',
+    gravite: 'attention',
+    titre: `${total} transaction${pluriel ? 's' : ''} à importer`,
+    detail: comptes.length === 1 ? `Sur ${comptes[0][0]}.` : `Sur ${comptes.length} comptes.`,
+    page: 'importer',
+    action: 'Importer',
+  }];
+}
+
 function alertesSynchro(synchro, { modeAuto, aujourdhui }) {
   if (!modeAuto || !synchro) return [];
   const temps = (valeur) => (valeur ? new Date(valeur).getTime() : 0);
@@ -166,9 +187,10 @@ function alertesDecouvert(comptes, transactions, previsions, aujourdhui) {
 }
 
 /** Toutes les alertes en cours, les plus graves d'abord. */
-export function calculerAlertes({ connexions, synchro, modeAuto = false, budgets, previsions, comptes, transactions, aujourdhui = new Date() }) {
+export function calculerAlertes({ connexions, aImporter, synchro, modeAuto = false, budgets, previsions, comptes, transactions, aujourdhui = new Date() }) {
   const liste = [
     ...alertesBanques(connexions),
+    ...alertesImport(connexions, aImporter),
     ...alertesSynchro(synchro, { modeAuto, aujourdhui }),
     ...alertesDecouvert(comptes, transactions, previsions, aujourdhui),
     ...alertesBudgets(budgets, transactions, aujourdhui),

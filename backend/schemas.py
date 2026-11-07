@@ -3,7 +3,7 @@ import unicodedata
 from datetime import date, datetime
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import text
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 
 class Transaction(BaseModel):
@@ -213,7 +213,6 @@ class TricountTransaction(BaseModel):
     pour_qui: str # Stocké en string séparé par des virgules (ex: "Theo, Marie, Julie")
     utilisateur: str
     groupe: str
-    token_partage: Optional[str] = None # <-- Nouveau champ
     emoji: Optional[str] = None  # <--- AJOUTE CETTE LIGNE
 
 
@@ -232,6 +231,7 @@ class SharedTransactionRequest(BaseModel):
     paye_par: str
     pour_qui: str
     emoji: Optional[str] = None
+    auteur: Optional[str] = None  # Nom saisi par le participant, gardé dans l'historique
 
 
 # 5. Modifier une transaction de manière sécurisée via le token de partage
@@ -242,6 +242,15 @@ class SharedTransactionUpdate(BaseModel):
     paye_par: str
     pour_qui: str
     montant: float
+    auteur: Optional[str] = None
+
+
+class SharedTransactionDelete(BaseModel):
+    auteur: Optional[str] = None
+
+
+class OptionsLienPartage(BaseModel):
+    duree_jours: Optional[Literal[7, 30, 90, 365]] = None
 
 
 # Modèle pour la modification

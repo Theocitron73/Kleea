@@ -170,7 +170,7 @@ export default function useTableauTransactions({ cleanMonth, comptes, fetchTrans
 
 
 
-  const { handleDeleteSelected, selectedIds, setSelectedIds, toggleAll, toggleSelect } = useSelectionTransactions({ setToutesLesTransactions, transactionsAAfficher });
+  const { handleDeleteSelected, selectedIds, setSelectedIds, toggleAll, toggleSelect } = useSelectionTransactions({ setToutesLesTransactions, toutesLesTransactions, transactionsAAfficher });
 
 
 

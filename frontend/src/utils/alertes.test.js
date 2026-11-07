@@ -26,6 +26,24 @@ test('une banque expirée est critique, une expiration proche demande attention'
   assert.equal(liste[0].titre, 'Bourso à reconnecter');
 });
 
+test('des transactions à importer alertent seulement si une banque est connectée', () => {
+  const connexions = [{ id: 1, connector_name: 'Bourso', days_left: 90 }];
+  assert.deepEqual(alertes({ aImporter: { CCP: 3 } }), []);
+  assert.deepEqual(alertes({ connexions: [], aImporter: { CCP: 3 } }), []);
+  assert.deepEqual(alertes({ connexions, aImporter: {} }), []);
+  assert.deepEqual(alertes({ connexions, aImporter: { CCP: 0 } }), []);
+  const [une] = alertes({ connexions, aImporter: { CCP: 1, Livret: 0 } });
+  assert.deepEqual([une.id, une.titre, une.detail, une.page, une.gravite], ['import:1', '1 transaction à importer', 'Sur CCP.', 'importer', 'attention']);
+  const [plusieurs] = alertes({ connexions, aImporter: { CCP: 2, Livret: 3 } });
+  assert.deepEqual([plusieurs.id, plusieurs.titre, plusieurs.detail], ['import:5', '5 transactions à importer', 'Sur 2 comptes.']);
+});
+
+test('le nombre à importer est lu comme le renvoie le serveur, objet ou nombre', () => {
+  const connexions = [{ id: 1, connector_name: 'Bourso', days_left: 90 }];
+  const [a] = alertes({ connexions, aImporter: { 'CCP Aude': { count: 18 }, Revolut: { count: 1 }, Vide: { count: 0 }, Texte: '2' } });
+  assert.deepEqual([a.id, a.titre, a.detail], ['import:21', '21 transactions à importer', 'Sur 3 comptes.']);
+});
+
 test('une synchronisation en échec alerte seulement en mode automatique', () => {
   const synchro = { dernier_succes: '2026-11-04T05:00:00Z', dernier_echec: '2026-11-06T05:00:00Z' };
   assert.deepEqual(alertes({ synchro, modeAuto: false }), []);

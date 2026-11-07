@@ -2,8 +2,20 @@ import { useState, useEffect } from 'react';
 import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp } from 'lucide-react';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
+import DoubleAuthCard from '../components/DoubleAuthCard';
+import SessionsActivesCard from '../components/SessionsActivesCard';
 import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
+import SauvegardeCard from '../components/SauvegardeCard';
 import { toast } from 'sonner';
+
+function Section({ titre, children }) {
+  return (
+    <section aria-label={titre} className="space-y-3">
+      <h2 className="text-[15px] font-bold text-white/90 tracking-tight px-1">{titre}</h2>
+      {children}
+    </section>
+  );
+}
 
 export default function ProfileTab({ 
   user, powensData, comptes, syncCountByAccount = {}, 
@@ -196,7 +208,7 @@ export default function ProfileTab({
   } : profileData;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="page-profil max-w-2xl mx-auto space-y-8 pt-4 pb-28 animate-in fade-in duration-300">
       {/* HEADER */}
       <div 
         className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-5 rounded-3xl border border-white/10 relative overflow-hidden"
@@ -208,26 +220,27 @@ export default function ProfileTab({
             {((data.name || data.username || "U").substring(0, 1).toUpperCase())}
           </div>
           <div className="text-center sm:text-left leading-tight">
-            <h3 className="text-xl font-black text-white tracking-tight uppercase">{data.name}</h3>
-            <p className="text-[9px] font-bold text-[var(--secondary)] uppercase tracking-widest mt-0.5">
+            <h3 className="text-xl font-bold text-white tracking-tight">{data.name}</h3>
+            <p className="text-[10px] font-bold text-[var(--secondary)] uppercase tracking-widest mt-0.5">
               {isAdmin ? 'Fondateur Kleea' : 'Membre Kleea Premium'}
             </p>
-            <p className="text-[8px] font-semibold text-white/30 uppercase tracking-[0.2em] mt-1">@{data.username}</p>
+            <p className="text-xs font-medium text-white/60 mt-1">@{data.username}</p>
           </div>
         </div>
       </div>
 
+      <Section titre="Compte">
       {/* DÉTAILS DU COMPTE */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Infos personnelles */}
         <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">Détails Personnels</h4>
+              <h4 className="text-[13px] font-bold text-white/90">Détails Personnels</h4>
               {!isEditing && (
                 <button 
                   onClick={() => setIsEditing(true)}
-                  className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider cursor-pointer"
+                  className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/60 px-2 py-0.5 rounded-md transition uppercase tracking-wider cursor-pointer"
                 >
                   Modifier
                 </button>
@@ -237,22 +250,22 @@ export default function ProfileTab({
             {!isEditing ? (
               <div className="space-y-2">
                 <div>
-                  <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Nom Complet</span>
-                  <span className="text-xs font-bold text-white">{data.name}</span>
+                  <span className="text-[11px] font-medium text-white/55 block">Nom Complet</span>
+                  <span className="text-[13px] font-bold text-white">{data.name}</span>
                 </div>
                 <div>
-                  <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Identifiant</span>
-                  <span className="text-xs font-bold text-white/50">@{data.username}</span>
+                  <span className="text-[11px] font-medium text-white/55 block">Identifiant</span>
+                  <span className="text-[13px] font-bold text-white/50">@{data.username}</span>
                 </div>
                 <div>
-                  <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Adresse E-mail</span>
-                  <span className="text-xs font-bold text-white/80 break-all">{data.email}</span>
+                  <span className="text-[11px] font-medium text-white/55 block">Adresse E-mail</span>
+                  <span className="text-[13px] font-bold text-white/80 break-all">{data.email}</span>
                 </div>
               </div>
             ) : (
               <form onSubmit={handleSaveDetails} className="space-y-2">
                 <div>
-                  <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Nom Complet</label>
+                  <label className="text-[11px] font-medium text-white/55 block mb-0.5">Nom Complet</label>
                   <input 
                     type="text" 
                     value={editName} 
@@ -262,7 +275,7 @@ export default function ProfileTab({
                   />
                 </div>
                 <div>
-                  <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Identifiant (Non modifiable)</label>
+                  <label className="text-[11px] font-medium text-white/55 block mb-0.5">Identifiant (Non modifiable)</label>
                   <input 
                     type="text" 
                     value={`@${data.username}`} 
@@ -271,7 +284,7 @@ export default function ProfileTab({
                   />
                 </div>
                 <div>
-                  <label className="text-[8px] font-bold text-white/30 uppercase block tracking-wider mb-0.5">Adresse E-mail</label>
+                  <label className="text-[11px] font-medium text-white/55 block mb-0.5">Adresse E-mail</label>
                   <input 
                     type="email" 
                     value={editEmail} 
@@ -284,14 +297,14 @@ export default function ProfileTab({
                   <button 
                     type="submit" 
                     disabled={editLoading}
-                    className="bg-[var(--primary)] text-white font-black text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer"
+                    className="bg-[var(--primary)] text-white font-black text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition cursor-pointer"
                   >
                     {editLoading ? 'Enregistrement...' : 'Sauvegarder'}
                   </button>
                   <button 
                     type="button" 
                     onClick={() => { setIsEditing(false); setEditName(data.name); setEditEmail(data.email); }}
-                    className="bg-white/5 text-white/70 font-bold text-[8px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer"
+                    className="bg-white/5 text-white/70 font-bold text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-md transition border border-white/5 cursor-pointer"
                   >
                     Annuler
                   </button>
@@ -304,84 +317,45 @@ export default function ProfileTab({
         {/* Sécurité */}
         <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 space-y-3 flex flex-col justify-between">
           <div>
-            <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">Sécurité du Coffre</h4>
+            <h4 className="text-[13px] font-bold text-white/90 mb-2">Votre compte</h4>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Type de compte</span>
+                  <span className="text-[11px] font-medium text-white/55 block">Type de compte</span>
                   <span className="text-[10px] font-black text-[var(--secondary)] bg-[var(--secondary)]/10 px-2 py-0.5 rounded-md inline-block mt-0.5 uppercase">
                     {isAdmin ? 'Administrateur' : 'Utilisateur'}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Transactions</span>
+                  <span className="text-[11px] font-medium text-white/55 block">Transactions</span>
                   <span className="text-xs font-black text-white bg-white/5 px-2 py-0.5 rounded-md inline-block mt-0.5 border border-white/5 shadow-inner">
                     {transactionCount}
                   </span>
                 </div>
               </div>
               
-              <div className="pt-1">
-                <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Statut du mot de passe</span>
-                <div className="flex items-center justify-between mt-0.5">
-                  <span className="text-xs font-bold text-emerald-400">Sécurisé</span>
-                  <button 
-                    onClick={() => setShowPasswordForm(!showPasswordForm)}
-                    className="text-[8px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider cursor-pointer"
-                  >
-                    {showPasswordForm ? 'Fermer' : 'Changer'}
-                  </button>
-                </div>
+              <div className="pt-1 flex items-center justify-between">
+                <span className="text-[13px] font-bold text-white">Mot de passe</span>
+                <button
+                  onClick={() => setShowPasswordForm(!showPasswordForm)}
+                  className="text-[10px] font-bold bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 px-2 py-0.5 rounded-md transition uppercase tracking-wider cursor-pointer"
+                >
+                  {showPasswordForm ? 'Fermer' : 'Changer'}
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-            <span className="text-[8px] font-bold text-white/20 uppercase block tracking-wider">Version App</span>
-            <span className="text-[10px] font-black text-white/60">Kleea v.4.3</span>
-          </div>
-        </div>
-
-        {/* Mode d'import Global */}
-        <div className="md:col-span-2 bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em]">Mode d'importation Global</h4>
-            <p className="text-[10px] text-white/50 leading-relaxed">Basculez entre l'import automatique Powens et l'import de relevés manuel.</p>
-          </div>
-
-          <div className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/5 w-fit shrink-0 select-none">
-            <button
-              type="button"
-              onClick={() => handleToggleImportMode('auto')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                importMode === 'auto' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-white/40 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Zap size={12} className={importMode === 'auto' ? 'text-amber-300 fill-amber-300' : 'opacity-60'} />
-              <span>Automatique</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleToggleImportMode('manual')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                importMode === 'manual' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-white/40 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <FileUp size={12} className={importMode === 'manual' ? 'text-white' : 'opacity-60'} />
-              <span>Manuel</span>
-            </button>
-          </div>
         </div>
       </div>
 
       {/* FORMULAIRE CHANGER MOT DE PASSE */}
       {showPasswordForm && (
         <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] animate-in fade-in zoom-in-95 duration-300">
-          <h4 className="text-[9px] font-black text-white/40 uppercase tracking-[0.22em] mb-2">Mettre à jour le mot de passe</h4>
+          <h4 className="text-[13px] font-bold text-white/90 mb-2">Mettre à jour le mot de passe</h4>
           <form onSubmit={handlePasswordChange} className="space-y-3">
             <div>
-              <label className="text-[8px] font-bold text-white/40 uppercase block tracking-wider mb-1">Nouveau mot de passe</label>
+              <label className="text-[11px] font-medium text-white/55 block mb-1">Nouveau mot de passe</label>
               <input
                 type="password"
                 value={newPassword}
@@ -403,23 +377,57 @@ export default function ProfileTab({
           </form>
         </div>
       )}
+      </Section>
+
+      <Section titre="Banques et import">
+        {/* Mode d'import Global */}
+        <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <h4 className="text-[13px] font-bold text-white/90">Mode d'importation Global</h4>
+            <p className="text-[11px] text-white/65 leading-relaxed">Basculez entre l'import automatique Powens et l'import de relevés manuel.</p>
+          </div>
+
+          <div className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/5 w-fit shrink-0 select-none">
+            <button
+              type="button"
+              onClick={() => handleToggleImportMode('auto')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                importMode === 'auto' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-white/40 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Zap size={12} className={importMode === 'auto' ? 'text-amber-300 fill-amber-300' : 'opacity-60'} />
+              <span>Automatique</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleToggleImportMode('manual')}
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                importMode === 'manual' ? 'bg-[var(--primary)] text-white shadow-md' : 'text-white/40 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FileUp size={12} className={importMode === 'manual' ? 'text-white' : 'opacity-60'} />
+              <span>Manuel</span>
+            </button>
+          </div>
+        </div>
 
       {/* SECTION BANCAIRE / POWENS */}
       <div className="relative z-20 overflow-visible bg-white/5 backdrop-blur-[var(--glass-blur)] rounded-2xl border border-white/5 p-4 space-y-3">
-        <div className="flex items-center justify-between bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-[9px] uppercase font-bold text-[var(--text-main)] select-none">
-          <span className="flex items-center gap-2 truncate pr-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-white/[0.02] border border-white/5 rounded-xl px-3 py-2 text-[10px] font-bold text-[var(--text-main)] select-none">
+          <span className="flex items-center gap-2 pr-2">
             <Building2 size={14} className="text-[var(--secondary)] shrink-0" />
-            <span className="truncate text-[10px] font-black tracking-wider">
-              Association de vos comptes en banque réels & ceux sur Kleea ({powensData?.accounts_count || 0})
+            <span className="text-[13px] font-bold">
+              Comptes bancaires liés à Kleea ({powensData?.accounts_count || 0})
             </span>
           </span>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => onConnectBank()}
               disabled={connectLoading}
-              className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+              className="text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
             >
               <Plus size={10} strokeWidth={3} />
               <span>{connectLoading ? "Redirection..." : "Connecter une banque"}</span>
@@ -429,7 +437,7 @@ export default function ProfileTab({
               <button
                 type="button"
                 onClick={() => setShowDisconnectConfirm(true)}
-                className="text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer active:scale-95"
+                className="text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer active:scale-95"
               >
                 Tout déconnecter
               </button>
@@ -443,7 +451,7 @@ export default function ProfileTab({
               <AlertTriangle size={16} className="text-rose-400 shrink-0 mt-0.5" />
               <div className="flex flex-col">
                 <span className="text-[10px] font-black uppercase text-rose-300 tracking-wider">Supprimer définitivement l'accès Powens ?</span>
-                <p className="text-[9px] text-white/60 leading-relaxed mt-0.5">
+                <p className="text-[10px] text-white/60 leading-relaxed mt-0.5">
                   Cette action va révoquer votre jeton, délier vos comptes Kleea et <strong>effacer définitivement votre identifiant et toutes vos connexions bancaires chez Powens</strong>.
                 </p>
               </div>
@@ -453,7 +461,7 @@ export default function ProfileTab({
               <button
                 type="button"
                 onClick={() => setShowDisconnectConfirm(false)}
-                className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white/60 text-[8px] font-bold uppercase rounded-lg transition-all cursor-pointer"
+                className="px-3 py-1 bg-white/5 hover:bg-white/10 text-white/60 text-[10px] font-bold uppercase rounded-lg transition-all cursor-pointer"
               >
                 Annuler
               </button>
@@ -461,7 +469,7 @@ export default function ProfileTab({
                 type="button"
                 onClick={handleDisconnectPowens}
                 disabled={disconnectLoading}
-                className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white text-[8px] font-black uppercase tracking-wider rounded-lg transition-all shadow-md shadow-rose-500/20 cursor-pointer disabled:opacity-50"
+                className="px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider rounded-lg transition-all shadow-md shadow-rose-500/20 cursor-pointer disabled:opacity-50"
               >
                 {disconnectLoading ? "Suppression en cours..." : "Confirmer la suppression"}
               </button>
@@ -475,8 +483,8 @@ export default function ProfileTab({
               <Building2 size={18} />
             </div>
             <div className="space-y-1">
-              <p className="text-xs font-bold text-white/80 uppercase tracking-wider">Aucun compte bancaire synchronisé</p>
-              <p className="text-[10px] text-white/40 max-w-xs mx-auto">Connectez votre banque via Powens pour synchroniser vos soldes et opérations automatiquement.</p>
+              <p className="text-[13px] font-bold text-white/90">Aucun compte bancaire synchronisé</p>
+              <p className="text-[11px] text-white/65 max-w-xs mx-auto">Connectez votre banque via Powens pour synchroniser vos soldes et opérations automatiquement.</p>
             </div>
             <button
               type="button"
@@ -503,9 +511,9 @@ export default function ProfileTab({
                   className="space-y-2 bg-black/20 p-3 rounded-xl border border-white/5 overflow-visible relative focus-within:z-[100]"
                 >
                   {/* EN-TÊTE DE LA BANQUE */}
-                  <div className="flex items-center justify-between text-[9px] font-black text-[var(--secondary)] uppercase px-1 border-b border-white/5 pb-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-black text-[var(--secondary)] uppercase px-1 border-b border-white/5 pb-1.5">
                     <span>{conn.connector_name}</span>
-                    <span className="text-[8px] text-[var(--text-main)]/30 font-mono">ID: {conn.id}</span>
+                    <span className="text-[10px] text-[var(--text-main)]/30 font-mono">ID: {conn.id}</span>
                   </div>
 
                   {/* 🟢 BANDEAU DE DÉCOMPTE DSP2 & STATUT D'EXPIRATION */}
@@ -528,14 +536,14 @@ export default function ProfileTab({
                           }`} />
                           
                           <div className="flex flex-col min-w-0 leading-tight">
-                            <span className="text-[8.5px] font-black uppercase tracking-wider truncate">
+                            <span className="text-[10px] font-black uppercase tracking-wider truncate">
                               {needsAction 
                                 ? "Authentification requise" 
                                 : isWarning 
                                   ? `Reconnexion dans ${days} jour${days > 1 ? 's' : ''}` 
                                   : `Accès valide encore ${days !== null ? `${days} jours` : 'actif'}`}
                             </span>
-                            <span className="text-[7px] text-white/40 uppercase font-medium">
+                            <span className="text-[11px] text-white/65 uppercase font-medium">
                               {conn.expire ? `Échéance le ${new Date(conn.expire).toLocaleDateString('fr-FR')}` : 'Sécurité bancaire DSP2 (180 jours)'}
                             </span>
                           </div>
@@ -545,7 +553,7 @@ export default function ProfileTab({
                         <button
                           type="button"
                           onClick={() => onConnectBank(conn.id)}
-                          className={`px-2.5 py-1 rounded-lg text-[7.5px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
+                          className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shrink-0 ${
                             needsAction 
                               ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/20' 
                               : 'bg-white/10 hover:bg-white/20 text-white'
@@ -578,7 +586,7 @@ export default function ProfileTab({
                           style={{ zIndex: 50 - index }}
                           className="relative overflow-visible flex flex-col justify-between gap-1.5 py-2 px-2.5 rounded-lg bg-white/[0.02] border border-white/5 focus-within:z-50"
                         >
-                          <div className="flex items-center justify-between text-[9px]">
+                          <div className="flex items-center justify-between text-[10px]">
                             <div className="flex items-center gap-1.5 truncate pr-1">
                               <span className="text-[var(--text-main)] font-semibold truncate">{acc.name}</span>
                               {!isAssociated ? (
@@ -589,19 +597,19 @@ export default function ProfileTab({
                                 <span className="px-1 py-0.2 rounded-sm bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[6px] font-black uppercase tracking-wider shrink-0">Synchro</span>
                               )}
                             </div>
-                            <span className="font-bold text-[var(--text-main)] shrink-0 text-[9px]">
+                            <span className="font-bold text-[var(--text-main)] shrink-0 text-[10px]">
                               {acc.balance !== null && acc.balance !== undefined ? `${acc.balance.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} ${acc.currency}` : "—"}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-1.5 pt-1 border-t border-white/5">
-                            <span className="text-[7px] uppercase tracking-wider text-[var(--text-main)]/40 font-bold shrink-0">Lié à :</span>
+                            <span className="text-[10px] uppercase tracking-wider text-[var(--text-main)]/40 font-bold shrink-0">Lié à :</span>
                             <div className="w-full">
                               <CustomSelect
                                 value={associatedLocalAccount ? associatedLocalAccount.compte : ""}
                                 options={selectOptions}
                                 onChange={(selectedVal) => handleAssociateAccount?.(acc.name, selectedVal)}
-                                className="px-2 py-1 rounded-lg text-[8px]"
+                                className="px-2 py-1 rounded-lg text-[10px]"
                               />
                             </div>
                           </div>
@@ -615,21 +623,29 @@ export default function ProfileTab({
           </div>
         )}
       </div>
+      </Section>
 
-      {/* STREAM DECK */}
-      <StreamDeckTokenCard />
+      <Section titre="Sécurité">
+        <DoubleAuthCard />
+        <SessionsActivesCard />
+      </Section>
+
+      <Section titre="Données et outils">
+        <SauvegardeCard user={user} />
+        <StreamDeckTokenCard />
+      </Section>
 
       {/* ZONE DANGER SUPPRESSION */}
       <div className="bg-rose-500/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-rose-500/20 space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <h4 className="text-[9px] font-black text-rose-400 uppercase tracking-[0.22em]">Supprimer mon compte</h4>
-            <p className="text-[10px] text-white/40 mt-0.5">Supprimer définitivement le compte Kleea et toutes les données du coffre.</p>
+            <h4 className="text-[13px] font-bold text-rose-400">Supprimer mon compte</h4>
+            <p className="text-[11px] text-white/65 mt-0.5">Supprimer définitivement le compte Kleea et toutes les données du coffre.</p>
           </div>
           {!showDeleteConfirm && (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="text-[9px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-2.5 py-1 rounded-lg transition uppercase tracking-wider shrink-0 ml-2 cursor-pointer"
+              className="text-[10px] font-bold bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 px-2.5 py-1 rounded-lg transition uppercase tracking-wider shrink-0 ml-2 cursor-pointer"
             >
               Supprimer
             </button>
@@ -638,9 +654,9 @@ export default function ProfileTab({
 
         {showDeleteConfirm && (
           <div className="pt-2 border-t border-rose-500/10 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-            <p className="text-[10px] font-semibold text-rose-300/80">⚠️ Attention : Action irréversible. Toutes vos données seront purgées.</p>
+            <p className="text-[10px] font-semibold text-rose-300/80">⚠️ Attention : Action irréversible. Toutes vos données seront purgées. Téléchargez d'abord votre sauvegarde si vous voulez les conserver.</p>
             <div className="flex flex-col gap-1 max-w-sm">
-              <label className="text-[8px] font-black text-white/40 uppercase tracking-wider">
+              <label className="text-[11px] font-medium text-white/55">
                 Veuillez écrire <span className="text-rose-400 select-all font-mono bg-rose-500/10 px-1 py-0.5 rounded-sm">delete</span> :
               </label>
               <input
@@ -656,14 +672,14 @@ export default function ProfileTab({
               <button
                 disabled={deleteLoading || deleteInput !== 'delete'}
                 onClick={handleDeleteAccount}
-                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 text-white font-black text-[9px] uppercase tracking-widest px-3 py-1.5 rounded-lg cursor-pointer"
+                className="bg-rose-600 hover:bg-rose-700 disabled:opacity-30 text-white font-black text-[10px] uppercase tracking-widest px-3 py-1.5 rounded-lg cursor-pointer"
               >
                 {deleteLoading ? 'Purge...' : 'Oui, détruire mon compte'}
               </button>
               <button
                 disabled={deleteLoading}
                 onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); }}
-                className="bg-white/5 text-white/80 font-bold text-[9px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/5 cursor-pointer"
+                className="bg-white/5 text-white/80 font-bold text-[10px] uppercase tracking-wider px-3 py-1.5 rounded-lg border border-white/5 cursor-pointer"
               >
                 Annuler
               </button>

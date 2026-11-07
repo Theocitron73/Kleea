@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "test": "node --test src/utils/epargneProjet.test.js src/utils/finance.test.js src/utils/suiviErreurs.test.js src/utils/tricountPartage.test.js src/utils/abonnements.test.js src/utils/alertes.test.js src/guide/contenu.test.js",
+    "test": "node --test src/utils/epargneProjet.test.js src/utils/finance.test.js src/utils/suiviErreurs.test.js src/utils/tricountPartage.test.js src/utils/abonnements.test.js src/utils/alertes.test.js src/utils/rechercheGlobale.test.js src/utils/sauvegarde.test.js src/guide/contenu.test.js src/utils/sessions.test.js",
     "preview": "vite preview",
     "test:e2e": "playwright test"
   },

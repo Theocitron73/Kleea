@@ -19,6 +19,7 @@ import TricountManager from './views/TricountManager';
 import DemenagementPage from './views/DemenagementPage';
 import CongesPage from './views/Congespage';
 import AuthView from './views/AuthView';
+import { deconnexionEnAttente } from './utils/sessions';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
 import { themeBackground } from './utils/gradient';
@@ -175,7 +176,7 @@ const moisListe = [
  // Stocke le nom du projet à supprimer
   const [projets, setProjets] = useState([]);
   const [user, setUser] = useState(localStorage.getItem('user'));
-  const [authViewMode, setAuthViewMode] = useState(null); // null = Landing Page, 'login' ou 'register' = Formulaire
+  const [authViewMode, setAuthViewMode] = useState(() => (deconnexionEnAttente() ? 'login' : null)); // null = Landing Page, 'login' ou 'register' = Formulaire
   const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'user'); // 👈 Nouvel état
   const [, setLoginName] = useState('')
   const [comptes, setComptes] = useState([]);
@@ -470,6 +471,13 @@ const [, setLoginPassword] = useState(''); // Ajoute cette ligne
 
 
 const handleLogout = () => {
+  // Retire l'appareil de la liste des sessions. Le jeton est passé ici car il est effacé juste après ;
+  // un échec ne doit pas empêcher la déconnexion locale.
+  const jeton = localStorage.getItem('token');
+  if (jeton) {
+    api.post('/api/sessions/deconnexion', null, { headers: { Authorization: `Bearer ${jeton}` } }).catch(() => {});
+  }
+
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
   localStorage.removeItem('user');
   localStorage.removeItem('powens_connecte'); // 👈 Évite de transmettre le jeton au prochain utilisateur
@@ -714,6 +722,22 @@ const transactionsFiltrees = transactionsAAfficher.filter(t =>
   t.categorie?.toLowerCase().includes(searchTerm.toLowerCase())
 );
 
+// Un résultat de la recherche globale : la page Gérer s'ouvre sur sa période et sur le profil de son compte.
+// Pas de profil « Tous » : l'app le remplacerait aussitôt par le premier profil, et le résultat disparaîtrait.
+const ouvrirResultatRecherche = (cible) => {
+  if (cible.type === 'compte') {
+    setActiveTab('comptes');
+    return;
+  }
+  const memeNom = (a, b) => a?.trim().toUpperCase() === b?.trim().toUpperCase();
+  const groupe = comptes.find(c => memeNom(c.compte, cible.compte))?.groupe;
+  const mois = moisListe.find(m => cleanMonth(m.v) === cleanMonth(cible.mois))?.v || cible.mois;
+  setFiltersByPage(prev => ({ ...prev, gerer: { ...prev.gerer, ...(groupe ? { profil: groupe } : {}), mois, annee: String(cible.annee) } }));
+  setSelectedCompte(cible.type === 'operation' ? cible.compte : 'tous');
+  setSearchTerm(cible.nom);
+  setActiveTab('gerer');
+};
+
 const [annualTab, setAnnualTab] = useState('list'); // 'list' sera la vue par défaut
 const statsAnnuellesCategories = useMemo(() => calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTransactions }), [toutesLesTransactions, comptes, filters.annee, filters.profil]); 
 // On dépend bien de 'comptes' aussi car c'est lui qui définit le profil !
@@ -919,7 +943,7 @@ const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens(
 // =========================================================================
 // 🟢 NAVIGATION FLUIDE À LA MOLETTE DE LA SOURIS (WHEEL NAVIGATION)
 // =========================================================================
-const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, importMode, budgetsAffiches: budgets, previsionsAffichees: allPrevisionsAnnee });
+const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, aImporter: syncCountByAccount, importMode, budgetsAffiches: budgets, previsionsAffichees: allPrevisionsAnnee });
 
 const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
 
@@ -1016,7 +1040,7 @@ if (!user) {
       <div className="max-w-full mx-auto">
       
       {/* NAVIGATION GLOBALE */}
-          <NavigationPrincipale centreAlertes={centreAlertes} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
+          <NavigationPrincipale centreAlertes={centreAlertes} recherche={{ transactions: toutesLesTransactions, comptes, ouvrirResultat: ouvrirResultatRecherche }} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
 
 
         <main>
@@ -1460,7 +1484,7 @@ if (!user) {
 
 
 {/* =========================================================================
-    🎉 NOTES DE PATCH OFFICIELLES v4.3 : DIVISION DE TRANSACTIONS
+    🎉 NOTES DE PATCH OFFICIELLES v4.4
     ========================================================================= */}
 {showPatchModal && (
   <NotesDeVersion CURRENT_VERSION={CURRENT_VERSION} handleClosePatchModal={handleClosePatchModal} />

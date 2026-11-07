@@ -1,4 +1,22 @@
-import { Sparkles, Scissors, Scale, RotateCcw } from 'lucide-react';
+import { Sparkles, Bell, Repeat, Search, Undo2, ShieldCheck, Smartphone, Share2, DatabaseBackup, BookOpen } from 'lucide-react';
+
+const NOUVEAUTES = [
+  { Icone: Bell, couleur: 'text-amber-400', titre: 'Alertes', texte: 'la cloche signale un budget presque atteint, un découvert prévu, une banque à reconnecter ou des transactions à importer.' },
+  { Icone: Repeat, couleur: 'text-secondary-400', titre: 'Abonnements', texte: 'Kleea repère vos paiements récurrents et leur coût, et les ajoute à vos prévisions en un clic.' },
+  { Icone: Search, couleur: 'text-secondary-400', titre: 'Recherche globale', texte: 'la loupe ou Ctrl + K retrouve une opération, une catégorie ou un compte depuis n\'importe quelle page.' },
+  { Icone: Undo2, couleur: 'text-emerald-400', titre: 'Annuler', texte: 'quelques secondes pour revenir sur une suppression ou un import.' },
+  { Icone: ShieldCheck, couleur: 'text-emerald-400', titre: 'Double authentification', texte: 'facultative, par code reçu par e-mail, à activer depuis votre profil.' },
+  { Icone: Smartphone, couleur: 'text-emerald-400', titre: 'Appareils connectés', texte: 'voyez où votre compte est ouvert et déconnectez un appareil à distance.' },
+  { Icone: DatabaseBackup, couleur: 'text-emerald-400', titre: 'Ma sauvegarde', texte: 'téléchargez toutes vos données dans un fichier que vous pourrez réimporter.' },
+  { Icone: Share2, couleur: 'text-rose-400', titre: 'Liens Tricount', texte: 'choisissez leur durée, révoquez-les et consultez l\'historique des modifications.' },
+  { Icone: BookOpen, couleur: 'text-secondary-400', titre: 'Guide', texte: 'un vrai tutoriel, avec les premiers pas et toutes les fonctions.' },
+];
+
+const CORRECTIONS = [
+  'Les remboursements ne comptent plus comme des dépenses dans le suivi des budgets.',
+  'Les budgets sur tous les comptes sont correctement suivis.',
+  'Les titres des cartes du tableau de bord restent sur une ligne et alignés.',
+];
 
 // Notes de la version en cours.
 function NotesDeVersion({ CURRENT_VERSION, handleClosePatchModal }) {
@@ -27,57 +45,23 @@ function NotesDeVersion({ CURRENT_VERSION, handleClosePatchModal }) {
           </div>
         </div>
 
-        <div className="space-y-3.5 mb-6 text-left">
-          
-          {/* 2. EXPLICATION DU CONTEXTE (POURQUOI CETTE MISE À JOUR ?) */}
-          <div className="space-y-1">
-            <h4 className="text-[11px] font-black uppercase text-white/90 tracking-wider">
-              Suivi budgétaire multi-catégories
-            </h4>
-            <p className="text-[11px] text-white/60 leading-relaxed font-medium">
-              Dans la vie quotidienne, un seul paiement en magasin regroupe souvent des achats de nature différente. Pour vous offrir une comptabilité ultra-précise, Kleea vous permet désormais de <strong>diviser une dépense unique en plusieurs sous-catégories</strong>.
-            </p>
-          </div>
-
-          {/* 3. EXEMPLE CONCRET D'APPLICATION */}
-          <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-            <div className="flex justify-between items-center text-[8px] font-black uppercase text-amber-300 tracking-wider">
-              <span>Exemple d'application</span>
-              <span className="text-white/40 font-mono">Paiement réel : 90,00 €</span>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10.5px] font-bold">
-              <span className="text-white/80">Carrefour (90 €)</span>
-              <span className="text-secondary-400 font-black">➔</span>
-              <div className="flex gap-1.5 text-[9px] font-mono shrink-0">
-                <span className="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-sm border border-emerald-500/20">60€ Alimentation</span>
-                <span className="text-secondary-300 bg-secondary-500/20 px-2 py-0.5 rounded-sm border border-secondary-500/30">30€ Maison</span>
-              </div>
-            </div>
-            
-            <p className="text-[9px] text-white/40 italic">
-              Vos soldes bancaires restent parfaitement exacts, tandis que vos graphiques et limites de budget reflètent la réalité de vos achats.
-            </p>
-          </div>
-
-          {/* 4. CE QUI CHANGE POUR VOUS (CHANGELOG) */}
+        <div className="max-h-[55vh] overflow-y-auto custom-scrollbar pr-1 space-y-3.5 mb-6 text-left">
           <div className="space-y-1.5 text-[10px] text-white/70">
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-              <Scissors size={13} className="text-secondary-400 shrink-0" />
-              <span><strong>Outil Ciseaux :</strong> Accessible directement sur chaque ligne dans l'onglet <strong>Gérer</strong>.</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-              <Scale size={13} className="text-emerald-400 shrink-0" />
-              <span><strong>Équilibrage automatique :</strong> Ajuste automatiquement le reste à répartir au centime près.</span>
-            </div>
-
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
-              <RotateCcw size={13} className="text-rose-400 shrink-0" />
-              <span><strong>Annulation en 1 clic :</strong> Cliquez sur le badge violet <strong>[Divisée]</strong> pour refusionner l'écriture originale.</span>
-            </div>
+            <h4 className="text-[11px] font-black uppercase text-white/90 tracking-wider">Nouveautés</h4>
+            {NOUVEAUTES.map((note) => (
+              <div key={note.titre} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.02] border border-white/5">
+                <note.Icone size={13} className={`${note.couleur} shrink-0`} aria-hidden="true" />
+                <span><strong>{note.titre} :</strong> {note.texte}</span>
+              </div>
+            ))}
           </div>
 
+          <div className="space-y-1 text-[10px] text-white/60 leading-relaxed">
+            <h4 className="text-[11px] font-black uppercase text-white/90 tracking-wider">Corrections</h4>
+            <ul className="list-disc pl-4 space-y-0.5">
+              {CORRECTIONS.map((c) => <li key={c}>{c}</li>)}
+            </ul>
+          </div>
         </div>
 
         {/* 5. BOUTON DE FERMETURE */}

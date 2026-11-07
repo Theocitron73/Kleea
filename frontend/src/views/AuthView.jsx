@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   User, Mail, Lock, Eye, EyeOff, BookOpen, 
   ShieldAlert, UserX, WifiOff 
@@ -6,6 +6,7 @@ import {
 import { toast } from 'sonner';
 import api from '../axios';
 import GuideView from '../GuideView';
+import { lireMessageDeconnexion } from '../utils/sessions';
 
 export default function AuthView({ onLoginSuccess }) {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -18,25 +19,68 @@ export default function AuthView({ onLoginSuccess }) {
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [showPublicGuide, setShowPublicGuide] = useState(false);
+  const [jetonDoubleAuth, setJetonDoubleAuth] = useState(null);
+  const [codeDoubleAuth, setCodeDoubleAuth] = useState('');
+  const [emailDoubleAuth, setEmailDoubleAuth] = useState('');
+
+  // Retour ici après une déconnexion à distance : on dit pourquoi.
+  useEffect(() => {
+    const message = lireMessageDeconnexion();
+    if (message) toast.info(message, { duration: 8000 });
+  }, []);
+
+  const terminerConnexion = (data) => {
+    const token = data.access_token;
+    const username = data.user.toLowerCase();
+    const role = (data.role || 'user').toLowerCase(); // 👈 Récupération du rôle
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', username);
+    localStorage.setItem('role', role); // 👈 Sauvegarde locale
+
+    onLoginSuccess(token, username, role);
+  };
+
+  // Deuxième étape, seulement pour les comptes qui ont activé la double authentification.
+  const validerCode = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await api.post('/login/double-auth', { jeton: jetonDoubleAuth, code: codeDoubleAuth });
+      terminerConnexion(res.data);
+    } catch (err) {
+      setCodeDoubleAuth('');
+      // Jeton de 5 minutes dépassé : seul le mot de passe peut en redonner un.
+      if (err.response?.data?.detail?.startsWith('Connexion expirée')) setJetonDoubleAuth(null);
+      toast.error(err.response?.data?.detail || 'Impossible de vérifier ce code. Réessayez.');
+    }
+  };
+
+  const renvoyerCode = async () => {
+    try {
+      await api.post('/login/double-auth/renvoyer', { jeton: jetonDoubleAuth });
+      toast.success('Un nouveau code vient de partir.');
+    } catch (err) {
+      if (err.response?.data?.detail?.startsWith('Connexion expirée')) setJetonDoubleAuth(null);
+      toast.error(err.response?.data?.detail || "Impossible d'envoyer un nouveau code. Réessayez.");
+    }
+  };
 
   // 1. Connexion avec gestion des erreurs et icônes Lucide
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const res = await api.post('/login', { 
+      const res = await api.post('/login', {
         nom: loginName,
-        password: loginPassword 
+        password: loginPassword
       });
-      
-      const token = res.data.access_token;
-      const username = res.data.user.toLowerCase();
-      const role = (res.data.role || 'user').toLowerCase(); // 👈 Récupération du rôle
 
-      localStorage.setItem('token', token);
-      localStorage.setItem('user', username);
-      localStorage.setItem('role', role); // 👈 Sauvegarde locale
-
-      onLoginSuccess(token, username, role);
+      if (res.data.double_auth_requise) {
+        setJetonDoubleAuth(res.data.jeton_double_auth);
+        setEmailDoubleAuth(res.data.email_masque);
+        setLoginPassword('');
+        return;
+      }
+      terminerConnexion(res.data);
     } catch (err) {
       if (err.response && err.response.status === 403) {
         const messageDetail = err.response.data?.detail || "Trop d'échecs. Votre adresse IP a été suspendue temporairement.";
@@ -144,6 +188,37 @@ export default function AuthView({ onLoginSuccess }) {
         <div className="flex-1 max-w-7xl w-full mx-auto relative z-10 overflow-hidden">
           <GuideView />
         </div>
+      </div>
+    );
+  }
+
+  if (jetonDoubleAuth) {
+    return (
+      <div className="min-h-screen bg-[var(--surface)] flex items-center justify-center p-4">
+        <form onSubmit={validerCode} className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[calc(var(--radius)*2)] border border-white/20 shadow-2xl w-full max-w-md space-y-5">
+          <h1 className="text-lg font-black text-[var(--text-main)]">Double authentification</h1>
+          <p className="text-xs text-[var(--text-main)]/60 leading-relaxed">
+            Saisissez le code à 6 chiffres envoyé à {emailDoubleAuth}. Il est valable 10 minutes.
+          </p>
+          <input
+            aria-label="Code de vérification"
+            autoFocus
+            autoComplete="one-time-code"
+            className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-center tracking-widest text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
+            value={codeDoubleAuth}
+            onChange={(e) => setCodeDoubleAuth(e.target.value)}
+            required
+          />
+          <button type="submit" className="w-full bg-white text-black p-5 rounded-2xl font-black uppercase text-xs tracking-[0.3em] cursor-pointer">
+            Vérifier
+          </button>
+          <button type="button" onClick={renvoyerCode} className="w-full text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
+            Renvoyer un code
+          </button>
+          <button type="button" onClick={() => { setJetonDoubleAuth(null); setCodeDoubleAuth(''); }} className="w-full text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
+            Retour à la connexion
+          </button>
+        </form>
       </div>
     );
   }

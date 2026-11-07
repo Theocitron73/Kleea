@@ -55,6 +55,7 @@ export const PREMIERS_PAS = [
       "Page « Importer » : choisissez le « Compte de destination », puis déposez votre fichier. Pour une banque reliée, utilisez « Synchroniser ».",
       "Vérifiez l'aperçu : les lignes « Nouveau » seront ajoutées, celles marquées « Déjà importé (Ignoré) » ne le seront pas.",
       "Corrigez une catégorie si besoin, puis cliquez sur « Importer ».",
+      "Une erreur ? Le message de confirmation propose « Annuler » pendant 15 secondes : seules les lignes de cet import sont retirées.",
     ],
     conseil: "En mode automatique, cette étape se fait toute seule à l'ouverture de Kleea.",
     page: 'importer',
@@ -413,8 +414,14 @@ export const CHAPITRES = [
       },
       {
         titre: 'Partager avec vos proches',
-        texte: "« Partager » copie un lien vers le groupe. Vos proches n'ont pas besoin de compte : ils voient le bilan et peuvent ajouter, modifier ou supprimer des dépenses.",
-        attention: "Toute personne ayant le lien peut modifier les dépenses du groupe, et aucun historique ne garde la trace de ces changements. Ne le partagez qu'avec les personnes concernées.",
+        texte: "« Partager » ouvre la gestion du lien du groupe. Vos proches n'ont pas besoin de compte : ils voient le bilan et peuvent ajouter, modifier ou supprimer des dépenses.",
+        points: [
+          { l: 'Durée du lien', d: "Choisissez 7 jours, 30 jours, 90 jours ou 1 an. Passé ce délai, le lien ne s'ouvre plus et il faut en générer un nouveau. « Appliquer cette durée » change la limite du lien actif, à compter d'aujourd'hui." },
+          { l: 'Liens déjà partagés', d: "Un lien créé avant l'arrivée des durées reste valable sans date limite, tant que vous ne lui choisissez pas de durée et que vous ne le révoquez pas." },
+          { l: 'Révoquer ou remplacer', d: "« Révoquer le lien » le coupe aussitôt. « Générer un nouveau lien » le remplace : l'ancienne adresse cesse de fonctionner, et vos proches voient un message qui l'explique." },
+          { l: 'Historique des modifications', d: "Dans la même fenêtre, retrouvez chaque ajout, modification ou suppression faite par le lien : quand, ancienne et nouvelle valeur, et le nom du participant s'il l'a saisi. Ni adresse IP ni lien n'y sont gardés, et vos propres changements n'y figurent pas." },
+        ],
+        attention: "Toute personne ayant un lien actif peut modifier les dépenses du groupe, et le nom saisi n'est pas vérifié. Ne le partagez qu'avec les personnes concernées.",
       },
     ],
   },
@@ -435,19 +442,62 @@ export const CHAPITRES = [
         ],
       },
       {
+        titre: 'Appareils connectés',
+        texte: "La carte « Appareils connectés » liste les navigateurs où votre compte est ouvert, avec leur dernière activité. Celui que vous utilisez porte la mention « Cet appareil ».",
+        points: [
+          { l: 'Un seul appareil', d: "« Déconnecter » le coupe immédiatement : à sa prochaine action, il revient à l'écran de connexion." },
+          { l: 'Tous les autres', d: "« Tout déconnecter » demande une confirmation, puis coupe tous vos autres appareils. Celui que vous utilisez reste connecté." },
+          { l: 'Connexion plus ancienne', d: "Une connexion ouverte avant l'arrivée de cette carte n'y figure pas et ne peut pas être coupée à distance. Elle prend fin d'elle-même sous 7 jours." },
+        ],
+        conseil: "Téléphone perdu ou doute sur un appareil ? Utilisez « Tout déconnecter », puis changez votre mot de passe : changer de mot de passe ne déconnecte pas à lui seul les autres appareils.",
+      },
+      {
+        titre: 'Double authentification',
+        texte: "Facultative : rien ne change tant que vous ne l'activez pas. Une fois activée, votre mot de passe seul ne suffit plus : chaque connexion demande aussi un code à 6 chiffres reçu par e-mail, valable 10 minutes.",
+        points: [
+          { l: 'Activer', d: "Dans la carte « Double authentification », confirmez que c'est bien vous avec votre mot de passe actuel, puis saisissez le code reçu à l'adresse de votre compte. Cela vérifie que cette adresse reçoit bien vos codes." },
+          { l: 'À la connexion', d: "Après le mot de passe, saisissez le code reçu. Rien reçu ? Regardez vos indésirables, ou utilisez « Renvoyer un code »." },
+          { l: 'Désactiver', d: "Confirmez avec votre mot de passe actuel, depuis une session déjà ouverte. Ainsi, quelqu'un qui trouverait votre session ouverte ne peut pas couper cette protection." },
+        ],
+        attention: "Cette protection vaut ce que vaut votre boîte mail : sécurisez-la bien, car elle reçoit aussi le lien « Mot de passe oublié ». Si vous perdez l'accès à cette boîte, vous ne pourrez plus vous connecter.",
+      },
+      {
         titre: 'Déconnecter vos banques',
         texte: "« Tout déconnecter » révoque l'accès de Kleea à vos banques et supprime vos connexions chez Powens. Vos opérations déjà importées restent en place.",
         attention: "Cette action efface aussi les liaisons entre vos comptes bancaires et vos comptes Kleea. Après une reconnexion, il faudra les refaire sur la page « Comptes ».",
       },
       {
+        titre: 'Sauvegarder vos données',
+        texte: "« Télécharger ma sauvegarde » crée un fichier avec vos comptes, opérations, budgets, prévisions, catégories, projets, enveloppes, groupes Tricount et réglages. Vous pourrez le réimporter plus tard.",
+        attention: "Vos opérations et vos IBAN sont lisibles dans ce fichier : gardez-le en lieu sûr et ne le partagez pas.",
+        points: [
+          { l: 'Pour restaurer', d: "« Importer une sauvegarde », choisissez le fichier, vérifiez le résumé de ce qui sera ajouté, puis « Confirmer l'import »." },
+          { l: 'Rien n\'est écrasé', d: "L'import ajoute seulement ce qui manque. Ce qui existe reste tel quel, mais une ligne effacée depuis la sauvegarde revient." },
+          { l: 'Un seul compte', d: "Une sauvegarde ne s'importe que dans le compte qui l'a créée. Après une suppression, recréez un compte avec le même identifiant." },
+          { l: 'À refaire ensuite', d: "Votre mot de passe, vos connexions bancaires, votre jeton Stream Deck et vos liens de partage Tricount ne sont jamais sauvegardés. Votre nom et votre e-mail restent ceux du compte connecté." },
+        ],
+      },
+      {
         titre: 'Supprimer mon compte',
         attention: "« Supprimer mon compte » efface définitivement votre compte et vos données. L'action est irréversible et vous demande d'écrire « delete » pour confirmer.",
+        conseil: "Téléchargez d'abord votre sauvegarde : c'est le seul moyen de retrouver vos données ensuite.",
+      },
+      {
+        titre: 'Recherche globale',
+        texte: "La loupe de la navigation, ou Ctrl + K sur ordinateur, retrouve une opération, une catégorie ou un compte depuis n'importe quelle page, sur tout votre historique. Les accents et les majuscules ne comptent pas.",
+        points: [
+          { l: 'Opération', d: "Ouvre la page Gérer sur le mois et le compte de cette opération." },
+          { l: 'Catégorie', d: "Ouvre la page Gérer sur le dernier mois où elle apparaît, avec tous les comptes de ce profil." },
+          { l: 'Compte', d: "Ouvre la page Comptes." },
+        ],
+        conseil: "Le filtre reste actif dans la page Gérer : effacez le champ de recherche pour revoir toutes les opérations du mois.",
       },
       {
         titre: 'Alertes',
         texte: "La cloche de la navigation signale ce qui demande votre attention, quels que soient le mois et le profil affichés. Son nombre devient rouge dès qu'une alerte est importante.",
         points: [
           { l: 'Banque', d: "Une connexion à renouveler, ou qui expire dans moins de 7 jours." },
+          { l: 'À importer', d: "Avec une banque connectée : des opérations attendent d'être importées dans Kleea." },
           { l: 'Synchronisation', d: "En mode automatique : une dernière synchronisation en échec, ou aucun succès depuis plus de 3 jours." },
           { l: 'Découvert', d: "Un compte dont le solde estimé passe sous zéro d'ici la fin de l'année, d'après vos prévisions à venir." },
           { l: 'Budget', d: "Une catégorie à 80 % de sa limite du mois, ou qui la dépasse." },

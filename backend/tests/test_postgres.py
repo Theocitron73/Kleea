@@ -4,6 +4,7 @@ Ces tests ne tournent que si TEST_DATABASE_URL est défini (voir .github/workflo
 ils refusent donc tout ce qui n'est pas une base de test locale. Le schéma vient du code, pas de la production.
 """
 import importlib.util
+import json
 import os
 import sys
 import unittest
@@ -46,7 +47,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION]
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -145,6 +146,38 @@ class RoutesSurPostgres(unittest.TestCase):
         refus = self.client.put("/update-shared-transaction/jeton-a", json={**corps, "id": id_b})
         self.assertEqual(refus.status_code, 403)
 
+    def test_cycle_de_vie_d_un_lien_de_partage(self):
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                INSERT INTO tricount (date, libelle, paye_par, pour_qui, montant, groupe, utilisateur)
+                VALUES ('2026-11-02', 'Courses', 'Aude', 'Aude:30', 30, 'Vacances', 'theo')
+            """))
+            identifiant = conn.execute(text("SELECT id FROM tricount")).scalar()
+        lien = self.client.post("/share-group/theo/Vacances", json={"duree_jours": 7}).json()
+        self.assertEqual(lien["statut"], "actif")
+        jeton = lien["token"]
+        self.assertIsNotNone(lien["expire_le"])
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{jeton}").json()["groupe"], "Vacances")
+
+        corps = {"id": identifiant, "date": "2026-11-03", "libelle": "Train", "paye_par": "Aude", "pour_qui": "Aude:35", "montant": 35, "auteur": "Zoé"}
+        self.assertEqual(self.client.put(f"/update-shared-transaction/{jeton}", json=corps).status_code, 200)
+        entree = self.client.get("/share-history/theo/Vacances").json()["historique"][0]
+        self.assertEqual((entree["action"], entree["auteur"]), ("modification", "Zoé"))
+        self.assertEqual(entree["ancienne_valeur"]["date"], "2026-11-02")
+        self.assertEqual(entree["nouvelle_valeur"]["montant"], 35)
+        self.assertIn("+00:00", entree["date"])
+
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE tricount_liens SET expire_le = CURRENT_TIMESTAMP - INTERVAL '1 hour' WHERE token = :t"), {"t": jeton})
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{jeton}").status_code, 410)
+        self.assertEqual(self.client.get("/get-share-token/theo/Vacances").json()["statut"], "expire")
+
+        nouveau = self.client.post("/regenerate-share/theo/Vacances", json={"duree_jours": 30}).json()["token"]
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{nouveau}").status_code, 200)
+        self.assertEqual(self.client.get(f"/get-shared-tricount/{jeton}").json()["detail"]["code"], "lien_revoque")
+        self.assertEqual(self.client.post("/revoke-share/theo/Vacances").json()["token"], None)
+        self.assertEqual(self.client.get(f"/download-shared-pdf/{nouveau}").status_code, 410)
+
     def test_alertes_sur_le_schema_alembic(self):
         main_noter = aide_noter()
         main_noter("theo")
@@ -158,6 +191,102 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.delete("/api/alertes/masquees").status_code, 200)
         self.assertEqual(self.client.get("/api/alertes/etat").json()["masquees"], [])
 
+    def test_annuler_un_import_ne_retire_que_les_lignes_creees(self):
+        ligne = {"date": "2026-11-05", "nom": "Achat", "montant": -10, "categorie": "Courses", "utilisateur": "theo", "mois": "Novembre", "annee": 2026, "compte": "CCP"}
+        premier = self.client.post("/transactions/batch", json=[ligne]).json()
+        self.assertEqual(len(premier["ids"]), 1)
+        second = self.client.post("/transactions/batch", json=[ligne, {**ligne, "nom": "Autre"}]).json()
+        self.assertEqual((second["added"], len(second["ids"])), (1, 1))
+        self.assertTrue(second["warning"])
+        self.assertEqual(self.client.request("DELETE", "/transactions/batch", json=second["ids"]).json()["status"], "success")
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT nom FROM transactions")).scalars().all(), ["Achat"])
+
+    def test_double_auth_sur_le_schema_alembic(self):
+        from routes import double_auth as da
+
+        main.app.dependency_overrides.clear()  # Ici, le vrai contrôle du jeton est justement ce qu'on vérifie.
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, email, password) VALUES ('theo', 't@kleea.test', :p)"), {"p": aide.hash_password("motdepasse1")})
+        envois = []
+        envoi = mock.patch.object(da, "envoyer_code", side_effect=lambda email, code: envois.append(code))
+        envoi.start()
+        self.addCleanup(envoi.stop)
+
+        def login():
+            reponse = self.client.post("/login", json={"nom": "theo", "password": "motdepasse1"})
+            self.assertEqual(reponse.status_code, 200, reponse.text)
+            return reponse.json()
+
+        ici = {"Authorization": f"Bearer {login()['access_token']}"}
+        for _ in range(2):  # Recommencer une activation inachevée reste possible.
+            reponse = self.client.post("/api/double-auth/preparer", json={"password": "motdepasse1"}, headers=ici)
+            self.assertEqual(reponse.status_code, 200, reponse.text)
+        activation = self.client.post("/api/double-auth/activer", json={"code": envois[-1]}, headers=ici)
+        self.assertEqual(activation.status_code, 200, activation.text)
+        self.assertEqual(self.client.post("/api/double-auth/preparer", json={"password": "motdepasse1"}, headers=ici).status_code, 409)
+
+        etape = login()
+        self.assertNotIn("access_token", etape)
+        with self.engine.connect() as conn:  # La date d'expiration revient du pilote réel, avec son fuseau.
+            self.assertIsNotNone(conn.execute(text("SELECT code_expire_le FROM double_auth")).scalar().tzinfo)
+        faux = "000000" if envois[-1] != "000000" else "000001"
+        self.assertEqual(self.client.post("/login/double-auth", json={"jeton": etape["jeton_double_auth"], "code": faux}).status_code, 401)
+        seconde = self.client.post("/login/double-auth", json={"jeton": etape["jeton_double_auth"], "code": envois[-1]})
+        self.assertEqual(seconde.status_code, 200, seconde.text)
+        self.assertEqual(self.client.post("/login/double-auth", json={"jeton": etape["jeton_double_auth"], "code": envois[-1]}).status_code, 401)
+
+        self.assertEqual(self.client.post("/api/double-auth/desactiver", json={"password": "motdepasse1"}, headers=ici).status_code, 200)
+        self.assertIn("access_token", login())
+
+        # Sans la révision en production, la connexion ne doit pas tomber.
+        with self.engine.begin() as conn:
+            conn.execute(text("DROP TABLE double_auth"))
+        self.assertIn("access_token", login())
+        self.assertFalse(self.client.get("/api/double-auth", headers=ici).json()["disponible"])
+
+    def test_sessions_sur_le_schema_alembic(self):
+        main.app.dependency_overrides.clear()  # Ici, le vrai contrôle du jeton est justement ce qu'on vérifie.
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, password) VALUES ('theo', :p)"), {"p": aide.hash_password("motdepasse1")})
+
+        def connexion(navigateur):
+            reponse = self.client.post("/login", json={"nom": "theo", "password": "motdepasse1"}, headers={"User-Agent": navigateur})
+            self.assertEqual(reponse.status_code, 200, reponse.text)
+            return {"Authorization": f"Bearer {reponse.json()['access_token']}"}
+
+        ici = connexion("Mozilla/5.0 (Windows NT 10.0) Chrome/120.0 Safari/537.36")
+        ailleurs = connexion("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Version/17.0 Safari/605.1")
+        liste = self.client.get("/api/sessions", headers=ici).json()
+        self.assertTrue(liste["session_suivie"])
+        self.assertEqual([s["appareil"] for s in liste["sessions"]], ["Chrome sur Windows", "Safari sur iPhone"])
+
+        # La dernière activité ancienne est rafraîchie : la comparaison de dates passe par le pilote réel.
+        with self.engine.begin() as conn:
+            conn.execute(text("UPDATE sessions_connexion SET derniere_activite = CURRENT_TIMESTAMP - INTERVAL '1 hour'"))
+        self.assertEqual(self.client.get("/auth/test-token", headers=ailleurs).status_code, 200)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT count(*) FROM sessions_connexion WHERE derniere_activite > CURRENT_TIMESTAMP - INTERVAL '1 minute'")).scalar(), 1)
+
+        self.assertEqual(self.client.post("/api/sessions/revoquer-autres", headers=ici).json()["revoquees"], 1)
+        self.assertEqual(self.client.get("/auth/test-token", headers=ailleurs).status_code, 401)
+        self.assertEqual(self.client.get("/auth/test-token", headers=ici).status_code, 200)
+        actuelle = self.client.get("/api/sessions", headers=ici).json()["sessions"][0]["id"]
+        self.assertEqual(self.client.delete(f"/api/sessions/{actuelle}", headers=ici).status_code, 200)
+        self.assertEqual(self.client.get("/auth/test-token", headers=ici).status_code, 401)
+
+    def test_sans_la_table_des_sessions_la_connexion_reste_possible(self):
+        # Sur Postgres, une table absente fait échouer la transaction : c'est le cas réel avant la migration.
+        main.app.dependency_overrides.clear()
+        with self.engine.begin() as conn:
+            conn.execute(text("DROP TABLE sessions_connexion"))
+            conn.execute(text("INSERT INTO users (username, password) VALUES ('theo', :p)"), {"p": aide.hash_password("motdepasse1")})
+        reponse = self.client.post("/login", json={"nom": "theo", "password": "motdepasse1"})
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        entetes = {"Authorization": f"Bearer {reponse.json()['access_token']}"}
+        self.assertEqual(self.client.get("/auth/test-token", headers=entetes).status_code, 200)
+        self.assertFalse(self.client.get("/api/sessions", headers=entetes).json()["disponible"])
+
     def test_lignes_ignorees_sur_le_schema_alembic(self):
         url = "/api/abonnements/ignores"
         identifiant = "ORANGE|16"
@@ -166,6 +295,58 @@ class RoutesSurPostgres(unittest.TestCase):
         self.assertEqual(self.client.get(url).json(), [identifiant])
         self.assertEqual(self.client.delete(url, params={"id": identifiant}).status_code, 200)
         self.assertEqual(self.client.get(url).json(), [])
+
+    def test_sauvegarde_sur_le_schema_alembic(self):
+        from routes import sauvegarde
+        from test_sauvegarde import VALEURS, ligne_type
+
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, email, password, name) VALUES ('theo', 't@exemple.test', 'x', 'Théo')"))
+            conn.execute(text("INSERT INTO split_sources (utilisateur, date, nom, montant, compte, split_id) VALUES ('aude', '2026-01-01', 'x', 1, 'x', 'split_pris')"))
+            conn.execute(text("INSERT INTO tricount (date, libelle, montant, groupe, utilisateur, token_partage) VALUES ('2026-01-01', 'x', 1, 'Ski', 'theo', 'lien-ski')"))
+        donnees = {table.nom: [ligne_type(table)] for table in sauvegarde.TABLES}
+        # Des colonnes entièrement vides dans un lot : psycopg 3 ne doit pas avoir à deviner leur type.
+        donnees["transactions"] = [
+            {**ligne_type(sauvegarde.PAR_NOM["transactions"]), "prevision_id": 3, "split_id": "split_pris"},
+            {"date": VALEURS["instant"], "nom": "Sans détail", "montant": 2},
+        ]
+        donnees["split_sources"] = [{**ligne_type(sauvegarde.PAR_NOM["split_sources"]), "split_id": "split_pris"}]
+        donnees["budgets"].append({"mois": "Mars", "compte": "CCP"})
+        donnees["projets"].append({"nom": "Sans détail"})
+        donnees["tricount"][0]["groupe"] = "Ski"
+        fichier = {"format": "kleea-sauvegarde", "version": 1, "compte": "theo", "donnees": donnees}
+
+        apercu = self.client.post("/api/sauvegarde/apercu", json=fichier)
+        self.assertEqual(apercu.status_code, 200, apercu.text)
+        reponse = self.client.post("/api/sauvegarde/import", json=fichier)
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        self.assertEqual(reponse.json()["total_a_ajouter"], apercu.json()["total_a_ajouter"])
+
+        premier = self.client.get("/api/sauvegarde/export").json()
+        self.assertTrue(all(premier["donnees"].values()))
+        self.assertNotEqual(premier["donnees"]["split_sources"][0]["split_id"], "split_pris")
+        self.assertEqual(self.client.post("/api/sauvegarde/import", json=premier).json()["total_a_ajouter"], 0)
+        with self.engine.connect() as conn:
+            jetons = {l[0]: l[1] for l in conn.execute(text("SELECT libelle, token_partage FROM tricount"))}
+        self.assertEqual(jetons["Valeur"], "lien-ski")
+
+        with self.engine.begin() as conn:
+            for table in sauvegarde.TABLES:
+                conn.execute(text(f'DELETE FROM {table.nom} WHERE "{table.utilisateur}" = \'theo\''))
+            # Le décalage des identifiants vérifie que les liens suivent.
+            conn.execute(text("INSERT INTO previsions (date, nom, montant, utilisateur) VALUES ('2026-01-01', 'Décalage', 1, 'aude')"))
+        self.assertEqual(self.client.post("/api/sauvegarde/import", json=premier).status_code, 200)
+        second = self.client.get("/api/sauvegarde/export").json()
+
+        def comparable(export):
+            contenu = json.loads(json.dumps(export["donnees"]))
+            noms = {p.pop("id"): p["nom"] for p in contenu["previsions"]}
+            for operation in contenu["transactions"]:
+                operation["prevision_id"] = noms.get(operation["prevision_id"])
+            return contenu
+
+        self.assertEqual(comparable(second), comparable(premier))
+        self.assertEqual(second["donnees"]["custom_stats"][0]["regles"], VALEURS["structure"])
 
 
 class GardeFou(unittest.TestCase):
