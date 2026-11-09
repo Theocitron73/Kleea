@@ -119,6 +119,7 @@ function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handle
               /* 💡 w-11 h-11 au lieu de w-12 h-12 pour éliminer l'effet compressé sur les petits écrans */
               <button
                 key={item.id}
+                aria-label={item.label}
                 onClick={() => setActiveTab(item.id)}
                 className="relative flex flex-col items-center justify-center w-11 h-11 transition-all"
               >

@@ -2104,7 +2104,7 @@ export default function DashboardView(props) {
                         return (
                           <div 
                             key={i} 
-                            className={`grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
+                            className={`@container grid grid-cols-12 items-center px-4 rounded-xl border transition-all duration-300 group min-h-0 ${
                               estMoisEnCours
                                 ? `${aDesPrevisions ? 'flex-[1.45] py-1.5' : 'flex-1 py-0.5'} bg-white/[0.03] border-white/20 shadow-md`
                                 : estFutur
@@ -2136,7 +2136,7 @@ export default function DashboardView(props) {
                             <div className="col-span-2 flex flex-col justify-center min-h-0">
                               {estMoisEnCours ? (
                                 <>
-                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_revenus}e6`, fontSize: isCompact ? '1.95vh' : '1.5vh' }}>
+                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_revenus}e6`, fontSize: isCompact ? 'min(1.95vh, 2.7cqw)' : 'min(1.5vh, 2.7cqw)' }}>
                                     {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
                                   </span>
                                   {aDesPrevisions && m.revPrevu !== null && (
@@ -2147,7 +2147,7 @@ export default function DashboardView(props) {
                                 </>
                               ) : estFutur ? (
                                 <div className="flex flex-col justify-center">
-                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_revenus}b3`, fontSize: isCompact ? '1.95vh' : '1.5vh' }}>
+                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_revenus}b3`, fontSize: isCompact ? 'min(1.95vh, 2.7cqw)' : 'min(1.5vh, 2.7cqw)' }}>
                                     {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 ? `${m.revPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                   {aDesPrevisions && m.revPrevu !== null && m.revPrevu > 0 && (
@@ -2157,7 +2157,7 @@ export default function DashboardView(props) {
                                   )}
                                 </div>
                               ) : (
-                                <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_revenus}e6`, fontSize: isCompact ? '1.95vh' : '1.5vh' }}>
+                                <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_revenus}e6`, fontSize: isCompact ? 'min(1.95vh, 2.7cqw)' : 'min(1.5vh, 2.7cqw)' }}>
                                   {m.revReel > 0 ? `${m.revReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                 </span>
                               )}
@@ -2166,7 +2166,7 @@ export default function DashboardView(props) {
                             <div className="col-span-2 flex flex-col justify-center min-h-0">
                               {estMoisEnCours ? (
                                 <>
-                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_depenses}e6`, fontSize: isCompact ? '1.95vh' : '1.5vh' }}>
+                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_depenses}e6`, fontSize: isCompact ? 'min(1.95vh, 2.7cqw)' : 'min(1.5vh, 2.7cqw)' }}>
                                     {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '0,00€'}
                                   </span>
                                   {aDesPrevisions && m.depPrevu !== null && (
@@ -2177,7 +2177,7 @@ export default function DashboardView(props) {
                                 </>
                               ) : estFutur ? (
                                 <div className="flex flex-col justify-center">
-                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_depenses}b3`, fontSize: isCompact ? '1.95vh' : '1.5vh' }}>
+                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_depenses}b3`, fontSize: isCompact ? 'min(1.95vh, 2.7cqw)' : 'min(1.5vh, 2.7cqw)' }}>
                                     {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 ? `-${m.depPrevu.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                   {aDesPrevisions && m.depPrevu !== null && m.depPrevu > 0 && (
@@ -2187,7 +2187,7 @@ export default function DashboardView(props) {
                                   )}
                                 </div>
                               ) : (
-                                <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_depenses}e6`, fontSize: isCompact ? '1.95vh' : '1.5vh' }}>
+                                <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_depenses}e6`, fontSize: isCompact ? 'min(1.95vh, 2.7cqw)' : 'min(1.5vh, 2.7cqw)' }}>
                                   {m.depReel > 0 ? `-${m.depReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
                                 </span>
                               )}
@@ -2201,7 +2201,7 @@ export default function DashboardView(props) {
                                     style={{ 
                                       backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
                                       color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                                      fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                      fontSize: isCompact ? 'min(1.35vh, 2.2cqw)' : 'min(1.1vh, 2.2cqw)',
                                       padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
                                     }}
                                   >
@@ -2220,7 +2220,7 @@ export default function DashboardView(props) {
                                     backgroundColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}0d` : `${userTheme.color_depenses}0d`, 
                                     color: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}b3` : `${userTheme.color_depenses}b3`,
                                     borderColor: m.epargnePrevu >= 0 ? `${userTheme.color_epargne}33` : `${userTheme.color_depenses}33`,
-                                    fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                    fontSize: isCompact ? 'min(1.35vh, 2.2cqw)' : 'min(1.1vh, 2.2cqw)',
                                     padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
                                   }}
                                 >
@@ -2232,7 +2232,7 @@ export default function DashboardView(props) {
                                   style={{ 
                                     backgroundColor: m.epargneReel >= 0 ? `${userTheme.color_epargne}1a` : `${userTheme.color_depenses}1a`, 
                                     color: m.epargneReel >= 0 ? userTheme.color_epargne : userTheme.color_depenses,
-                                    fontSize: isCompact ? '1.35vh' : '1.1vh',
+                                    fontSize: isCompact ? 'min(1.35vh, 2.2cqw)' : 'min(1.1vh, 2.2cqw)',
                                     padding: isCompact ? '0.2vh 0.7vw' : '0.15vh 0.5vw'
                                   }}
                                 >
@@ -2244,7 +2244,7 @@ export default function DashboardView(props) {
                             <div className="col-span-3 text-right flex flex-col justify-center items-end min-h-0">
                               {estMoisEnCours ? (
                                 <>
-                                  <span className="font-black tracking-tighter leading-none" style={{ color: userTheme.color_patrimoine, fontSize: isCompact ? '2.15vh' : '1.7vh' }}>
+                                  <span className="font-black tracking-tighter leading-none" style={{ color: userTheme.color_patrimoine, fontSize: isCompact ? 'min(2.15vh, 3.4cqw)' : 'min(1.7vh, 3.4cqw)' }}>
                                     {m.soldeTotalReel !== null ? `${m.soldeTotalReel.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                   {aDesPrevisions && m.soldeProjete !== null && (
@@ -2255,7 +2255,7 @@ export default function DashboardView(props) {
                                 </>
                               ) : estFutur ? (
                                 <div className="flex flex-col justify-center items-end">
-                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_patrimoine}cc`, fontSize: isCompact ? '2.15vh' : '1.7vh' }}>
+                                  <span className="font-black tracking-tighter leading-none" style={{ color: `${userTheme.color_patrimoine}cc`, fontSize: isCompact ? 'min(2.15vh, 3.4cqw)' : 'min(1.7vh, 3.4cqw)' }}>
                                     {aDesPrevisions && m.soldeProjete !== null ? `${m.soldeProjete.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : '—'}
                                   </span>
                                   {aDesPrevisions && m.soldeProjete !== null && (
@@ -2265,7 +2265,7 @@ export default function DashboardView(props) {
                                   )}
                                 </div>
                               ) : (
-                                <span className="font-black tracking-tighter leading-none" style={{ color: userTheme.color_patrimoine, fontSize: isCompact ? '2.15vh' : '1.7vh' }}>
+                                <span className="font-black tracking-tighter leading-none" style={{ color: userTheme.color_patrimoine, fontSize: isCompact ? 'min(2.15vh, 3.4cqw)' : 'min(1.7vh, 3.4cqw)' }}>
                                   {m.soldeTotal !== null ? `${m.soldeTotal.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}€` : <span className="text-[var(--text-main)]/10">—</span>}
                                 </span>
                               )}

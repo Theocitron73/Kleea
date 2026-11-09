@@ -11,6 +11,9 @@ from base import engine, get_current_user
 
 router = APIRouter()
 
+# Le logo est dans backend/assets/, un niveau au-dessus de ce fichier.
+LOGO_ISA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "logo_isa.png")
+
 
 @router.get("/api/conges/{username}")
 def get_user_conges(username: str, current_user: str = Depends(get_current_user)):
@@ -172,12 +175,7 @@ def generate_isa_conge_pdf(conge_id: int, current_user: str = Depends(get_curren
     # =========================================================
     # 1. 🖼️ LOGO OFFICIEL ISA GROUP (VIA FICHIER PNG)
     # =========================================================
-    logo_path = os.path.join(os.path.dirname(__file__), "assets", "logo_isa.png")
-    
-    # Fallback si l'image est directement dans le dossier backend/
-    if not os.path.exists(logo_path):
-        logo_path = os.path.join(os.path.dirname(__file__), "logo_isa.png")
-
+    logo_path = LOGO_ISA
     if os.path.exists(logo_path):
         # Positionnement de l'image (X=15mm, Y=10mm, Largeur=48mm, Hauteur proportionnelle)
         pdf.image(logo_path, x=15, y=10, w=48)

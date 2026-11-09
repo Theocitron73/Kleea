@@ -8,6 +8,7 @@ from schemas import Budget, PrevisionIn, PropagateYearRequest
 from sqlalchemy import bindparam, text
 from typing import Optional
 from base import engine, get_current_user
+from routes.regles import appliquer_sans_bloquer
 
 
 router = APIRouter()
@@ -19,6 +20,7 @@ router = APIRouter()
 def get_budgets(utilisateur: str, mois: Optional[str] = None, current_user: str = Depends(get_current_user)):
     if utilisateur.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
+    appliquer_sans_bloquer(current_user)
 
     if mois:
         query = text("""
@@ -63,7 +65,7 @@ def save_budget(b: Budget, current_user: str = Depends(get_current_user)):
 def update_budget(b: Budget, old_name: str, current_user: str = Depends(get_current_user)):
     query = text("""
         UPDATE budgets 
-        SET nom = :new_n, somme = :s, compte = :c
+        SET nom = :new_n, somme = :s, compte = :c, regle_id = NULL
         WHERE nom = :old_n AND LOWER(utilisateur) = :u AND mois = :m AND annee = :a
     """)
     with engine.begin() as conn:
@@ -99,8 +101,9 @@ def delete_budget(nom: str, utilisateur: str, mois: str, annee: int, current_use
 def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_user: str = Depends(get_current_user)):
     if utilisateur.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
+    appliquer_sans_bloquer(current_user)
 
-    sql_base = "SELECT id, date, nom, montant, categorie, compte, mois, annee, actif FROM previsions WHERE LOWER(utilisateur) = :u AND annee = :a"
+    sql_base = "SELECT id, date, nom, montant, categorie, compte, mois, annee, actif, regle_id FROM previsions WHERE LOWER(utilisateur) = :u AND annee = :a"
     params = {"u": current_user, "a": annee}
 
     if mois != "ALL":
@@ -124,7 +127,8 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_use
                     "compte": r["compte"],
                     "mois": r["mois"],
                     "annee": int(r["annee"]),
-                    "actif": est_actif
+                    "actif": est_actif,
+                    "regle_id": r["regle_id"],
                 })
             return previsions
     except Exception as e:
@@ -205,7 +209,10 @@ def update_prevision(prev_id: int, data: dict, current_user: str = Depends(get_c
         set_clause = ", ".join([f"{k} = :{k}" for k in filtered_data.keys()])
         
         # 🟢 ANTI-IDOR : On vérifie que la prévision appartient bien à l'utilisateur connecté
-        query = text(f"UPDATE previsions SET {set_clause} WHERE id = :id AND LOWER(utilisateur) = :u")
+        # Une prévision vraiment retouchée à la main se détache de sa règle récurrente : la règle ne l'écrasera plus.
+        # Les champs du tableau enregistrent aussi quand rien ne change : cela ne doit pas la détacher.
+        change = " OR ".join(f"{k} IS DISTINCT FROM :{k}" for k in filtered_data.keys())
+        query = text(f"UPDATE previsions SET {set_clause}, regle_id = CASE WHEN {change} THEN NULL ELSE regle_id END WHERE id = :id AND LOWER(utilisateur) = :u")
         
         with engine.begin() as conn:
             result = conn.execute(query, {**filtered_data, "id": prev_id, "u": current_user})

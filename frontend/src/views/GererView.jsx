@@ -14,6 +14,8 @@ import {
   getCategoryIconInfo, getCategoryGroup 
 } from '../categoryIcons';
 import SplitTransactionModal from '../components/SplitTransactionModal';
+import { ChoixRepetition } from '../components/ReglesRecurrentes';
+import { Repeat } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
 import { depenseDuBudget, estTransfertInterne } from '../utils/finance';
@@ -398,6 +400,10 @@ export default function GererView(props) {
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-2">
+                  <ChoixRepetition valeur={formBudget.repeter} onChange={(v) => setFormBudget({ ...formBudget, repeter: v })} libelleUneFois="Ce mois" taille="h-[30px] w-full [&>button]:flex-1 [&>button]:justify-center" />
                 </div>
 
                 <button 
@@ -1746,6 +1752,8 @@ export default function GererView(props) {
                   </div>
                 </div>
 
+                <ChoixRepetition valeur={formBudget.repeter} onChange={(v) => setFormBudget({ ...formBudget, repeter: v })} libelleUneFois="Ce mois" taille="h-[34px] w-full [&>button]:flex-1 [&>button]:justify-center" />
+
                 <button 
                   type="button"
                   onClick={async () => {
@@ -1754,8 +1762,9 @@ export default function GererView(props) {
                       return;
                     }
                     if (handleAddBudget) {
+                      const recurrent = formBudget.repeter;
                       await handleAddBudget();
-                      toast.success(`Budget fixé pour ${formBudget.nom} : ${formBudget.somme}€ 🎯`);
+                      if (!recurrent) toast.success(`Budget fixé pour ${formBudget.nom} : ${formBudget.somme}€`);
                     }
                   }}
                   className="w-full bg-[var(--primary)] text-white text-[10px] font-black py-2.5 rounded-xl uppercase tracking-widest mt-1 cursor-pointer shadow-md"
@@ -1779,7 +1788,10 @@ export default function GererView(props) {
                       <div className="flex items-center gap-2">
                         <CategoryIcon name={b.nom} size={15} />
                         <div>
-                          <p className="text-xs font-black text-white">{getCleanCategoryName(b.nom)}</p>
+                          <p className="text-xs font-black text-white flex items-center gap-1.5">
+                            {getCleanCategoryName(b.nom)}
+                            {b.regle_id && <Repeat size={11} className="text-[var(--secondary)]/80" aria-label="Chaque mois" />}
+                          </p>
                           <span className="text-[8px] uppercase font-bold text-white/30 tracking-tight">
                             {b.compte} • {b.mois}
                           </span>
@@ -2241,8 +2253,9 @@ export default function GererView(props) {
                               <div className="flex items-center gap-2.5 min-w-0">
                                 <CategoryIcon name={b.nom} size={16} />
                                 <div className="flex flex-col min-w-0">
-                                  <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight truncate">
+                                  <span className="text-[11px] font-black text-[var(--text-main)]/90 leading-tight truncate flex items-center gap-1.5">
                                     {b.nom}
+                                    {b.regle_id && <Repeat size={11} className="text-[var(--secondary)]/80 shrink-0" aria-label="Chaque mois" />}
                                   </span>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-[7px] px-1.5 py-0.5 bg-white/5 rounded-sm text-[var(--text-main)]/40 font-bold uppercase tracking-tighter border border-white/5 truncate max-w-[120px]">

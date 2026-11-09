@@ -100,11 +100,30 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
     [comptes]
   );
 
+  // Change à chaque règle créée : le panneau des règles récurrentes se recharge.
+  const [versionRegles, setVersionRegles] = useState(0);
+
   const handleAddPrevision = async () => {
     if (!newPrevi.nom || !newPrevi.montant) return;
 
     // On crée un objet Date à partir de la sélection pour extraire les infos SQL
     const dateObj = new Date(newPrevi.date);
+    if (newPrevi.repeter) {
+      const debut = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-01`;
+      try {
+        await api.post('/api/regles', {
+          type: 'prevision', nom: newPrevi.nom, montant: parseFloat(newPrevi.montant), categorie: newPrevi.categorie || null,
+          compte: newPrevi.compte || null, jour: dateObj.getDate(), debut, fin: newPrevi.fin || null,
+        });
+        toast.success('Prévision ajoutée pour chaque mois.');
+        setNewPrevi({ ...newPrevi, nom: '', montant: '', fin: '', repeter: false });
+        setVersionRegles((v) => v + 1);
+        loadPrevisions();
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'La prévision récurrente n’a pas pu être créée.');
+      }
+      return;
+    }
     const nomMoisLong = dateObj.toLocaleDateString('fr-FR', { month: 'long' });
     // On met la première lettre en majuscule (ex: "février" -> "Février")
     const moisFormate = nomMoisLong.charAt(0).toUpperCase() + nomMoisLong.slice(1);
@@ -380,5 +399,5 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
     loadAvailablePreviPeriods();
   }, [user]);
 
-  return { chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision };
+  return { versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision };
 }

@@ -47,7 +47,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION]
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -286,6 +286,27 @@ class RoutesSurPostgres(unittest.TestCase):
         entetes = {"Authorization": f"Bearer {reponse.json()['access_token']}"}
         self.assertEqual(self.client.get("/auth/test-token", headers=entetes).status_code, 200)
         self.assertFalse(self.client.get("/api/sessions", headers=entetes).json()["disponible"])
+
+    def test_regles_recurrentes_sur_le_schema_alembic(self):
+        from datetime import date
+        debut = str(date.today().replace(day=1))
+        loyer = {"type": "prevision", "nom": "Loyer", "montant": -850, "categorie": "Logement", "compte": "CCP", "jour": 31, "debut": debut}
+        regle = self.client.post("/api/regles", json=loyer).json()["id"]
+        self.client.post("/api/regles", json={"type": "budget", "nom": "Courses", "montant": 320, "compte": "tous", "debut": debut})
+        self.assertEqual(len(self.client.get(f"/previsions/theo/ALL/{date.today().year}").json()) > 0, True)
+        self.assertEqual(len(self.client.get("/api/regles").json()), 2)
+        self.assertEqual(self.client.put(f"/api/regles/{regle}", json={"montant": -870, "sans_fin": True}).status_code, 200)
+        with self.engine.connect() as conn:
+            ligne, jour = conn.execute(text("SELECT id, date FROM previsions WHERE regle_id IS NOT NULL ORDER BY date DESC LIMIT 1")).one()
+        self.assertEqual(self.client.put(f"/previsions/{ligne}", json={"montant": -870, "date": str(jour), "actif": True}).json()["status"], "success")
+        with self.engine.connect() as conn:
+            self.assertIsNotNone(conn.execute(text("SELECT regle_id FROM previsions WHERE id = :i"), {"i": ligne}).scalar())
+        self.assertEqual(self.client.put(f"/api/regles/{regle}", json={"actif": False}).status_code, 200)
+        self.assertEqual(self.client.put(f"/api/regles/{regle}", json={"actif": True}).status_code, 200)
+        self.assertEqual(self.client.delete(f"/api/regles/{regle}").status_code, 200)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT COUNT(*) FROM budgets WHERE regle_id IS NOT NULL")).scalar(), 12)
+            self.assertEqual(conn.execute(text("SELECT COUNT(*) FROM previsions")).scalar(), 1)
 
     def test_lignes_ignorees_sur_le_schema_alembic(self):
         url = "/api/abonnements/ignores"

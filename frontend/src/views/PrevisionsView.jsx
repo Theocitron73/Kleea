@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Calendar, Tag, Wallet, Eye, EyeOff, PieChart as PieChartIcon, TrendingUp, X, Copy, AlertTriangle } from 'lucide-react';
+import { Plus, Calendar, Tag, Wallet, Eye, EyeOff, Repeat, PieChart as PieChartIcon, TrendingUp, X, Copy, AlertTriangle } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import DatePicker from 'react-datepicker';
@@ -11,6 +11,7 @@ import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import toLocalDateString from '../utils/dateUtils';
 
 import { estTransfertInterne } from '../utils/finance';
+import ReglesRecurrentes, { ChoixRepetition, optionsFin } from '../components/ReglesRecurrentes';
 
 // 🟢 Composant Graphique des Prévisions (Exporté pour réutilisation globale)
 export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
@@ -234,6 +235,8 @@ export default function PrevisionsView(props) {
     newPrevi,
     setNewPrevi,
     handleAddPrevision,
+    versionRegles = 0,
+    loadPrevisions,
     selectedIds2 = [],
     handleTryPropagateYear,
     handleTryDuplicate,
@@ -261,6 +264,8 @@ export default function PrevisionsView(props) {
   const [mobileSubTab, setMobileSubTab] = useState('flux'); // 'flux' | 'projections'
   const [editingTx, setEditingTx] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [vueTableau, setVueTableau] = useState('mois'); // 'mois' | 'recurrentes'
+  const [nbRegles, setNbRegles] = useState(0);
 
   const handleOpenEditMobile = (prev) => {
     setEditingTx({ 
@@ -569,6 +574,27 @@ const moisCritiques = useMemo(() => {
                   <div className="w-3.5 h-3.5 rounded-lg bg-white/20 flex items-center justify-center font-bold text-[8px]">+</div>
                 </button>
               </div>
+
+              <div className="col-span-12 flex flex-wrap items-center gap-x-3 gap-y-2 pt-2 border-t border-white/5">
+                <span className="text-[8px] text-[var(--text-main)]/30 uppercase font-black italic leading-none">Répétition</span>
+                <ChoixRepetition valeur={newPrevi.repeter} onChange={(v) => setNewPrevi({ ...newPrevi, repeter: v })} />
+                {newPrevi.repeter && (
+                  <>
+                    <span className="text-[10px] font-bold text-white/60">
+                      le {new Date(newPrevi.date || Date.now()).getDate()} de chaque mois, jusqu’à
+                    </span>
+                    <div className="w-44">
+                      <CustomSelect
+                        value={newPrevi.fin || ''}
+                        icon={Calendar}
+                        options={optionsFin(newPrevi.date)}
+                        onChange={(val) => setNewPrevi({ ...newPrevi, fin: val })}
+                        className="p-2 rounded-xl text-[10px] h-[30px] flex items-center justify-between bg-black/25 border border-white/10 hover:border-white/20"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* TABLEAU & GRAPHIQUE PRÉVU */}
@@ -579,7 +605,26 @@ const moisCritiques = useMemo(() => {
                 <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/5 to-fuchsia-500/5 rounded-[var(--radius)] blur-2xl opacity-50 group-hover:opacity-100 transition duration-1000" />
 
                 <div className="relative h-full flex flex-col bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl shadow-2xl overflow-hidden w-full">
-                  <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar w-full">
+                  <div role="tablist" aria-label="Prévisions" className="flex items-center gap-1 p-1.5 border-b border-white/10 bg-[var(--surface)] relative z-50">
+                    {[['mois', 'Ce mois-ci', previsionsFiltrees.length], ['recurrentes', 'Récurrentes', nbRegles]].map(([id, libelle, nombre]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="tab"
+                        aria-selected={vueTableau === id}
+                        onClick={() => setVueTableau(id)}
+                        className={`flex items-center gap-1.5 px-3 h-[28px] rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors ${vueTableau === id ? 'bg-white text-slate-900' : 'text-white/45 hover:text-white/80'}`}
+                      >
+                        {id === 'recurrentes' && <Repeat size={11} aria-hidden="true" />}
+                        {libelle}
+                        <span className={`text-[8px] ${vueTableau === id ? 'text-slate-500' : 'text-white/30'}`}>{nombre}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div className={`flex-1 overflow-y-auto custom-scrollbar ${vueTableau === 'recurrentes' ? '' : 'hidden'}`}>
+                    <ReglesRecurrentes version={versionRegles} onChange={loadPrevisions} onCount={setNbRegles} />
+                  </div>
+                  <div className={`flex-1 overflow-x-auto overflow-y-auto custom-scrollbar w-full ${vueTableau === 'recurrentes' ? 'hidden' : ''}`}>
                     <table className="w-full text-left border-separate border-spacing-y-1.5 relative z-10 table-fixed min-w-[650px]">
                       <thead className="sticky top-0 z-40 bg-[var(--surface)]">
                         <tr className="bg-[var(--surface)] text-[9px] text-[var(--text-main)]/50 uppercase font-black tracking-wider">
@@ -652,6 +697,11 @@ const moisCritiques = useMemo(() => {
                                       defaultValue={prev.nom.replace('[PRÉVI] ', '')}
                                       onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
                                     />
+                                    {prev.regle_id && (
+                                      <span title="Répétée chaque mois : voir l’onglet Récurrentes" aria-label="Répétée chaque mois" className="shrink-0 text-[var(--secondary)]/80">
+                                        <Repeat size={12} aria-hidden="true" />
+                                      </span>
+                                    )}
                                     {tracking.nbTransactions > 0 && (
                                       <span 
                                         title={`${tracking.nbTransactions} transaction${tracking.nbTransactions > 1 ? 's liées' : ' liée'} : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
@@ -1346,6 +1396,21 @@ const moisCritiques = useMemo(() => {
                     />
                   </div>
 
+                  <div className="space-y-2">
+                    <label className="text-[9px] uppercase font-black text-white/40 block">Répétition</label>
+                    <ChoixRepetition valeur={newPrevi.repeter} onChange={(v) => setNewPrevi({ ...newPrevi, repeter: v })} taille="h-[34px] w-full [&>button]:flex-1 [&>button]:justify-center" />
+                    {newPrevi.repeter && (
+                      <CustomSelect
+                        label={`Le ${new Date(newPrevi.date || Date.now()).getDate()} de chaque mois, jusqu’à`}
+                        value={newPrevi.fin || ''}
+                        icon={Calendar}
+                        options={optionsFin(newPrevi.date)}
+                        onChange={(val) => setNewPrevi({ ...newPrevi, fin: val })}
+                        className="p-2.5 rounded-xl text-[10px]"
+                      />
+                    )}
+                  </div>
+
                   <button 
                     type="button"
                     onClick={() => {
@@ -1358,6 +1423,13 @@ const moisCritiques = useMemo(() => {
                   </button>
                 </div>
               )}
+            </div>
+
+            <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl">
+              <h3 className="flex items-center gap-2 px-4 pt-3 text-[10px] font-black uppercase tracking-wider text-white/80">
+                <Repeat size={12} aria-hidden="true" /> Récurrentes
+              </h3>
+              <ReglesRecurrentes version={versionRegles} onChange={loadPrevisions} />
             </div>
 
             {/* LISTE DES CARTES PRÉVISIONS */}
