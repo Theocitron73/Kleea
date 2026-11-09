@@ -1143,3 +1143,21 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
     transform: none;
   }
 }
+
+/* Page d'accueil : pas de marge réservée à la barre de navigation de l'application. */
+body:has(.page-accueil) {
+  padding: 0 !important;
+  background-color: var(--surface) !important;
+}
+
+/* Page d'accueil : toutes les teintes viennent du thème (--bg-site, --text-main). */
+.page-accueil {
+  --acc-page: var(--surface);
+  --acc-profond: color-mix(in srgb, var(--bg-site) 62%, var(--ink));
+  --acc-carte: var(--bg-site);
+  --acc-ligne: color-mix(in srgb, var(--bg-site) 90%, var(--text-main));
+  --acc-survol: color-mix(in srgb, var(--bg-site) 84%, var(--text-main));
+  --acc-t1: color-mix(in srgb, var(--text-main) 94%, var(--bg-site));
+  --acc-t2: color-mix(in srgb, var(--text-main) 70%, var(--bg-site));
+  --acc-t3: color-mix(in srgb, var(--text-main) 56%, var(--bg-site));
+}

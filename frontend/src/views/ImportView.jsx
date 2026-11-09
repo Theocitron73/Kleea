@@ -450,7 +450,7 @@ export default function ImportView({
                     {isExecutingNow ? <RefreshCw size={18} /> : <Download size={18} />}
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 min-w-0 flex-1 pr-1">
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 min-w-0 flex-1 pr-1">
                     <div className="flex flex-col shrink-0">
                       <h3 className="text-[11px] font-black uppercase tracking-[0.15em] text-[var(--text-main)] leading-tight">
                         Synchroniser
@@ -471,7 +471,7 @@ export default function ImportView({
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 pl-3 flex-1">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 min-w-0 max-w-full ml-auto">
                       {isExecutingNow ? (
                         <span className="text-[8px] font-black text-[var(--secondary)] uppercase tracking-wider animate-pulse">
                           Actualisation...
@@ -482,11 +482,11 @@ export default function ImportView({
                           return (
                             <span 
                               key={accName} 
-                              className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-200 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 shadow-sm"
+                              className="px-2 py-0.5 rounded-md bg-rose-500/20 border border-rose-500/30 text-rose-200 text-[8px] font-bold uppercase tracking-wider flex items-center gap-1.5 min-w-0 max-w-full shadow-sm"
                               title={`${accName} : ${count} nouvelle(s) transaction(s) en attente`}
                             >
-                              <span className="text-white font-black">{accName}</span>
-                              <span className="text-rose-200 font-black bg-rose-500/30 px-1 py-0.2 rounded-sm text-[7px]">
+                              <span className="text-white font-black truncate">{accName}</span>
+                              <span className="text-rose-200 font-black bg-rose-500/30 px-1 py-0.2 rounded-sm text-[7px] shrink-0 whitespace-nowrap">
                                 +{count} Nouvelles
                               </span>
                             </span>
