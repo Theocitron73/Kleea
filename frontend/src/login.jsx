@@ -692,7 +692,7 @@ const { checkNewTransactions, confirmBatchImport, fetchPowensConnections, handle
 
 
 
-const { chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision } = usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user });
+const { versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision } = usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user });
 
 
 // --- 1. Tes States (Assure-toi que l'ordre est respecté) ---
@@ -1152,6 +1152,8 @@ if (!user) {
     newPrevi={newPrevi}
     setNewPrevi={setNewPrevi}
     handleAddPrevision={handleAddPrevision}
+    versionRegles={versionRegles}
+    loadPrevisions={loadPrevisions}
     selectedIds2={selectedIds2}
     handleTryPropagateYear={handleTryPropagateYear}
     handleTryDuplicate={handleTryDuplicate}

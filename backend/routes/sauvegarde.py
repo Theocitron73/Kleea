@@ -183,6 +183,11 @@ TABLES = (
         ("nom",), serie=True,
     ),
     Table("abonnements_ignores", "Abonnements ignorés", (_requis("abonnement_id", 200), _instant("created_at")), ("abonnement_id",)),
+    Table(
+        "regles_recurrentes", "Prévisions et budgets récurrents",
+        (_requis("type", 20), _requis("nom"), _nombre("montant", True), _texte("categorie"), _texte("compte"), _entier("jour"), _jour("debut", True), _jour("fin"), _booleen("actif"), _jour("genere_jusqu_a")),
+        ("type", "nom", "debut"), serie=True,
+    ),
     Table("alertes_masquees", "Alertes masquées", (_requis("alerte_id", 200), _instant("created_at")), ("alerte_id",)),
 )
 
@@ -201,6 +206,8 @@ TABLES_ECARTEES = {
     "security_rate_limits": "sécurité du site, sans lien avec un compte",
 }
 COLONNES_ECARTEES = {
+    "previsions": {"regle_id": "lien vers une règle récurrente : une ligne restaurée devient indépendante"},
+    "budgets": {"regle_id": "lien vers une règle récurrente : une ligne restaurée devient indépendante"},
     "tricount": {"token_partage": "secret : ce lien donne accès au groupe sans compte, il se recrée avec « Partager »"},
     "users": {
         "password": "secret",

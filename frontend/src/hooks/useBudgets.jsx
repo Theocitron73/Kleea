@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import api from '../axios';
+import { toast } from 'sonner';
 import { calculerJaugesBudget } from '../utils/calculsAnalyse';
 
 // Budgets : chargement, modification et jauges.
@@ -41,6 +42,30 @@ export default function useBudgets({ activeTab, comptesDuProfil, filters, statsC
 
   const handleAddBudget = async (e) => {
     if (e) e.preventDefault();
+
+    if (formBudget.repeter) {
+      if (!formBudget.nom || !formBudget.somme) {
+        toast.warning('Choisissez une catégorie et un montant.');
+        return;
+      }
+      // Le budget vaut à partir du mois choisi, puis chaque mois : la règle crée elle-même les mois à venir.
+      const MOIS = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre'];
+      const nomMois = String(formBudget.mois || filters.mois || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const numero = MOIS.indexOf(nomMois) + 1 || new Date().getMonth() + 1;
+      const annee = Number(filters.annee) || new Date().getFullYear();
+      try {
+        await api.post('/api/regles', {
+          type: 'budget', nom: String(formBudget.nom), montant: parseFloat(formBudget.somme) || 0,
+          compte: String(formBudget.compte || 'tous'), debut: `${annee}-${String(numero).padStart(2, '0')}-01`,
+        });
+        toast.success(`Budget ${formBudget.nom} fixé pour chaque mois.`);
+        setFormBudget({ ...formBudget, nom: '', somme: '', repeter: false });
+        await loadBudgets(activeTab === 'gerer');
+      } catch (err) {
+        toast.error(err.response?.data?.detail || 'Le budget récurrent n’a pas pu être créé.');
+      }
+      return;
+    }
     
     const budgetData = {
       utilisateur: String(user || "theo"), 
