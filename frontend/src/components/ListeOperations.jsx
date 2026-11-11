@@ -102,6 +102,7 @@ export default function ListeOperations({
     // Chaque réglage a sa colonne, de largeur fixe, avec la liste déroulante commune à tout le site.
     const SELECT = 'px-2.5 h-8 rounded-xl';
     const RELIE = '!bg-emerald-500/15 !text-emerald-300'; // Opération reliée à une prévision ou une enveloppe
+    const VIDE = '!text-[var(--text-main)]/45'; // Rien de relié : la case dit à quoi elle sert, en retrait
     const previsions = previsionsPour(t);
     if (prevision && !previsions.some((p) => p.id === prevision.id)) previsions.unshift(prevision);
     const projets = [...new Set(allocations.map((a) => a.projet))];
@@ -143,9 +144,9 @@ export default function ListeOperations({
     );
     const selPrevision = !transfert && (
       <CustomSelect flottant ariaLabel="Prévision reliée" value={t.prevision_id ?? ''} icon={Link2}
-        options={[{ v: '', l: 'Aucune' }, ...previsions.map((p) => ({ v: p.id, l: `${nomPrevision(p)} (${Math.round(Math.abs(parseFloat(p.montant) || 0))} €)`, court: nomPrevision(p) }))]}
+        options={[{ v: '', l: 'Aucune', court: 'Prévision' }, ...previsions.map((p) => ({ v: p.id, l: `${nomPrevision(p)} (${Math.round(Math.abs(parseFloat(p.montant) || 0))} €)`, court: nomPrevision(p) }))]}
         onChange={(v) => updateCell(t.id, 'prevision_id', v === '' ? null : v)}
-        className={`${SELECT} ${prevision ? RELIE : ''}`} />
+        className={`${SELECT} ${prevision ? RELIE : VIDE}`} />
     );
     const selMois = (
       <CustomSelect flottant ariaLabel="Mois affecté" value={t.mois} icon={Calendar}
@@ -154,9 +155,9 @@ export default function ListeOperations({
     );
     const selEnveloppe = (
       <CustomSelect flottant ariaLabel="Enveloppe" value={t.enveloppe || ''} icon={WalletCards}
-        options={[{ v: '', l: 'Aucune' }, ...projets.map((n) => ({ v: n, l: n }))]}
+        options={[{ v: '', l: 'Aucune', court: 'Enveloppe' }, ...projets.map((n) => ({ v: n, l: n }))]}
         onChange={(v) => updateCell(t.id, 'enveloppe', v)}
-        className={`${SELECT} ${t.enveloppe ? RELIE : ''}`} />
+        className={`${SELECT} ${t.enveloppe ? RELIE : VIDE}`} />
     );
     const division = t.split_id ? (
       <button type="button" title="Annuler la division" aria-label="Annuler la division" onClick={() => onAnnulerDivision(t)} className={`${PASTILLE} w-9 justify-center shrink-0 bg-[var(--secondary)]/15 text-[var(--secondary)] hover:text-rose-300`}>
@@ -245,7 +246,7 @@ export default function ListeOperations({
         <div className="w-40 shrink-0" title="Catégorie">{selCategorie}</div>
         <div className="w-36 shrink-0" title={transfert ? 'Un virement entre vos comptes ne se relie pas à une prévision' : 'Prévision reliée'}>{selPrevision}</div>
         <div className="w-32 shrink-0" title={moisDecale ? `Compté en ${t.mois}` : 'Mois affecté'}>{selMois}</div>
-        <div className="w-32 shrink-0" title="Enveloppe">{selEnveloppe}</div>
+        <div className="w-36 shrink-0" title="Enveloppe">{selEnveloppe}</div>
         {division}
         {leMontant}
       </div>
