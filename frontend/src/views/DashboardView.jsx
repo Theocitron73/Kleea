@@ -1610,7 +1610,7 @@ export default function DashboardView(props) {
                     </div>
                   </div>
 
-                  <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0.5 xl:gap-1 min-[1500px]:gap-1.5">
+                  <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0 xl:gap-1 min-[1500px]:gap-1.5">
                     {Object.keys(TAB_CONFIG).map((tab) => {
                       const config = TAB_CONFIG[tab];
                       const IconComponent = config.icon;
@@ -1625,7 +1625,7 @@ export default function DashboardView(props) {
                             setSearchTerm('');
                           }}
                           title={config.label}
-                          className={`w-6 h-6 xl:w-7 xl:h-7 min-[1500px]:w-8 min-[1500px]:h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-300 cursor-pointer ${config.className} ${
+                          className={`w-5 h-6 xl:w-7 xl:h-7 min-[1500px]:w-8 min-[1500px]:h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-300 cursor-pointer ${config.className} ${
                             isActive 
                               ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md border border-white/5' 
                               : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
