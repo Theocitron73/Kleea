@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 
+// Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
+export const VERSION_SITE = "4.5";
+
 // Affichage des notes de version.
 export default function useNotesVersion({ user }) {
   const [showPatchModal, setShowPatchModal] = useState(false);
 
-  // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-  const CURRENT_VERSION = "4.5"; 
+  const CURRENT_VERSION = VERSION_SITE;
 
   useEffect(() => {
     if (!user) return;

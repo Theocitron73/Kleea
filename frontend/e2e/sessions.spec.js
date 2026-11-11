@@ -153,3 +153,8 @@ test('changer de mot de passe demande l’actuel et annonce les appareils décon
   await expect(page.getByText('Mot de passe modifié. Vos 2 autres appareils ont été déconnectés.')).toBeVisible();
   expect(serveur.motDePasse).toEqual({ current_password: 'actuel', new_password: 'NouveauMotDePasse1!' });
 });
+
+test('le bas du profil donne la version du site et la date de sa dernière mise à jour', async ({ page }) => {
+  await ouvrir(page);
+  await expect(page.getByText(/^Kleea 4\.5 · mis à jour le \d{1,2} \S+ \d{4} à \d{2}:\d{2}$/)).toBeVisible();
+});

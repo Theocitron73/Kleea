@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Date de la construction du site, affichée en bas du profil comme date de dernière mise à jour.
+  define: { 'import.meta.env.VITE_DATE_MISE_A_JOUR': JSON.stringify(new Date().toISOString()) },
   plugins: [
     react(),
     VitePWA({
@@ -39,7 +41,15 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // La page elle-même n'est pas mise en cache d'avance : prise sur le réseau, elle annonce toujours la dernière version
+        // dès l'ouverture du site. Le cache ne sert qu'hors ligne. Les fichiers JS et CSS, nommés par leur contenu, restent en cache.
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+        navigateFallback: null,
+        runtimeCaching: [{
+          urlPattern: ({ request }) => request.mode === 'navigate',
+          handler: 'NetworkFirst',
+          options: { cacheName: 'pages', networkTimeoutSeconds: 4 },
+        }],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         cleanupOutdatedCaches: true, // Supprime les vieux bundles JS une fois la nouvelle version active
       }
