@@ -1,7 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
-// En local, Edge évite de télécharger un navigateur ; la CI installe Chromium.
-const canal = process.env.CI ? undefined : 'msedge';
+// Aucun navigateur à télécharger : Edge en local, et en CI le Google Chrome déjà installé sur les machines Ubuntu de GitHub
+// (installer Chromium y passait par apt, qui bloquait parfois plus de 10 minutes).
+const canal = process.env.CI ? 'chrome' : 'msedge';
 
 export default defineConfig({
   testDir: './e2e',
