@@ -21,13 +21,13 @@ async function ouvrirGerer(page) {
 }
 
 async function supprimerLaPremiere(page) {
-  await page.locator('table input[type="checkbox"]').locator('visible=true').nth(1).check();
+  await page.getByRole('region', { name: 'Opérations' }).locator('input[type="checkbox"]').locator('visible=true').nth(1).check();
   await page.getByRole('button', { name: /supprimer/i }).locator('visible=true').first().click();
 }
 
 test('annuler une suppression rend la transaction et n’appelle jamais le serveur', async ({ page }) => {
   const suppressions = await ouvrirGerer(page);
-  const lignes = page.locator('table input[type="checkbox"]').locator('visible=true');
+  const lignes = page.getByRole('region', { name: 'Opérations' }).locator('input[type="checkbox"]').locator('visible=true');
   const avant = await lignes.count();
   await supprimerLaPremiere(page);
   await expect(lignes).toHaveCount(avant - 1);

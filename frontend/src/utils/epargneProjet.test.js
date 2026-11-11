@@ -175,3 +175,44 @@ test('noms de mois et filtres', () => {
   assert.equal(moisCibleDepuisFiltres({}, aujourdhui), '2026-11');
   assert.equal(moisCibleDepuisFiltres({ annee: 2026, mois: 'n\'importe quoi' }, aujourdhui), '2026-11');
 });
+
+import { effortPourTenir, projeterProjets, rythmeEpargne } from './epargneProjet.js';
+
+test('le rythme est la moyenne des mois écoulés connus, sans le mois en cours', () => {
+  const epargne = { '2026-05': 300, '2026-06': 500, '2026-07': 400, '2026-10': 600, '2026-11': 9999 };
+  assert.deepEqual(rythmeEpargne(epargne, '2026-11'), { moyenne: 450, mois: 4 });
+  assert.deepEqual(rythmeEpargne({ '2025-12': 200, '2026-01': 400 }, '2026-02'), { moyenne: 300, mois: 2 });
+  assert.equal(rythmeEpargne({}, '2026-11'), null);
+});
+
+test('les projets sont atteints l’un après l’autre, dans l’ordre de priorité', () => {
+  const japon = projet(1, { cout: 4500, apport_epargne: 1800, date: '2027-09-01' });
+  const velo = projet(2, { cout: 1600, apport_epargne: 900, date: '2027-03-01' });
+  const r = projeterProjets({ projets: [japon, velo], rythme: 430, moisCourant: '2026-11' });
+  // Japon : 2 700 € à 430 €/mois → atteint en juin 2027 avec 120 € ; le vélo reçoit les 310 € restants de juin, puis 430 € en juillet.
+  assert.equal(r[japon.cle].moisAtteint, '2027-06');
+  assert.equal(r[japon.cle].ecart, -3);
+  assert.equal(r[velo.cle].moisAtteint, '2027-07');
+  assert.equal(r[velo.cle].ecart, 4);
+});
+
+test('un projet déjà financé, ou sans épargne, ou qui n’a pas commencé', () => {
+  const fini = projet(1, { cout: 1000, apport_epargne: 1000 });
+  const futur = projet(2, { cout: 600, date_debut: '2027-03-01', date: null });
+  assert.equal(projeterProjets({ projets: [fini], rythme: 100, moisCourant: '2026-11' })[fini.cle].deja, true);
+  assert.equal(projeterProjets({ projets: [futur], rythme: 0, moisCourant: '2026-11' })[futur.cle].moisAtteint, null);
+  const r = projeterProjets({ projets: [futur], rythme: 300, moisCourant: '2026-11' })[futur.cle];
+  assert.deepEqual([r.moisAtteint, r.ecart], ['2027-04', null]);
+});
+
+test('l’effort pour tenir l’échéance', () => {
+  const japon = projet(1, { cout: 4500, apport_epargne: 1800, date: '2027-09-01' });
+  const velo = projet(2, { cout: 1600, apport_epargne: 900, date: '2027-03-01' });
+  const args = { projets: [japon, velo], rythme: 430, moisCourant: '2026-11' };
+  assert.equal(effortPourTenir({ ...args, cle: japon.cle }), 0);
+  const effort = effortPourTenir({ ...args, cle: velo.cle });
+  assert.ok(effort > 0);
+  const tenu = projeterProjets({ ...args, rythme: 430 + effort })[velo.cle];
+  assert.ok(tenu.moisAtteint <= '2027-03');
+  assert.equal(effortPourTenir({ ...args, cle: projet(3, { date: null }).cle }), null);
+});

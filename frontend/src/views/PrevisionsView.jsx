@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import ListePrevisions from '../components/ListePrevisions';
+import AnalyseCategories from '../components/AnalyseCategories';
+import { useState, useMemo } from 'react';
 import { Plus, Calendar, Tag, Wallet, Eye, EyeOff, Repeat, PieChart as PieChartIcon, TrendingUp, X, Copy, AlertTriangle } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
@@ -14,206 +16,6 @@ import { estTransfertInterne } from '../utils/finance';
 import ReglesRecurrentes, { ChoixRepetition, optionsFin } from '../components/ReglesRecurrentes';
 
 // 🟢 Composant Graphique des Prévisions (Exporté pour réutilisation globale)
-export const PrevisionsChartView = ({ data, themeColor = "#f43f5e" }) => {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsMobile(window.innerWidth < 768);
-      const handleResize = () => setIsMobile(window.innerWidth < 768);
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }
-  }, []);
-
-  if (!data || data.length === 0) return (
-    <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/20 text-[10px] uppercase font-black italic py-8">
-      Aucune dépense prévisionnelle
-    </div>
-  );
-
-  const total = data.reduce((acc, curr) => acc + (curr.value || 0), 0);
-  const maxVal = Math.max(...data.map(d => d.value), 1);
-
-  if (isMobile) {
-    return (
-      <div className="w-full flex flex-col min-h-[420px] select-none animate-in fade-in duration-200">
-        <div className="flex items-center justify-between px-1 pb-3 mb-3 border-b border-white/10 shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-white/50">
-              Répartition des dépenses
-            </span>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-white/5 text-white/40 font-mono">
-              {data.length}
-            </span>
-          </div>
-          <span className="text-xs font-bold text-white/70">
-            Total : <strong className="font-black text-sm ml-1" style={{ color: themeColor }}>{Math.round(total).toLocaleString('fr-FR')} €</strong>
-          </span>
-        </div>
-
-        <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2.5 pr-1 min-h-[340px] max-h-[520px]">
-          {data.map((entry, idx) => {
-            const percentOfTotal = total > 0 ? ((entry.value / total) * 100).toFixed(0) : 0;
-            const percentOfMax = Math.min(100, Math.round((entry.value / maxVal) * 100));
-
-            return (
-              <div 
-                key={`mob-previ-${idx}`} 
-                className="p-3 rounded-2xl bg-white/[0.03] border border-white/5 space-y-2 hover:bg-white/[0.06] transition-all"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <CategoryIcon name={entry.name} size={15} />
-                    <span className="text-xs font-bold text-white truncate uppercase tracking-tight">
-                      {getCleanCategoryName(entry.name)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-xs font-mono font-black text-white">
-                      {Math.round(entry.value).toLocaleString('fr-FR')} €
-                    </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-white/60 font-mono">
-                      {percentOfTotal}%
-                    </span>
-                  </div>
-                </div>
-
-                <div className="h-2 w-full bg-black/50 rounded-full overflow-hidden border border-white/5">
-                  <div 
-                    className="h-full rounded-full transition-all duration-700 ease-out"
-                    style={{ 
-                      width: `${percentOfMax}%`,
-                      background: `linear-gradient(90deg, ${themeColor}99, ${themeColor})`,
-                      boxShadow: `0 0 8px ${themeColor}44`
-                    }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  const CustomYAxisTick = ({ x, y, payload }) => {
-    const name = payload.value;
-    const cleanName = getCleanCategoryName(name);
-    const limit = 13;
-    const displayName = cleanName.length > limit 
-      ? `${cleanName.substring(0, limit - 1)}.` 
-      : cleanName;
-
-    const iconSize = 14;
-    const iconOffset = -112;
-    const textOffset = -90;
-
-    return (
-      <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
-        <foreignObject 
-          x={iconOffset} 
-          y={-iconSize / 2} 
-          width={iconSize} 
-          height={iconSize}
-          style={{ overflow: 'visible' }}
-        >
-          <div className="w-full h-full flex items-center justify-center">
-            <CategoryIcon name={name} size={iconSize} />
-          </div>
-        </foreignObject>
-
-        <text 
-          x={textOffset} 
-          y={3.5} 
-          textAnchor="start" 
-          fill="color-mix(in srgb, var(--text-main) 75%, transparent)" 
-          fontSize={9} 
-          fontWeight="bold"
-          className="uppercase tracking-tight"
-        >
-          {displayName}
-        </text>
-      </g>
-    );
-  };
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const p = payload[0].payload;
-      return (
-        <div className="bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-2.5 rounded-xl shadow-2xl z-50 flex items-center gap-2.5">
-          <CategoryIcon name={p.name} size={15} />
-          <div>
-            <p className="text-[9px] font-black uppercase text-white/50 tracking-wider">
-              {getCleanCategoryName(p.name)}
-            </p>
-            <p className="text-xs font-black text-white font-mono mt-0.5">
-              {Number(p.value).toLocaleString('fr-FR')} €
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  return (
-    <div className="h-full w-full min-h-0 relative select-none">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart 
-          data={data} 
-          layout="vertical" 
-          margin={{ top: 5, right: 48, left: 8, bottom: 5 }}
-        >
-          <defs>
-            <linearGradient id="colorPrevi" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={themeColor} stopOpacity={0.15}/>
-              <stop offset="100%" stopColor={themeColor} stopOpacity={0.9}/>
-            </linearGradient>
-          </defs>
-
-          <XAxis type="number" hide />
-          
-          <YAxis 
-            dataKey="name" 
-            type="category" 
-            axisLine={false}
-            tickLine={false}
-            interval={0}
-            width={118}
-            tick={<CustomYAxisTick />}
-          />
-
-          <Tooltip 
-            cursor={{ fill: 'color-mix(in srgb, var(--text-main) 3%, transparent)' }} 
-            content={<CustomTooltip />} 
-          />
-
-          <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={14}>
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill="url(#colorPrevi)" />
-            ))}
-            <LabelList 
-              dataKey="value" 
-              position="right" 
-              offset={6}
-              formatter={(val) => `${Math.round(val)}€`} 
-              style={{ 
-                fill: 'color-mix(in srgb, var(--text-main) 65%, transparent)', 
-                fontSize: 9, 
-                fontWeight: '900', 
-                fontFamily: 'monospace' 
-              }} 
-            />
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-};
-
 export default function PrevisionsView(props) {
   const {
     user,
@@ -547,7 +349,7 @@ const moisCritiques = useMemo(() => {
                   icon={Tag}
                   options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
                   onChange={(val) => setNewPrevi({ ...newPrevi, categorie: val })}
-                  className="p-2.5 rounded-xl text-[10px] h-[34px] flex items-center justify-between bg-black/25 border border-white/10 hover:border-white/20 focus-within:border-[var(--primary)]/50"
+                  className="p-2.5 rounded-xl text-[10px] h-[34px]"
                 />
               </div>
 
@@ -559,7 +361,7 @@ const moisCritiques = useMemo(() => {
                   icon={Wallet}
                   options={optionsComptes}
                   onChange={(val) => setNewPrevi({ ...newPrevi, compte: val })}
-                  className="p-2.5 rounded-xl text-[10px] h-[34px] flex items-center justify-between bg-black/25 border border-white/10 hover:border-white/20 focus-within:border-[var(--primary)]/50"
+                  className="p-2.5 rounded-xl text-[10px] h-[34px]"
                 />
               </div>
 
@@ -589,7 +391,7 @@ const moisCritiques = useMemo(() => {
                         icon={Calendar}
                         options={optionsFin(newPrevi.date)}
                         onChange={(val) => setNewPrevi({ ...newPrevi, fin: val })}
-                        className="p-2 rounded-xl text-[10px] h-[30px] flex items-center justify-between bg-black/25 border border-white/10 hover:border-white/20"
+                        className="p-2 rounded-xl text-[10px] h-[30px]"
                       />
                     </div>
                   </>
@@ -625,213 +427,21 @@ const moisCritiques = useMemo(() => {
                     <ReglesRecurrentes version={versionRegles} onChange={loadPrevisions} onCount={setNbRegles} />
                   </div>
                   <div className={`flex-1 overflow-x-auto overflow-y-auto custom-scrollbar w-full ${vueTableau === 'recurrentes' ? 'hidden' : ''}`}>
-                    <table className="w-full text-left border-separate border-spacing-y-1.5 relative z-10 table-fixed min-w-[650px]">
-                      <thead className="sticky top-0 z-40 bg-[var(--surface)]">
-                        <tr className="bg-[var(--surface)] text-[9px] text-[var(--text-main)]/50 uppercase font-black tracking-wider">
-                          <th className="sticky top-0 z-40 py-3 px-3 w-14 text-center border-b border-white/10 bg-[var(--surface)]">
-                            <input 
-                              type="checkbox"
-                              checked={previsionsFiltrees.length > 0 && selectedIds2.length === previsionsFiltrees.length}
-                              onChange={toggleAll2}
-                              className="w-4 h-4 rounded-sm border-white/20 bg-black/60 text-emerald-500 cursor-pointer"
-                            />
-                          </th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[26%] border-b border-white/10 bg-[var(--surface)]">Libellé</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[var(--surface)]">Catégorie</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] border-b border-white/10 bg-[var(--surface)]">Compte</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[18%] text-right border-b border-white/10 bg-[var(--surface)]">Montant</th>
-                          <th className="sticky top-0 z-40 py-3 px-3 w-[20%] text-right border-b border-white/10 pr-4 bg-[var(--surface)]">Date</th>
-                        </tr>
-                      </thead>
-
-                      <tbody className="before:content-[''] before:block before:h-1">
-                        {previsionsFiltrees.length > 0 ? (
-                          previsionsFiltrees.map((prev) => {
-                            const isSelected = selectedIds2.includes(prev.id);
-                            const isTransfert = estTransfertInterne(prev.nom, prev.categorie);
-                            const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
-
-                            const tracking = (typeof previsionsTracking !== 'undefined' && previsionsTracking?.[prev.id]) || (() => {
-                              const montantAbs = Math.abs(parseFloat(prev.montant) || 0);
-                              const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
-                              const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-                              const restant = montantAbs - consomme;
-                              const depasse = consomme > montantAbs;
-                              const pct = montantAbs > 0 ? Math.min(100, Math.round((consomme / montantAbs) * 100)) : 0;
-                              return { consomme, restant, depasse, pct, nbTransactions: liees.length, transactions: liees };
-                            })();
-
-                            return (
-                              <tr 
-                                key={prev.id} 
-                                className={`
-                                  group transition-all duration-300 
-                                  ${isSelected ? 'bg-transparent' : 'hover:[&>td]:bg-white/[0.04]'}
-                                  ${!isActif ? 'opacity-30 hover:opacity-70 saturate-50' : ''}
-                                `}
-                              >
-                                <td className={`p-1.5 border-y border-l border-white/5 text-center relative rounded-l-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                                  <div className="flex items-center justify-center gap-1.5">
-                                    <input 
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => toggleSelect2(prev.id)}
-                                      className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer relative z-10"
-                                    />
-                                    
-                                    <button
-                                      type="button"
-                                      onClick={() => updatePrevision(prev.id, 'actif', !isActif)}
-                                      title={isActif ? "Désactiver du graphique et des calculs" : "Réactiver la transaction"}
-                                      className={`p-1 rounded-md transition-all cursor-pointer ${isActif ? 'text-white/20 hover:text-white/60 hover:bg-white/5' : 'text-rose-400 hover:text-rose-300 bg-rose-500/10'}`}
-                                    >
-                                      {isActif ? <Eye size={11} /> : <EyeOff size={11} />}
-                                    </button>
-                                  </div>
-                                </td>
-
-                                <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                                  <div className="flex items-center gap-1.5 w-full">
-                                    <input 
-                                      className={`input-libelle bg-white/[0.04] border border-white/5 focus:border-emerald-500/40 rounded-lg px-2.5 py-1 text-[10.5px] text-[var(--text-main)] font-black uppercase w-full outline-none transition-all ${!isActif ? 'line-through opacity-60' : ''}`}
-                                      defaultValue={prev.nom.replace('[PRÉVI] ', '')}
-                                      onBlur={(e) => updatePrevision(prev.id, 'nom', `[PRÉVI] ${e.target.value}`)}
-                                    />
-                                    {prev.regle_id && (
-                                      <span title="Répétée chaque mois : voir l’onglet Récurrentes" aria-label="Répétée chaque mois" className="shrink-0 text-[var(--secondary)]/80">
-                                        <Repeat size={12} aria-hidden="true" />
-                                      </span>
-                                    )}
-                                    {tracking.nbTransactions > 0 && (
-                                      <span 
-                                        title={`${tracking.nbTransactions} transaction${tracking.nbTransactions > 1 ? 's liées' : ' liée'} : ${tracking.consomme.toFixed(2)}€ déjà enregistrés`}
-                                        className="px-1.5 py-0.5 rounded-sm bg-secondary-500/20 text-secondary-300 border border-secondary-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0"
-                                      >
-                                        {tracking.nbTransactions} {tracking.nbTransactions > 1 ? 'liées' : 'liée'}
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-
-                                <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                                  <CustomSelect 
-                                    value={prev.categorie} 
-                                    options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))} 
-                                    icon={Tag} 
-                                    onChange={(val) => updatePrevision(prev.id, 'categorie', val)} 
-                                    className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
-                                  />
-                                </td>
-
-                                <td className={`px-2 py-1.5 border-y border-white/5 overflow-visible ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                                  <CustomSelect 
-                                    value={prev.compte} 
-                                    options={optionsComptes} 
-                                    icon={Wallet} 
-                                    onChange={(val) => updatePrevision(prev.id, 'compte', val)} 
-                                    className="p-1.5 rounded-xl text-[9.5px] h-[28px] flex items-center justify-between bg-white/[0.04] border border-white/5 hover:border-white/20 focus-within:border-[var(--primary)]/50"
-                                  />
-                                </td>
-
-                                <td className={`px-2 py-1.5 border-y border-white/5 ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                                  {(() => {
-                                    const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
-                                    const montantPrevu = Math.abs(parseFloat(prev.montant) || 0);
-                                    const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
-                                    const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-                                    
-                                    const diff = montantPrevu - consomme;
-                                    const diffArrondie = Math.round(Math.abs(diff));
-                                    const estRegle = Math.abs(diff) < 0.5;
-                                    const estDepasse = diff <= -0.5;
-                                    const pct = montantPrevu > 0 ? Math.min(100, Math.round((consomme / montantPrevu) * 100)) : 0;
-
-                                    return (
-                                      <div className="flex flex-col gap-1">
-                                        <div className="amount-box flex items-center bg-white/[0.04] border border-white/5 rounded-xl px-2.5 h-[28px] transition-all duration-300">
-                                          <input 
-                                            type="number"
-                                            className="bg-transparent border-none outline-none text-right font-black w-full text-[11px] leading-none"
-                                            style={{ 
-                                              color: isTransfert 
-                                                ? 'var(--secondary)' 
-                                                : isRevenu
-                                                  ? `${userTheme.color_revenus || '#10b981'}e6` 
-                                                  : `${userTheme.color_depenses || '#f43f5e'}e6` 
-                                            }}
-                                            defaultValue={prev.montant}
-                                            onBlur={(e) => updatePrevision(prev.id, 'montant', parseFloat(e.target.value))}
-                                          />
-                                          <span className="ml-1 text-[8px] font-bold opacity-30 leading-none">€</span>
-                                        </div>
-
-                                        {liees.length > 0 ? (
-                                          <div className="flex flex-col gap-0.5 px-1">
-                                            <div className="flex items-center justify-between text-[7.5px] font-black uppercase tracking-tight">
-                                              <span className="text-white/40">
-                                                {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{consomme.toFixed(0)}€</strong>
-                                              </span>
-
-                                              {estRegle ? (
-                                                <span className="text-emerald-400 font-black flex items-center gap-0.5">
-                                                  <span>✓</span> {isRevenu ? '100% perçu' : '100% réglé'}
-                                                </span>
-                                              ) : estDepasse ? (
-                                                <span className={isRevenu ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
-                                                  {isRevenu ? `+${diffArrondie}€ surplus` : `Dépassé (+${diffArrondie}€)`}
-                                                </span>
-                                              ) : (
-                                                <span className={isRevenu ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
-                                                  {isRevenu ? `Attendu: ${Math.round(diff)}€` : `Reste: ${Math.round(diff)}€`}
-                                                </span>
-                                              )}
-                                            </div>
-                                            
-                                            <div className="h-1 w-full bg-black/40 rounded-full overflow-hidden border border-white/5">
-                                              <div 
-                                                className={`h-full rounded-full transition-all duration-500 ${
-                                                  estRegle
-                                                    ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]'
-                                                    : estDepasse 
-                                                      ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' 
-                                                      : isRevenu
-                                                        ? 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.3)]' 
-                                                        : 'bg-indigo-500 shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_30%,transparent)]'
-                                                }`}
-                                                style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
-                                              />
-                                            </div>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center justify-end px-1">
-                                            <span className="text-[7.5px] font-bold text-white/20 uppercase tracking-widest italic">
-                                              0 liée
-                                            </span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })()}
-                                </td>
-
-                                <td className={`px-3 py-1.5 border-y border-r border-white/5 text-right rounded-r-xl ${isSelected ? 'bg-emerald-500/15' : 'bg-[var(--glass-bg)]'} transition-colors duration-300`}>
-                                  <div className="inline-flex items-center gap-1.5 bg-white/[0.04] border border-white/5 rounded-xl px-2 h-[28px] focus-within:border-emerald-500/50 transition-all">
-                                    <Calendar size={11} className="text-[var(--text-main)]/30" />
-                                    <DatePicker
-                                      selected={prev.date ? new Date(prev.date) : null}
-                                      onChange={(date) => updatePrevision(prev.id, 'date', date)}
-                                      dateFormat="dd/MM/yyyy"
-                                      portalId="root" 
-                                      className="bg-transparent border-none outline-none text-[9.5px] font-black text-[var(--text-main)] w-18 text-right cursor-pointer"
-                                    />
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        ) : (
-                          <tr>
-                            <td colSpan="6" className="py-24">
+                    {previsionsFiltrees.length > 0 ? (
+                      <ListePrevisions
+                        previsions={previsionsFiltrees}
+                        selectedIds={selectedIds2}
+                        toggleSelect={toggleSelect2}
+                        toggleAll={toggleAll2}
+                        updatePrevision={updatePrevision}
+                        categoriesVisibles={categoriesVisibles}
+                        optionsComptes={optionsComptes}
+                        toutesLesTransactions={toutesLesTransactions}
+                        previsionsTracking={previsionsTracking}
+                        userTheme={userTheme}
+                      />
+                    ) : (
+                            <div className="py-24">
                               <div className="flex flex-col items-center justify-center text-center px-4">
                                 <div className="relative mb-6">
                                   <div className="absolute inset-0 bg-[var(--primary)]/20 blur-2xl rounded-full" />
@@ -846,11 +456,8 @@ const moisCritiques = useMemo(() => {
                                   Aucun mouvement programmé pour cette période. <br/>Ajoutez des prévisions pour anticiper vos dépenses.
                                 </p>
                               </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                            </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -863,10 +470,7 @@ const moisCritiques = useMemo(() => {
                 </div>
                 
                 <div className="flex-1 w-full">
-                  <PrevisionsChartView 
-                    data={chartDataPrevisions} 
-                    themeColor={userTheme?.color_depenses} 
-                  />
+                  <AnalyseCategories statsCategories={chartDataPrevisions} libelle="Dépenses prévues par catégorie" />
                 </div>
               </div>
             </div>
@@ -1582,10 +1186,7 @@ const moisCritiques = useMemo(() => {
                 </div>
 
                 <div className="min-h-[420px] w-full">
-                  <PrevisionsChartView 
-                    data={chartDataPrevisions} 
-                    themeColor={userTheme?.color_depenses} 
-                  />
+                  <AnalyseCategories statsCategories={chartDataPrevisions} libelle="Dépenses prévues par catégorie" />
                 </div>
               </div>
             )}

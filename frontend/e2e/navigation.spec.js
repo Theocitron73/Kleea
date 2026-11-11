@@ -79,9 +79,16 @@ test('les notes de version s’ouvrent et se ferment', async ({ page }) => {
   await demarrer(page);
   await page.evaluate(() => localStorage.clear());
   await page.evaluate((u) => { localStorage.setItem('user', u); localStorage.setItem('token', 'jeton-de-test'); }, UTILISATEUR);
-  await page.addInitScript(() => localStorage.removeItem(`patch_view_count_v4.4_testeur`));
+  await page.addInitScript(() => localStorage.removeItem(`patch_view_count_v4.5_testeur`));
   await page.reload();
   await expect(page.locator('.fixed.inset-0.z-\\[10000\\]').first()).toBeVisible({ timeout: 15_000 });
+  // La 4.5 s'ouvre ; les notes de la 4.4 restent dans leur onglet.
+  await expect(page.getByRole('tab', { name: 'v4.5' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tabpanel')).toContainText('Compte commun');
+  await page.getByRole('tab', { name: 'v4.4' }).click();
+  await expect(page.getByRole('tabpanel')).toContainText('Double authentification');
+  await page.getByRole('tab', { name: 'v4.5' }).click();
+  await page.screenshot({ path: 'test-results/notes-de-version.png' });
   expect(erreurs).toEqual([]);
 });
 

@@ -97,7 +97,7 @@ test('avec plusieurs profils, le résultat s’ouvre sur le profil de son compte
   await ouvrirSession(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Rechercher' }).locator('visible=true').first().waitFor({ timeout: 30_000 });
-  const lignes = page.locator('table input[type="checkbox"]').locator('visible=true');
+  const lignes = page.getByRole('region', { name: 'Opérations' }).locator('input[type="checkbox"]').locator('visible=true');
 
   await page.keyboard.press('Control+k');
   await champ(page).fill('restau');

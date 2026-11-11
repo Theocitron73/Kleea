@@ -5,7 +5,7 @@ export default function useNotesVersion({ user }) {
   const [showPatchModal, setShowPatchModal] = useState(false);
 
   // Version du patch actuel (le compteur se reset tout seul si tu changes cette valeur !)
-  const CURRENT_VERSION = "4.4"; 
+  const CURRENT_VERSION = "4.5"; 
 
   useEffect(() => {
     if (!user) return;

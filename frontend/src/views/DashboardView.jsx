@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell, LabelList, PieChart, Pie
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import { ChevronLeft, ChevronRight, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2 } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import api from '../axios';
 import { toast } from 'sonner';
 import GestionEpargneProjet from './GestionEpargneProjet';
+import ValeurNetteResume from '../components/ValeurNetteResume';
 import RecapAnnees from '../components/RecapAnnees';
+import RepartitionDepenses from '../components/RepartitionDepenses';
+import AnalyseCategories from '../components/AnalyseCategories';
 import VueAbonnements from '../components/VueAbonnements';
-import { estTransfertInterne } from '../utils/finance';
+import { depenseDuBudget, estTransfertInterne, indexMois } from '../utils/finance';
 
 // =========================================================================
 // 1. HELPERS & SOUS-COMPOSANTS ANALYTIQUES PARTAGÉS
@@ -45,178 +48,6 @@ export const generateGradientStep = (hex, stepIndex, totalSteps) => {
   const finalL = l + (stepIndex / totalSteps) * 0.15; 
 
   return `hsl(${Math.round(h * 360)}, ${Math.round(finalS * 100)}%, ${Math.round(finalL * 100)}%)`;
-};
-
-export const AnnualCategoriesChart = ({ data, userTheme = {}, currentYear, generateGradientStep }) => {
-  const [hiddenCategories, setHiddenCategories] = useState(new Set());
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsMobile(window.innerWidth < 768);
-      const handleResize = () => setIsMobile(window.innerWidth < 768);
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }
-  }, []);
-
-  const baseColor = userTheme.color_depenses || "#6366f1"; 
-
-  const { visibleData, totalVisible } = useMemo(() => {
-    const visible = (data || []).filter(d => !hiddenCategories.has(d.name));
-    const total = visible.reduce((acc, curr) => acc + curr.value, 0);
-    return { visibleData: visible, totalVisible: total };
-  }, [data, hiddenCategories]);
-
-  const gradientColors = useMemo(() => {
-    return visibleData.map((_, i) => {
-      if (typeof generateGradientStep === 'function') {
-        return generateGradientStep(baseColor, i, visibleData.length);
-      }
-      return baseColor;
-    });
-  }, [visibleData, baseColor, generateGradientStep]);
-
-  if (!data || data.length === 0) return (
-    <div className="h-full min-h-[300px] flex items-center justify-center text-[10px] font-black uppercase text-white/10 tracking-widest italic">
-      Aucune donnée
-    </div>
-  );
-
-  const toggleCategory = (name) => {
-    setHiddenCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
-
-  const renderCustomizedLabel = (props) => {
-    const { cx, cy, midAngle, outerRadius, value, name } = props;
-    const realPercent = totalVisible > 0 ? (value / totalVisible) * 100 : 0;
-    if (realPercent < (isMobile ? 4.5 : 3)) return null;
-
-    const RADIAN = Math.PI / 180;
-    const radius = outerRadius * (isMobile ? 1.14 : 1.16); 
-    const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
-    const iconSize = isMobile ? 11 : 13;
-    const boxDim = iconSize + 10;
-
-    return (
-      <g className="animate-in fade-in duration-500 pointer-events-none select-none">
-        <foreignObject x={x - boxDim / 2} y={y - boxDim + 2} width={boxDim} height={boxDim} style={{ overflow: 'visible' }}>
-          <div className="w-full h-full flex items-center justify-center drop-shadow-md">
-            <CategoryIcon name={name} size={iconSize} />
-          </div>
-        </foreignObject>
-        <text 
-          x={x} y={y + 10} fill="var(--text-main)" textAnchor="middle" dominantBaseline="central" 
-          className="text-[8.5px] md:text-[10px] font-black tracking-tighter"
-          style={{ textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}
-        >
-          {`${realPercent.toFixed(0)}%`}
-        </text>
-      </g>
-    );
-  };
-
-  return (
-    <div className={`h-full w-full flex flex-col min-h-0 select-none ${isMobile ? 'p-1.5' : 'p-3'}`}>
-      <p className="text-[10px] font-black uppercase text-white/30 mb-2 tracking-[0.25em] text-center shrink-0">
-        Répartition des dépenses {currentYear}
-      </p>
-      
-      <div className="flex-1 flex flex-row items-center min-h-0 relative">
-        <div className="flex-1 h-full relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={visibleData}
-                cx="50%" cy="50%"
-                innerRadius={isMobile ? "50%" : "48%"} 
-                outerRadius={isMobile ? "70%" : "68%"}
-                paddingAngle={visibleData.length > 1 ? 3 : 0}
-                dataKey="value"
-                stroke="none"
-                label={renderCustomizedLabel}
-                labelLine={false}
-                isAnimationActive={true}
-                animationDuration={600}
-              >
-                {visibleData.map((entry, index) => (
-                  <Cell key={entry.name} fill={gradientColors[index]} className="outline-none cursor-pointer hover:opacity-90 transition-opacity" />
-                ))}
-              </Pie>
-
-              <Tooltip
-                isAnimationActive={false}
-                wrapperStyle={{ zIndex: 1000 }}
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const p = payload[0].payload;
-                    return (
-                      <div className="bg-[var(--surface)]/95 border border-white/10 p-3 rounded-2xl shadow-2xl backdrop-blur-[var(--glass-blur)] z-50 flex items-center gap-3">
-                        <div className="p-1.5 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0">
-                          <CategoryIcon name={p.name} size={15} />
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black uppercase text-white/40 mb-0.5 tracking-widest">{p.name}</p>
-                          <p className="text-sm font-black text-white">{p.value.toLocaleString('fr-FR')}€</p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-[8px] md:text-[9px] font-black text-white/20 uppercase tracking-[0.2em] mb-0.5">Total</span>
-            <span className="text-lg md:text-2xl font-black text-white tracking-tighter leading-none">
-              {totalVisible.toLocaleString('fr-FR', { maximumFractionDigits: 0 })}€
-            </span>
-          </div>
-        </div>
-
-        <div className={`${isMobile ? 'w-10 gap-1.5' : 'w-12 gap-2'} h-full flex flex-col py-2 border-l border-white/5 items-center overflow-y-auto custom-scrollbar shrink-0 bg-white/[0.01]`}>
-          <div className="mb-1 flex flex-col items-center gap-0.5 opacity-25">
-            {hiddenCategories.size > 0 ? <EyeOff size={10} strokeWidth={2.5} /> : <Eye size={10} strokeWidth={2.5} />}
-            <span className="text-[6.5px] font-black uppercase tracking-tighter">Filtre</span>
-          </div>
-          
-          {data.map((entry) => {
-            const isHidden = hiddenCategories.has(entry.name);
-            return (
-              <button
-                key={entry.name}
-                type="button"
-                onClick={() => toggleCategory(entry.name)}
-                title={getCleanCategoryName(entry.name)}
-                className={`group relative flex items-center justify-center rounded-xl border transition-all duration-200 shrink-0 cursor-pointer ${
-                  isMobile ? 'w-7.5 h-7.5' : 'w-9 h-9'
-                } ${
-                  isHidden 
-                    ? 'bg-transparent border-transparent opacity-20 scale-90' 
-                    : 'bg-white/5 border-white/10 shadow-md scale-100 hover:border-white/30 hover:bg-white/10 hover:scale-105'
-                }`}
-              >
-                <CategoryIcon name={entry.name} size={isMobile ? 12 : 14} />
-                <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[var(--surface)] border border-white/15 flex items-center justify-center transition-opacity ${
-                  isHidden ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}>
-                  {isHidden ? <EyeOff size={7} color="var(--text-main)" /> : <Eye size={7} color="var(--text-main)" />}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
 };
 
 export const TransactionCard = ({ t, color, bg }) => {
@@ -279,165 +110,6 @@ export const TransactionCard = ({ t, color, bg }) => {
           </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-export const CategoriesView = ({ statsCategories, chartData, hiddenCategories, toggleCategory, userTheme }) => {
-  const depensesColor = userTheme?.color_depenses || "#fb7185";
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsMobile(window.innerWidth < 768);
-      const handleResize = () => setIsMobile(window.innerWidth < 768);
-      window.addEventListener('resize', handleResize);
-      return () => window.removeEventListener('resize', handleResize);
-    }
-  }, []);
-
-  const totalMonth = (chartData || []).reduce((acc, curr) => acc + (curr.value || 0), 0);
-
-  const CustomYAxisTick = ({ x, y, payload }) => {
-    const name = payload.value;
-    const cleanName = getCleanCategoryName(name);
-    const maxChars = isMobile ? 10 : 14;
-    const displayName = cleanName.length > maxChars ? `${cleanName.substring(0, maxChars - 1)}.` : cleanName;
-
-    const iconSize = isMobile ? 11 : 12;
-    const boxSize = 18;
-    const iconOffset = isMobile ? -104 : -124; 
-    const textOffset = isMobile ? -82 : -98; 
-
-    return (
-      <g transform={`translate(${x},${y})`} className="select-none pointer-events-none">
-        <foreignObject x={iconOffset} y={-boxSize / 2} width={boxSize} height={boxSize} style={{ overflow: 'visible' }}>
-          <div className="w-full h-full flex items-center justify-center">
-            <CategoryIcon name={name} size={iconSize} />
-          </div>
-        </foreignObject>
-        <text x={textOffset} y={3.5} textAnchor="start" fill="color-mix(in srgb, var(--text-main) 80%, transparent)" fontSize={isMobile ? 8 : 9} fontWeight="bold" className="uppercase tracking-tight">
-          {displayName}
-        </text>
-      </g>
-    );
-  };
-
-  const CustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      const evolution = data.evolution || 0;
-
-      return (
-        <div className="bg-slate-900/95 backdrop-blur-[var(--glass-blur)] border border-white/10 p-3 rounded-2xl shadow-2xl z-50">
-          <div className="flex justify-between items-start gap-3 mb-2">
-            <div className="flex items-center gap-2">
-              <CategoryIcon name={data.name} size={13} />
-              <p className="text-[10px] font-black uppercase tracking-widest text-white/80 truncate max-w-[130px]">
-                {getCleanCategoryName(data.name)}
-              </p>
-            </div>
-            {evolution !== null && evolution !== 0 && (
-              <div className={`flex items-center gap-1 text-[8.5px] font-black px-1.5 py-0.5 rounded-lg shrink-0 ${
-                evolution > 0 ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'
-              }`}>
-                <span>{evolution > 0 ? '▲' : '▼'} {Math.abs(evolution)}%</span>
-              </div>
-            )}
-          </div>
-          <p className="text-xs font-black text-white">
-            {payload[0].value.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-          </p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const rowHeight = isMobile ? 26 : 30;
-  const needsScroll = (chartData || []).length > 7;
-  const chartHeight = needsScroll ? (chartData || []).length * rowHeight : '100%';
-
-  return (
-    <div className="h-full w-full flex flex-col md:flex-row gap-3 min-h-0">
-      {statsCategories && statsCategories.length > 0 ? (
-        <>
-          <div className="flex-[2] min-h-0 w-full overflow-y-auto overflow-x-hidden custom-scrollbar pr-1">
-            <div style={{ height: chartHeight, minHeight: needsScroll ? `${(chartData || []).length * rowHeight}px` : '180px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: isMobile ? 48 : 56, left: 4, bottom: 4 }}>
-                  <defs>
-                    <linearGradient id="colorBarHoriz" x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={depensesColor} stopOpacity={0} />
-                      <stop offset="100%" stopColor={depensesColor} stopOpacity={0.85} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} interval={0} width={isMobile ? 108 : 128} tick={<CustomYAxisTick />} />
-                  <Tooltip cursor={{ fill: 'color-mix(in srgb, var(--text-main) 3%, transparent)' }} content={<CustomTooltip />} />
-                  <Bar dataKey="value" radius={[0, 5, 5, 0]} barSize={isMobile ? 12 : 15}>
-                    {(chartData || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill="url(#colorBarHoriz)" />
-                    ))}
-                    <LabelList 
-                      dataKey="value" 
-                      position="right" 
-                      offset={isMobile ? 4 : 6} 
-                      content={(props) => {
-                        const { x, y, width, height, value } = props;
-                        const percentage = totalMonth > 0 ? ((value / totalMonth) * 100).toFixed(1) : 0;
-                        return (
-                          <text x={x + width + (isMobile ? 4 : 6)} y={y + height / 2} dy={3.5} fontSize={isMobile ? 8 : 9} fontWeight="900">
-                            <tspan fill="rgba(245, 238, 238, 0.9)">{Math.round(value)}€ </tspan>
-                            <tspan fill="color-mix(in srgb, var(--primary) 90%, transparent)">({percentage}%)</tspan>
-                          </text>
-                        );
-                      }}
-                    />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          <div className="flex-1 md:w-36 md:max-w-[145px] overflow-y-auto custom-scrollbar border-t md:border-t-0 md:border-l border-white/5 pt-2 md:pt-0 md:pl-2.5 shrink-0">
-            <p className="text-[8px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] mb-2">Légende</p>
-            <div className="grid grid-cols-2 md:flex md:flex-col gap-1.5">
-              {statsCategories.map((item, i) => {
-                const isHidden = (hiddenCategories || []).includes(item.name);
-                return (
-                  <button 
-                    key={i} 
-                    type="button"
-                    onClick={() => toggleCategory(item.name)} 
-                    className={`flex items-center justify-between p-1.5 rounded-xl transition-all group border cursor-pointer ${
-                      isHidden 
-                        ? 'bg-transparent border-transparent opacity-30 hover:opacity-50' 
-                        : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/[0.08] hover:border-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
-                      <CategoryIcon name={item.name} size={11} />
-                      <span className={`text-[8.5px] font-black uppercase tracking-tight truncate transition-colors ${
-                        isHidden ? 'text-white/20 line-through' : 'text-white/80 group-hover:text-white'
-                      }`}>
-                        {getCleanCategoryName(item.name)}
-                      </span>
-                    </div>
-                    <div className="shrink-0 ml-1">
-                      {isHidden ? <EyeOff size={10} className="text-white/20" /> : <Eye size={10} className="text-white/30 group-hover:text-white transition-colors" />}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      ) : (
-        <div className="h-full w-full flex items-center justify-center text-[var(--text-main)]/10 text-[10px] uppercase font-black">
-          Aucune donnée disponible
-        </div>
-      )}
     </div>
   );
 };
@@ -1001,7 +673,7 @@ export const GridTile = React.memo(({ jour, index, totalJours }) => {
   const classeYFleche = estEnBas ? "border-r border-b -mb-1" : "border-l border-t -mt-1";
 
   return (
-    <div className={`w-3.5 h-3.5 rounded-sm border transition-all duration-150 relative group/tile ${couleursIntensite[jour.niveauIntensite]}`}>
+    <div className={`w-full h-full rounded-[3px] border transition-all duration-150 relative group/tile ${couleursIntensite[jour.niveauIntensite]}`}>
       <div className={`absolute hidden group-hover/tile:flex items-center pointer-events-none z-50 animate-in fade-in duration-150 ${classeYTooltip} ${classeXTooltip}`}>
         <div className="bg-neutral-900/95 border border-white/10 text-white rounded-xl px-2.5 py-2 text-center shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-[var(--glass-blur)] min-w-[130px] isolate">
           <p className="text-[8px] font-black text-white/40 uppercase tracking-wider">{jour.affichage}</p>
@@ -1108,57 +780,62 @@ export const CalendarSection = React.memo(({ toutesLesTransactions, comptesDuPro
     return { semestre1: s1, semestre2: s2 };
   }, [toutesLesTransactions, comptesDuProfil, filters.annee, filters.profil, moisListe]);
 
+  // Toute l'année tient dans le panneau sans défilement : la taille des carrés suit la place disponible,
+  // en largeur comme en hauteur, et ils restent carrés.
+  const zone = useRef(null);
+  const [cote, setCote] = useState(12);
+  const nbColonnes = Math.max(Math.ceil(semestre1.jours.length / 7), Math.ceil(semestre2.jours.length / 7), 1);
+  useEffect(() => {
+    const element = zone.current;
+    if (!element) return undefined;
+    const ESPACE = 3, LIBELLE = 16, ENTRE_SEMESTRES = 16;
+    const mesurer = () => {
+      const { width, height } = element.getBoundingClientRect();
+      const parLargeur = (width - (nbColonnes - 1) * ESPACE) / nbColonnes;
+      // Sans hauteur imposée (mobile), seule la largeur compte.
+      const parHauteur = height > 120 ? ((height - ENTRE_SEMESTRES) / 2 - LIBELLE - 7 * ESPACE) / 7 : Infinity;
+      setCote(Math.max(6, Math.min(26, Math.floor(Math.min(parLargeur, parHauteur)))));
+    };
+    mesurer();
+    const observateur = new ResizeObserver(mesurer);
+    observateur.observe(element);
+    return () => observateur.disconnect();
+  }, [nbColonnes]);
+
+  const semestre = (s) => {
+    const colonnes = Math.ceil(s.jours.length / 7);
+    return (
+      <div className="grid gap-[3px] justify-center"
+        style={{ gridTemplateColumns: `repeat(${colonnes}, ${cote}px)`, gridTemplateRows: `16px repeat(7, ${cote}px)`, gridAutoFlow: 'column' }}>
+        {Array.from({ length: colonnes }).flatMap((_, colIdx) => {
+          const moisLabel = s.moisLabels.find(m => m.colIndex === colIdx);
+          const jours = s.jours.slice(colIdx * 7, colIdx * 7 + 7);
+          return [
+            <span key={`m-${colIdx}`} className="h-4 text-[9px] font-black uppercase text-[var(--text-main)]/40 tracking-wider whitespace-nowrap overflow-visible pointer-events-none">
+              {moisLabel ? moisLabel.nom.replace('.', '') : ''}
+            </span>,
+            ...jours.map((jour, index) => (
+              <GridTile key={jour.dateStr} jour={jour} index={colIdx * 7 + index} totalJours={s.jours.length} />
+            )),
+            ...Array.from({ length: 7 - jours.length }).map((_, k) => <span key={`v-${colIdx}-${k}`} />),
+          ];
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex-1 flex flex-col justify-start h-full w-full p-4 animate-in fade-in zoom-in-98 duration-300 overflow-y-auto custom-scrollbar">
-      <p className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-widest mb-6 self-start">
+    <div className="flex-1 flex flex-col h-full w-full p-4 min-h-0 animate-in fade-in zoom-in-98 duration-300">
+      <p className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-widest mb-3 self-start">
         Intensité des dépenses quotidiennes (Par semestre)
       </p>
-      
-      <div className="w-full overflow-x-auto custom-scrollbar space-y-12 pb-4">
-        <div className="min-w-max p-1 flex flex-col">
-          <div className="flex gap-1.5 justify-between w-full">
-            {Array.from({ length: Math.ceil(semestre1.jours.length / 7) }).map((_, colIdx) => {
-              const joursDeLaSemaine = semestre1.jours.slice(colIdx * 7, colIdx * 7 + 7);
-              const moisLabel = semestre1.moisLabels.find(m => m.colIndex === colIdx);
-              return (
-                <div key={colIdx} className="flex flex-col gap-1.5 relative pt-5 w-3.5 flex-shrink-0">
-                  {moisLabel && (
-                    <span className="text-[9px] font-black uppercase text-[var(--text-main)]/40 tracking-wider absolute top-0 left-0 whitespace-nowrap pointer-events-none z-10">
-                      {moisLabel.nom.replace('.', '')}
-                    </span>
-                  )}
-                  {joursDeLaSemaine.map((jour, index) => (
-                    <GridTile key={jour.dateStr} jour={jour} index={colIdx * 7 + index} totalJours={semestre1.jours.length} />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </div>
 
-        <div className="min-w-max p-1 flex flex-col">
-          <div className="flex gap-1.5 justify-between w-full">
-            {Array.from({ length: Math.ceil(semestre2.jours.length / 7) }).map((_, colIdx) => {
-              const joursDeLaSemaine = semestre2.jours.slice(colIdx * 7, colIdx * 7 + 7);
-              const moisLabel = semestre2.moisLabels.find(m => m.colIndex === colIdx);
-              return (
-                <div key={colIdx} className="flex flex-col gap-1.5 relative pt-5 w-3.5 flex-shrink-0">
-                  {moisLabel && (
-                    <span className="text-[9px] font-black uppercase text-[var(--text-main)]/40 tracking-wider absolute top-0 left-0 whitespace-nowrap pointer-events-none z-10">
-                      {moisLabel.nom.replace('.', '')}
-                    </span>
-                  )}
-                  {joursDeLaSemaine.map((jour, index) => (
-                    <GridTile key={jour.dateStr} jour={jour} index={colIdx * 7 + index} totalJours={semestre2.jours.length} />
-                  ))}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      <div ref={zone} className="flex-1 min-h-0 flex flex-col justify-center gap-4">
+        {semestre(semestre1)}
+        {semestre(semestre2)}
       </div>
 
-      <div className="flex items-center gap-1.5 mt-auto pt-4 self-end text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 pt-3 self-end text-[8px] font-bold text-[var(--text-main)]/30 uppercase tracking-wider">
         <span>Moins</span>
         <div className="w-2 h-2 rounded-sm bg-white/[0.03] border border-white/5" />
         <div className="w-2 h-2 rounded-sm bg-rose-950/40 border border-rose-900/20" />
@@ -1172,10 +849,11 @@ export const CalendarSection = React.memo(({ toutesLesTransactions, comptesDuPro
 });
 CalendarSection.displayName = 'CalendarSection';
 
-export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProfil, filters }) => {
-  const stats = useMemo(() => {
+const MOIS_NOMS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+// Les chiffres d'une année pour le Wrapped. Servent aussi pour l'année précédente, en comparaison.
+function calculerWrapped(toutesLesTransactions, comptesDuProfil, filters, anneeCible, limite = null) {
     const aujourdhui = new Date();
-    const anneeCible = parseInt(filters.annee) || 2026;
     const nomsComptesProfilSet = new Set((comptesDuProfil || []).map(c => c.compte?.trim().toUpperCase()));
     const filtrerParProfil = filters.profil !== 'Tous';
 
@@ -1189,6 +867,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
     let depensesSemaine = 0;
 
     const categoriesMap = {};
+    const moisAvecRevenus = new Set();
     const joursSemaineMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
     const moisMap = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 };
     const dailySpendingMap = {}; 
@@ -1215,6 +894,8 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
       }
       
       if (anneeT !== anneeCible) continue;
+      // Comparaison à date égale : rien après le même jour de l'année.
+      if (limite && dateObj && (dateObj.getMonth() > limite.mois || (dateObj.getMonth() === limite.mois && dateObj.getDate() > limite.jour))) continue;
 
       if (filtrerParProfil) {
         const nomCompteTransac = (t.compte || "").trim().toUpperCase();
@@ -1230,6 +911,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
       if (montant > 0 && !estTransfert) {
         totalRevenus += montant;
         nbVirementsPositifs++;
+        moisAvecRevenus.add(moisIndex);
         continue;
       }
 
@@ -1249,7 +931,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
         };
       }
 
-      if (cat) categoriesMap[cat] = (categoriesMap[cat] || 0) + montantAbs;
+      if (cat) categoriesMap[t.categorie.trim()] = (categoriesMap[t.categorie.trim()] || 0) + montantAbs;
       moisMap[moisIndex] = (moisMap[moisIndex] || 0) + montantAbs;
       dailySpendingMap[dateString] = (dailySpendingMap[dateString] || 0) + montantAbs;
 
@@ -1274,7 +956,10 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
     const moisNoms = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Décembre"];
     const triMois = Object.entries(moisMap).sort((a, b) => b[1] - a[1]);
     const topMoisMax = triMois[0] || [0, 0];
-    const topMoisMin = triMois[triMois.length - 1] || [0, 0];
+    // Le mois le plus sage n'est cherché que parmi les mois terminés : un mois à venir n'a encore rien dépensé.
+    const dernierMoisTermine = anneeCible === aujourdhui.getFullYear() ? aujourdhui.getMonth() - 1 : anneeCible < aujourdhui.getFullYear() ? 11 : -1;
+    const moisTermines = triMois.filter(([m]) => Number(m) <= dernierMoisTermine);
+    const topMoisMin = moisTermines[moisTermines.length - 1] || [0, 0];
     const pireJourDate = Object.entries(dailySpendingMap).sort((a, b) => b[1] - a[1])[0] || ["-", 0];
 
     let pireJourFormate = pireJourDate[0];
@@ -1290,6 +975,22 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
     const joursSansDepense = Math.max(0, totalJoursAnnee - Object.keys(dailySpendingMap).filter(k => !k.includes('Inconnu')).length);
     const topSaison = Object.entries(saisonsMap).sort((a, b) => b[1] - a[1])[0] || ["Aucune", 0];
     const totalSemaineWeekend = depensesSemaine + depensesWeekend;
+
+    // Plus longue suite de jours sans dépense, jusqu'à aujourd'hui pour l'année en cours.
+    const serieSansDepense = { jours: 0, debut: null, fin: null };
+    const fin = anneeCible === aujourdhui.getFullYear() ? aujourdhui : new Date(anneeCible, 11, 31);
+    let debutSerie = null;
+    for (let d = new Date(anneeCible, 0, 1); d <= fin; d.setDate(d.getDate() + 1)) {
+      const cle = `${anneeCible}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (dailySpendingMap[cle]) { debutSerie = null; continue; }
+      if (!debutSerie) debutSerie = new Date(d);
+      const longueur = Math.round((d - debutSerie) / 86400000) + 1;
+      if (longueur > serieSansDepense.jours) Object.assign(serieSansDepense, { jours: longueur, debut: new Date(debutSerie), fin: new Date(d) });
+    }
+
+    // Le premier poste de dépenses, en jours de travail : revenu mensuel moyen ÷ 21,67 jours ouvrés.
+    const revenuParJour = moisAvecRevenus.size > 0 ? totalRevenus / moisAvecRevenus.size / 21.67 : 0;
+    const joursDeTravail = revenuParJour > 0 && topCategories[0]?.montant > 0 ? topCategories[0].montant / revenuParJour : 0;
     const pctWeekend = totalSemaineWeekend > 0 ? (depensesWeekend / totalSemaineWeekend) * 100 : 0;
 
     return {
@@ -1301,7 +1002,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
       vraiTopJour: joursNoms[topJourSemaine[0]],
       vraiTopMois: moisNoms[topMoisMax[0]],
       montantTopMois: topMoisMax[1],
-      moisLePlusSage: moisNoms[topMoisMin[0]],
+      moisLePlusSage: moisTermines.length ? moisNoms[topMoisMin[0]] : null,
       montantMoisSage: topMoisMin[1],
       nombreTotalTransactions,
       moyenneTransaction: nombreTotalTransactions > 0 ? totalDepense / nombreTotalTransactions : 0,
@@ -1311,39 +1012,80 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
       pireJourMontant: pireJourDate[1],
       joursSansDepense,
       topSaison: topSaison[0],
-      pctWeekend
+      pctWeekend,
+      serieSansDepense,
+      joursDeTravail,
     };
-  }, [toutesLesTransactions, comptesDuProfil, filters.annee, filters.profil]);
+}
 
-  return (
-    <div className="flex-1 w-full p-6 animate-in fade-in zoom-in-98 duration-300 overflow-y-auto custom-scrollbar space-y-6">
-      <div className="space-y-1">
-        <span className="text-[10px] font-black tracking-widest text-rose-500 uppercase">Rétrospective de l'année</span>
-        <h2 className="text-2xl font-black tracking-tight text-[var(--text-main)]">Votre {filters.annee || 2026} Financial Wrapped</h2>
-      </div>
+export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProfil, filters, user, objectifAnnuelGlobal = 0, epargneReelleCumulee = 0 }) => {
+  const annee = parseInt(filters.annee) || 2026;
+  const stats = useMemo(() => calculerWrapped(toutesLesTransactions, comptesDuProfil, filters, annee), [toutesLesTransactions, comptesDuProfil, filters, annee]);
+  const enCours = annee === new Date().getFullYear();
+  const precedente = useMemo(() => {
+    const maintenant = new Date();
+    return calculerWrapped(toutesLesTransactions, comptesDuProfil, filters, annee - 1, enCours ? { mois: maintenant.getMonth(), jour: maintenant.getDate() } : null);
+  }, [toutesLesTransactions, comptesDuProfil, filters, annee, enCours]);
+  const euros = (n) => `${Math.round(n).toLocaleString('fr-FR')} €`;
+  const evolution = (actuel, avant, estDepense) => {
+    if (!(avant > 0)) return null;
+    const pct = Math.round(((actuel - avant) / avant) * 100);
+    const favorable = estDepense ? pct <= 0 : pct >= 0;
+    return (
+      <p className={`text-[10px] font-bold ${favorable ? 'text-emerald-400' : 'text-rose-400'}`}>
+        {pct > 0 ? '▲' : pct < 0 ? '▼' : '='} {Math.abs(pct)} % {enCours ? `par rapport à ${annee - 1} à la même date` : `par rapport à ${annee - 1}`}
+      </p>
+    );
+  };
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-3 gap-4">
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+  // Budgets de l'année : chaque budget d'un mois passé ou en cours compte comme tenu ou dépassé.
+  const [budgetsAnnee, setBudgetsAnnee] = useState([]);
+  useEffect(() => {
+    if (!user) return;
+    api.get(`/get-budgets/${user}`)
+      .then((res) => setBudgetsAnnee((Array.isArray(res.data) ? res.data : []).filter((b) => parseInt(b.annee, 10) === annee)))
+      .catch(() => setBudgetsAnnee([]));
+  }, [user, annee]);
+  const budgetsTenus = useMemo(() => {
+    const maintenant = new Date();
+    const dernierMois = annee < maintenant.getFullYear() ? 11 : annee > maintenant.getFullYear() ? -1 : maintenant.getMonth();
+    const parMois = {};
+    let tenus = 0;
+    let total = 0;
+    for (const b of budgetsAnnee) {
+      const index = indexMois(b.mois);
+      if (index < 0 || index > dernierMois || !(parseFloat(b.somme) > 0)) continue;
+      const ok = depenseDuBudget(b, toutesLesTransactions) <= parseFloat(b.somme);
+      total += 1;
+      if (ok) tenus += 1;
+      parMois[index] = parMois[index] || { tenus: 0, total: 0 };
+      parMois[index].total += 1;
+      if (ok) parMois[index].tenus += 1;
+    }
+    const meilleur = Object.entries(parMois).sort((a, b) => (b[1].tenus / b[1].total) - (a[1].tenus / a[1].total) || b[1].total - a[1].total)[0];
+    return { tenus, total, meilleurMois: meilleur ? MOIS_NOMS[meilleur[0]] : null };
+  }, [budgetsAnnee, toutesLesTransactions, annee]);
+
+  const cartes = [
+        <div key="carte-0" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Cumul annuel des sorties</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-white">
               {stats.totalDepense.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
             </p>
-            <p className="text-[10px] font-medium text-white/60">Au total sur la période analysée.</p>
+            {evolution(stats.totalDepense, precedente.totalDepense, true) || <p className="text-[10px] font-medium text-white/60">Au total sur la période analysée.</p>}
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-1" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Cumul annuel des entrées 💰</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-emerald-400">
               + {stats.totalRevenus.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
             </p>
-            <p className="text-[10px] font-medium text-white/60">Salaires, virements et rentrées d'argent.</p>
+            {evolution(stats.totalRevenus, precedente.totalRevenus, false) || <p className="text-[10px] font-medium text-white/60">Salaires, virements et rentrées d'argent.</p>}
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-2" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Fréquence des bonnes nouvelles 🔔</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-teal-400">
@@ -1351,9 +1093,8 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
             </p>
             <p className="text-[10px] font-medium text-white/60">Nombre de fois où votre compte a été crédité.</p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-3" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le pic unique de l'année 💸</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-rose-400">
@@ -1362,9 +1103,8 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
             <p className="text-xs font-bold text-white/80 truncate capitalize">{stats.plusGrosseDepense.nom.toLowerCase()}</p>
             <p className="text-[10px] font-medium text-white/40">Le {stats.plusGrosseDepense.date}</p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-4" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le jour noir du compte 🖤</p>
           <div className="mt-4 space-y-1">
             <p className="text-lg font-black tracking-tight text-red-500 truncate">
@@ -1373,25 +1113,25 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
             <p className="text-xs font-bold text-white/70 truncate">{stats.pireJourDate}</p>
             <p className="text-[10px] font-medium text-white/40">Toutes transactions cumulées.</p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-5" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Top 3 Catégories</p>
-          <div className="mt-3 space-y-1.5">
+          <div className="mt-2 space-y-2">
             {stats.topCategories.map((cat, index) => (
-              <div key={index} className="flex items-center justify-between gap-2 border-b border-white/[0.02] last:border-0 pb-1 last:pb-0">
-                <span className="text-xs font-bold text-white/90 uppercase tracking-wide truncate">
-                  {index + 1}. {cat.nom}
-                </span>
-                <span className="text-xs font-mono font-bold text-white/40">
-                  {cat.montant.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
-                </span>
+              <div key={index} className="space-y-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CategoryIcon name={cat.nom} size={12} showBg={false} />
+                  <span className="flex-1 min-w-0 text-xs font-bold text-white/90 truncate">{getCleanCategoryName(cat.nom)}</span>
+                  <span className="shrink-0 text-xs font-bold tabular-nums text-white/60">{euros(cat.montant)}</span>
+                </div>
+                <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full bg-rose-400/80" style={{ width: `${stats.topCategories[0].montant > 0 ? (cat.montant / stats.topCategories[0].montant) * 100 : 0}%` }} />
+                </div>
               </div>
             ))}
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-6" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Le mois rouge 📈</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-red-400">{stats.vraiTopMois}</p>
@@ -1399,50 +1139,214 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
               Un sommet de <span className="font-bold text-white">{stats.montantTopMois.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</span>.
             </p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-7" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">L'Oasis Financière 🏝️</p>
           <div className="mt-4 space-y-1">
-            <p className="text-xl font-black tracking-tight text-emerald-400">{stats.moisLePlusSage}</p>
+            <p className="text-xl font-black tracking-tight text-emerald-400">{stats.moisLePlusSage || '—'}</p>
             <p className="text-[10px] font-medium text-white/60">
               Calme avec seulement <span className="font-bold text-white">{stats.montantMoisSage.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</span>.
             </p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-8" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Faiblesse hebdomadaire</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-amber-400">Chaque {stats.vraiTopJour}</p>
             <p className="text-[10px] font-medium text-white/60">Le jour de la semaine le plus chargé.</p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-9" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Profil : Weekend vs Semaine</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-secondary-400">{stats.pctWeekend.toFixed(0)} %</p>
             <p className="text-[10px] font-medium text-white/60">De vos budgets s'envolent le weekend.</p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-10" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Votre Saison "Flambeur" ☀️</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-fuchsia-400">{stats.topSaison.toLowerCase()}</p>
             <p className="text-[10px] font-medium text-white/60">La saison où le budget est le plus lâche.</p>
           </div>
-        </div>
-
-        <div className="p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+        </div>,
+        <div key="carte-11" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
           <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Jours de pure discipline 🧘‍♂️</p>
           <div className="mt-4 space-y-1">
             <p className="text-xl font-black tracking-tight text-teal-400">{stats.joursSansDepense} Jours</p>
             <p className="text-[10px] font-medium text-white/60">À 0,00 € de dépenses carte.</p>
           </div>
+        </div>,
+        <div key="carte-travail" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Votre premier poste, en jours de travail</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-amber-300">{stats.joursDeTravail > 0 ? `${Math.round(stats.joursDeTravail)} jours` : '—'}</p>
+            <p className="text-[10px] font-medium text-white/60 truncate">
+              {stats.joursDeTravail > 0 ? `de revenus pour ${getCleanCategoryName(stats.topCategories[0].nom)} (${euros(stats.topCategories[0].montant)}).` : 'Pas encore assez de revenus pour le calculer.'}
+            </p>
+          </div>
+        </div>,
+        <div key="carte-serie" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Plus longue série sans dépense</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-teal-400">{stats.serieSansDepense.jours} jour{stats.serieSansDepense.jours > 1 ? 's' : ''} d’affilée</p>
+            <p className="text-[10px] font-medium text-white/60">
+              {stats.serieSansDepense.jours > 0
+                ? `Du ${stats.serieSansDepense.debut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} au ${stats.serieSansDepense.fin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}.`
+                : 'Pas un seul jour sans dépense.'}
+            </p>
+          </div>
+        </div>,
+        <div key="carte-budgets" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">Objectifs budgétaires tenus</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-emerald-400">{budgetsTenus.total > 0 ? `${budgetsTenus.tenus} sur ${budgetsTenus.total}` : '—'}</p>
+            <p className="text-[10px] font-medium text-white/60">
+              {budgetsTenus.total > 0 ? `Meilleur mois : ${budgetsTenus.meilleurMois}.` : 'Aucun objectif budgétaire fixé cette année.'}
+            </p>
+          </div>
+        </div>,
+        <div key="carte-epargne" className="h-[150px] min-w-0 overflow-hidden p-5 bg-gradient-to-br from-neutral-900 to-neutral-950 border border-white/5 rounded-2xl flex flex-col justify-between shadow-xl">
+          <p className="text-[9px] font-black uppercase text-white/40 tracking-wider">L’épargne de l’année</p>
+          <div className="mt-4 space-y-1">
+            <p className="text-xl font-black tracking-tight text-emerald-400">{euros(epargneReelleCumulee)} mis de côté</p>
+            {objectifAnnuelGlobal > 0 ? (
+              <>
+                <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+                  <div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, (epargneReelleCumulee / objectifAnnuelGlobal) * 100)}%` }} />
+                </div>
+                <p className="text-[10px] font-medium text-white/60">{Math.round((epargneReelleCumulee / objectifAnnuelGlobal) * 100)} % de votre objectif de {euros(objectifAnnuelGlobal)}.</p>
+              </>
+            ) : <p className="text-[10px] font-medium text-white/60">Taux d’épargne : {Math.round(stats.tauxEpargne)} %.</p>}
+          </div>
+        </div>,
+  ];
+
+  // Les cartes se rangent en pages : autant qu'en contient le panneau, et un slider s'il en reste.
+  const CARTE = 150;
+  const ESPACE = 16;
+  const zone = useRef(null);
+  const [disposition, setDisposition] = useState({ colonnes: 3, parPage: cartes.length });
+  const [page, setPage] = useState(0);
+  useEffect(() => {
+    const element = zone.current;
+    if (!element) return undefined;
+    const mesurer = () => {
+      const { width, height } = element.getBoundingClientRect();
+      const colonnes = width >= 620 ? 3 : width >= 400 ? 2 : 1;
+      // Sans hauteur imposée (mobile), toutes les cartes s'affichent les unes sous les autres.
+      const lignes = height >= CARTE ? Math.max(1, Math.floor((height + ESPACE) / (CARTE + ESPACE))) : Infinity;
+      setDisposition({ colonnes, parPage: lignes === Infinity ? Infinity : colonnes * lignes });
+    };
+    mesurer();
+    const observateur = new ResizeObserver(mesurer);
+    observateur.observe(element);
+    return () => observateur.disconnect();
+  }, []);
+  const parPage = Math.max(1, Math.min(cartes.length, disposition.parPage));
+  const nbPages = Math.ceil(cartes.length / parPage);
+  const pageCourante = Math.min(page, nbPages - 1);
+  const visibles = cartes.slice(pageCourante * parPage, (pageCourante + 1) * parPage);
+  // La molette passe d'une page à l'autre, une page par cran, sans faire défiler le panneau.
+  const derniereMolette = useRef(0);
+  useEffect(() => {
+    const element = zone.current;
+    if (!element || nbPages <= 1) return undefined;
+    const surMolette = (e) => {
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (Math.abs(delta) < 4) return;
+      e.preventDefault();
+      const instant = Date.now();
+      if (instant - derniereMolette.current < 350) return;
+      derniereMolette.current = instant;
+      setPage((p) => Math.max(0, Math.min(nbPages - 1, Math.min(p, nbPages - 1) + (delta > 0 ? 1 : -1))));
+    };
+    element.addEventListener('wheel', surMolette, { passive: false });
+    return () => element.removeEventListener('wheel', surMolette);
+  }, [nbPages]);
+
+  // Carte de fin : un résumé de l'année en une image, à télécharger et à partager.
+  const telechargerResume = () => {
+    const toile = document.createElement('canvas');
+    toile.width = 1080;
+    toile.height = 1350;
+    const c = toile.getContext('2d');
+    const fond = c.createLinearGradient(0, 0, 1080, 1350);
+    fond.addColorStop(0, '#0f172a');
+    fond.addColorStop(1, '#312e81');
+    c.fillStyle = fond;
+    c.fillRect(0, 0, 1080, 1350);
+    c.fillStyle = '#f43f5e';
+    c.font = '700 30px system-ui, sans-serif';
+    c.fillText('RÉTROSPECTIVE', 90, 150);
+    c.fillStyle = '#ffffff';
+    c.font = '800 84px system-ui, sans-serif';
+    c.fillText(`Mon année ${annee}`, 90, 250);
+    const lignes = [
+      ['Dépenses', euros(stats.totalDepense), '#fda4af'],
+      ['Revenus', euros(stats.totalRevenus), '#6ee7b7'],
+      ['Épargne mise de côté', euros(epargneReelleCumulee), '#6ee7b7'],
+      ['Catégorie n°1', `${getCleanCategoryName(stats.topCategories[0].nom)} · ${euros(stats.topCategories[0].montant)}`, '#fcd34d'],
+      ['Plus longue série sans dépense', `${stats.serieSansDepense.jours} jours`, '#5eead4'],
+      ['Mois le plus sage', String(stats.moisLePlusSage || '—'), '#c4b5fd'],
+    ];
+    lignes.forEach(([libelle, valeur, couleur], i) => {
+      const y = 400 + i * 145;
+      c.fillStyle = 'rgba(255,255,255,0.55)';
+      c.font = '600 30px system-ui, sans-serif';
+      c.fillText(libelle, 90, y);
+      c.fillStyle = couleur;
+      c.font = '800 54px system-ui, sans-serif';
+      c.fillText(valeur, 90, y + 62, 900);
+    });
+    c.fillStyle = 'rgba(255,255,255,0.45)';
+    c.font = '600 28px system-ui, sans-serif';
+    c.fillText('Kleea', 90, 1290);
+    const lien = document.createElement('a');
+    lien.download = `kleea-wrapped-${annee}.png`;
+    lien.href = toile.toDataURL('image/png');
+    lien.click();
+  };
+
+  const FLECHE = 'w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-[var(--text-main)] cursor-pointer disabled:opacity-30 disabled:cursor-default transition-colors';
+
+  return (
+    <div className={`flex-1 w-full h-full min-h-0 p-6 flex flex-col gap-5 animate-in fade-in zoom-in-98 duration-300 ${nbPages > 1 ? '' : 'overflow-y-auto custom-scrollbar'}`}>
+      <div className="shrink-0 flex items-end justify-between gap-3">
+        <div className="space-y-1 min-w-0">
+          <span className="text-[10px] font-black tracking-widest text-rose-500 uppercase">Rétrospective de l'année</span>
+          <h2 className="text-2xl font-black tracking-tight text-[var(--text-main)]">Votre {filters.annee || 2026} Financial Wrapped</h2>
+        </div>
+        <button type="button" onClick={telechargerResume} title="Télécharger un résumé de l’année en image"
+          className="shrink-0 flex items-center gap-1.5 px-3 h-8 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-bold text-[var(--text-main)] cursor-pointer transition-colors">
+          <Download size={13} /> Télécharger
+        </button>
+      </div>
+
+      <div ref={zone} className="flex-1 min-h-0">
+        <div key={pageCourante} aria-label={nbPages > 1 ? `Page ${pageCourante + 1} sur ${nbPages}` : undefined}
+          className="grid gap-4 content-start animate-in fade-in slide-in-from-right-4 duration-300"
+          style={{ gridTemplateColumns: `repeat(${disposition.colonnes}, minmax(0, 1fr))` }}>
+          {visibles}
         </div>
       </div>
+
+      {nbPages > 1 && (
+        <div className="shrink-0 flex items-center justify-center gap-3" role="group" aria-label="Pages du Wrapped">
+          <button type="button" className={FLECHE} aria-label="Cartes précédentes" disabled={pageCourante === 0} onClick={() => setPage(pageCourante - 1)}>
+            <ChevronLeft size={16} />
+          </button>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: nbPages }).map((_, i) => (
+              <button key={i} type="button" aria-label={`Page ${i + 1}`} aria-current={i === pageCourante ? 'page' : undefined} onClick={() => setPage(i)}
+                className={`h-2 rounded-full cursor-pointer transition-all ${i === pageCourante ? 'w-6 bg-[var(--text-main)]' : 'w-2 bg-white/20 hover:bg-white/40'}`} />
+            ))}
+          </div>
+          <button type="button" className={FLECHE} aria-label="Cartes suivantes" disabled={pageCourante === nbPages - 1} onClick={() => setPage(pageCourante + 1)}>
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 });
@@ -1456,10 +1360,10 @@ export default function DashboardView(props) {
   const {
     filters, setFilters, moisListe, availablePeriods, groupesDisponibles,
     handleWheelProfil, handleWheelMois, handleWheelAnnee, handleWheelTabActive,
-    handleWheelAnnualTab, handleWheelRightTab, userTheme = {}, soldeGlobal = 0,
+    handleWheelAnnualTab, handleWheelRightTab, userTheme = {}, soldeGlobal = 0, valeurNette = 0, patrimoineActif = false, ouvrirPatrimoine, patrimoine = { biens: [], dettes: [] },
     soldesTries = [], sensors, handleDragEnd, SortableAccountCard, TAB_CONFIG,
     tabActive, setTabActive, searchTerm, setSearchTerm, financeData,
-    statsCategories = [], chartData = [], hiddenCategories = [], toggleCategory, user,
+    statsCategories = [], hiddenCategories = [], toggleCategory, user,
     budgetGauges = [], carouselRef, handleScroll, totalDots = 1, activeIndex = 0,
     navigateCarousel, scrollToPage, setActiveTab, annualTab, setAnnualTab,
     soldePremierJanvier = 0, recapAnnuelStats = [], statsAnnuellesCategories = [],
@@ -1634,7 +1538,8 @@ export default function DashboardView(props) {
           {/* CARTE TOTAL PATRIMOINE */}
           <div className="col-span-12 md:col-span-2 h-full pb-2">
             <div 
-              className="h-full rounded-[var(--radius)] p-3 text-[var(--text-main)] shadow-xl flex flex-col justify-between transition-all duration-500 relative overflow-hidden"
+              {...(patrimoineActif ? { role: 'button', tabIndex: 0, title: 'Voir les placements et les crédits', onClick: ouvrirPatrimoine, onKeyDown: (e) => { if (e.key === 'Enter') ouvrirPatrimoine?.(); } } : {})}
+              className={`h-full rounded-[var(--radius)] p-3 text-[var(--text-main)] shadow-xl flex flex-col justify-between transition-all duration-500 relative overflow-hidden ${patrimoineActif ? 'cursor-pointer hover:brightness-110' : ''}`}
               style={{ 
                 background: `linear-gradient(135deg, ${userTheme.color_patrimoine || '#37b58f'} 0%, ${(userTheme.color_patrimoine || '#37b58f')}aa 100%)`,
                 border: `1px solid ${(userTheme.color_patrimoine || '#37b58f')}33`,
@@ -1654,10 +1559,15 @@ export default function DashboardView(props) {
               </div>
 
               <div className="mt-auto">
-                <p className="text-white/60 text-[8px] font-black uppercase tracking-widest mb-0.5">Total</p>
+                <p className="text-white/60 text-[8px] font-black uppercase tracking-widest mb-0.5">{patrimoineActif ? 'Total net' : 'Total'}</p>
                 <h2 className="text-xl font-black tracking-tighter leading-none text-white truncate">
-                  {soldeGlobal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  {(patrimoineActif ? valeurNette : soldeGlobal).toLocaleString('fr-FR', { minimumFractionDigits: patrimoineActif ? 0 : 2, maximumFractionDigits: patrimoineActif ? 0 : 2 })} €
                 </h2>
+                {patrimoineActif && (
+                  <p className="text-[9px] font-bold text-white/75 mt-1 truncate">
+                    comptes + placements − crédits
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1700,7 +1610,7 @@ export default function DashboardView(props) {
                     </div>
                   </div>
 
-                  <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 lg:gap-0 min-[1500px]:gap-0.5 gap-0.5">
+                  <div onWheel={handleWheelTabActive} className="flex bg-black/40 p-1 rounded-xl border border-white/5 gap-0 xl:gap-1 min-[1500px]:gap-1.5">
                     {Object.keys(TAB_CONFIG).map((tab) => {
                       const config = TAB_CONFIG[tab];
                       const IconComponent = config.icon;
@@ -1715,16 +1625,16 @@ export default function DashboardView(props) {
                             setSearchTerm('');
                           }}
                           title={config.label}
-                          className={`px-2.5 lg:px-0.5 xl:px-1 min-[1360px]:px-1.5 min-[1500px]:px-2.5 py-1.5 flex items-center justify-center rounded-lg transition-all duration-300 cursor-pointer ${config.className} ${
+                          className={`w-5 h-6 xl:w-7 xl:h-7 min-[1500px]:w-8 min-[1500px]:h-8 shrink-0 flex items-center justify-center rounded-lg transition-all duration-300 cursor-pointer ${config.className} ${
                             isActive 
                               ? 'bg-[var(--glass-bg)] text-[var(--text-main)] shadow-md border border-white/5' 
                               : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                           }`}
                         >
                           <IconComponent 
-                            size={14} 
+                            size={16} 
                             strokeWidth={isActive ? 2.5 : 2} 
-                            className={isActive ? 'opacity-100' : 'opacity-60'} 
+                            className={`w-3.5 h-3.5 xl:w-4 xl:h-4 ${isActive ? 'opacity-100' : 'opacity-60'}`} 
                           />
                         </button>
                       );
@@ -1810,12 +1720,11 @@ export default function DashboardView(props) {
                               Analyse par Catégorie 
                             </h3>
                             <div className="flex-1 min-h-0 w-full">
-                              <CategoriesView 
+                              <AnalyseCategories
                                 statsCategories={statsCategories}
-                                chartData={chartData}
                                 hiddenCategories={hiddenCategories}
                                 toggleCategory={toggleCategory}
-                                userTheme={userTheme}
+                                budgetGauges={budgetGauges}
                               />
                             </div>
                           </div>
@@ -1886,12 +1795,11 @@ export default function DashboardView(props) {
                   Analyse par Catégorie
                 </h3>
                 <div className="flex-1 min-h-0">
-                  <CategoriesView 
+                  <AnalyseCategories
                     statsCategories={statsCategories}
-                    chartData={chartData}
                     hiddenCategories={hiddenCategories}
                     toggleCategory={toggleCategory}
-                    userTheme={userTheme}
+                    budgetGauges={budgetGauges}
                   />
                 </div>
               </div>
@@ -2060,6 +1968,7 @@ export default function DashboardView(props) {
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('chart')}
+                    title="Répartition des dépenses"
                     className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
                   >
                     <PieChartIcon size={14} />
@@ -2279,12 +2188,7 @@ export default function DashboardView(props) {
 
                 {annualTab === 'chart' && (
                   <div className="h-full w-full animate-in fade-in duration-500">
-                    <AnnualCategoriesChart 
-                      data={statsAnnuellesCategories} 
-                      userTheme={userTheme} 
-                      currentYear={filters.annee}
-                      generateGradientStep={generateGradientStep}
-                    />
+                    <RepartitionDepenses data={statsAnnuellesCategories} currentYear={filters.annee} comptes={comptes} filters={filters} toutesLesTransactions={toutesLesTransactions} />
                   </div>
                 )}
 
@@ -2303,6 +2207,9 @@ export default function DashboardView(props) {
                     comptesDuProfil={comptesDuProfil}
                     filters={filters}
                     moisListe={moisListe}
+                    user={user}
+                    objectifAnnuelGlobal={objectifAnnuelGlobal}
+                    epargneReelleCumulee={epargneReelleCumulee}
                   />
                 )}
               </div>
@@ -2392,7 +2299,7 @@ export default function DashboardView(props) {
               <button 
                 type="button"
                 onClick={() => setActiveRightTab('graphs')}
-                className={`px-6 py-2 rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
+                className={`px-3.5 py-2 whitespace-nowrap rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.06em] transition-all duration-300 cursor-pointer ${
                   activeRightTab === 'graphs' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                 }`}
               >
@@ -2401,15 +2308,27 @@ export default function DashboardView(props) {
               <button
                 type="button"
                 onClick={() => setActiveRightTab('epargneProjets')}
-                className={`px-6 py-2 rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer ${
+                className={`px-3.5 py-2 whitespace-nowrap rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.06em] transition-all duration-300 cursor-pointer ${
                   activeRightTab === 'epargneProjets' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
                 }`}
               >
-                Gestion Épargne & Projets
+                Épargne & Projets
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveRightTab('valeurNette')}
+                className={`px-3.5 py-2 whitespace-nowrap rounded-[calc(var(--radius)*0.75)] text-[10px] font-black uppercase tracking-[0.06em] transition-all duration-300 cursor-pointer ${
+                  activeRightTab === 'valeurNette' ? 'bg-white text-slate-900 shadow-xl scale-105' : 'text-[var(--text-main)]/30 hover:text-[var(--text-main)]/60'
+                }`}
+              >
+                Placements & crédits
               </button>
             </div>
 
-            {activeRightTab === 'graphs' ? (
+            {activeRightTab === 'valeurNette' ? (
+              <ValeurNetteResume patrimoine={patrimoine} profil={filters.profil} recapAnnuelStats={recapAnnuelStats} soldeGlobal={soldeGlobal}
+                valeurNette={valeurNette} actif={patrimoineActif} ouvrirPatrimoine={ouvrirPatrimoine} couleur={userTheme.color_patrimoine || '#37b58f'} />
+            ) : activeRightTab === 'graphs' ? (
               <div className="flex-1 flex flex-col min-h-0 gap-3">
                 {/* JAUGE D'OBJECTIF D'ÉPARGNE */}
                 <div className="bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3.5 shadow-2xl backdrop-blur-[var(--glass-blur)] shrink-0 select-none">
@@ -2952,16 +2871,20 @@ export default function DashboardView(props) {
           <div className="space-y-3 animate-in fade-in duration-200">
             {/* CARTE PATRIMOINE */}
             <div 
-              className="rounded-xl p-3 text-white shadow-lg flex items-center justify-between transition-all"
+              {...(patrimoineActif ? { role: 'button', tabIndex: 0, onClick: ouvrirPatrimoine } : {})}
+              className={`rounded-xl p-3 text-white shadow-lg flex items-center justify-between transition-all ${patrimoineActif ? 'cursor-pointer' : ''}`}
               style={{ 
                 background: `linear-gradient(135deg, ${userTheme.color_patrimoine || '#37b58f'} 0%, ${(userTheme.color_patrimoine || '#37b58f')}aa 100%)`,
               }}
             >
               <div>
-                <p className="text-white/60 text-[7px] font-black uppercase tracking-widest leading-none mb-1">Patrimoine</p>
+                <p className="text-white/60 text-[7px] font-black uppercase tracking-widest leading-none mb-1">{patrimoineActif ? 'Total net' : 'Patrimoine'}</p>
                 <h2 className="text-lg font-black tracking-tighter leading-none">
-                  {soldeGlobal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                  {(patrimoineActif ? valeurNette : soldeGlobal).toLocaleString('fr-FR', { minimumFractionDigits: patrimoineActif ? 0 : 2, maximumFractionDigits: patrimoineActif ? 0 : 2 })} €
                 </h2>
+                {patrimoineActif && (
+                  <p className="text-[9px] font-bold text-white/75 mt-1">comptes + placements − crédits</p>
+                )}
               </div>
               <span className="text-[8.5px] uppercase font-black tracking-wider bg-white/20 px-2 py-0.5 rounded-md">
                 {filters.profil}
@@ -3074,12 +2997,11 @@ export default function DashboardView(props) {
                   if (tabActive === 'Catégories') {
                     return (
                       <div className="h-96 w-full pb-2 animate-in fade-in duration-200">
-                        <CategoriesView 
+                        <AnalyseCategories
                           statsCategories={statsCategories}
-                          chartData={chartData}
                           hiddenCategories={hiddenCategories}
                           toggleCategory={toggleCategory}
-                          userTheme={userTheme}
+                          budgetGauges={budgetGauges}
                         />
                       </div>
                     );
@@ -3238,6 +3160,7 @@ export default function DashboardView(props) {
                   <button 
                     type="button"
                     onClick={() => setAnnualTab('chart')}
+                    title="Répartition des dépenses"
                     className={`p-1 rounded-sm cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
                   >
                     <PieChartIcon size={11} />
@@ -3375,16 +3298,7 @@ export default function DashboardView(props) {
 
                 {annualTab === 'chart' && (
                   <div className="h-80 w-full">
-                    {AnnualCategoriesChart ? (
-                      <AnnualCategoriesChart 
-                        data={statsAnnuellesCategories} 
-                        userTheme={userTheme} 
-                        currentYear={filters.annee}
-                        generateGradientStep={generateGradientStep} 
-                      />
-                    ) : (
-                      <p className="text-center text-xs text-white/40 py-6">Graphique indisponible</p>
-                    )}
+                    <RepartitionDepenses data={statsAnnuellesCategories} currentYear={filters.annee} comptes={comptes} filters={filters} toutesLesTransactions={toutesLesTransactions} />
                   </div>
                 )}
 
@@ -3403,6 +3317,9 @@ export default function DashboardView(props) {
                     comptesDuProfil={comptesDuProfil}
                     filters={filters}
                     moisListe={moisListe}
+                    user={user}
+                    objectifAnnuelGlobal={objectifAnnuelGlobal}
+                    epargneReelleCumulee={epargneReelleCumulee}
                   />
                 )}
               </div>
@@ -3532,9 +3449,21 @@ export default function DashboardView(props) {
               >
                 Épargne & Projets
               </button>
+              <button
+                type="button"
+                onClick={() => setActiveRightTab('valeurNette')}
+                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
+                  activeRightTab === 'valeurNette' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
+                }`}
+              >
+                Placements & crédits
+              </button>
             </div>
 
-            {activeRightTab === 'graphs' ? (
+            {activeRightTab === 'valeurNette' ? (
+              <ValeurNetteResume patrimoine={patrimoine} profil={filters.profil} recapAnnuelStats={recapAnnuelStats} soldeGlobal={soldeGlobal}
+                valeurNette={valeurNette} actif={patrimoineActif} ouvrirPatrimoine={ouvrirPatrimoine} couleur={userTheme.color_patrimoine || '#37b58f'} />
+            ) : activeRightTab === 'graphs' ? (
               <div className="space-y-3">
                 {/* JAUGE D'OBJECTIF D'ÉPARGNE MOBILE */}
                 <div className="bg-[var(--glass-bg)] border border-white/10 p-3.5 rounded-xl shadow-xl">

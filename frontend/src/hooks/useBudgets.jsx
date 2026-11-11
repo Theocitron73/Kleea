@@ -101,8 +101,9 @@ export default function useBudgets({ activeTab, comptesDuProfil, filters, statsC
     
     try {
       // 🛠️ AJOUT : On récupère aussi l'année de l'objet à supprimer
-      const { nom, mois, annee } = budgetToDelete; 
-      await api.delete(`/delete-budget/${encodeURIComponent(nom)}/${user}/${mois}/${annee}`);
+      const { nom, mois, annee, compte } = budgetToDelete; 
+      // Le compte désigne, pour un compte partagé, l'objectif à supprimer chez son propriétaire.
+      await api.delete(`/delete-budget/${encodeURIComponent(nom)}/${user}/${mois}/${annee}?compte=${encodeURIComponent(compte || '')}`);
       
       loadBudgets(activeTab === 'gerer');
       setBudgetToDelete(null); 

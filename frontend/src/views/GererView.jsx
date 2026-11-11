@@ -14,6 +14,7 @@ import {
   getCategoryIconInfo, getCategoryGroup 
 } from '../categoryIcons';
 import SplitTransactionModal from '../components/SplitTransactionModal';
+import ListeOperations from '../components/ListeOperations';
 import { ChoixRepetition } from '../components/ReglesRecurrentes';
 import { Repeat } from 'lucide-react';
 import { toast } from 'sonner';
@@ -104,30 +105,12 @@ export default function GererView(props) {
   const [showEditIconPicker, setShowEditIconPicker] = useState(false);
   const [showEditColorPicker, setShowEditColorPicker] = useState(false);
 
-  // Dropdowns du tableau Desktop
-  const [activeDropdownId, setActiveDropdownId] = useState(null);
-  const [activePrevisionDropdownId, setActivePrevisionDropdownId] = useState(null);
-  const [dropdownPosition, setDropdownPosition] = useState('bottom');
-
   // --- ÉTATS SPÉCIFIQUES MOBILE ---
   const [activeSection, setActiveSection] = useState('transactions'); // 'transactions' | 'tools' | 'budgets'
   const [showFilters, setShowFilters] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState(null);
 
   // --- VIRTUALISEURS TANSTACK (DESKTOP & MOBILE) ---
-  const tableContainerRef = useRef(null);
-  const rowVirtualizer = useVirtualizer({
-    count: transactionsFiltrees.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 54,
-    overscan: 10,
-  });
-
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const totalSize = rowVirtualizer.getTotalSize();
-  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
-
   const mobileListContainerRef = useRef(null);
   const mobileVirtualizer = useVirtualizer({
     count: transactionsFiltrees.length,
@@ -135,15 +118,6 @@ export default function GererView(props) {
     estimateSize: () => 76,
     overscan: 6,
   });
-
-  const moisOptionsAbrege = [
-    { v: "Janvier", l: "Janv." }, { v: "Février", l: "Févr." },
-    { v: "Mars", l: "Mars" }, { v: "Avril", l: "Avr." },
-    { v: "Mai", l: "Mai" }, { v: "Juin", l: "Juin" },
-    { v: "Juillet", l: "Juil." }, { v: "Aout", l: "Août" },
-    { v: "Septembre", l: "Sept." }, { v: "Octobre", l: "Oct." },
-    { v: "Novembre", l: "Nov." }, { v: "Décembre", l: "Déc." }
-  ];
 
   // Exécution de l'annulation d'un Split (Unsplit)
   const executeUnsplit = async () => {
@@ -765,448 +739,23 @@ export default function GererView(props) {
                 </div>
               </div>
 
-              {/* Table virtualisée Desktop */}
-              <div ref={tableContainerRef} className="flex-1 overflow-auto custom-scrollbar">
-                <table className="w-full text-left border-separate border-spacing-0">
-                  <thead>
-                    <tr className="bg-[var(--bg-site)]/95 backdrop-blur-[var(--glass-blur)] sticky top-0 z-40 border-b border-white/10 shadow-sm">
-                      <th className="py-3 px-2 w-10 border-b border-white/10 text-center">
-                        <input 
-                          type="checkbox"
-                          checked={transactionsFiltrees.length > 0 && selectedIds.length === transactionsFiltrees.length}
-                          onChange={toggleAll}
-                          className="w-3.5 h-3.5 rounded-sm border-white/20 bg-black/40 text-[var(--secondary)] focus:ring-[var(--primary)]/40 cursor-pointer"
-                        />
-                      </th>
-                      <th className="py-3 px-2 w-16 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('jour')}>
-                        <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                          Date {sortConfig.key === 'jour' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
-                        </div>
-                      </th>
-                      <th className="py-3 px-2 min-w-[260px] max-w-[420px] cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('nom')}>
-                        <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                          Transaction {sortConfig.key === 'nom' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
-                        </div>
-                      </th>
-                      <th className="py-3 px-2 w-28 cursor-pointer hover:bg-white/[0.02] text-right" onClick={() => handleSort('montant')}>
-                        <div className="flex items-center justify-end gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                          Montant {sortConfig.key === 'montant' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
-                        </div>
-                      </th>
-                      <th className="py-3 px-2 hidden md:table-cell w-56 cursor-pointer hover:bg-white/[0.02]" onClick={() => handleSort('categorie')}>
-                        <div className="flex items-center gap-1 text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                          Catégorie {sortConfig.key === 'categorie' ? (sortConfig.direction === 'asc' ? '↑' : '↓') : <ArrowUpDown size={10} />}
-                        </div>
-                      </th>
-                      <th className="py-3 px-2 w-36 min-w-[135px] text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                        Mois Affecté
-                      </th>
-                      <th className="py-3 px-2 w-28 text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                        Prévision
-                      </th>
-                      <th className="py-3 px-2 w-20 text-center text-[9px] font-black text-[var(--text-main)]/40 uppercase tracking-wider">
-                        Enveloppe
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-white/[0.03]">
-                    {transactionsFiltrees.length > 0 ? (
-                      <>
-                        {paddingTop > 0 && (
-                          <tr>
-                            <td colSpan={8} style={{ height: `${paddingTop}px`, padding: 0, border: 0 }} />
-                          </tr>
-                        )}
-
-                        {virtualRows.map((virtualRow) => {
-                          const t = transactionsFiltrees[virtualRow.index];
-                          if (!t) return null;
-
-                          const isSelected = selectedIds.includes(t.id);
-                          const isTransfertInterne = estTransfertInterne(t.nom, t.categorie);
-                          const isRevenu = parseFloat(t.montant) > 0;
-
-                          return (
-                            <tr 
-                              key={t.id || virtualRow.key} 
-                              data-index={virtualRow.index}
-                              ref={rowVirtualizer.measureElement}
-                              className={`group transition-colors duration-150 ${
-                                isSelected ? 'bg-[var(--primary)]/10 shadow-[inset_3px_0_0_0_var(--primary)]' : 'hover:bg-white/[0.02]'
-                              }`}
-                            >
-                              <td className="py-2.5 px-2 w-10 border-b border-white/[0.04] text-center">
-                                <input 
-                                  type="checkbox"
-                                  checked={isSelected}
-                                  onChange={() => toggleSelect(t.id)}
-                                  className="w-3.5 h-3.5 rounded-sm border-white/20 bg-black/40 text-[var(--secondary)] cursor-pointer"
-                                />
-                              </td>
-
-                              <td className="py-2.5 px-2 border-b border-white/[0.04] w-16 whitespace-nowrap">
-                                <div className="pointer-events-none">
-                                  <CustomBadgeDate t={t} />
-                                </div>
-                              </td>
-
-                              <td className="py-2.5 px-2 border-b border-white/[0.04] min-w-[280px] max-w-[550px]">
-                                <div className={`flex flex-col border-l-4 pl-2.5 py-0.5 transition-colors ${
-                                  isTransfertInterne
-                                    ? "border-[var(--primary)]/50 group-hover:border-[var(--primary)]" 
-                                    : isRevenu 
-                                      ? "border-emerald-500/50 group-hover:border-emerald-400" 
-                                      : "border-rose-500/50 group-hover:border-rose-400"
-                                }`}>
-                                  <div className="flex items-start gap-2">
-                                    <textarea
-                                      key={t.id}
-                                      rows="1"
-                                      defaultValue={t.nom}
-                                      onBlur={(e) => updateCell(t.id, 'nom', e.target.value)}
-                                      onInput={(e) => {
-                                        e.target.style.height = "auto";
-                                        e.target.style.height = `${Math.max(26, e.target.scrollHeight)}px`;
-                                      }}
-                                      ref={(el) => {
-                                        if (el) {
-                                          el.style.height = "auto";
-                                          el.style.height = `${Math.max(26, el.scrollHeight)}px`;
-                                        }
-                                      }}
-                                      className="bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/60 text-[12px] leading-snug font-bold text-[var(--text-main)] outline-none w-full resize-none overflow-hidden py-1 px-2 rounded-lg transition-all break-words cursor-text"
-                                      placeholder="Modifier le libellé..."
-                                    />
-
-                                    {/#\d+$/.test(t.nom) && (
-                                      <span 
-                                        title="Transaction similaire indexée"
-                                        className="shrink-0 px-1.5 py-0.2 rounded-sm bg-amber-500/15 text-amber-300 border border-amber-500/20 text-[7px] font-black uppercase mt-1"
-                                      >
-                                        {t.nom.match(/#\d+$/)[0]}
-                                      </span>
-                                    )}
-
-                                    <button
-                                      type="button"
-                                      onClick={() => setSplittingTx(t)}
-                                      className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 mt-0.5 flex items-center justify-center ${
-                                        t.split_id 
-                                          ? 'bg-secondary-500/25 text-secondary-300 border-secondary-500/40 shadow-[0_0_10px_color-mix(in_srgb,var(--secondary)_25%,transparent)]' 
-                                          : 'bg-white/[0.04] text-white/50 border-white/10 hover:text-secondary-300 hover:border-secondary-500/40 hover:bg-secondary-500/10'
-                                      }`}
-                                      title={t.split_id ? "Transaction déjà divisée" : "Diviser cette transaction (Split)"}
-                                    >
-                                      <Scissors size={12} strokeWidth={2.5} />
-                                    </button>
-
-                                    <div className="mt-1.5 shrink-0 opacity-20 group-hover:opacity-60 transition-opacity">
-                                      <Pencil size={10} className="text-white/40" />
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-1.5 mt-0.5 pl-1 flex-wrap">
-                                    <span className="text-[8px] font-bold text-[var(--text-main)]/30 uppercase font-mono tracking-wider">
-                                      {t.compte}
-                                    </span>
-                                    <span className="text-white/10 text-[8px]">•</span>
-                                    <span className={`text-[7.5px] px-1.5 py-0.2 rounded-full font-black uppercase tracking-wider ${
-                                      isTransfertInterne
-                                        ? "bg-[var(--secondary)]/15 text-[var(--secondary)]"
-                                        : isRevenu 
-                                          ? "bg-emerald-500/15 text-emerald-400" 
-                                          : "bg-rose-500/15 text-rose-400"
-                                    }`}>
-                                      {isTransfertInterne ? "Transfert" : isRevenu ? "Revenu" : "Dépense"}
-                                    </span>
-
-                                    {t.split_id && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom });
-                                        }}
-                                        className="px-2 py-0.5 rounded-lg bg-secondary-500/20 hover:bg-rose-500/20 text-secondary-300 hover:text-rose-300 border border-secondary-500/30 text-[7.5px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-                                        title="Annuler la division"
-                                      >
-                                        <Scissors size={9} />
-                                        <span>Divisée</span>
-                                        <RotateCcw size={8} className="opacity-40 ml-0.5 text-rose-300" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td className="py-2.5 px-2 text-right border-b border-white/[0.04] w-28 whitespace-nowrap">
-                                <span className={`text-[13px] font-black tabular-nums transition-colors ${
-                                  isTransfertInterne ? 'text-[var(--secondary)]' : isRevenu ? 'text-emerald-400' : 'text-rose-400'
-                                }`}>
-                                  {isRevenu && !isTransfertInterne ? '+' : ''}
-                                  {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                                </span>
-                              </td>
-
-                              <td className="py-2.5 px-2 hidden md:table-cell border-b border-white/[0.04] w-44">
-                                <CustomSelect 
-                                  value={t.categorie || "Autre"}
-                                  icon={Tag} 
-                                  options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
-                                  onChange={(val) => updateCell(t.id, 'categorie', val)}
-                                  className="px-2 py-1 rounded-xl text-[10px] bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
-                                />
-                              </td>
-
-                              <td className="py-2.5 px-2 border-b border-white/[0.04] w-36 min-w-[135px]">
-                                <CustomSelect 
-                                  value={t.mois || "Janvier"}
-                                  icon={Calendar} 
-                                  options={moisOptionsAbrege}
-                                  onChange={(val) => updateCell(t.id, 'mois', val)}
-                                  className="px-2.5 py-1 rounded-xl text-[10.5px] font-bold bg-black/25 border-white/5 hover:border-white/15 h-8 flex items-center justify-between"
-                                />
-                              </td>
-
-                              <td className={`py-2.5 px-2 border-b border-white/[0.04] w-28 text-center relative ${activePrevisionDropdownId === t.id ? 'z-[60]' : ''}`}>
-                                {(() => {
-                                  const isTxPositive = (parseFloat(t.montant) || 0) >= 0;
-                                  const compteTx = (comptes || []).find(c => 
-                                    (c.compte || "").trim().toUpperCase() === (t.compte || "").trim().toUpperCase()
-                                  );
-                                  const groupeCible = compteTx?.groupe || (filters?.profil !== 'Tous' ? filters?.profil : null);
-
-                                  const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
-                                  const nomBadge = prevAssociee ? getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, '')) : null;
-
-                                  const previsionsDuMois = (allPrevisionsAnnee || []).filter(p => {
-                                    const matchMois = String(p.mois || "").toLowerCase().trim() === String(t.mois || "").toLowerCase().trim();
-                                    const anneeT = parseInt(t.annee || new Date().getFullYear());
-                                    const anneeP = parseInt(p.annee || new Date().getFullYear());
-                                    const matchAnnee = (anneeT === anneeP);
-
-                                    let matchGroupe = true;
-                                    if (groupeCible) {
-                                      const compteP = (comptes || []).find(c => 
-                                        (c.compte || "").trim().toUpperCase() === (p.compte || "").trim().toUpperCase()
-                                      );
-                                      matchGroupe = compteP?.groupe?.toLowerCase().trim() === groupeCible.toLowerCase().trim();
-                                    }
-
-                                    const isPrevPositive = (parseFloat(p.montant) || 0) >= 0;
-                                    return matchMois && matchAnnee && matchGroupe && (isTxPositive === isPrevPositive);
-                                  });
-
-                                  return (
-                                    <div className="flex items-center justify-center gap-1.5">
-                                      {nomBadge ? (
-                                        <span 
-                                          title={`Lié à : ${nomBadge}`}
-                                          className="text-[8.5px] font-black px-1.5 py-0.5 rounded-sm bg-emerald-500/15 border border-emerald-500/25 text-emerald-400 uppercase max-w-[85px] truncate flex items-center gap-1"
-                                        >
-                                          <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={10} />
-                                          <span className="truncate">{nomBadge}</span>
-                                        </span>
-                                      ) : (
-                                        <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
-                                          Aucune
-                                        </span>
-                                      )}
-
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (activePrevisionDropdownId === t.id) {
-                                            setActivePrevisionDropdownId(null);
-                                          } else {
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            const spaceBelow = window.innerHeight - rect.bottom;
-                                            setDropdownPosition(spaceBelow < 280 ? 'top' : 'bottom');
-                                            setActivePrevisionDropdownId(t.id);
-                                          }
-                                        }}
-                                        className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-                                          activePrevisionDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
-                                        }`}
-                                      >
-                                        <MoreHorizontal size={12} />
-                                      </button>
-
-                                      {activePrevisionDropdownId === t.id && (
-                                        <>
-                                          <div 
-                                            className="fixed inset-0 z-50 cursor-default" 
-                                            onClick={(e) => { e.stopPropagation(); setActivePrevisionDropdownId(null); }}
-                                          />
-
-                                          <div 
-                                            onClick={(e) => e.stopPropagation()}
-                                            className={`
-                                              absolute right-0 w-60 bg-[var(--surface)] border border-white/10 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2 z-[70] flex flex-col gap-1 text-left backdrop-blur-[var(--glass-blur)]
-                                              ${dropdownPosition === 'top' ? 'bottom-full mb-2' : 'top-9'}
-                                            `}
-                                          >
-                                            <div className="px-2 py-1 text-[8px] font-black text-white/40 uppercase tracking-wider border-b border-white/5 flex items-center justify-between mb-1">
-                                              <span>Prévisions ({t.mois})</span>
-                                              <span className={isTxPositive ? 'text-emerald-400' : 'text-rose-400'}>
-                                                {isTxPositive ? '+ Revenu' : '- Dépense'}
-                                              </span>
-                                            </div>
-
-                                            <button
-                                              type="button"
-                                              onClick={async () => {
-                                                await updateCell(t.id, 'prevision_id', null);
-                                                setActivePrevisionDropdownId(null);
-                                              }}
-                                              className={`w-full text-left px-2 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                                !t.prevision_id ? 'bg-white/10 text-white' : 'text-white/40 hover:bg-white/5 hover:text-white'
-                                              }`}
-                                            >
-                                              <span>✕</span> Aucune liaison
-                                            </button>
-
-                                            <div className="max-h-52 overflow-y-auto custom-scrollbar flex flex-col gap-1">
-                                              {previsionsDuMois.map((p) => {
-                                                const isLinked = t.prevision_id === p.id;
-                                                const nomAff = getCleanCategoryName(p.nom.replace(/^\[PRÉVI\]\s*/i, ''));
-                                                const mntPrv = Math.abs(parseFloat(p.montant) || 0);
-
-                                                return (
-                                                  <button
-                                                    key={p.id}
-                                                    type="button"
-                                                    onClick={async () => {
-                                                      await updateCell(t.id, 'prevision_id', p.id);
-                                                      setActivePrevisionDropdownId(null);
-                                                    }}
-                                                    className={`w-full text-left p-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                                                      isLinked ? 'bg-emerald-500/15 text-emerald-300' : 'hover:bg-white/5 text-white/70'
-                                                    }`}
-                                                  >
-                                                    <div className="flex items-center gap-1.5 truncate">
-                                                      <CategoryIcon name={p.categorie || p.nom} size={11} />
-                                                      <span className="truncate">{nomAff} ({mntPrv.toFixed(0)}€)</span>
-                                                    </div>
-                                                    {isLinked && <span className="text-emerald-400 text-xs">✓</span>}
-                                                  </button>
-                                                );
-                                              })}
-                                            </div>
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-
-                              <td className="py-2.5 px-2 border-b border-white/[0.04] w-20 text-center relative">
-                                <div className="flex items-center justify-center gap-1">
-                                  {t.enveloppe ? (
-                                    <span 
-                                      title={`Alloué à : ${t.enveloppe}`}
-                                      className="text-[8px] font-black px-1.5 py-0.5 rounded-sm bg-[var(--secondary)]/15 border border-[var(--secondary)]/20 text-[var(--secondary)] uppercase max-w-[65px] truncate"
-                                    >
-                                      {t.enveloppe}
-                                    </span>
-                                  ) : (
-                                    <span className="text-[8px] font-bold text-white/10 uppercase italic select-none">
-                                      Aucune
-                                    </span>
-                                  )}
-
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setActiveDropdownId(activeDropdownId === t.id ? null : t.id);
-                                    }}
-                                    className={`w-6 h-6 flex items-center justify-center rounded-md transition-colors cursor-pointer ${
-                                      activeDropdownId === t.id ? 'bg-white/10 text-white' : 'text-white/20 hover:text-white hover:bg-white/5'
-                                    }`}
-                                  >
-                                    <MoreHorizontal size={12} />
-                                  </button>
-
-                                  {activeDropdownId === t.id && (
-                                    <>
-                                      <div 
-                                        className="fixed inset-0 z-50 cursor-default" 
-                                        onClick={(e) => { e.stopPropagation(); setActiveDropdownId(null); }}
-                                      />
-
-                                      <div className="absolute right-1 top-9 w-48 bg-[var(--surface)] border border-white/10 rounded-xl shadow-2xl p-1.5 z-[60] flex flex-col gap-0.5 text-left backdrop-blur-[var(--glass-blur)]">
-                                        <button
-                                          type="button"
-                                          onClick={async (e) => {
-                                            e.stopPropagation();
-                                            await updateCell(t.id, 'enveloppe', "");
-                                            setActiveDropdownId(null);
-                                          }}
-                                          className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                                            !t.enveloppe ? 'bg-[var(--secondary)]/15 text-[var(--secondary)]' : 'text-white/40 hover:bg-white/5 hover:text-white'
-                                          }`}
-                                        >
-                                          <X size={12} className="shrink-0 opacity-60" />
-                                          <span>Aucune enveloppe</span>
-                                        </button>
-
-                                        {Array.from(new Set(allocations.map(a => a.projet))).map((projetNom) => {
-                                          const isSelected = t.enveloppe === projetNom;
-                                          return (
-                                            <button
-                                              key={projetNom}
-                                              type="button"
-                                              onClick={async (e) => {
-                                                e.stopPropagation();
-                                                await updateCell(t.id, 'enveloppe', projetNom);
-                                                setActiveDropdownId(null);
-                                              }}
-                                              className={`w-full text-left px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all flex items-center justify-between gap-2 cursor-pointer ${
-                                                isSelected ? 'bg-emerald-500/15 text-emerald-400' : 'text-white/70 hover:bg-white/5 hover:text-white'
-                                              }`}
-                                            >
-                                              <div className="flex items-center gap-2 truncate min-w-0">
-                                                <WalletCards size={12} className={`shrink-0 ${isSelected ? 'text-emerald-400' : 'text-white/40'}`} />
-                                                <span className="truncate">{projetNom}</span>
-                                              </div>
-                                              {isSelected && <Check size={12} strokeWidth={3} className="shrink-0 text-emerald-400" />}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {paddingBottom > 0 && (
-                          <tr>
-                            <td colSpan={8} style={{ height: `${paddingBottom}px`, padding: 0, border: 0 }} />
-                          </tr>
-                        )}
-                      </>
-                    ) : (
-                      <tr>
-                        <td colSpan={8} className="py-16 text-center">
-                          <div className="w-12 h-12 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-3 mx-auto">
-                            <span className="text-xl opacity-30">📂</span>
-                          </div>
-                          <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">
-                            Aucune transaction trouvée
-                          </h3>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {/* Opérations, regroupées par jour */}
+              <ListeOperations
+                transactions={transactionsFiltrees}
+                selectedIds={selectedIds}
+                toggleSelect={toggleSelect}
+                toggleAll={toggleAll}
+                updateCell={updateCell}
+                categoriesVisibles={categoriesVisibles}
+                allPrevisionsAnnee={allPrevisionsAnnee}
+                comptes={comptes}
+                filters={filters}
+                allocations={allocations}
+                onDiviser={setSplittingTx}
+                onAnnulerDivision={(t) => setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom })}
+                sortConfig={sortConfig}
+                onTrier={handleSort}
+              />
             </div>
           </div>
 
@@ -2057,7 +1606,7 @@ export default function GererView(props) {
                                   options={groupsOptions}
                                   onChange={(newGroup) => handleAssignGroup(cat, newGroup)}
                                   icon={Layers}
-                                  className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-black/40 border-white/10 h-7"
+                                  className="px-2.5 py-1 rounded-xl text-[10px] font-bold h-7"
                                 />
                               </div>
                             </div>

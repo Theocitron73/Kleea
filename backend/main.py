@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import base  # noqa: F401  (charge l'environnement avant tout le reste)
 from securite import periodic_cleanup_task, refresh_banned_ips_cache, security_firewall_middleware
 import securite
-from routes import abonnements, alertes, regles, compte, double_auth, sessions, transactions, comptes_bancaires, theme, projets, previsions, categories, imports, tricount, statistiques, demenagement, powens, conges, streamdeck, sauvegarde
+from routes import abonnements, alertes, regles, patrimoine, partage, compte, double_auth, sessions, transactions, comptes_bancaires, theme, projets, previsions, categories, imports, tricount, statistiques, demenagement, powens, conges, streamdeck, sauvegarde
 from journaux import chemin_journalisable, logger
 
 
@@ -211,6 +211,8 @@ app.include_router(theme.router)
 app.include_router(projets.router)
 app.include_router(previsions.router)
 app.include_router(regles.router)
+app.include_router(patrimoine.router)
+app.include_router(partage.router)
 app.include_router(categories.router)
 app.include_router(imports.router)
 app.include_router(tricount.router)

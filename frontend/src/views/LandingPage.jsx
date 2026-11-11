@@ -105,7 +105,7 @@ const PAGES = [
   { id: 'previsionnel', label: 'Prévisionnel', icon: ChartLine, texte: 'Les dépenses et revenus attendus, et le solde prévu mois par mois jusqu’à la fin de l’année.' },
   { id: 'gerer', label: 'Historique et budgets', icon: ListChecks, texte: 'Toutes vos opérations, filtrées et recatégorisées en un clic, avec vos budgets à côté.' },
   { id: 'importer', label: 'Import', icon: Download, texte: 'Synchronisation bancaire ou fichier CSV : Kleea signale les opérations à importer.' },
-  { id: 'comptes', label: 'Comptes', icon: Wallet, texte: 'Comptes courants et livrets, avec leur taux, leur objectif et leur banque.' },
+  { id: 'comptes', label: 'Comptes', icon: Wallet, texte: 'Comptes courants et livrets, avec leur taux, leur objectif et leur banque, et les comptes partagés avec un proche.' },
   { id: 'tricount', label: 'Tricount', icon: Users2, texte: 'Les dépenses d’un voyage entre amis, et qui doit combien à qui.' },
   { id: 'alertes', label: 'Alertes', icon: Bell, texte: 'Un budget dépassé, un découvert prévu ou des opérations à importer : la cloche vous prévient.' },
   { id: 'recherche', label: 'Recherche', icon: Search, texte: 'Ctrl + K retrouve une opération, une catégorie ou un compte, quel que soit le mois.' },
@@ -115,7 +115,7 @@ const FONCTIONS = [
   { icon: Building2, titre: 'Vos banques, synchronisées', texte: 'Connectez BoursoBank, La Banque Postale, BNP, Revolut et les autres banques prises en charge par Powens. Les opérations arrivent seules, ou par import CSV si vous préférez.' },
   { icon: Tags, titre: 'Des catégories qui s’apprennent', texte: 'Quand vous recatégorisez une opération, Kleea s’en souvient. Au prochain import, les dépenses récurrentes sont classées sans intervention.' },
   { icon: CalendarClock, titre: 'Le solde de fin de mois, à l’avance', texte: 'Saisissez vos charges fixes et vos revenus attendus. Kleea calcule votre solde mois par mois et vous prévient avant un découvert.' },
-  { icon: Users2, titre: 'À deux ou entre amis', texte: 'Répartissez les dépenses communes au prorata des revenus, et partagez un Tricount de voyage avec un simple lien.' },
+  { icon: Users2, titre: 'Un compte commun, à deux', texte: 'Partagez un compte avec la personne de votre choix. Chacun le suit depuis son propre compte Kleea : mêmes opérations, mêmes prévisions, mêmes budgets, et vos autres comptes restent privés. Pour un voyage entre amis, un Tricount se partage par un simple lien.' },
 ];
 
 export default function LandingPage({ onOpenAuth }) {
@@ -250,7 +250,7 @@ export default function LandingPage({ onOpenAuth }) {
 
       <footer className="border-t border-[var(--acc-t1)]/[0.08]">
         <div className={`max-w-7xl mx-auto px-4 sm:px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm ${T3}`}>
-          <p>© {new Date().getFullYear()} Kleea · version 4.4</p>
+          <p>© {new Date().getFullYear()} Kleea · version 4.5</p>
           <div className="flex flex-wrap justify-center gap-6">
             <a href="#showcase" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>L’application</a>
             <a href="#features" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Fonctionnalités</a>

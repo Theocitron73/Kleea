@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 // Les icônes ne servent pas ici : on charge le contenu sans React, en remplaçant lucide-react.
 const source = readFileSync(new URL('./contenu.js', import.meta.url), 'utf8')
-  .replace(/import \{[^}]*\} from 'lucide-react';/s, "const icone = () => null; const [ChartCandlestick, FileUp, Gamepad2, HelpCircle, LayoutDashboard, PiggyBank, Settings2, UserCog, Users2, Wallet] = Array(10).fill(icone);");
+  .replace(/import \{([^}]*)\} from 'lucide-react';/s, (_, noms) => `const icone = () => null; const [${noms}] = Array(40).fill(icone);`);
 const { CHAPITRES, PREMIERS_PAS, normaliser, rechercher } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 const SRC = fileURLToPath(new URL('..', import.meta.url));

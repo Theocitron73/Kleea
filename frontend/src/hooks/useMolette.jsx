@@ -135,7 +135,7 @@ export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annu
     if (!canWheelTrigger()) return;
     e.preventDefault();
 
-    const tabs = ['graphs', 'epargneProjets'];
+    const tabs = ['graphs', 'epargneProjets', 'valeurNette'];
     const currentIndex = tabs.indexOf(activeRightTab);
     if (currentIndex === -1) return;
 

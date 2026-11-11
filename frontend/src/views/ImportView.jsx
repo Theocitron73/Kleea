@@ -3,6 +3,7 @@ import { Upload, Wallet, Building2, RefreshCw, Plus, Download, Check, Brain, X, 
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import { toast } from 'sonner';
 import { estTransfertInterne } from '../utils/finance';
+import SynchroPartagee from '../components/SynchroPartagee';
 
 // Guide d'export CSV par banque (100% d'origine)
 function HelpPopover() {
@@ -87,6 +88,7 @@ function HelpPopover() {
 }
 
 export default function ImportView({
+  fetchTransactions,
   importCompte,
   setImportCompte,
   selectedCompte,
@@ -374,6 +376,9 @@ export default function ImportView({
               </div>
             )}
           </div>
+
+          {/* Comptes partagés avec moi : ils s'importent chez leur propriétaire, juste avant les boutons d'import. */}
+          <div className={`shrink-0 empty:hidden ${mobileSubTab === 'previsu' ? 'hidden lg:block' : ''}`}><SynchroPartagee onTerminee={fetchTransactions} /></div>
 
           {/* Les 3 boutons d'importation */}
           <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 ${
