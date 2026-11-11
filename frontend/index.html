@@ -24,34 +24,7 @@
     <link rel="apple-touch-icon" href="/Kleea_2.png" />
 
     <!-- 🟢 4. Nettoyage immédiat du vieux cache pollué + Application instantanée du vrai thème sombre (0 ms) -->
-    <script>
-      try {
-        // Supprime définitivement la vieille clé qui forçait le gris-blanc
-        localStorage.removeItem('mycash-theme');
-
-        // L'ancien jeton Powens ne doit plus rester dans le navigateur : seul un indicateur est conservé
-        if (localStorage.getItem('powens_user_token')) {
-          localStorage.setItem('powens_connecte', 'true');
-          localStorage.removeItem('powens_user_token');
-        }
-
-        // Récupère le vrai thème actif
-        const cached = localStorage.getItem('kleea-theme-cache');
-        if (cached) {
-          const t = JSON.parse(cached);
-          if (t.bg_site) {
-            document.documentElement.style.setProperty('--bg-site', t.bg_site);
-            document.documentElement.style.backgroundColor = t.bg_site;
-          }
-          if (t.primary_color) document.documentElement.style.setProperty('--primary', t.primary_color);
-          if (t.secondary_color) document.documentElement.style.setProperty('--secondary', t.secondary_color);
-          if (t.text_main) document.documentElement.style.setProperty('--text-main', t.text_main);
-          if (t.radius) document.documentElement.style.setProperty('--radius', t.radius);
-          if (t.glass_blur) document.documentElement.style.setProperty('--glass-blur', t.glass_blur);
-          if (t.glass_bg) document.documentElement.style.setProperty('--glass-bg', t.glass_bg);
-        }
-      } catch (e) {}
-    </script>
+    <script src="/demarrage.js"></script>
 
     <!-- 🟢 5. Empêche physiquement tout flash blanc (verrouillé sur var(--bg-site) avec repli sombre) -->
     <style>

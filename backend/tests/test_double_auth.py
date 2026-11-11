@@ -50,7 +50,7 @@ class Base(unittest.TestCase):
             conn.execute(text("CREATE TABLE banned_ips (ip TEXT, banned_until TIMESTAMP, reason TEXT, created_at TIMESTAMP)"))
             conn.execute(text("CREATE TABLE login_failed_attempts (ip TEXT, attempted_at TIMESTAMP)"))
             conn.execute(text("CREATE TABLE security_rate_limits (key TEXT, action TEXT, attempted_at TIMESTAMP)"))
-            conn.execute(text("CREATE TABLE users (username TEXT, email TEXT, password TEXT, role TEXT, name TEXT, import_mode TEXT)"))
+            conn.execute(text("CREATE TABLE users (username TEXT, email TEXT, password TEXT, role TEXT, name TEXT, import_mode TEXT, powens_token TEXT)"))
             conn.execute(text("CREATE TABLE streamdeck_tokens (utilisateur TEXT, token_hash TEXT, created_at TIMESTAMP)"))
             for nom, email in (("Theo", "theo@kleea.test"), ("aude", "aude@kleea.test"), ("sansmail", None)):
                 conn.execute(

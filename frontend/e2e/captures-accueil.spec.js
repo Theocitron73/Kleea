@@ -9,7 +9,7 @@ test.skip(!process.env.CAPTURES, 'Captures de la page d’accueil : CAPTURES=1 p
 
 const U = 'testeur';
 const DOSSIER = path.join(import.meta.dirname, '..', 'public', 'apercu');
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 // Douze mois d'opérations, de décembre 2025 au 18 novembre 2026.

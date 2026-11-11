@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { UTILISATEUR, ouvrirSession } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const TRANSACTIONS = [
   { id: 1, date: '2026-11-02', nom: 'Supermarché', montant: -120, categorie: 'Courses', compte: 'CCP', mois: 'Novembre', annee: 2026 },
   { id: 2, date: '2026-11-03', nom: 'Remboursement', montant: 50, categorie: 'Courses', compte: 'CCP', mois: 'Novembre', annee: 2026 },

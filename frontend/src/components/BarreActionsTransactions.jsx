@@ -29,8 +29,8 @@ function BarreActionsTransactions({ handleDeleteSelected, selectedIds, setSelect
   );
 
   return (
-    <div role="toolbar" aria-label="Actions sur la sélection" className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-10">
-      <div className="bg-[var(--surface)]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 pl-5 pr-2 py-2 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex items-center gap-1">
+    <div role="toolbar" aria-label="Actions sur la sélection" className="fixed bottom-24 inset-x-3 md:inset-x-auto md:bottom-10 md:left-1/2 md:-translate-x-1/2 z-[1050] animate-in fade-in slide-in-from-bottom-10">
+      <div className="bg-[var(--surface)]/90 backdrop-blur-[var(--glass-blur)] border border-white/10 pl-3 md:pl-5 pr-2 py-2 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] flex flex-wrap md:flex-nowrap justify-center items-center gap-1">
         <span className="text-[13px] font-semibold text-[var(--text-main)] mr-3 tabular-nums">
           {selectedIds.length} {selectedIds.length > 1 ? 'sélectionnées' : 'sélectionnée'}
         </span>

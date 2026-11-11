@@ -64,6 +64,24 @@ def jeton_powens_du_compte(current_user: str) -> Optional[str]:
     return dechiffrer_jeton(ligne[0]) if ligne and ligne[0] else None
 
 
+def revoquer_acces_powens(jeton_stocke: str) -> bool:
+    """Supprime l'utilisateur chez Powens (DELETE /users/me). Ne lève jamais : renvoie False si Powens ne l'a pas confirmé."""
+    try:
+        domain = POWENS_DOMAIN.rstrip('/')
+        if not domain.endswith('/2.0') and not domain.endswith('/v2'):
+            domain += '/2.0'
+        elif domain.endswith('/v2'):
+            domain = domain[:-3] + '/2.0'
+
+        headers = {"Authorization": f"Bearer {dechiffrer_jeton(jeton_stocke)}"}
+        reponse = requests.delete(f"{domain}/users/me", headers=headers, timeout=10)
+    except Exception as e:
+        logger.warning(f"⚠️ Révocation Powens impossible : {type(e).__name__}")
+        return False
+    logger.info(f"🗑️ [POWENS PURGE USER] Réponse Powens: {reponse.status_code}")
+    return reponse.ok
+
+
 @router.get("/powens/connect-url")
 def get_connect_url(
     redirect_url: str,
@@ -634,8 +652,10 @@ def check_sync_status(username: str, current_user: str = Depends(get_current_use
 
 
 # 🟢 FONCTION MÉTIER ATOMIQUE (Appelable par l'API et par les tâches de fond)
-def exec_sync_user_transactions(username: str):
+def exec_sync_user_transactions(username: str, comptes: Optional[set] = None):
+    """Importe les opérations Powens des comptes reliés. `comptes` limite l'import à ces comptes Kleea (un partage)."""
     user_clean = username.lower().strip()
+    seulement = {c.lower() for c in comptes} if comptes is not None else None
     is_test_user = (user_clean == "test")
 
     # 1. Récupération du token Powens et configuration des comptes
@@ -709,7 +729,7 @@ def exec_sync_user_transactions(username: str):
 
             tx_account_id = str(tx.get("id_account")) if tx.get("id_account") is not None else None
             local_account_name = acc_id_to_kleea.get(tx_account_id)
-            if not local_account_name:
+            if not local_account_name or (seulement is not None and local_account_name.lower() not in seulement):
                 continue
                 
             montant = float(tx.get("value", 0.0))
@@ -860,14 +880,18 @@ def exec_sync_user_transactions(username: str):
 
 
 # 🟢 ROUTE API SÉCURISÉE AVEC JWT (Sans paramètre inutilisé)
-def synchroniser_et_noter(username: str):
-    """Lance la synchronisation et garde son résultat pour le centre d'alertes."""
+def synchroniser_et_noter(username: str, comptes: Optional[set] = None):
+    """Lance la synchronisation et garde son résultat pour le centre d'alertes.
+
+    Limitée à quelques comptes (demande d'un partage), une réussite n'est pas notée : les autres comptes n'ont pas été actualisés.
+    """
     try:
-        resultat = exec_sync_user_transactions(username)
+        resultat = exec_sync_user_transactions(username) if comptes is None else exec_sync_user_transactions(username, comptes)
     except Exception as e:
         noter_synchro(username, e)
         raise
-    noter_synchro(username)
+    if comptes is None:
+        noter_synchro(username)
     return resultat
 
 
@@ -1082,22 +1106,10 @@ def disconnect_powens(username: str, current_user: str = Depends(get_current_use
     query_token = text("SELECT powens_token FROM users WHERE LOWER(username) = LOWER(:u)")
     with engine.connect() as conn:
         res = conn.execute(query_token, {"u": user_clean}).fetchone()
-        user_token = dechiffrer_jeton(res[0]) if res else None
 
     # 1. Suppression définitive chez Powens via l'API (DELETE /users/me)
-    if user_token:
-        try:
-            domain = POWENS_DOMAIN.rstrip('/')
-            if not domain.endswith('/2.0') and not domain.endswith('/v2'):
-                domain += '/2.0'
-            elif domain.endswith('/v2'):
-                domain = domain[:-3] + '/2.0'
-                
-            headers = {"Authorization": f"Bearer {user_token}"}
-            del_res = requests.delete(f"{domain}/users/me", headers=headers)
-            logger.info(f"🗑️ [POWENS PURGE USER] Réponse Powens: {del_res.status_code}")
-        except Exception as e:
-            logger.warning(f"⚠️ Erreur lors de la suppression chez Powens: {e}")
+    if res and res[0]:
+        revoquer_acces_powens(res[0])
 
     # 2. Nettoyage de la base de données locale Kleea
     with engine.connect() as conn:

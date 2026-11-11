@@ -133,7 +133,7 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
       {isOpen && (!flottant || position) && (() => { const liste = (
         <div ref={listeRef} role="listbox"
           style={flottant ? { position: 'fixed', ...position } : undefined}
-          className={`${flottant ? 'z-[200]' : 'absolute top-[110%] left-0 w-full min-w-[200px] z-[100]'} max-h-72 overflow-y-auto custom-scrollbar p-1.5 rounded-2xl bg-[var(--surface)] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 duration-150`}>
+          className={`${flottant ? 'z-[1200]' : 'absolute top-[110%] left-0 w-full min-w-[200px] z-[100]'} max-h-72 overflow-y-auto custom-scrollbar p-1.5 rounded-2xl bg-[var(--surface)] border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.6)] animate-in fade-in zoom-in-95 duration-150`}>
           {filteredOptions.length > 0 ? (
             isCategorySelect && groupedOptions && groupedOptions.sortedGroupNames.length > 0 ? (
               groupedOptions.sortedGroupNames.map(grpName => (

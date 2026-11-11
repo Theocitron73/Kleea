@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { UTILISATEUR, ouvrirSession } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const CREDIT = {
   id: 1, type: 'immobilier', nom: 'Crédit immo', montant: 200000, taux: 3.5, duree_mois: 240, debut: '2021-04-05', libelle_lien: 'PRLV CREDIT', profil: null,
   anticipes: [], capital_restant: 156703.29, mensualite: 1159.92, fin: '2041-03-05', interets_restants: 42802.85, rembourse_pct: 21.6, echeances_payees: 68,
@@ -228,4 +228,24 @@ test('la liste du type passe au-dessus des placements déjà présents', async (
   expect(dessus).toBe('Véhicule');
   await option.click();
   await expect(page.getByLabel('Perte de valeur par an')).toBeVisible();
+});
+
+test('un PEA montre sa courbe et sa performance hors versements', async ({ page }) => {
+  const erreurs = await ouvrir(page);
+  page.serveur.biens.push({
+    id: 3, type: 'placement', nom: 'PEA', valeur: 12000, valeur_saisie: 11500, date_valeur: '2026-06-01', decote: null, libelle_lien: 'VIR PEA', profil: null, versements: 500,
+    suivi: {
+      points: [{ date: '2026-01-01', valeur: 10000, investi: 10000 }, { date: '2026-06-01', valeur: 11500, investi: 11000 }, { date: '2026-11-18', valeur: 12000, investi: 11500 }],
+      investi: 11500, gain: 500, performance: 4.35,
+    },
+  });
+  await onglet(page, 'Comptes');
+  await ongletComptes(page, 'Placements');
+  const carte = page.getByRole('list', { name: 'Placements et biens' }).getByRole('listitem').filter({ hasText: 'PEA' });
+  await expect(carte.getByText('+500 € (+4,4 %)')).toBeVisible();
+  await expect(carte.getByText(/depuis l’ouverture, hors versements · 11\s500 € versés/)).toBeVisible();
+  await expect(carte.getByRole('img', { name: /Valeur de PEA : de 10\s000 €/ })).toBeVisible();
+  await expect(carte.locator('.recharts-line')).toHaveCount(2);
+  await carte.screenshot({ path: 'test-results/placement-suivi.png' });
+  expect(erreurs).toEqual([]);
 });

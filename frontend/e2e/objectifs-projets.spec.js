@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { UTILISATEUR, ouvrirSession } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
 // Six mois écoulés à 430 € d'épargne chacun : 1 000 € de salaire, 570 € de dépenses.

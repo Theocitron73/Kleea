@@ -110,6 +110,12 @@ def _liste(valeur) -> list:
         return []
 
 
+def _valeurs(bien: dict) -> list:
+    """Les valeurs saisies d'un bien ; un bien d'avant l'historique part de sa dernière valeur."""
+    valeurs = [{"date": _jour(v["date"]), "valeur": float(v["valeur"])} for v in _liste(bien.get("valeurs"))]
+    return valeurs or [{"date": _jour(bien["date_valeur"]), "valeur": float(bien["valeur"])}]
+
+
 def _dette(ligne: dict) -> dict:
     anticipes = [{**a, "date": _jour(a["date"])} for a in _liste(ligne.get("anticipes"))]
     return {**ligne, "debut": _jour(ligne["debut"]), "anticipes": anticipes, "ignores": _liste(ligne.get("ignores"))}
@@ -190,6 +196,9 @@ def lire_patrimoine(annee: Optional[int] = None, profil: Optional[str] = None, c
             "quantite": b.get("quantite"), "crypto_id": b.get("crypto_id"), "cours": cours.get(b.get("crypto_id")),
             "versements": verse, "valeur": calc.valeur_bien(b, aujourdhui, verse, cours.get(b.get("crypto_id"))),
         })
+        if b["type"] == "placement" and not b.get("crypto_id"):
+            suivi = calc.suivi_placement({**b, "valeurs": _valeurs(b)}, operations, aujourdhui)
+            sortie_biens[-1]["suivi"] = {**suivi, "points": [{**p, "date": str(p["date"])} for p in suivi["points"]]}
     sortie_dettes = []
     for d in dettes:
         etat = calc.etat_dette(d, aujourdhui)
@@ -234,11 +243,13 @@ def creer_bien(bien: BienIn, current_user: str = Depends(get_current_user)):
             valeur = round(bien.quantite * cours, 2)
     if valeur is None:
         raise HTTPException(status_code=400, detail="Indiquez la valeur actuelle (le cours n’est pas disponible pour le moment).")
+    jour = bien.date_valeur or date.today()
     with engine.begin() as conn:
         ident = conn.execute(
-            text("""INSERT INTO biens (utilisateur, type, nom, valeur, date_valeur, decote, libelle_lien, profil, quantite, crypto_id)
-                    VALUES (:u, :t, :n, :v, :d, :dec, :l, :p, :q, :c) RETURNING id"""),
-            {"u": current_user, "t": bien.type, "n": bien.nom.strip(), "v": valeur, "d": bien.date_valeur or date.today(),
+            text("""INSERT INTO biens (utilisateur, type, nom, valeur, date_valeur, decote, libelle_lien, profil, quantite, crypto_id, valeurs)
+                    VALUES (:u, :t, :n, :v, :d, :dec, :l, :p, :q, :c, :vs) RETURNING id"""),
+            {"u": current_user, "t": bien.type, "n": bien.nom.strip(), "v": valeur, "d": jour,
+             "vs": json.dumps([{"date": str(jour), "valeur": valeur}]),
              "dec": bien.decote or None, "l": (bien.libelle_lien or "").strip() or None, "p": bien.profil or None,
              "q": bien.quantite if bien.crypto_id else None, "c": bien.crypto_id},
         ).scalar()
@@ -260,6 +271,10 @@ def modifier_bien(bien_id: int, modif: BienModif, current_user: str = Depends(ge
     reclassees = 0
     with engine.begin() as conn:
         avant = _une(conn, "biens", bien_id, current_user)
+        if "valeur" in champs:
+            # L'historique garde une valeur par jour : une correction le même jour remplace la précédente.
+            valeurs = [v for v in _valeurs(avant) if v["date"] != champs["date_valeur"]] + [{"date": champs["date_valeur"], "valeur": champs["valeur"]}]
+            champs["valeurs"] = json.dumps([{"date": str(v["date"]), "valeur": v["valeur"]} for v in valeurs])
         affectations = ", ".join(f"{k} = :{k}" for k in champs)
         conn.execute(text(f"UPDATE biens SET {affectations} WHERE id = :id AND LOWER(utilisateur) = :u"), {**champs, "id": bien_id, "u": current_user})
         if ("libelle_lien" in champs or "nom" in champs) and not avant.get("crypto_id"):

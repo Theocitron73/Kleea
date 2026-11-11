@@ -24,8 +24,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 
 import aide  # noqa: E402
-from aide import partout  # noqa: E402
+from aide import partout, schema_des_revisions  # noqa: E402
 import main  # noqa: E402
+from suppression_compte import ACTION_PAR_EMAIL, TABLE_DES_LIMITES, TABLES_DU_COMPTE  # noqa: E402
 
 URL = os.getenv("TEST_DATABASE_URL")
 VERSIONS = Path(__file__).resolve().parents[1] / "migrations" / "versions"
@@ -47,7 +48,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS + charger_revision("0009_valeur_nette").CREATIONS + charger_revision("0010_valeur_nette_suite").MODIFICATIONS + charger_revision("0011_compte_commun").CREATIONS
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS + charger_revision("0009_valeur_nette").CREATIONS + charger_revision("0010_valeur_nette_suite").MODIFICATIONS + charger_revision("0011_compte_commun").CREATIONS + [charger_revision("0012_historique_placements").MODIFICATION]
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -407,6 +408,66 @@ class RoutesSurPostgres(unittest.TestCase):
 
         self.assertEqual(comparable(second), comparable(premier))
         self.assertEqual(second["donnees"]["custom_stats"][0]["regles"], VALEURS["structure"])
+
+    def inserer_une_ligne(self, conn, table, colonne, valeur, numero):
+        """Une ligne valable pour le vrai schéma : seules les colonnes obligatoires et sans valeur par défaut sont remplies."""
+        requises = conn.execute(text("""
+            SELECT column_name, data_type FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = :t AND is_nullable = 'NO' AND column_default IS NULL AND is_identity = 'NO'
+        """), {"t": table}).fetchall()
+        valeurs = {}
+        for nom, genre in requises:
+            if "timestamp" in genre or genre == "date":
+                valeurs[nom] = ("2026-01-01", genre)
+            elif genre in {"integer", "smallint", "numeric", "double precision"}:
+                valeurs[nom] = ("1", genre)
+            elif genre == "boolean":
+                valeurs[nom] = ("false", genre)
+            elif genre == "jsonb":
+                valeurs[nom] = ("{}", genre)
+            else:
+                valeurs[nom] = (f"v{numero}", genre)  # Unique : certaines colonnes le sont d'un compte à l'autre.
+        valeurs[colonne] = (valeur, "text")
+        noms = list(valeurs)
+        colonnes = ", ".join(f'"{nom}"' for nom in noms)
+        parametres = ", ".join(f"CAST(:p{i} AS {valeurs[nom][1]})" for i, nom in enumerate(noms))
+        conn.execute(
+            text(f'INSERT INTO "{table}" ({colonnes}) VALUES ({parametres})'),
+            {f"p{i}": valeurs[nom][0] for i, nom in enumerate(noms)},
+        )
+
+    def test_supprimer_le_compte_sur_le_schema_alembic(self):
+        with self.engine.begin() as conn:
+            numero = 0
+            for table, colonne in TABLES_DU_COMPTE.items():
+                for valeur in ("Theo", "aude"):
+                    numero += 1
+                    self.inserer_une_ligne(conn, table, colonne, valeur, numero)
+            conn.execute(text("UPDATE users SET email = 'Theo@Exemple.fr' WHERE username = 'Theo'"))
+            for cle, action in (("theo", "gemini_chat"), ("theo@exemple.fr", ACTION_PAR_EMAIL), ("aude", "gemini_chat")):
+                conn.execute(text(f"INSERT INTO {TABLE_DES_LIMITES} (key, action) VALUES (:k, :a)"), {"k": cle, "a": action})
+
+        reponse = self.client.delete("/profile/theo")
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        self.assertEqual(reponse.json()["powens"], "absent")
+
+        with self.engine.connect() as conn:
+            for table, colonne in TABLES_DU_COMPTE.items():
+                lignes = [r[0] for r in conn.execute(text(f'SELECT "{colonne}" FROM "{table}"'))]
+                self.assertEqual(lignes, ["aude"], table)
+            self.assertEqual([r[0] for r in conn.execute(text(f"SELECT key FROM {TABLE_DES_LIMITES}"))], ["aude"])
+
+        inscription = {"nom": "theo", "email": "theo@exemple.fr", "password": "motdepasse1", "first_name": "T", "last_name": "L"}
+        self.assertEqual(self.client.post("/register", json=inscription).status_code, 200)
+        self.assertEqual(self.client.get("/note/theo").json(), {"texte": ""})
+
+    def test_le_schema_alembic_correspond_au_releve_des_revisions(self):
+        with self.engine.connect() as conn:
+            lignes = conn.execute(text("SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public'")).fetchall()
+        reel = {}
+        for table, colonne in lignes:
+            reel.setdefault(table, set()).add(colonne)
+        self.assertEqual(reel, schema_des_revisions())
 
 
 class GardeFou(unittest.TestCase):

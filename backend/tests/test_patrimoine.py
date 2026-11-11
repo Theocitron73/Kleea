@@ -87,6 +87,18 @@ class Biens(unittest.TestCase):
         ]
         self.assertEqual(calc.versements_lies(pea, operations), 200)
 
+    def test_la_performance_d_un_placement_ne_compte_pas_les_versements(self):
+        pea = {"valeur": 11500, "date_valeur": date(2026, 6, 1), "libelle_lien": "VIR PEA",
+               "valeurs": [{"date": date(2026, 1, 1), "valeur": 10000}, {"date": date(2026, 6, 1), "valeur": 11500}]}
+        operations = [
+            {"id": 1, "date": date(2026, 3, 1), "nom": "VIR PEA", "montant": -1000},
+            {"id": 2, "date": date(2026, 7, 1), "nom": "VIR PEA", "montant": -500},
+            {"id": 3, "date": date(2025, 12, 1), "nom": "VIR PEA", "montant": -999},
+        ]
+        suivi = calc.suivi_placement(pea, operations, date(2026, 11, 11))
+        self.assertEqual([(p["valeur"], p["investi"]) for p in suivi["points"]], [(10000, 10000), (11500, 11000), (12000, 11500)])
+        self.assertEqual((suivi["investi"], suivi["gain"], suivi["performance"]), (11500, 500, 4.35))
+
     def test_rapprochement_des_prelevements(self):
         dette = {**CREDIT, "libelle_lien": "PRLV CREDIT", "ignores": [7]}
         operations = [
@@ -111,7 +123,7 @@ class Routes(unittest.TestCase):
             conn.execute(text("CREATE TABLE transactions (id INTEGER PRIMARY KEY, date TIMESTAMP, nom TEXT, montant REAL, utilisateur TEXT, categorie TEXT)"))
             conn.execute(text("CREATE TABLE config_categories (categorie TEXT, mots_cles TEXT, utilisateur TEXT)"))
             conn.execute(text("""CREATE TABLE biens (id INTEGER PRIMARY KEY, utilisateur TEXT NOT NULL, type TEXT NOT NULL, nom TEXT NOT NULL, valeur REAL NOT NULL,
-                date_valeur DATE NOT NULL, decote REAL, libelle_lien TEXT, profil TEXT, cree_le TIMESTAMP, quantite REAL, crypto_id TEXT)"""))
+                date_valeur DATE NOT NULL, decote REAL, libelle_lien TEXT, profil TEXT, cree_le TIMESTAMP, quantite REAL, crypto_id TEXT, valeurs TEXT)"""))
             conn.execute(text("""CREATE TABLE dettes (id INTEGER PRIMARY KEY, utilisateur TEXT NOT NULL, type TEXT NOT NULL, nom TEXT NOT NULL, montant REAL NOT NULL,
                 taux REAL NOT NULL, duree_mois INTEGER, debut DATE NOT NULL, libelle_lien TEXT, profil TEXT, anticipes TEXT, ignores TEXT, cree_le TIMESTAMP,
                 powens_compte_id TEXT, capital_banque REAL, capital_banque_le TIMESTAMP)"""))
@@ -170,8 +182,13 @@ class Routes(unittest.TestCase):
         self.operation("2026-02-05", "VIR PEA BOURSO", -300, utilisateur="aude")
         self.assertEqual(self.appel("GET", "/api/patrimoine")["biens"][0]["valeur"], 18300)
         # Une nouvelle valeur saisie repart d'aujourd'hui : le virement déjà compté ne s'ajoute plus.
+        self.appel("PUT", f"/api/biens/{bien}", json={"valeur": 18900})
         self.appel("PUT", f"/api/biens/{bien}", json={"valeur": 19000})
-        self.assertEqual(self.appel("GET", "/api/patrimoine")["biens"][0]["valeur"], 19000)
+        placement = self.appel("GET", "/api/patrimoine")["biens"][0]
+        self.assertEqual(placement["valeur"], 19000)
+        # Une valeur par jour dans la courbe ; la performance retire le virement de 300 €.
+        self.assertEqual([p["valeur"] for p in placement["suivi"]["points"]], [18000, 19000])
+        self.assertEqual((placement["suivi"]["investi"], placement["suivi"]["gain"]), (18300, 700))
 
     def test_remboursement_anticipe_detecte_puis_confirme_ou_ignore(self):
         dette = self.appel("POST", "/api/dettes", json={"type": "immobilier", "nom": "Crédit", "montant": 200000, "taux": 3.5, "duree_mois": 240, "debut": "2021-04-05", "libelle_lien": "PRLV CREDIT"})["id"]

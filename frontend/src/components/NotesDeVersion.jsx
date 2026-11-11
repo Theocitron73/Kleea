@@ -9,9 +9,10 @@ const VERSIONS = [
   {
     version: '4.5',
     nouveautes: [
-      { Icone: Landmark, couleur: 'text-emerald-400', titre: 'Placements & crédits', texte: 'suivez PEA, assurance vie, crypto, biens et crédits dans la page Comptes : échéancier, remboursements anticipés et total net au tableau de bord.' },
+      { Icone: Landmark, couleur: 'text-emerald-400', titre: 'Placements & crédits', texte: 'suivez PEA, assurance vie, crypto, biens et crédits dans la page Comptes : courbe et performance de chaque placement hors versements, échéancier, remboursements anticipés et total net au tableau de bord.' },
       { Icone: Users, couleur: 'text-secondary-400', titre: 'Compte commun', texte: 'partagez des comptes avec une autre personne Kleea : opérations, prévisions et objectifs communs, chacun depuis son propre compte.' },
-      { Icone: ListChecks, couleur: 'text-secondary-400', titre: 'Gérer et Prévisionnel', texte: 'des listes regroupées par jour, plus lisibles, avec tri, filtres et modifications en lot.' },
+      { Icone: ListChecks, couleur: 'text-secondary-400', titre: 'Gérer et Prévisionnel', texte: 'des listes regroupées par jour, plus lisibles, avec tri, filtres et modifications en lot, aussi sur téléphone.' },
+      { Icone: Bell, couleur: 'text-amber-400', titre: 'Alertes en cours de mois', texte: 'la cloche prévient plus tôt : un budget dépensé trop vite, ou le jour où un solde passera sous zéro.' },
       { Icone: MousePointerClick, couleur: 'text-secondary-400', titre: 'Listes déroulantes', texte: 'un nouveau style, le même partout sur le site, avec les catégories rangées par groupe.' },
       { Icone: BarChart3, couleur: 'text-amber-400', titre: 'Graphiques', texte: 'répartition annuelle en anneau, analyses par catégorie en barres aux couleurs de vos catégories, avec vos objectifs budgétaires.' },
       { Icone: PartyPopper, couleur: 'text-rose-400', titre: 'Wrapped', texte: 'de nouvelles cartes, la comparaison avec l\'an dernier, des pages à faire défiler et une image à télécharger.' },

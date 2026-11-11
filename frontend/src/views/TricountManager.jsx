@@ -148,6 +148,7 @@ export default function TricountManager({ userId }) {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(url, {
+        credentials: 'include',
         headers: token ? { 'Authorization': `Bearer ${token}` } : {}
       });
       if (!response.ok) throw new Error();

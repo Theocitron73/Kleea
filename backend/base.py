@@ -6,7 +6,7 @@ import secrets
 import socket
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from google import genai
 from journaux import demarrer_suivi_erreurs, logger
@@ -59,7 +59,28 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 7
 
 
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
+# Le site garde la session dans ce cookie, que JavaScript ne peut pas lire : une faille XSS ne peut pas voler le jeton.
+COOKIE_SESSION = "kleea_session"
+
+
+def jeton_recu(request: Request, credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> str:
+    """Le jeton de la requête : l'en-tête Bearer (Stream Deck, sessions d'avant le cookie) ou le cookie HttpOnly du site."""
+    if credentials:
+        return credentials.credentials
+    jeton = request.cookies.get(COOKIE_SESSION)
+    if not jeton:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return jeton
+
+
+def poser_cookie_session(response: Response, jeton: str) -> None:
+    # SameSite=Lax : le site et l'API sont sur le même domaine, un autre site ne peut pas envoyer ce cookie.
+    response.set_cookie(COOKIE_SESSION, jeton, max_age=ACCESS_TOKEN_EXPIRE_DAYS * 86400, httponly=True, secure=True, samesite="lax", path="/")
+
+
+def effacer_cookie_session(response: Response) -> None:
+    response.delete_cookie(COOKIE_SESSION, path="/", httponly=True, secure=True, samesite="lax")
 
 
 # 3. Helpers Mots de passe (bcrypt natif)
@@ -186,25 +207,15 @@ def purger_sessions_expirees() -> None:
         logger.warning(f"⚠️ Purge des sessions impossible : {type(e).__name__}")
 
 
-def supprimer_sessions(utilisateur: str) -> None:
-    """À la suppression du compte. Une transaction à part : sans table, elle ne doit pas annuler la suppression."""
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("DELETE FROM sessions_connexion WHERE utilisateur = :u"), {"u": utilisateur.lower().strip()})
-    except SQLAlchemyError as e:
-        logger.warning(f"⚠️ Sessions du compte non supprimées : {type(e).__name__}")
-
-
-def session_actuelle(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Optional[str]:
+def session_actuelle(jeton: str = Depends(jeton_recu)) -> Optional[str]:
     """L'identifiant de session du jeton, None pour un jeton émis sans identifiant. À utiliser avec get_current_user."""
     try:
-        return jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM]).get("sid")
+        return jwt.decode(jeton, SECRET_KEY, algorithms=[ALGORITHM]).get("sid")
     except jwt.PyJWTError:
         return None
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
-    token = credentials.credentials
+def get_current_user(token: str = Depends(jeton_recu)) -> str:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")

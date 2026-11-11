@@ -3,22 +3,23 @@ import json
 import os
 import resend
 import secrets
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from journaux import detail_erreur, logger
 from schemas import ImportModeRequest, LoginRequest, NewPasswordRequest, RegisterRequest, ResetRequest, UpdatePasswordRequest, UpdateProfileRequest
 from sqlalchemy import text
-from base import engine, get_current_user, hash_password, jeton_de_session, supprimer_sessions, verify_password
+from base import engine, get_current_user, hash_password, jeton_de_session, poser_cookie_session, verify_password
 from routes.partage import arreter_tous_les_partages
-from routes.double_auth import double_auth_active, emettre_code, jeton_etape_connexion, supprimer_double_auth
-from routes.streamdeck import supprimer_jeton_streamdeck
+from routes.double_auth import double_auth_active, emettre_code, jeton_etape_connexion
+from routes.powens import revoquer_acces_powens
 from securite import HONEYPOT_USERNAMES, ban_ip, check_and_record_failed_attempt, check_is_rate_limited, get_client_ip
+from suppression_compte import purger_compte
 
 
 router = APIRouter()
 
 
 @router.post("/register")
-def register(req: RegisterRequest, request: Request):
+def register(req: RegisterRequest, request: Request, response: Response):
     # 🟢 VALIDATION DE LA ROBUSTESSE DU MOT DE PASSE
     pwd = req.password.strip()
     if len(pwd) < 8:
@@ -51,6 +52,8 @@ def register(req: RegisterRequest, request: Request):
         conn.commit()
 
     token = jeton_de_session({"sub": req.nom}, request.headers.get("user-agent"))
+    poser_cookie_session(response, token)
+    # shortcut: le jeton reste aussi dans la réponse pour les applications déjà en cache sur les téléphones ; à retirer après quelques semaines.
     return {
         "status": "success",
         "message": "Bienvenue chez Kleea",
@@ -62,7 +65,7 @@ def register(req: RegisterRequest, request: Request):
 
 # --- ROUTE : CONNEXION SÉCURISÉE AVEC PARE-FEU & HONEYPOT ---
 @router.post("/login")
-def login(req: LoginRequest, request: Request):
+def login(req: LoginRequest, request: Request, response: Response):
     client_ip = get_client_ip(request)
     identifiant_clean = req.nom.strip().lower()
 
@@ -103,7 +106,8 @@ def login(req: LoginRequest, request: Request):
     # Création du Token JWT en intégrant le rôle dans le payload
     role_final = db_role if db_role else "user"
     token = jeton_de_session({"sub": db_username, "role": role_final}, request.headers.get("user-agent"))
-
+    poser_cookie_session(response, token)
+    # shortcut: le jeton reste aussi dans la réponse pour les applications déjà en cache sur les téléphones ; à retirer après quelques semaines.
     return {
         "status": "success",
         "access_token": token,
@@ -278,6 +282,50 @@ def update_password(username: str, req: UpdatePasswordRequest, current_user: str
     return {"status": "success", "message": "Mot de passe mis à jour avec succès"}
 
 
+def supprimer_le_compte(current_user: str) -> dict:
+    """Révoque l'accès Powens, puis efface toutes les données du compte en une seule transaction.
+
+    Powens passe d'abord : le jeton ne se lit plus après l'effacement. Si la base échoue ensuite, le compte reste et la
+    suppression peut être relancée. Une panne de Powens n'empêche pas l'effacement : elle est signalée dans la réponse.
+    """
+    with engine.connect() as conn:
+        lignes = conn.execute(
+            text("SELECT email, powens_token FROM users WHERE LOWER(username) = LOWER(:u)"),
+            {"u": current_user},
+        ).fetchall()
+
+    if not lignes:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+
+    revocations = [revoquer_acces_powens(ligne.powens_token) for ligne in lignes if ligne.powens_token]
+
+    with engine.begin() as conn:
+        # Les partages s'arrêtent d'abord : la personne invitée garde sa copie des comptes partagés.
+        arreter_tous_les_partages(conn, current_user)
+        purger_compte(conn, current_user, [ligne.email for ligne in lignes])
+
+    if not all(revocations):
+        return {
+            "status": "success",
+            "powens": "echec",
+            "message": (
+                "Votre compte et vos données Kleea sont supprimés, mais Powens n'a pas confirmé le retrait de votre accès bancaire. "
+                "Contactez l'assistance Kleea, ou retirez l'autorisation depuis votre banque."
+            ),
+        }
+    return {
+        "status": "success",
+        "powens": "revoque" if revocations else "absent",
+        "message": "Compte et données associés détruits définitivement",
+    }
+
+
+# Déclarée avant /profile/{username}, qui capterait sinon « me » comme un identifiant.
+@router.delete("/profile/me")
+def delete_my_account(current_user: str = Depends(get_current_user)):
+    return supprimer_le_compte(current_user)
+
+
 # --- ROUTE : SUPPRIMER DÉFINITIVEMENT LE COMPTE ---
 @router.delete("/profile/{username}")
 def delete_account(username: str, current_user: str = Depends(get_current_user)):
@@ -285,24 +333,7 @@ def delete_account(username: str, current_user: str = Depends(get_current_user))
     if username.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé à ce profil")
 
-    with engine.connect() as conn:
-        # 1. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
-        check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
-        user_exists = conn.execute(check_query, {"username": current_user}).fetchone()
-
-        if not user_exists:
-            raise HTTPException(status_code=404, detail="Utilisateur introuvable")
-
-        # 2. Les partages s'arrêtent : la personne invitée garde sa copie des comptes partagés.
-        arreter_tous_les_partages(conn, current_user)
-        delete_query = text("DELETE FROM users WHERE LOWER(username) = LOWER(:username)")
-        conn.execute(delete_query, {"username": current_user})
-        supprimer_jeton_streamdeck(conn, current_user)
-        conn.commit()
-
-    supprimer_sessions(current_user)
-    supprimer_double_auth(current_user)
-    return {"status": "success", "message": "Compte et données associés détruits définitivement"}
+    return supprimer_le_compte(current_user)
 
 
 # --- ROUTE : MODIFIER LES INFOS PERSONNELLES ---
@@ -355,17 +386,6 @@ def save_note(data: dict, current_user: str = Depends(get_current_user)):
         conn.execute(text("DELETE FROM notes WHERE LOWER(utilisateur) = :u"), {"u": current_user})
         conn.execute(text("INSERT INTO notes (utilisateur, texte) VALUES (:u, :t)"), {"u": current_user, "t": t})
         conn.commit()
-    return {"status": "success"}
-
-
-@router.delete("/profile/me")
-def delete_my_account(current_user: str = Depends(get_current_user)):
-    with engine.begin() as conn:
-        arreter_tous_les_partages(conn, current_user)
-        conn.execute(text("DELETE FROM users WHERE LOWER(username) = :u"), {"u": current_user})
-        supprimer_jeton_streamdeck(conn, current_user)
-    supprimer_sessions(current_user)
-    supprimer_double_auth(current_user)
     return {"status": "success"}
 
 

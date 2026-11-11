@@ -469,12 +469,9 @@ const [, setLoginPassword] = useState(''); // Ajoute cette ligne
 
 
 const handleLogout = () => {
-  // Retire l'appareil de la liste des sessions. Le jeton est passé ici car il est effacé juste après ;
-  // un échec ne doit pas empêcher la déconnexion locale.
+  // Retire l'appareil de la liste des sessions et efface le cookie de session ; un échec ne doit pas empêcher la déconnexion locale.
   const jeton = localStorage.getItem('token');
-  if (jeton) {
-    api.post('/api/sessions/deconnexion', null, { headers: { Authorization: `Bearer ${jeton}` } }).catch(() => {});
-  }
+  api.post('/api/sessions/deconnexion', null, jeton ? { headers: { Authorization: `Bearer ${jeton}` } } : undefined).catch(() => {});
 
   // 1. Nettoyage impératif des clés résiduelles dans le navigateur
   localStorage.removeItem('user');
@@ -1021,7 +1018,7 @@ if (!user) {
           </button>
           
           <AuthView 
-            onLoginSuccess={(token, loggedUser) => {
+            onLoginSuccess={(loggedUser) => {
               setUser(loggedUser);
             }} 
           />

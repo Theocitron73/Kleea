@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { test, expect } from '@playwright/test';
 import { brancherApi, ouvrirSession, UTILISATEUR } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const FICHIER = { name: 'sauvegarde.json', mimeType: 'application/json', buffer: Buffer.from('{"format":"kleea-sauvegarde"}') };
 const RESUME = {
   exporte_le: '2026-11-01T10:00:00+00:00',

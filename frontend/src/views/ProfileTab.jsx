@@ -126,7 +126,9 @@ export default function ProfileTab({
   const handleDeleteAccount = async () => {
     try {
       setDeleteLoading(true);
-      await api.delete(`/profile/${user}`);
+      const { data } = await api.delete(`/profile/${user}`);
+      // La page se recharge juste après : seule une alerte laisse le temps de lire ce message.
+      if (data?.powens === "echec") window.alert(data.message);
       toast.success("Compte supprimé définitivement.");
       localStorage.clear(); 
       window.location.reload(); 

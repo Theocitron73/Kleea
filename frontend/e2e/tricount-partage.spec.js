@@ -1,7 +1,7 @@
 // Modification d'une dépense depuis le lien de partage, sans compte, avec une API simulée.
 import { test, expect } from '@playwright/test';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const DONNEES = {
   groupe: 'Vacances',
   utilisateur: 'proprietaire',

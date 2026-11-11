@@ -9,10 +9,8 @@ import {
   ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, 
   Bar, Cell, LabelList 
 } from 'recharts';
-import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
-import toLocalDateString from '../utils/dateUtils';
+import { CategoryIcon } from '../categoryIcons';
 
-import { estTransfertInterne } from '../utils/finance';
 import ReglesRecurrentes, { ChoixRepetition, optionsFin } from '../components/ReglesRecurrentes';
 
 // 🟢 Composant Graphique des Prévisions (Exporté pour réutilisation globale)
@@ -64,27 +62,10 @@ export default function PrevisionsView(props) {
 
   // États spécifiques au mode mobile
   const [mobileSubTab, setMobileSubTab] = useState('flux'); // 'flux' | 'projections'
-  const [editingTx, setEditingTx] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [vueTableau, setVueTableau] = useState('mois'); // 'mois' | 'recurrentes'
   const [nbRegles, setNbRegles] = useState(0);
 
-  const handleOpenEditMobile = (prev) => {
-    setEditingTx({ 
-      ...prev,
-      nomPropre: prev.nom.replace('[PRÉVI] ', '') 
-    });
-  };
-
-  const handleSaveEditMobile = async () => {
-    if (!editingTx) return;
-    await updatePrevision(editingTx.id, 'nom', `[PRÉVI] ${editingTx.nomPropre}`);
-    await updatePrevision(editingTx.id, 'montant', parseFloat(editingTx.montant));
-    await updatePrevision(editingTx.id, 'categorie', editingTx.categorie);
-    await updatePrevision(editingTx.id, 'compte', editingTx.compte);
-    await updatePrevision(editingTx.id, 'date', editingTx.date);
-    setEditingTx(null);
-  };
 
 
 // 🟢 Détection stricte : JAMAIS les mois passés, et JAMAIS les mois sans prévisions
@@ -1039,135 +1020,19 @@ const moisCritiques = useMemo(() => {
             {/* LISTE DES CARTES PRÉVISIONS */}
             <div className="space-y-2">
               {previsionsFiltrees.length > 0 ? (
-                previsionsFiltrees.map((prev) => {
-                  const isSelected = selectedIds2.includes(prev.id);
-                  const isActif = !(prev.actif === false || prev.actif === 0 || prev.actif === "0" || prev.actif === "false");
-                  const isTransfert = estTransfertInterne(prev.nom, prev.categorie);
-                  const isRevenu = (parseFloat(prev.montant) || 0) >= 0;
-                  const montantAbs = Math.abs(parseFloat(prev.montant) || 0);
-
-                  const liees = (toutesLesTransactions || []).filter(t => t.prevision_id === prev.id);
-                  const consomme = liees.reduce((sum, t) => sum + Math.abs(parseFloat(t.montant) || 0), 0);
-                  
-                  const diff = montantAbs - consomme;
-                  const diffEuro = Math.round(Math.abs(diff));
-                  const estRegle = Math.abs(diff) < 0.5;
-                  const estDepasse = diff <= -0.5;
-                  const pct = montantAbs > 0 ? Math.min(100, Math.round((consomme / montantAbs) * 100)) : 0;
-
-                  return (
-                    <div 
-                      key={prev.id}
-                      onClick={() => handleOpenEditMobile(prev)}
-                      className={`p-3 bg-[var(--glass-bg)] border border-white/5 rounded-2xl flex flex-col gap-2 transition-all active:bg-white/5 ${
-                        !isActif ? 'opacity-35 saturate-50' : ''
-                      } ${isSelected ? 'border-[var(--primary)]/50 bg-[var(--primary)]/5' : ''}`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <input 
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => toggleSelect2(prev.id)}
-                            onClick={(e) => e.stopPropagation()} 
-                            className="w-4 h-4 border-white/20 bg-[var(--glass-bg)] text-emerald-500 cursor-pointer rounded-sm shrink-0 relative z-10"
-                          />
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <CategoryIcon name={prev.categorie || prev.nom} size={13} />
-                              <p className={`text-xs font-black uppercase text-white truncate pr-1 ${!isActif ? 'line-through text-white/50' : ''}`}>
-                                {prev.nom.replace('[PRÉVI] ', '')}
-                              </p>
-                              {liees.length > 0 && (
-                                <span className="px-1.5 py-0.2 rounded-sm bg-secondary-500/20 border border-secondary-500/30 text-secondary-300 text-[7px] font-black uppercase shrink-0">
-                                  {liees.length} tx
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-1 mt-1">
-                              <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded-sm font-mono uppercase">
-                                {prev.compte}
-                              </span>
-                              <div className="flex items-center gap-1 bg-[var(--secondary)]/10 text-[var(--secondary)] px-1.5 py-0.5 rounded-sm text-[7.5px] font-black max-w-[95px] truncate">
-                                <CategoryIcon name={prev.categorie} size={9} />
-                                <span className="truncate">{getCleanCategoryName(prev.categorie)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0 ml-2 flex items-center gap-2.5">
-                          <div>
-                            <span className="text-xs font-mono font-black" style={{ 
-                              color: isTransfert ? '#a78bfa' : isRevenu ? (userTheme.color_revenus || '#10b981') : (userTheme.color_depenses || '#f43f5e') 
-                            }}>
-                              {isRevenu ? '+' : ''}{prev.montant.toFixed(0)} €
-                            </span>
-                            <p className="text-[8px] text-white/30 font-bold uppercase mt-0.5">
-                              {prev.date ? new Date(prev.date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'}) : 'À définir'}
-                            </p>
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              updatePrevision(prev.id, 'actif', !isActif);
-                            }}
-                            className={`p-1.5 rounded-lg border transition-all ${
-                              isActif ? 'text-white/20 border-white/5' : 'text-rose-400 border-rose-500/20 bg-rose-500/5'
-                            }`}
-                          >
-                            {isActif ? <Eye size={12} /> : <EyeOff size={12} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Suivi du réalisé */}
-                      {liees.length > 0 && (
-                        <div className="pt-1.5 border-t border-white/5 space-y-1">
-                          <div className="flex justify-between items-center text-[7.5px] font-black uppercase tracking-tight">
-                            <span className="text-white/40">
-                              {isRevenu ? 'Perçu :' : 'Dépensé :'} <strong className="text-white">{consomme.toFixed(0)}€</strong>
-                            </span>
-                            
-                            {estRegle ? (
-                              <span className="text-emerald-400 font-black flex items-center gap-0.5">
-                                <span>✓</span> {isRevenu ? '100% perçu' : '100% réglé'}
-                              </span>
-                            ) : estDepasse ? (
-                              <span className={isRevenu ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                                {isRevenu ? `+${diffEuro}€ surplus` : `Dépassé (+${diffEuro}€)`}
-                              </span>
-                            ) : (
-                              <span className={isRevenu ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
-                                {isRevenu ? `Attendu: ${diffEuro}€` : `Reste: ${diffEuro}€`}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="w-full h-1 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                estRegle
-                                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]'
-                                  : isRevenu
-                                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.3)]'
-                                    : estDepasse 
-                                      ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' 
-                                      : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
-                              }`}
-                              style={{ width: `${estRegle || estDepasse ? 100 : pct}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  );
-                })
+                <ListePrevisions
+                  mobile
+                  previsions={previsionsFiltrees}
+                  selectedIds={selectedIds2}
+                  toggleSelect={toggleSelect2}
+                  toggleAll={toggleAll2}
+                  updatePrevision={updatePrevision}
+                  categoriesVisibles={categoriesVisibles}
+                  optionsComptes={optionsComptes}
+                  toutesLesTransactions={toutesLesTransactions}
+                  previsionsTracking={previsionsTracking}
+                  userTheme={userTheme}
+                />
               ) : (
                 <div className="py-12 text-center bg-black/20 rounded-2xl border border-white/5">
                   <span className="text-xl opacity-30">📅</span>
@@ -1370,104 +1235,6 @@ const moisCritiques = useMemo(() => {
         )}
 
         {/* MODALE D'ÉDITION MOBILE DE PRÉVISION */}
-        {editingTx && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
-            <div className="absolute inset-0" onClick={() => setEditingTx(null)} />
-
-            <div 
-              className="w-full max-w-md bg-[var(--surface)] border border-white/10 rounded-3xl p-6 overflow-visible space-y-4 animate-in fade-in zoom-in-95 duration-200 relative z-10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                <div>
-                  <h4 className="text-xs font-black uppercase text-[var(--secondary)] tracking-widest">Éditer la prévision</h4>
-                  <p className="text-[9px] text-white/30 uppercase font-black">Changements appliqués instantanément</p>
-                </div>
-                <button 
-                  type="button"
-                  onClick={() => setEditingTx(null)} 
-                  className="p-1.5 bg-white/5 rounded-xl text-white/40 hover:text-white"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Désignation</label>
-                  <input 
-                    type="text"
-                    value={editingTx.nomPropre}
-                    onChange={(e) => setEditingTx({ ...editingTx, nomPropre: e.target.value })}
-                    className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 items-end">
-                  <div>
-                    <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Montant (€)</label>
-                    <input 
-                      type="number"
-                      step="0.01"
-                      value={editingTx.montant}
-                      onChange={(e) => setEditingTx({ ...editingTx, montant: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white outline-none focus:border-[var(--primary)]/50 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[9px] uppercase font-black text-white/40 block mb-1">Date estimée</label>
-                    <div className="bg-black/40 border border-white/10 rounded-xl px-2 py-2 h-[34px] flex items-center justify-center relative">
-                      <Calendar size={12} className="text-[var(--secondary)] absolute left-3" />
-                      <DatePicker
-                        selected={editingTx.date ? new Date(editingTx.date) : null}
-                        onChange={(date) => setEditingTx({ ...editingTx, date: toLocalDateString(date) })}
-                        dateFormat="dd/MM/yyyy"
-                        className="bg-transparent border-none outline-none text-center text-xs font-bold text-white w-full cursor-pointer pl-4"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 items-end">
-                  <CustomSelect 
-                    label="Catégorie"
-                    value={editingTx.categorie}
-                    options={categoriesVisibles.map(cat => ({ v: cat, l: cat }))}
-                    onChange={(val) => setEditingTx({ ...editingTx, categorie: val })}
-                    icon={Tag}
-                    className="p-2.5 rounded-xl text-[10px]"
-                  />
-
-                  <CustomSelect 
-                    label="Compte"
-                    value={editingTx.compte}
-                    options={optionsComptes}
-                    onChange={(val) => setEditingTx({ ...editingTx, compte: val })}
-                    icon={Wallet}
-                    className="p-2.5 rounded-xl text-[10px]"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-3">
-                <button 
-                  type="button"
-                  onClick={() => setEditingTx(null)}
-                  className="flex-1 py-3 bg-white/5 text-white/70 text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer"
-                >
-                  Annuler
-                </button>
-                <button 
-                  type="button"
-                  onClick={handleSaveEditMobile}
-                  className="flex-1 py-3 bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-emerald-500/10 cursor-pointer"
-                >
-                  Sauvegarder
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
       </div>
 

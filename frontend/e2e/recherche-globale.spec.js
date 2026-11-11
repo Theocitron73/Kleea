@@ -87,7 +87,7 @@ test('avec plusieurs profils, le résultat s’ouvre sur le profil de son compte
   // « Commun » passe en premier : c'est le profil que l'app choisit quand aucun n'est précisé.
   await page.route(/api\.kleea\.test\/config-comptes\//, (route) => route.fulfill({
     status: 200,
-    headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' },
+    headers: { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' },
     contentType: 'application/json',
     body: JSON.stringify([
       { compte: 'Compte courant', groupe: 'Testeur', solde: 1500, objectif: 0, couleur: '#4f46e5', taux: 0 },

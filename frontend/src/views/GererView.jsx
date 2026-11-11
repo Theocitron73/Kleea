@@ -1,5 +1,4 @@
-import { useState, useRef, forwardRef } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useState, forwardRef } from 'react';
 import DatePicker from 'react-datepicker';
 import { createPortal } from 'react-dom';
 import { SketchPicker } from 'react-color';
@@ -19,7 +18,7 @@ import { ChoixRepetition } from '../components/ReglesRecurrentes';
 import { Repeat } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
-import { depenseDuBudget, estTransfertInterne } from '../utils/finance';
+import { depenseDuBudget } from '../utils/finance';
 
 // Badge date compact pour le tableau desktop
 const CustomBadgeDate = forwardRef(({ t }, ref) => {
@@ -111,13 +110,6 @@ export default function GererView(props) {
   const [editingTransaction, setEditingTransaction] = useState(null);
 
   // --- VIRTUALISEURS TANSTACK (DESKTOP & MOBILE) ---
-  const mobileListContainerRef = useRef(null);
-  const mobileVirtualizer = useVirtualizer({
-    count: transactionsFiltrees.length,
-    getScrollElement: () => mobileListContainerRef.current,
-    estimateSize: () => 76,
-    overscan: 6,
-  });
 
   // Exécution de l'annulation d'un Split (Unsplit)
   const executeUnsplit = async () => {
@@ -169,20 +161,6 @@ export default function GererView(props) {
       toast.error("Erreur lors de la modification.");
     }
     setEditingTransaction(null);
-  };
-
-  const getFormattedDateMobile = (t) => {
-    if (t.date) {
-      try {
-        const d = new Date(t.date);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        }
-      } catch  {}
-      return t.date;
-    }
-    if (t.jour) return `${t.jour} ${t.mois || ''}`.trim().toUpperCase();
-    return (t.mois || 'À DÉFINIR').toUpperCase();
   };
 
   const comptesDisponiblesMobile = (comptes || []).filter(c => 
@@ -929,134 +907,26 @@ export default function GererView(props) {
               )}
             </div>
 
-            <div 
-              ref={mobileListContainerRef} 
-              className="mt-1 flex-1 min-h-[380px] h-[55vh] max-h-[65vh] overflow-y-auto custom-scrollbar pr-0.5"
-            >
-              {transactionsFiltrees.length > 0 ? (
-                <div 
-                  style={{ 
-                    height: `${mobileVirtualizer.getTotalSize()}px`, 
-                    width: '100%', 
-                    position: 'relative' 
-                  }}
-                >
-                  {mobileVirtualizer.getVirtualItems().map((virtualRow) => {
-                    const t = transactionsFiltrees[virtualRow.index];
-                    if (!t) return null;
-
-                    const isTransfertInterne = estTransfertInterne(t.nom, t.categorie);
-                    const isRevenu = parseFloat(t.montant) > 0;
-                    const prevAssociee = (allPrevisionsAnnee || []).find(p => p.id === t.prevision_id);
-
-                    return (
-                      <div 
-                        key={t.id || virtualRow.key} 
-                        data-index={virtualRow.index}
-                        ref={mobileVirtualizer.measureElement}
-                        onClick={() => setEditingTransaction({ ...t })}
-                        style={{
-                          position: 'absolute',
-                          top: 0,
-                          left: 0,
-                          width: '100%',
-                          transform: `translateY(${virtualRow.start}px)`,
-                        }}
-                        className="pb-2"
-                      >
-                        <div className="p-3 bg-[var(--glass-bg)] border border-white/5 active:bg-white/5 rounded-2xl flex items-center justify-between transition-all cursor-pointer select-none">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                            <div className={`w-2 h-10 rounded-full shrink-0 ${
-                              isTransfertInterne ? 'bg-[var(--primary)]/50' : isRevenu ? 'bg-emerald-500/50' : 'bg-rose-500/50'
-                            }`} />
-                            
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-bold text-white break-words leading-tight">
-                                {t.nom || "Sans libellé"}
-                              </p>
-                              
-                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                <span className="text-[7.5px] bg-white/5 text-white/40 px-1.5 py-0.5 rounded-sm font-mono uppercase">
-                                  {t.compte}
-                                </span>
-                                
-                                <div className="flex items-center gap-1">
-                                  <CategoryIcon name={t.categorie} size={11} />
-                                  <span className="text-[8px] font-black uppercase text-white/80 truncate max-w-[100px]">
-                                    {getCleanCategoryName(t.categorie) || "Autre"}
-                                  </span>
-                                </div>
-
-                                {prevAssociee && (
-                                  <span className="text-[7.5px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-sm font-black max-w-[90px] truncate flex items-center gap-1">
-                                    <CategoryIcon name={prevAssociee.categorie || prevAssociee.nom} size={9} />
-                                    <span className="truncate">{getCleanCategoryName(prevAssociee.nom.replace(/^\[PRÉVI\]\s*/i, ''))}</span>
-                                  </span>
-                                )}
-
-                                {t.split_id && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom });
-                                    }}
-                                    className="px-1.5 py-0.5 rounded-sm bg-secondary-500/20 text-secondary-300 border border-secondary-500/30 text-[7px] font-black uppercase tracking-wider shrink-0 flex items-center gap-1"
-                                    title="Annuler la division"
-                                  >
-                                    <Scissors size={8} />
-                                    <span>Ventilée</span>
-                                    <RotateCcw size={7} className="text-rose-300 ml-0.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0 ml-1 flex items-center gap-2">
-                            <div>
-                              <span className={`text-xs font-mono font-black ${
-                                isTransfertInterne 
-                                  ? 'text-[var(--secondary)]' 
-                                  : isRevenu 
-                                    ? 'text-emerald-400' 
-                                    : 'text-rose-400'
-                              }`}>
-                                {isRevenu && !isTransfertInterne ? '+' : ''}
-                                {parseFloat(t.montant).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                              </span>
-                              <p className="text-[8px] text-white/40 font-black tracking-tight mt-0.5">
-                                {getFormattedDateMobile(t)}
-                              </p>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSplittingTx(t);
-                              }}
-                              className={`p-2 rounded-xl border transition-all shrink-0 cursor-pointer ${
-                                t.split_id
-                                  ? 'bg-secondary-500/25 text-secondary-300 border-secondary-500/40'
-                                  : 'bg-white/[0.04] text-white/50 border-white/10 active:bg-indigo-500/20'
-                              }`}
-                              title="Diviser cette transaction"
-                            >
-                              <Scissors size={12} strokeWidth={2.5} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center">
-                  <span className="text-xl opacity-30">📂</span>
-                  <p className="text-[10px] text-white/40 uppercase font-black mt-2">Aucun flux trouvé</p>
-                </div>
-              )}
+            {/* Les mêmes lignes que sur ordinateur, en deux étages ; « Modifier » ouvre la fenêtre d'édition complète. */}
+            <div className="mt-1 h-[65vh] min-h-[380px] flex flex-col">
+              <ListeOperations
+                mobile
+                transactions={transactionsFiltrees}
+                selectedIds={selectedIds}
+                toggleSelect={toggleSelect}
+                toggleAll={toggleAll}
+                updateCell={updateCell}
+                categoriesVisibles={categoriesVisibles}
+                allPrevisionsAnnee={allPrevisionsAnnee}
+                comptes={comptes}
+                filters={filters}
+                allocations={allocations}
+                onDiviser={setSplittingTx}
+                onAnnulerDivision={(t) => setUnsplitModal({ show: true, splitId: t.split_id, txName: t.nom })}
+                onModifier={(t) => setEditingTransaction({ ...t })}
+                sortConfig={sortConfig}
+                onTrier={handleSort}
+              />
             </div>
           </div>
         )}

@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { UTILISATEUR, ouvrirSession } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const COMPTE = (nom, couleur) => ({ compte: nom, groupe: 'Testeur', solde: 100, objectif: 0, couleur, taux: 0, powens_name: null });
 const COMPTES = ['Compte A', 'Compte B', 'Compte C', 'Compte D', 'Compte E', 'Compte F'].map((n) => COMPTE(n, '#4f46e5'));
 const POWENS = [1, 2, 3, 4, 5].map((id) => ({ id, name: `Compte bancaire ${id}`, bank_name: 'Banque Test', balance: 12, iban: null }));

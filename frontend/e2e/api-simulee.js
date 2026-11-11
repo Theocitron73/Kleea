@@ -51,7 +51,7 @@ export async function brancherApi(page) {
   await page.route('http://api.kleea.test/**', (route) => {
     const requete = route.request();
     const url = new URL(requete.url());
-    const entetes = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+    const entetes = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
     if (requete.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: entetes });
     appels.push(`${requete.method()} ${url.pathname}`);
     const trouve = REPONSES.find(([motif]) => motif.test(url.pathname));
@@ -64,7 +64,6 @@ export async function brancherApi(page) {
 export async function ouvrirSession(page) {
   await page.addInitScript((utilisateur) => {
     localStorage.setItem('user', utilisateur);
-    localStorage.setItem('token', 'jeton-de-test');
     localStorage.setItem(`onboarding_done_${utilisateur}`, 'true');
     // Les notes de version ne doivent pas recouvrir l'écran pendant le parcours.
     localStorage.setItem(`patch_view_count_v4.5_${utilisateur}`, '99');

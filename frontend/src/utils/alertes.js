@@ -5,6 +5,9 @@ import { anneeTransaction, budgetSurTousLesComptes, calculerSoldes, indexMois, m
 const JOUR = 86_400_000;
 const NOMS_MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 export const SEUIL_BUDGET_PROCHE = 80;
+// Rythme : à partir du 5 du mois, un budget déjà entamé de 40 % et qui, à ce train, dépasserait sa limite.
+export const JOUR_MIN_RYTHME = 5;
+export const SEUIL_RYTHME = 40;
 export const JOURS_AVANT_EXPIRATION = 7;
 // Le cron passe une fois par jour : au-delà de trois jours sans succès, ce n'est plus un simple retard.
 export const JOURS_SANS_SYNCHRO = 3;
@@ -97,6 +100,9 @@ function alertesSynchro(synchro, { modeAuto, aujourdhui }) {
 function alertesBudgets(budgets, transactions, aujourdhui) {
   const mois = aujourdhui.getMonth();
   const annee = aujourdhui.getFullYear();
+  const jour = aujourdhui.getDate();
+  const joursDuMois = new Date(annee, mois + 1, 0).getDate();
+  const ecoule = jour / joursDuMois;
   const groupes = new Map();
   for (const b of budgets || []) {
     if (indexMois(b.mois) !== mois || Number(b.annee ?? annee) !== annee || !b.nom) continue;
@@ -129,8 +135,19 @@ function alertesBudgets(budgets, transactions, aujourdhui) {
         id: `budget:${nom}:${moisIso(annee, mois)}:proche`,
         type: 'budget',
         gravite: 'attention',
-        titre: `Budget ${nom} à ${pourcentage} %`,
+        titre: `Budget ${nom} à ${pourcentage} % au ${jour} ${NOMS_MOIS[mois]}`,
         detail: `Il reste ${euros(groupe.limite - reel)} sur ${euros(groupe.limite)}.`,
+        page: 'gerer',
+        action: 'Voir',
+      });
+    } else if (jour >= JOUR_MIN_RYTHME && pourcentage >= SEUIL_RYTHME && reel / ecoule > groupe.limite * 1.05) {
+      // Le rythme du mois, prolongé jusqu'à la fin : la limite serait dépassée.
+      alertes.push({
+        id: `budget:${nom}:${moisIso(annee, mois)}:rythme`,
+        type: 'budget',
+        gravite: 'attention',
+        titre: `Budget ${nom} : ${pourcentage} % dépensé au ${jour} ${NOMS_MOIS[mois]}`,
+        detail: `À ce rythme, ${euros(reel / ecoule)} fin ${NOMS_MOIS[mois]} pour ${euros(groupe.limite)} prévus.`,
         page: 'gerer',
         action: 'Voir',
       });
@@ -147,7 +164,9 @@ function alertesDecouvert(comptes, transactions, previsions, aujourdhui) {
     if (t.prevision_id) consomme.set(t.prevision_id, (consomme.get(t.prevision_id) || 0) + Math.abs(parseFloat(t.montant) || 0));
   }
   // Par compte et par mois, ce qui reste à venir. Une prévision à date passée est supposée réglée.
+  // Pour le mois en cours, on garde aussi le jour : le solde peut passer sous zéro avant la fin du mois.
   const mouvements = new Map();
+  const ceMois = new Map();
   for (const p of previsions || []) {
     const date = new Date(`${String(p.date || '').slice(0, 10)}T12:00:00`);
     if (Number.isNaN(date.getTime()) || date < debutDuJour || date.getFullYear() !== annee) continue;
@@ -158,6 +177,10 @@ function alertesDecouvert(comptes, transactions, previsions, aujourdhui) {
     const compte = cle(p.compte);
     if (!mouvements.has(compte)) mouvements.set(compte, new Array(12).fill(0));
     mouvements.get(compte)[date.getMonth()] += montant < 0 ? -reste : reste;
+    if (date.getMonth() === aujourdhui.getMonth()) {
+      if (!ceMois.has(compte)) ceMois.set(compte, []);
+      ceMois.get(compte).push({ jour: date.getDate(), montant: montant < 0 ? -reste : reste });
+    }
   }
   if (!mouvements.size) return [];
 
@@ -166,6 +189,33 @@ function alertesDecouvert(comptes, transactions, previsions, aujourdhui) {
   for (const [compte, parMois] of mouvements) {
     if (soldes[compte] === undefined) continue;
     let solde = soldes[compte];
+    const nomDuCompte = (comptes || []).find((c) => cle(c.compte) === compte)?.compte || compte;
+    const m0 = aujourdhui.getMonth();
+    // Jour par jour sur le mois en cours ; à jour égal, les rentrées passent avant les sorties.
+    const jours = (ceMois.get(compte) || []).sort((a, b) => a.jour - b.jour || b.montant - a.montant);
+    let courant = soldes[compte];
+    let sousZero = null;
+    let plusBas = 0;
+    let remonte = null;
+    for (const { jour, montant } of jours) {
+      courant += montant;
+      if (courant < 0 && sousZero === null) sousZero = jour;
+      if (sousZero !== null) plusBas = Math.min(plusBas, courant);
+      if (sousZero !== null && remonte === null && courant >= 0) remonte = jour;
+    }
+    if (sousZero !== null && courant >= 0) {
+      // Le compte remonte avant la fin du mois, mais passe quand même dans le rouge.
+      alertes.push({
+        id: `decouvert:${compte}:${moisIso(annee, m0)}`,
+        type: 'decouvert',
+        gravite: 'attention',
+        titre: `Solde de ${nomDuCompte} sous zéro le ${sousZero} ${NOMS_MOIS[m0]}`,
+        detail: `Jusqu'à -${euros(plusBas)} avant de remonter le ${remonte} ${NOMS_MOIS[m0]}.`,
+        page: 'previsionnel',
+        action: 'Voir',
+      });
+      continue;
+    }
     for (let m = aujourdhui.getMonth(); m < 12; m += 1) {
       solde += parMois[m];
       if (solde < 0) {
@@ -175,7 +225,9 @@ function alertesDecouvert(comptes, transactions, previsions, aujourdhui) {
           type: 'decouvert',
           gravite: m === aujourdhui.getMonth() ? 'critique' : 'attention',
           titre: `Découvert prévu sur ${nom}`,
-          detail: `Solde estimé à -${euros(solde)} fin ${NOMS_MOIS[m]}.`,
+          detail: m === m0 && sousZero !== null
+            ? `Sous zéro dès le ${sousZero} ${NOMS_MOIS[m]}, -${euros(solde)} estimés fin ${NOMS_MOIS[m]}.`
+            : `Solde estimé à -${euros(solde)} fin ${NOMS_MOIS[m]}.`,
           page: 'previsionnel',
           action: 'Voir',
         });

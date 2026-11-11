@@ -69,7 +69,8 @@ test('un compte jamais synchronisé ne déclenche rien', () => {
 
 test('un budget alerte à 80 %, puis au dépassement', () => {
   const budgets = [{ nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'tous' }];
-  assert.deepEqual(alertes({ budgets, transactions: [depense(79, 'Courses')] }), []);
+  // À 79 %, pas encore d'alerte « proche » (le rythme du mois, lui, peut alerter).
+  assert.deepEqual(alertes({ budgets, transactions: [depense(79, 'Courses')] }).filter((a) => !a.id.endsWith(':rythme')), []);
   const [proche] = alertes({ budgets, transactions: [depense(80, 'Courses')] });
   assert.equal(proche.id, 'budget:Courses:2026-11:proche');
   assert.equal(proche.gravite, 'attention');
@@ -100,7 +101,7 @@ test('plusieurs budgets d’une même catégorie s’additionnent', () => {
     { nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'CCP' },
     { nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'Livret' },
   ];
-  assert.deepEqual(alertes({ budgets, transactions: [depense(120, 'Courses')] }), []);
+  assert.deepEqual(alertes({ budgets, transactions: [depense(120, 'Courses')] }).filter((a) => !a.id.endsWith(':rythme')), []);
 });
 
 test('un découvert prévu ce mois-ci est critique, plus tard il demande attention', () => {
@@ -113,8 +114,22 @@ test('un découvert prévu ce mois-ci est critique, plus tard il demande attenti
   assert.equal(plusTard.gravite, 'attention');
 });
 
-test('un revenu prévu compense une dépense du même mois', () => {
-  assert.deepEqual(alertes({ previsions: [prevision(1, '2026-11-20', -600), prevision(2, '2026-11-25', 300)] }), []);
+test('un revenu prévu le même jour compense une dépense', () => {
+  assert.deepEqual(alertes({ previsions: [prevision(1, '2026-11-20', -600), prevision(2, '2026-11-20', 300)] }), []);
+});
+
+test('un passage sous zéro avant un revenu du même mois est signalé avec son jour', () => {
+  const [alerte] = alertes({ previsions: [prevision(1, '2026-11-20', -600), prevision(2, '2026-11-25', 300)] });
+  assert.equal(alerte.id, 'decouvert:CCP:2026-11');
+  assert.equal(alerte.gravite, 'attention');
+  assert.equal(alerte.titre, 'Solde de CCP sous zéro le 20 novembre');
+  assert.match(alerte.detail, /-100,00 €.*remonter le 25 novembre/);
+});
+
+test('un découvert du mois en cours donne le jour où le solde passe sous zéro', () => {
+  const [alerte] = alertes({ previsions: [prevision(1, '2026-11-12', -300), prevision(2, '2026-11-27', -400)] });
+  assert.equal(alerte.titre, 'Découvert prévu sur CCP');
+  assert.match(alerte.detail, /dès le 27 novembre, -200,00 € estimés fin novembre/);
 });
 
 test('une prévision désactivée, passée ou déjà réglée ne compte pas', () => {
@@ -136,4 +151,23 @@ test('les alertes critiques passent en premier', () => {
     transactions: [depense(150, 'Courses')],
   });
   assert.deepEqual(types(liste), ['budget', 'banque']);
+});
+
+test('le 80 % d’un budget donne le jour du mois', () => {
+  const budgets = [{ nom: 'Courses', somme: 100, mois: 'Novembre', annee: 2026, compte: 'tous' }];
+  const [proche] = alertes({ budgets, transactions: [depense(80, 'Courses')] });
+  assert.equal(proche.titre, 'Budget Courses à 80 % au 6 novembre');
+});
+
+test('un budget dépensé trop vite alerte avant les 80 %, d’après le rythme du mois', () => {
+  const budgets = [{ nom: 'Courses', somme: 300, mois: 'Novembre', annee: 2026, compte: 'tous' }];
+  const le12 = new Date('2026-11-12T12:00:00');
+  // 165 € au 12 sur 30 jours : 412,50 € à ce rythme pour 300 € prévus.
+  const [rythme] = calculerAlertes({ comptes: COMPTES, budgets, transactions: [depense(165, 'Courses')], aujourdhui: le12 });
+  assert.equal(rythme.id, 'budget:Courses:2026-11:rythme');
+  assert.equal(rythme.titre, 'Budget Courses : 55 % dépensé au 12 novembre');
+  assert.match(rythme.detail, /412,50 € fin novembre pour 300,00 €/);
+  // Au même rythme que le mois, ou trop tôt dans le mois : rien.
+  assert.deepEqual(calculerAlertes({ comptes: COMPTES, budgets, transactions: [depense(120, 'Courses')], aujourdhui: le12 }), []);
+  assert.deepEqual(calculerAlertes({ comptes: COMPTES, budgets, transactions: [depense(165, 'Courses')], aujourdhui: new Date('2026-11-03T12:00:00') }), []);
 });

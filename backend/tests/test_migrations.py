@@ -71,7 +71,7 @@ class MigrationsSurBaseDeTest(unittest.TestCase):
     def test_une_base_vide_est_reconstruite(self):
         self.reussit("upgrade", "head")
         self.assertEqual(len(self.tables()), 41)
-        self.assertIn("0011", self.reussit("current").stdout)
+        self.assertIn("0012", self.reussit("current").stdout)
         self.reussit("upgrade", "head")
 
     def test_le_point_de_depart_ne_se_defait_pas(self):
