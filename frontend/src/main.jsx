@@ -8,11 +8,15 @@ import { demarrerSuiviErreurs } from './utils/suiviErreurs'
 
 demarrerSuiviErreurs();
 
-// 🟢 ENREGISTREMENT ET ACTUALISATION AUTOMATIQUE DU SERVICE WORKER
+// Nouvelle version : téléchargée en silence, appliquée quand la page passe en arrière-plan.
 import { registerSW } from 'virtual:pwa-register';
+import { appliquerQuandCachee } from './utils/miseAJour';
 
-registerSW({
+const mettreAJour = registerSW({
   immediate: true,
+  onNeedRefresh() {
+    appliquerQuandCachee(() => mettreAJour(true));
+  },
   onRegisteredSW(swScriptUrl, registration) {
     if (registration) {
       // 1. Vérifie s'il y a un nouveau build toutes les minutes si l'onglet reste ouvert
