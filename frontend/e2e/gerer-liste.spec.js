@@ -44,6 +44,9 @@ test('la catégorie se change en deux clics depuis la ligne', async ({ page }) =
 
 test('une opération se relie à une prévision du mois depuis sa pastille', async ({ page }) => {
   await ouvrir(page);
+  // Rien de relié : les cases disent à quoi elles servent.
+  await expect(ligne(page, 'Boulangerie').getByRole('textbox', { name: 'Prévision reliée' })).toHaveValue('Prévision');
+  await expect(ligne(page, 'Boulangerie').getByRole('textbox', { name: 'Enveloppe' })).toHaveValue('Enveloppe');
   await ligne(page, 'Boulangerie').getByRole('textbox', { name: 'Prévision reliée' }).click();
   await page.getByRole('listbox').getByText(/Pain/).click();
   await expect.poll(() => page.modifications.at(-1)).toMatchObject({ id: 2, prevision_id: 50 });

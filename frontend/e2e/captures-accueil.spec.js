@@ -26,10 +26,11 @@ for (let k = 0; k < 12; k += 1) {
   const v = (k * 7) % 5; // petites variations d'un mois à l'autre
   op(a, m, 1, 'VIR SALAIRE ACME SAS', 2850, 'Salaire');
   op(a, m, 3, 'PRLV LOYER FONCIA', -850, 'Logement');
-  op(a, m, 4, 'VIR LIVRET A', -300, 'Virement interne');
-  op(a, m, 4, 'VIR LIVRET A', 300, 'Virement interne', 'Livret A');
-  op(a, m, 2, 'VIR LDDS', -1000, 'Virement interne');
-  op(a, m, 2, 'VIR LDDS', 1000, 'Virement interne', 'LDDS');
+  // Catégories « Virement : … vers … », comme celles que pose l'application : ce ne sont ni des dépenses ni des revenus.
+  op(a, m, 4, 'VIR LIVRET A', -300, 'Virement : Compte courant vers Livret A');
+  op(a, m, 4, 'VIR LIVRET A', 300, 'Virement : Compte courant vers Livret A', 'Livret A');
+  op(a, m, 2, 'VIR LDDS', -1000, 'Virement : Compte courant vers LDDS');
+  op(a, m, 2, 'VIR LDDS', 1000, 'Virement : Compte courant vers LDDS', 'LDDS');
   op(a, m, 5, 'NETFLIX.COM', -13.49, 'Abonnements');
   op(a, m, 8, 'SPOTIFY', -11.12, 'Abonnements');
   op(a, m, 10, 'FREE MOBILE', -19.99, 'Téléphone & Internet');
@@ -80,7 +81,27 @@ const DEPENSES_TRICOUNT = [
   { id: 4, date: '2026-08-05T00:00:00', libelle: 'Restaurant à Vík', paye_par: 'Alice', pour_qui: 'Alice:42,Théo:42,Thomas:42', montant: 126, emoji: null },
 ];
 
+// Placements & crédits : un PEA suivi, un appartement et son crédit, pour l'onglet du tableau de bord.
+const CREDIT = {
+  id: 1, type: 'immobilier', nom: 'Crédit appartement', montant: 180000, taux: 3.2, duree_mois: 240, debut: '2022-05-05', libelle_lien: null, profil: null,
+  anticipes: [], capital_restant: 152340, mensualite: 1016.4, fin: '2042-04-05', interets_restants: 38120, rembourse_pct: 15.4, echeances_payees: 54,
+  echeances: [{ date: '2026-09-05', vue: true }, { date: '2026-10-05', vue: true }, { date: '2026-11-05', vue: true }], anticipes_detectes: [],
+};
+const PATRIMOINE = {
+  biens: [
+    { id: 1, type: 'immobilier', nom: 'Appartement', valeur: 215000, valeur_saisie: 215000, date_valeur: '2026-01-10', decote: null, libelle_lien: null, profil: null, versements: 0 },
+    { id: 2, type: 'placement', nom: 'PEA', valeur: 18400, valeur_saisie: 17900, date_valeur: '2026-09-01', decote: null, libelle_lien: 'VIR PEA', profil: null, versements: 500,
+      suivi: { points: [{ date: '2026-01-02', valeur: 12000, investi: 12000 }, { date: '2026-05-01', valeur: 15100, investi: 14000 }, { date: '2026-09-01', valeur: 17900, investi: 16000 }, { date: '2026-11-18', valeur: 18400, investi: 16500 }], investi: 16500, gain: 1900, performance: 11.52 } },
+  ],
+  dettes: [CREDIT],
+  total_biens: 233400,
+  total_dettes: 152340,
+  cryptos: {},
+  historique: Array.from({ length: 11 }, (_, i) => ({ mois: `2026-${String(i + 1).padStart(2, '0')}`, biens: 226000 + i * 700, dettes: 160500 - i * 750 })),
+};
+
 const REPONSES = [
+  [/^\/api\/patrimoine/, PATRIMOINE],
   [/^\/profile\//, { username: U, email: 'camille@exemple.fr', name: 'Camille', import_mode: 'auto', role: 'user' }],
   [/^\/transactions\/stats\/count\//, { count: TRANSACTIONS.length }],
   [/^\/transactions\//, TRANSACTIONS],
@@ -141,7 +162,9 @@ for (const [format, taille] of [['ordinateur', { width: 1680, height: 1050 }], [
     await page.setViewportSize(taille);
     const p = (nom) => photo(page, `${nom}-${format}`);
     await demarrer(page);
-    await page.locator('button[title="Dépenses"]:visible').first().click({ timeout: 5_000 }).catch(() => {});
+    // Flux mensuel en graphique par catégorie ; le bilan annuel reste sur la liste des mois, et l'onglet Analytique à droite.
+    await page.locator('button[title="Catégories"]:visible').first().click({ timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(1500); // Les montants des barres s'affichent à la fin de leur animation.
     await p('tableau-de-bord');
 
     await page.locator('button[title="Abonnements"]:visible').first().click();

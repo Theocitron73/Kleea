@@ -17,9 +17,9 @@ async function simuler(page, reponses) {
 async function saisirMotDePasse(page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'Se connecter' }).first().click();
-  await page.getByPlaceholder('Pseudo ou Adresse e-mail').fill(UTILISATEUR);
-  await page.getByPlaceholder('••••••••').fill('motdepasse1');
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+  await page.getByLabel('Identifiant').fill(UTILISATEUR);
+  await page.getByLabel('Mot de passe', { exact: true }).fill('motdepasse1');
+  await page.getByLabel('Mot de passe', { exact: true }).press('Enter');
 }
 
 test('un compte qui l’a activée passe par le code reçu avant d’être connecté', async ({ page }) => {

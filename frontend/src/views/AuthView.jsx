@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
-import { 
-  User, Mail, Lock, Eye, EyeOff, BookOpen, 
-  ShieldAlert, UserX, WifiOff 
+import {
+  User, Mail, Lock, Eye, EyeOff, BookOpen, ShieldCheck, ChevronLeft, RefreshCw, ChartLine, Users2,
+  ShieldAlert, UserX, WifiOff
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import api from '../axios';
 import GuideView from '../GuideView';
 import { lireMessageDeconnexion } from '../utils/sessions';
 
-export default function AuthView({ onLoginSuccess }) {
-  const [isRegistering, setIsRegistering] = useState(false);
+/** `modeInitial` : « register » quand on arrive par « Créer un compte ». `onRetour` ramène à la page d'accueil. */
+export default function AuthView({ onLoginSuccess, modeInitial = 'login', onRetour }) {
+  const [isRegistering, setIsRegistering] = useState(modeInitial === 'register');
   const [showPassword, setShowPassword] = useState(false);
   const [loginName, setLoginName] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -163,18 +165,15 @@ export default function AuthView({ onLoginSuccess }) {
       <div className="min-h-screen bg-[var(--surface)] text-white p-4 md:p-8 flex flex-col justify-between relative overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[100px] rounded-full pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[120px] rounded-full pointer-events-none" />
-        
+
         <div className="max-w-7xl w-full mx-auto flex items-center justify-between mb-6 p-4 bg-[var(--glass-bg)] border border-white/10 rounded-2xl relative z-10 backdrop-blur-[var(--glass-blur)]">
           <div className="flex items-center gap-3">
-            <span className="text-xl">📖</span>
-            <div>
-              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-[var(--secondary)]">Accès Public</span>
-              <h3 className="text-sm font-black uppercase mt-1">Guide d'utilisation</h3>
-            </div>
+            <BookOpen size={20} className="text-[var(--secondary)]" aria-hidden="true" />
+            <h3 className="text-base font-semibold">Guide d'utilisation</h3>
           </div>
-          <button 
+          <button
             onClick={() => setShowPublicGuide(false)}
-            className="flex items-center gap-2 px-5 py-2.5 bg-white text-black font-black uppercase text-[10px] tracking-widest rounded-xl hover:bg-[var(--primary)] hover:text-white transition-all shadow-lg active:scale-95 cursor-pointer"
+            className="flex items-center gap-2 h-10 px-4 bg-white text-black font-semibold text-sm rounded-xl hover:opacity-90 transition active:scale-95 cursor-pointer"
           >
             Retour à la connexion
           </button>
@@ -187,208 +186,191 @@ export default function AuthView({ onLoginSuccess }) {
     );
   }
 
-  if (jetonDoubleAuth) {
-    return (
-      <div className="min-h-screen bg-[var(--surface)] flex items-center justify-center p-4">
-        <form onSubmit={validerCode} className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[calc(var(--radius)*2)] border border-white/20 shadow-2xl w-full max-w-md space-y-5">
-          <h1 className="text-lg font-black text-[var(--text-main)]">Double authentification</h1>
-          <p className="text-xs text-[var(--text-main)]/60 leading-relaxed">
-            {emailDoubleAuth
-              ? `Saisissez le code à 6 chiffres envoyé à ${emailDoubleAuth}. Il est valable 10 minutes.`
-              : 'Saisissez le code à 6 chiffres affiché par votre application d’authentification.'}
-          </p>
-          <input
-            aria-label="Code de vérification"
-            autoFocus
-            autoComplete="one-time-code"
-            className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-center tracking-widest text-[var(--text-main)] outline-none focus:border-[var(--primary)]"
-            value={codeDoubleAuth}
-            onChange={(e) => setCodeDoubleAuth(e.target.value)}
-            required
-          />
-          <button type="submit" className="w-full bg-white text-black p-5 rounded-2xl font-black uppercase text-xs tracking-[0.3em] cursor-pointer">
-            Vérifier
-          </button>
-          {emailDoubleAuth && (
-            <button type="button" onClick={renvoyerCode} className="w-full text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
-              Renvoyer un code
-            </button>
-          )}
-          <button type="button" onClick={() => { setJetonDoubleAuth(null); setCodeDoubleAuth(''); }} className="w-full text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
-            Retour à la connexion
-          </button>
-        </form>
+  const mode = isForgotPassword ? 'oubli' : (isRegistering ? 'inscription' : 'connexion');
+  const TITRES = {
+    connexion: ['Bon retour', 'Connectez-vous pour retrouver vos comptes.'],
+    inscription: ['Créer votre compte', 'Quelques informations, et votre espace est prêt.'],
+    oubli: ['Mot de passe oublié', 'Indiquez l’adresse e-mail de votre compte : nous vous envoyons un lien pour en choisir un nouveau.'],
+    code: ['Vérification', emailDoubleAuth
+      ? `Saisissez le code à 6 chiffres envoyé à ${emailDoubleAuth}. Il est valable 10 minutes.`
+      : 'Saisissez le code à 6 chiffres affiché par votre application d’authentification.'],
+  };
+  const [titre, sousTitre] = TITRES[jetonDoubleAuth ? 'code' : mode];
+  const choisirMode = (inscription) => { setIsForgotPassword(false); setIsRegistering(inscription); };
+
+  const formulaire = jetonDoubleAuth ? (
+    <form onSubmit={validerCode} className="mt-7 space-y-5">
+      <Champ id="code-double-auth" label="Code de vérification">
+        <input
+          id="code-double-auth"
+          autoFocus
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          className={`${SAISIE} !pl-4 text-center text-[18px] tracking-[0.4em] tabular-nums`}
+          placeholder="123456"
+          value={codeDoubleAuth}
+          onChange={(e) => setCodeDoubleAuth(e.target.value)}
+          required
+        />
+      </Champ>
+      <button type="submit" className={PRINCIPAL}>Vérifier</button>
+      <div className="flex flex-wrap justify-between gap-3 text-[14px]">
+        <button type="button" onClick={() => { setJetonDoubleAuth(null); setCodeDoubleAuth(''); }} className={LIEN_DISCRET}>Retour à la connexion</button>
+        {emailDoubleAuth && <button type="button" onClick={renvoyerCode} className={LIEN}>Renvoyer un code</button>}
       </div>
-    );
-  }
+    </form>
+  ) : (
+    <>
+      {mode !== 'oubli' && (
+        <div role="group" aria-label="Connexion ou inscription" className="mt-7 grid grid-cols-2 p-1 rounded-xl bg-white/[0.06]">
+          {[[false, 'Se connecter'], [true, 'Créer un compte']].map(([inscription, libelle]) => (
+            <button key={libelle} type="button" aria-pressed={isRegistering === inscription} onClick={() => choisirMode(inscription)}
+              className={`h-[36px] rounded-[9px] text-[14px] font-semibold transition-colors cursor-pointer ${isRegistering === inscription ? 'bg-white/[0.12] text-[var(--text-main)] shadow-sm' : 'text-[var(--text-main)]/60 hover:text-[var(--text-main)]'}`}>
+              {libelle}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <form onSubmit={isForgotPassword ? handleResetRequest : (isRegistering ? handleRegister : handleLogin)} className="mt-6 space-y-[18px]">
+        {mode === 'oubli' ? (
+          <Champ id="email-recuperation" label="Adresse e-mail" icone={Mail}>
+            <input id="email-recuperation" type="email" autoComplete="email" className={SAISIE} placeholder="vous@exemple.fr"
+              value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} required />
+          </Champ>
+        ) : (
+          <>
+            {isRegistering && (
+              <div className="grid grid-cols-2 gap-3">
+                <Champ id="prenom" label="Prénom">
+                  <input id="prenom" autoComplete="given-name" className={`${SAISIE} !pl-4`} placeholder="Jean" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                </Champ>
+                <Champ id="nom" label="Nom">
+                  <input id="nom" autoComplete="family-name" className={`${SAISIE} !pl-4`} placeholder="Dupont" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                </Champ>
+              </div>
+            )}
+            <Champ id="identifiant" label="Identifiant" icone={User}>
+              <input id="identifiant" autoComplete="username" className={SAISIE} placeholder={isRegistering ? 'Votre pseudo' : 'Pseudo ou adresse e-mail'}
+                value={loginName} onChange={(e) => setLoginName(e.target.value)} required />
+            </Champ>
+            {isRegistering && (
+              <Champ id="email" label="Adresse e-mail" icone={Mail}>
+                <input id="email" type="email" autoComplete="email" className={SAISIE} placeholder="vous@exemple.fr" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} required />
+              </Champ>
+            )}
+            <Champ id="mot-de-passe" label="Mot de passe" icone={Lock}
+              action={!isRegistering && <button type="button" onClick={() => setIsForgotPassword(true)} className={LIEN}>Oublié ?</button>}>
+              <input id="mot-de-passe" type={showPassword ? 'text' : 'password'} autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                className={`${SAISIE} pr-12`} placeholder={isRegistering ? 'Au moins 8 caractères' : 'Votre mot de passe'}
+                value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-[36px] rounded-lg flex items-center justify-center text-[var(--text-main)]/45 hover:text-[var(--text-main)] transition-colors cursor-pointer">
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </Champ>
+          </>
+        )}
+        <button type="submit" className={PRINCIPAL}>
+          {mode === 'oubli' ? 'Envoyer le lien' : (isRegistering ? 'Créer mon compte' : 'Se connecter')}
+        </button>
+        {mode === 'inscription' && (
+          <p className="text-[12px] leading-5 text-[var(--text-main)]/50">
+            Vos données sont traitées comme décrit dans la <Link to="/confidentialite" className="underline hover:text-[var(--text-main)]">politique de confidentialité</Link>.
+          </p>
+        )}
+        {mode === 'oubli' && (
+          <button type="button" onClick={() => setIsForgotPassword(false)} className={`${LIEN_DISCRET} text-[14px]`}>Retour à la connexion</button>
+        )}
+      </form>
+    </>
+  );
 
   return (
-    <div className="min-h-screen bg-[var(--surface)] flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[100px] rounded-full" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[var(--primary)]/10 blur-[120px] rounded-full" />
-      <div className="absolute w-[500px] h-[600px] bg-[var(--primary)]/30 blur-[100px] rounded-full z-0" />
+    <div className="page-connexion min-h-screen lg:h-screen lg:overflow-hidden bg-[var(--surface)] text-[var(--text-main)] lg:grid lg:grid-cols-[1.15fr_1fr]">
+      {onRetour && (
+        <button type="button" onClick={onRetour} className="fixed top-5 left-5 z-50 inline-flex items-center gap-1 h-[36px] px-2 rounded-lg text-[14px] font-medium text-[var(--text-main)]/70 hover:text-[var(--text-main)] transition-colors cursor-pointer">
+          <ChevronLeft size={18} aria-hidden="true" /> Accueil
+        </button>
+      )}
 
-      <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
-        <form 
-          onSubmit={isForgotPassword ? handleResetRequest : (isRegistering ? handleRegister : handleLogin)} 
-          className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[calc(var(--radius)*2)] border border-white/20 shadow-2xl w-full"
-          style={{ 
-            boxShadow: `0 0 40px -10px var(--primary), inset 0 0 20px -10px var(--primary)` 
-          }}
-        >
-          {/* Header */}
-          <div className="text-center mb-10">
-            <div className="inline-block px-4 py-1.5 bg-[var(--primary)]/10 border border-[var(--primary)]/20 rounded-full mb-4">
-              <span className="text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.3em]">
-                {isForgotPassword ? "Récupération" : (isRegistering ? "Nouveau Membre" : "Accès Sécurisé")}
-              </span>
-            </div>
-            <h2 className="text-4xl font-black text-[var(--text-main)] tracking-tighter uppercase">
-              <span className="text-[var(--secondary)]">Kleea</span>
-            </h2>
-            <p className="text-[10px] font-bold text-[var(--text-main)]/20 uppercase tracking-widest mt-2">
-              {isForgotPassword ? "Réinitialisation du coffre" : (isRegistering ? "Créez votre coffre privé" : "Gestion de patrimoine privé")}
+      {/* Ce qu'est Kleea : seulement sur grand écran, le formulaire reste seul sur téléphone. */}
+      <section aria-label="Présentation de Kleea" className="hidden lg:flex relative flex-col h-screen overflow-hidden pt-24 pl-16 xl:pl-20 bg-[radial-gradient(1100px_650px_at_10%_-10%,color-mix(in_srgb,var(--primary)_18%,transparent),transparent_60%)]">
+        <div className="flex items-center gap-2.5 mb-10">
+          <img src="/Kleea_2.png" alt="" className="w-9 h-[36px] rounded-[10px]" />
+          <span className="text-[20px] font-bold tracking-[-0.01em]">Kleea</span>
+        </div>
+        <h1 className="text-[44px] xl:text-[48px] leading-[1.06] font-bold tracking-[-0.025em] max-w-[34rem]">
+          Vos finances,<br /><span className="text-[color-mix(in_srgb,var(--primary)_55%,var(--text-main))]">enfin claires.</span>
+        </h1>
+        <p className="mt-4 max-w-[30rem] text-[17px] leading-relaxed text-[var(--text-main)]/70">
+          Comptes, budgets, prévisions et patrimoine au même endroit, synchronisés avec votre banque.
+        </p>
+        <ul className="mt-7 space-y-3 text-[15px] text-[var(--text-main)]/70">
+          {ATOUTS.map(([icone, texte]) => {
+            const Icone = icone;
+            return (
+              <li key={texte} className="flex items-center gap-3">
+                <span className="w-8 h-8 rounded-[9px] flex items-center justify-center bg-[var(--primary)]/15 text-[color-mix(in_srgb,var(--primary)_55%,var(--text-main))] shrink-0"><Icone size={16} aria-hidden="true" /></span>
+                {texte}
+              </li>
+            );
+          })}
+        </ul>
+        {/* Prend toute la place restante sous le texte, sans faire défiler la page : coupée en bas, elle dépasse un peu à droite. */}
+        <div className="mt-11 flex-1 min-h-0 w-[115%] rounded-t-2xl border border-b-0 border-white/10 overflow-hidden shadow-[0_30px_80px_rgba(0,0,0,0.45)]">
+          <img src="/apercu/tableau-de-bord-ordinateur.jpg" alt="Le tableau de bord de Kleea, avec des données d’exemple" className="block w-full h-full object-cover object-left-top" />
+        </div>
+        <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-44 bg-gradient-to-b from-transparent to-[var(--surface)]" />
+      </section>
+
+      <main className="min-h-screen lg:h-screen lg:overflow-y-auto flex justify-center items-start lg:items-center px-5 pt-20 pb-10 lg:p-8 lg:border-l lg:border-white/5 lg:bg-black/20">
+        <div className="w-full max-w-[380px] animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div className="lg:hidden flex items-center gap-2.5 mb-7">
+            <img src="/Kleea_2.png" alt="" className="w-10 h-10 rounded-[11px]" />
+            <span className="text-[20px] font-bold tracking-[-0.01em]">Kleea</span>
+          </div>
+          <h2 className="text-[30px] leading-tight font-bold tracking-[-0.02em]">{titre}</h2>
+          <p className="mt-2 text-[15px] text-[var(--text-main)]/70">{sousTitre}</p>
+
+          {formulaire}
+
+          <div className="mt-7 pt-5 border-t border-white/[0.07] space-y-3">
+            <p className="flex items-center gap-2 text-[13px] text-[var(--text-main)]/50">
+              <ShieldCheck size={16} className="text-emerald-400 shrink-0" aria-hidden="true" />
+              Connexion chiffrée · double authentification disponible
             </p>
+            <button type="button" onClick={() => setShowPublicGuide(true)} className={`${LIEN_DISCRET} inline-flex items-center gap-1.5 text-[14px]`}>
+              <BookOpen size={16} aria-hidden="true" /> Guide d'utilisation
+            </button>
           </div>
+        </div>
+      </main>
+    </div>
+  );
+}
 
-          <div className="space-y-4">
-            {isForgotPassword ? (
-              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">E-mail de récupération</label>
-                  <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
-                    <input 
-                      type="email"
-                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
-                      placeholder="votre@email.com"
-                      value={resetEmail}
-                      onChange={(e) => setResetEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <>
-                {isRegistering && (
-                  <div className="flex gap-4 animate-in fade-in slide-in-from-top-2 duration-500">
-                    <div className="flex-1 space-y-2">
-                      <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Prénom</label>
-                      <input 
-                        className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
-                        placeholder="Jean"
-                        value={firstName}
-                        onChange={(e) => setFirstName(e.target.value)}
-                        required={isRegistering}
-                      />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Nom</label>
-                      <input 
-                        className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
-                        placeholder="Dupont"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        required={isRegistering}
-                      />
-                    </div>
-                  </div>
-                )}
+const SAISIE = 'w-full h-[48px] pl-11 pr-4 rounded-xl border border-white/10 bg-white/[0.05] text-[15px] text-[var(--text-main)] outline-none transition placeholder:text-[var(--text-main)]/40 focus:border-[color-mix(in_srgb,var(--primary)_60%,white)] focus:bg-white/[0.07] focus:ring-4 focus:ring-[var(--primary)]/25';
+const PRINCIPAL = 'w-full h-[50px] rounded-xl bg-[var(--primary)] text-white text-[16px] font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_8px_24px_color-mix(in_srgb,var(--primary)_35%,transparent)] hover:brightness-110 active:scale-[0.98] transition cursor-pointer';
+const LIEN = 'font-medium text-[color-mix(in_srgb,var(--primary)_55%,var(--text-main))] hover:underline cursor-pointer';
+const LIEN_DISCRET = 'font-medium text-[var(--text-main)]/65 hover:text-[var(--text-main)] transition-colors cursor-pointer';
+const ATOUTS = [
+  [RefreshCw, 'Opérations importées automatiquement depuis votre banque'],
+  [ChartLine, 'Prévisions et budgets qui se répètent chaque mois'],
+  [Users2, 'Un compte commun à deux, chacun avec sa connexion'],
+];
 
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">Identifiant</label>
-                  <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
-                    <input 
-                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
-                      placeholder="Pseudo ou Adresse e-mail"
-                      value={loginName}
-                      onChange={(e) => setLoginName(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                {isRegistering && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase ml-4 tracking-[0.2em]">E-mail</label>
-                    <div className="relative group">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
-                      <input 
-                        type="email"
-                        className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
-                        placeholder="theo@exemple.com"
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center px-4">
-                    <label className="text-[9px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em]">Mot de passe</label>
-                    {!isRegistering && (
-                      <button 
-                        type="button" 
-                        onClick={() => setIsForgotPassword(true)}
-                        className="text-[8px] font-black text-[var(--secondary)] uppercase tracking-[0.1em] hover:brightness-150 transition-all cursor-pointer"
-                      >
-                        Mot de passe Oublié ?
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 group-focus-within:text-[var(--secondary)] transition-colors" size={16} />
-                    <input 
-                      type={showPassword ? "text" : "password"}
-                      className="w-full bg-[var(--glass-bg)] border border-white/5 p-4 pl-12 pr-12 rounded-2xl text-[var(--text-main)] text-sm font-bold outline-none focus:border-[var(--primary)]/40 focus:bg-[var(--glass-bg)] transition-all placeholder:text-[var(--text-main)]/10"
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-main)]/20 hover:text-[var(--text-main)] transition-colors p-1 cursor-pointer"
-                    >
-                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                    </button>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-
-          <button 
-            type="submit" 
-            className="w-full mt-10 bg-white text-black p-5 rounded-2xl font-black uppercase text-xs tracking-[0.3em] hover:bg-[var(--primary)] hover:text-[var(--text-main)] transition-all duration-500 shadow-xl active:scale-95 cursor-pointer"
-          >
-            {isForgotPassword ? "Envoyer le lien" : (isRegistering ? "Créer mon compte" : "Se connecter")}
-          </button>
-        </form>
-
-        <button 
-          onClick={() => {
-            if (isForgotPassword) setIsForgotPassword(false);
-            else setIsRegistering(!isRegistering);
-          }}
-          className="w-full mt-6 text-[10px] font-black text-[var(--text-main)]/30 uppercase tracking-[0.2em] hover:text-[var(--secondary)] transition-colors cursor-pointer"
-        >
-          {isForgotPassword ? "Retour à la connexion" : (isRegistering ? "Déjà un compte ? Se connecter" : "Nouveau ici ? Créer un compte")}
-        </button>
-
-        <button 
-          type="button"
-          onClick={() => setShowPublicGuide(true)}
-          className="w-full mt-4 flex items-center justify-center gap-2 text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] hover:brightness-125 transition-all cursor-pointer"
-        >
-          <BookOpen size={12} />
-          <span>Consulter le Guide d'utilisation</span>
-        </button>
+/** Un champ du formulaire : son libellé au-dessus, une action à droite (« Oublié ? »), l'icône dans la saisie. */
+function Champ({ id, label, icone: Icone, action, children }) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <label htmlFor={id} className="text-[13px] font-semibold text-[var(--text-main)]/70">{label}</label>
+        {action && <span className="text-[13px]">{action}</span>}
+      </div>
+      <div className="relative mt-1.5">
+        {Icone && <Icone size={18} aria-hidden="true" className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-main)]/45 pointer-events-none" />}
+        {children}
       </div>
     </div>
   );

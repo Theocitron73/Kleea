@@ -8,6 +8,7 @@ import JournalSecuriteCard from '../components/JournalSecuriteCard';
 import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
 import SauvegardeCard from '../components/SauvegardeCard';
 import CompteCommunCard from '../components/CompteCommunCard';
+import { VERSION_SITE } from '../hooks/useNotesVersion';
 import { toast } from 'sonner';
 
 function Section({ titre, children }) {
@@ -716,6 +717,18 @@ export default function ProfileTab({
           </div>
         )}
       </div>
+
+      <footer className="pt-2 pb-6 text-center text-[11px] font-semibold text-white/40">
+        Kleea {VERSION_SITE}
+        {dateMiseAJour && <> · mis à jour le {dateMiseAJour}</>}
+      </footer>
     </div>
   );
 }
+
+// Fixée au moment où le site est construit : c'est la date de la dernière mise à jour en ligne.
+const dateMiseAJour = (() => {
+  const d = new Date(import.meta.env.VITE_DATE_MISE_A_JOUR || '');
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} à ${d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`;
+})();

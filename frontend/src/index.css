@@ -922,6 +922,21 @@ input.pr-12 {
   }
 }
 
+/* La page de connexion a ses propres tailles : les réglages ci-dessus visaient l'ancienne carte. */
+.page-connexion form input[type="text"],
+.page-connexion form input[type="password"],
+.page-connexion form input[type="email"] {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  font-size: 15px !important;
+  border-radius: 0.75rem !important;
+}
+.page-connexion form button[type="submit"] {
+  margin-top: 0 !important;
+  padding: 0 !important;
+  font-size: 16px !important;
+}
+
 /* =========================================================================
    PAGE COMPTES : COMPACTAGE DU FORMULAIRE DE CRÉATION
    ========================================================================= */

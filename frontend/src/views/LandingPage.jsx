@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { ArrowRight, Building2, Tags, CalendarClock, Users2, ShieldCheck, LayoutDashboard, ListChecks, ChartLine, Wallet, Repeat, Target, Download, Bell, Search } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { EDITEUR } from '../legal/editeur';
+import { ArrowRight, Building2, Tags, CalendarClock, Users2, ShieldCheck, LayoutDashboard, ListChecks, ChartLine, Wallet, Repeat, Target, Download, Bell, Search, Landmark, PartyPopper, Smartphone, LayoutGrid, Lock, KeyRound, ScrollText, MonitorSmartphone, DatabaseBackup, Trash2, ChevronDown, Check } from 'lucide-react';
 
 // Teintes tirées du thème du site (voir .page-accueil dans index.css). L'accent reste --primary.
 const PAGE = 'bg-[var(--acc-page)]';
@@ -63,7 +65,7 @@ function CourbeSolde() {
   );
 }
 
-function ApercuHero() {
+function ApercuHero({ compact = false }) {
   return (
     <div className={`rounded-2xl ${CARTE} p-5 sm:p-6 space-y-5 shadow-[0_24px_64px_rgba(0,0,0,0.45)]`}>
       <div className="flex items-start justify-between gap-4">
@@ -78,7 +80,7 @@ function ApercuHero() {
         </div>
       </div>
       <CourbeSolde />
-      <div className="space-y-2">
+      {!compact && <div className="space-y-2">
         {[
           { mois: 'NOV', jour: '05', nom: 'Loyer', detail: 'Prévu, chaque mois', montant: '−850,00 €' },
           { mois: 'NOV', jour: '28', nom: 'Salaire', detail: 'Prévu, chaque mois', montant: '+3 200,00 €', positif: true },
@@ -92,7 +94,7 @@ function ApercuHero() {
             <span className={`text-sm ${CHIFFRE} ${l.positif ? POS : T1}`}>{l.montant}</span>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -112,10 +114,39 @@ const PAGES = [
 ];
 
 const FONCTIONS = [
-  { icon: Building2, titre: 'Vos banques, synchronisées', texte: 'Connectez BoursoBank, La Banque Postale, BNP, Revolut et les autres banques prises en charge par Powens. Les opérations arrivent seules, ou par import CSV si vous préférez.' },
-  { icon: Tags, titre: 'Des catégories qui s’apprennent', texte: 'Quand vous recatégorisez une opération, Kleea s’en souvient. Au prochain import, les dépenses récurrentes sont classées sans intervention.' },
-  { icon: CalendarClock, titre: 'Le solde de fin de mois, à l’avance', texte: 'Saisissez vos charges fixes et vos revenus attendus. Kleea calcule votre solde mois par mois et vous prévient avant un découvert.' },
-  { icon: Users2, titre: 'Un compte commun, à deux', texte: 'Partagez un compte avec la personne de votre choix. Chacun le suit depuis son propre compte Kleea : mêmes opérations, mêmes prévisions, mêmes budgets, et vos autres comptes restent privés. Pour un voyage entre amis, un Tricount se partage par un simple lien.' },
+  { icon: Building2, titre: 'Vos banques, synchronisées', texte: 'BoursoBank, La Banque Postale, BNP, Revolut et les autres banques prises en charge par Powens : les opérations arrivent seules. Sans connexion, un fichier CSV, OFX ou QIF suffit.' },
+  { icon: Tags, titre: 'Des catégories qui s’apprennent', texte: 'Recatégorisez une opération une fois : Kleea s’en souvient et classe les suivantes seul au prochain import.' },
+  { icon: CalendarClock, titre: 'Le solde de fin de mois, à l’avance', texte: 'Vos charges fixes et revenus attendus, répétés chaque mois si vous le voulez : Kleea calcule le solde prévu mois par mois.' },
+  { icon: Bell, titre: 'Des alertes avant le problème', texte: 'Budget dépensé trop vite, solde qui passera sous zéro le 27, banque à reconnecter : la cloche prévient en cours de mois.' },
+  { icon: Landmark, titre: 'Placements et crédits', texte: 'PEA, assurance vie, crypto, immobilier : leur courbe et leur performance hors versements. Pour les crédits, l’échéancier et les remboursements anticipés.' },
+  { icon: Users2, titre: 'Un compte commun, à deux', texte: 'Partagez les comptes de votre choix avec un proche, chacun depuis son propre compte Kleea. Vos autres comptes restent privés. Pour un voyage, un Tricount se partage par lien.' },
+  { icon: PartyPopper, titre: 'Le bilan de l’année', texte: 'Le Wrapped de vos finances : le mois le plus sage, les catégories qui ont pesé, la comparaison avec l’an dernier, en image à garder.' },
+  { icon: Smartphone, titre: 'Sur ordinateur et téléphone', texte: 'Le même Kleea partout, installable comme une application sur votre téléphone. Et un plugin Stream Deck pour voir votre solde d’un coup d’œil.' },
+];
+
+const ETAPES = [
+  { titre: 'Créez votre compte', texte: 'Un identifiant, une adresse e-mail et un mot de passe. Rien d’autre.' },
+  { titre: 'Ajoutez vos opérations', texte: 'Connectez votre banque en quelques écrans, ou importez le fichier téléchargé depuis son site.' },
+  { titre: 'Laissez Kleea travailler', texte: 'Il classe, prévoit votre solde et vous prévient avant un découvert ou un budget dépassé.' },
+];
+
+const REPERES = ['Synchronisation bancaire', 'Compte commun à deux', 'Double authentification', 'Sans publicité'];
+
+const SECURITE = [
+  { icon: Lock, titre: 'Chiffré sur le serveur', texte: 'Vos IBAN et vos accès bancaires sont chiffrés. Kleea ne voit jamais vos identifiants de banque : la connexion passe par Powens.' },
+  { icon: KeyRound, titre: 'Double authentification', texte: 'Par une application d’authentification ou par e-mail, à activer depuis votre profil.' },
+  { icon: ScrollText, titre: 'Journal et alertes', texte: 'Chaque connexion et chaque changement sensible sont notés, et un e-mail vous prévient d’un nouvel appareil.' },
+  { icon: MonitorSmartphone, titre: 'Vos appareils, sous contrôle', texte: 'Voyez où votre compte est ouvert et déconnectez un appareil à distance.' },
+  { icon: DatabaseBackup, titre: 'Votre sauvegarde', texte: 'Téléchargez toutes vos données dans un fichier que vous pourrez réimporter.' },
+  { icon: Trash2, titre: 'Partir pour de bon', texte: 'Supprimer votre compte efface vraiment toutes vos données, et l’accès à votre banque est révoqué.' },
+];
+
+const QUESTIONS = [
+  { q: 'Quelles banques sont prises en charge ?', r: 'Celles que propose Powens, le service de connexion bancaire agréé que Kleea utilise : BoursoBank, La Banque Postale, BNP Paribas, Revolut et bien d’autres. Pour une banque absente, importez le fichier CSV, OFX, QIF ou QFX téléchargé depuis son site.' },
+  { q: 'Kleea connaît-il mes identifiants bancaires ?', r: 'Non. Vous les saisissez dans les écrans de Powens, jamais dans Kleea. Kleea ne garde qu’un accès en lecture, chiffré, que vous pouvez couper à tout moment.' },
+  { q: 'Puis-je l’utiliser sans connecter ma banque ?', r: 'Oui. Le mode manuel fonctionne avec des fichiers d’export, et vous pouvez aussi saisir vos opérations à la main.' },
+  { q: 'Comment partager un compte avec mon conjoint ?', r: 'Depuis votre profil, invitez l’autre personne par e-mail et choisissez les comptes à partager. Chacun garde son propre compte Kleea ; à l’arrêt du partage, l’autre personne garde une copie.' },
+  { q: 'Et si je veux partir ?', r: 'Téléchargez votre sauvegarde, puis supprimez votre compte depuis le profil : toutes vos données sont effacées et l’accès à votre banque est révoqué.' },
 ];
 
 export default function LandingPage({ onOpenAuth }) {
@@ -123,18 +154,21 @@ export default function LandingPage({ onOpenAuth }) {
   const page = PAGES.find((p) => p.id === activeTab);
 
   return (
-    <div className={`page-accueil min-h-screen ${PAGE} ${T1} selection:bg-[var(--primary)] selection:text-white overflow-x-hidden font-sans`}>
+    <div className={`page-accueil relative isolate min-h-screen ${PAGE} ${T1} selection:bg-[var(--primary)] selection:text-white overflow-x-hidden font-sans`}>
+      {/* Halo de la couleur du site derrière le haut de page, sur toute la largeur. */}
+      <div aria-hidden="true" className="pointer-events-none absolute -z-10 inset-x-0 top-0 h-[1100px] bg-[radial-gradient(55%_60%_at_72%_38%,color-mix(in_srgb,var(--primary)_22%,transparent),transparent_70%),radial-gradient(40%_45%_at_12%_8%,color-mix(in_srgb,var(--primary)_12%,transparent),transparent_70%)]" />
 
       <nav className="fixed top-0 inset-x-0 z-50 bg-[var(--acc-page)]/85 backdrop-blur-md border-b border-[var(--acc-t1)]/[0.08]">
         <div className="max-w-7xl mx-auto h-16 px-4 sm:px-8 flex items-center justify-between gap-4">
           <a href="#" className="flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-lg bg-[var(--primary)] flex items-center justify-center text-sm font-semibold text-white">K</span>
+            <img src="/Kleea_2.png" alt="" width="28" height="28" className="w-7 h-7 rounded-lg" />
             <span className={`text-base font-medium ${T1}`}>Kleea</span>
           </a>
           <div className={`hidden md:flex items-center gap-8 text-sm ${T2}`}>
             <a href="#showcase" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>L’application</a>
             <a href="#features" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Fonctionnalités</a>
             <a href="#security" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Sécurité</a>
+            <a href="#faq" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Questions</a>
             <a href="/guide" target="_blank" rel="noopener noreferrer" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Guide</a>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
@@ -148,12 +182,13 @@ export default function LandingPage({ onOpenAuth }) {
         </div>
       </nav>
 
-      <section className="max-w-7xl mx-auto px-4 sm:px-8 pt-28 sm:pt-32 pb-20 lg:min-h-[100svh] grid lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-        <div className="lg:col-span-5 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
-          <h1 className="text-[40px] leading-[1.05] sm:text-6xl sm:leading-[1.04] font-medium tracking-[-0.03em]" style={{ textWrap: 'balance' }}>
-            Votre solde de fin de mois, connu dès le début
+      <section className="relative max-w-7xl 2xl:max-w-[1560px] mx-auto px-4 sm:px-8 pt-28 sm:pt-32 pb-20 lg:min-h-[100svh] grid lg:grid-cols-12 gap-12 lg:gap-16 items-center">
+        {/* Tailles en px : sur les écrans de portable, le site réduit la taille de base du texte (rem). */}
+        <div className="relative lg:col-span-5 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <h1 className="text-[44px] leading-[1.04] sm:text-[60px] xl:text-[68px] 2xl:text-[84px] font-semibold tracking-[-0.035em]" style={{ textWrap: 'balance' }}>
+            Votre solde de fin de mois, <span className="text-[color-mix(in_srgb,var(--primary)_55%,var(--acc-t1))]">connu dès le début</span>
           </h1>
-          <p className={`text-lg leading-7 ${T2} max-w-[36rem]`}>
+          <p className={`text-[18px] sm:text-[19px] 2xl:text-[22px] leading-[1.6] ${T2} max-w-[36rem] 2xl:max-w-[42rem]`}>
             Kleea réunit vos comptes bancaires, prévoit votre solde mois par mois et suit votre épargne pour vos projets. Sans publicité.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
@@ -162,10 +197,42 @@ export default function LandingPage({ onOpenAuth }) {
             </button>
             <a href="#showcase" className={BOUTON_SECONDAIRE}>Voir l’application</a>
           </div>
+          <ul className={`flex flex-wrap gap-x-5 gap-y-2 pt-2 text-sm ${T2}`}>
+            {REPERES.map((r) => (
+              <li key={r} className="flex items-center gap-1.5"><Check size={14} strokeWidth={2} className={POS} />{r}</li>
+            ))}
+          </ul>
         </div>
-        <div className="lg:col-span-7 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-75">
-          <ApercuHero />
+        <div className="relative lg:col-span-7 animate-in fade-in slide-in-from-bottom-2 duration-500 delay-75">
+          {/* Sur téléphone, la carte du solde seule ; plus large, la vraie application derrière elle. */}
+          <div className="sm:hidden"><ApercuHero /></div>
+          <div className="hidden sm:block relative pb-24 [perspective:1800px]">
+            <figure className="rounded-2xl border border-[var(--acc-t1)]/[0.1] overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.55)] [transform:rotateY(-9deg)_rotateX(3deg)] origin-left">
+              <img src="/apercu/tableau-de-bord-ordinateur.jpg" alt="Le tableau de bord de Kleea, avec des données d’exemple" width="1680" height="1050" className="block w-full h-auto" />
+            </figure>
+            <div className="absolute left-0 -bottom-2 w-[62%] lg:-left-10"><ApercuHero compact /></div>
+            <div className={`absolute -top-5 right-4 flex items-center gap-3 rounded-xl ${CARTE} px-4 py-3 shadow-[0_18px_40px_rgba(0,0,0,0.45)]`}>
+              <span className="w-8 h-8 rounded-lg bg-amber-400/15 text-amber-300 flex items-center justify-center"><Bell size={16} strokeWidth={1.75} /></span>
+              <div>
+                <p className={`text-[13px] font-medium ${T1}`}>Budget Courses : 55 % dépensé au 12</p>
+                <p className={`text-[12px] ${T3}`}>À ce rythme, 412 € fin novembre pour 300 € prévus</p>
+              </div>
+            </div>
+          </div>
         </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 py-20 border-t border-[var(--acc-t1)]/[0.08]">
+        <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] max-w-2xl mb-10" style={{ textWrap: 'balance' }}>Prêt en trois étapes</h2>
+        <ol className="grid md:grid-cols-3 gap-4">
+          {ETAPES.map(({ titre, texte }, i) => (
+            <li key={titre} className={`rounded-2xl ${CARTE} p-6 space-y-3`}>
+              <span className={`w-8 h-8 rounded-full bg-[var(--primary)]/20 text-[color-mix(in_srgb,var(--primary)_55%,var(--acc-t1))] flex items-center justify-center text-sm font-medium ${CHIFFRE}`}>{i + 1}</span>
+              <h3 className="text-lg font-medium">{titre}</h3>
+              <p className={`text-base leading-7 ${T2}`}>{texte}</p>
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section id="showcase" className="scroll-mt-16 max-w-7xl mx-auto px-4 sm:px-8 py-20 border-t border-[var(--acc-t1)]/[0.08]">
@@ -215,47 +282,87 @@ export default function LandingPage({ onOpenAuth }) {
         <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] max-w-2xl mb-12" style={{ textWrap: 'balance' }}>
           Ce que Kleea fait pour vous
         </h2>
-        <div className="grid sm:grid-cols-2 gap-x-12 gap-y-10">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {FONCTIONS.map(({ icon, titre, texte }) => {
             const Icone = icon;
             return (
-            <div key={titre} className="flex gap-4">
-              <Icone size={18} strokeWidth={1.5} className={`${T3} shrink-0 mt-1`} />
-              <div className="space-y-2">
-                <h3 className="text-lg font-medium">{titre}</h3>
-                <p className={`text-base leading-7 ${T2}`}>{texte}</p>
+              <div key={titre} className={`rounded-2xl ${CARTE} p-6 space-y-3`}>
+                <span className={`w-10 h-10 rounded-xl ${LIGNE} flex items-center justify-center`}>
+                  <Icone size={18} strokeWidth={1.5} className="text-[color-mix(in_srgb,var(--primary)_55%,var(--acc-t1))]" />
+                </span>
+                <h3 className="text-base font-medium">{titre}</h3>
+                <p className={`text-sm leading-6 ${T2}`}>{texte}</p>
               </div>
-            </div>
             );
           })}
         </div>
       </section>
 
       <section id="security" className="scroll-mt-16 max-w-7xl mx-auto px-4 sm:px-8 py-20 border-t border-[var(--acc-t1)]/[0.08]">
-        <div className={`rounded-2xl ${CARTE} p-6 sm:p-10 flex flex-col md:flex-row md:items-center justify-between gap-8`}>
-          <div className="space-y-3 max-w-2xl">
-            <p className={`flex items-center gap-2 text-sm ${T2}`}>
-              <ShieldCheck size={16} strokeWidth={1.5} className={T3} /> Sécurité
-            </p>
-            <h2 className="text-2xl sm:text-3xl font-medium tracking-[-0.02em]">Vos données restent les vôtres</h2>
-            <p className={`text-base leading-7 ${T2}`}>
-              Vos IBAN et vos accès bancaires sont chiffrés sur le serveur. La double authentification est disponible si vous le souhaitez. Kleea n’affiche aucune publicité et ne revend aucune donnée.
-            </p>
+        <div className="max-w-2xl space-y-3 mb-10">
+          <p className={`flex items-center gap-2 text-sm ${T2}`}>
+            <ShieldCheck size={16} strokeWidth={1.5} className={T3} /> Sécurité
+          </p>
+          <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em]" style={{ textWrap: 'balance' }}>Vos données restent les vôtres</h2>
+          <p className={`text-base leading-7 ${T2}`}>Kleea n’affiche aucune publicité et ne revend aucune donnée. Ce que vous y mettez est protégé, et vous pouvez tout reprendre.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-8">
+          {SECURITE.map(({ icon, titre, texte }) => {
+            const Icone = icon;
+            return (
+              <div key={titre} className="flex gap-4">
+                <Icone size={18} strokeWidth={1.5} className={`${T3} shrink-0 mt-1`} />
+                <div className="space-y-1.5">
+                  <h3 className="text-base font-medium">{titre}</h3>
+                  <p className={`text-sm leading-6 ${T2}`}>{texte}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <section id="faq" className="scroll-mt-16 max-w-3xl mx-auto px-4 sm:px-8 py-20 border-t border-[var(--acc-t1)]/[0.08]">
+        <h2 className="text-3xl sm:text-4xl font-medium tracking-[-0.02em] mb-8">Questions fréquentes</h2>
+        <div className="space-y-2">
+          {QUESTIONS.map(({ q, r }) => (
+            <details key={q} className={`group rounded-xl ${CARTE} px-5`}>
+              <summary className="flex items-center justify-between gap-4 py-4 cursor-pointer list-none text-base font-medium [&::-webkit-details-marker]:hidden">
+                {q}
+                <ChevronDown size={18} strokeWidth={1.5} className={`${T3} shrink-0 transition-transform group-open:rotate-180`} />
+              </summary>
+              <p className={`pb-5 text-base leading-7 ${T2}`}>{r}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-8 pb-24">
+        <div className={`rounded-2xl ${CARTE} p-8 sm:p-12 flex flex-col md:flex-row md:items-center justify-between gap-6`}>
+          <div className="space-y-2 max-w-xl">
+            <h2 className="text-2xl sm:text-3xl font-medium tracking-[-0.02em]">Votre fin de mois, sans surprise</h2>
+            <p className={`text-base ${T2}`}>Créez votre compte et connectez votre banque : votre solde prévu s’affiche dans la foulée.</p>
           </div>
-          <button onClick={() => onOpenAuth('register')} className={`${BOUTON_PRINCIPAL} shrink-0`}>
-            Créer un compte
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3 shrink-0">
+            <button onClick={() => onOpenAuth('register')} className={BOUTON_PRINCIPAL}>
+              Créer un compte <ArrowRight size={16} strokeWidth={1.5} />
+            </button>
+            <button onClick={() => onOpenAuth('login')} className={BOUTON_SECONDAIRE}>Se connecter</button>
+          </div>
         </div>
       </section>
 
       <footer className="border-t border-[var(--acc-t1)]/[0.08]">
         <div className={`max-w-7xl mx-auto px-4 sm:px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm ${T3}`}>
-          <p>© {new Date().getFullYear()} Kleea · version 4.5</p>
+          <p>© {new Date().getFullYear()} Kleea · {EDITEUR.nom}</p>
           <div className="flex flex-wrap justify-center gap-6">
             <a href="#showcase" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>L’application</a>
             <a href="#features" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Fonctionnalités</a>
             <a href="#security" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Sécurité</a>
+            <a href="#faq" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Questions</a>
             <a href="/guide" target="_blank" rel="noopener noreferrer" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Guide</a>
+            <Link to="/mentions-legales" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Mentions légales</Link>
+            <Link to="/confidentialite" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Confidentialité</Link>
           </div>
         </div>
       </footer>
