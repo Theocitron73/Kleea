@@ -9,6 +9,7 @@ from sqlalchemy import inspect, text
 TABLES_DU_COMPTE = {
     "abonnements_ignores": "utilisateur",
     "alertes_masquees": "utilisateur",
+    "journal_securite": "utilisateur",
     "allocations": "utilisateur",
     "annonces_logement": "utilisateur",
     "biens": "utilisateur",

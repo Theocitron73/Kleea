@@ -48,7 +48,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS + charger_revision("0009_valeur_nette").CREATIONS + charger_revision("0010_valeur_nette_suite").MODIFICATIONS + charger_revision("0011_compte_commun").CREATIONS + [charger_revision("0012_historique_placements").MODIFICATION]
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS + charger_revision("0009_valeur_nette").CREATIONS + charger_revision("0010_valeur_nette_suite").MODIFICATIONS + charger_revision("0011_compte_commun").CREATIONS + [charger_revision("0012_historique_placements").MODIFICATION] + charger_revision("0013_journal_securite").CREATIONS + [charger_revision("0014_double_auth_application").MODIFICATION]
 
 
 def verifier_base_de_test(url: str) -> None:

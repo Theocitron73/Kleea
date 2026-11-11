@@ -4,6 +4,7 @@ import { ArrowDown, ArrowUp, Calendar, Check, ChevronRight, Link2, Pencil, Rotat
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import CustomSelect from './CustomSelect';
 import FeuilleMobile, { Reglage } from './FeuilleMobile';
+import EnteteJour from './EnteteJour';
 import { estTransfertInterne } from '../utils/finance';
 
 // Valeurs de mois telles que l'application les enregistre.
@@ -62,8 +63,10 @@ export default function ListeOperations({
     for (const t of visibles) {
       if (!triParDate) { liste.push({ type: 'op', t }); continue; }
       const dernier = liste.findLast((e) => e.type === 'jour');
-      if (!dernier || dernier.date !== t.date) liste.push({ type: 'jour', date: t.date, total: 0 });
-      liste.findLast((e) => e.type === 'jour').total += parseFloat(t.montant) || 0;
+      if (!dernier || dernier.date !== t.date) liste.push({ type: 'jour', date: t.date, total: 0, nombre: 0 });
+      const jour = liste.findLast((e) => e.type === 'jour');
+      jour.total += parseFloat(t.montant) || 0;
+      jour.nombre += 1;
       liste.push({ type: 'op', t });
     }
     return liste;
@@ -72,7 +75,7 @@ export default function ListeOperations({
   const virtualiseur = useVirtualizer({
     count: elements.length,
     getScrollElement: () => conteneur.current,
-    estimateSize: (i) => (elements[i]?.type === 'jour' ? 40 : mobile ? 60 : 64),
+    estimateSize: (i) => (elements[i]?.type === 'jour' ? 64 : mobile ? 60 : 64),
     overscan: 10,
   });
 
@@ -98,6 +101,7 @@ export default function ListeOperations({
     const nature = transfert ? 'Virement interne' : montant > 0 ? 'Revenu' : 'Dépense';
     // Chaque réglage a sa colonne, de largeur fixe, avec la liste déroulante commune à tout le site.
     const SELECT = 'px-2.5 h-8 rounded-xl';
+    const RELIE = '!bg-emerald-500/15 !text-emerald-300'; // Opération reliée à une prévision ou une enveloppe
     const previsions = previsionsPour(t);
     if (prevision && !previsions.some((p) => p.id === prevision.id)) previsions.unshift(prevision);
     const projets = [...new Set(allocations.map((a) => a.projet))];
@@ -127,7 +131,7 @@ export default function ListeOperations({
             if (e.key === 'Escape') { e.currentTarget.value = t.nom; ajusterHauteur(e.currentTarget); e.currentTarget.blur(); }
           }}
           placeholder="Modifier le libellé..."
-          className="min-w-0 flex-1 resize-none overflow-hidden break-words leading-snug bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/50 rounded-lg px-2 py-1 text-[13px] font-semibold text-[var(--text-main)] outline-none transition-colors cursor-text"
+          className="min-w-0 min-h-8 flex-1 resize-none overflow-hidden break-words leading-snug bg-black/20 hover:bg-black/40 border border-white/5 hover:border-white/15 focus:border-[var(--primary)]/60 focus:bg-black/50 rounded-lg px-2 py-1 text-[13px] font-semibold text-[var(--text-main)] outline-none transition-colors cursor-text"
         />
         {!mobile && <Pencil size={11} aria-hidden="true" className="shrink-0 mt-2 text-[var(--text-main)]/25 group-hover:text-[var(--text-main)]/60 transition-colors" />}
       </div>
@@ -139,9 +143,9 @@ export default function ListeOperations({
     );
     const selPrevision = !transfert && (
       <CustomSelect flottant ariaLabel="Prévision reliée" value={t.prevision_id ?? ''} icon={Link2}
-        options={[{ v: '', l: 'Aucune' }, ...previsions.map((p) => ({ v: p.id, l: `${nomPrevision(p)} (${Math.round(Math.abs(parseFloat(p.montant) || 0))} €)` }))]}
+        options={[{ v: '', l: 'Aucune' }, ...previsions.map((p) => ({ v: p.id, l: `${nomPrevision(p)} (${Math.round(Math.abs(parseFloat(p.montant) || 0))} €)`, court: nomPrevision(p) }))]}
         onChange={(v) => updateCell(t.id, 'prevision_id', v === '' ? null : v)}
-        className={`${SELECT} ${prevision ? '!border-emerald-400/45' : ''}`} />
+        className={`${SELECT} ${prevision ? RELIE : ''}`} />
     );
     const selMois = (
       <CustomSelect flottant ariaLabel="Mois affecté" value={t.mois} icon={Calendar}
@@ -152,7 +156,7 @@ export default function ListeOperations({
       <CustomSelect flottant ariaLabel="Enveloppe" value={t.enveloppe || ''} icon={WalletCards}
         options={[{ v: '', l: 'Aucune' }, ...projets.map((n) => ({ v: n, l: n }))]}
         onChange={(v) => updateCell(t.id, 'enveloppe', v)}
-        className={`${SELECT} ${t.enveloppe ? '!border-[var(--secondary)]/50' : ''}`} />
+        className={`${SELECT} ${t.enveloppe ? RELIE : ''}`} />
     );
     const division = t.split_id ? (
       <button type="button" title="Annuler la division" aria-label="Annuler la division" onClick={() => onAnnulerDivision(t)} className={`${PASTILLE} w-9 justify-center shrink-0 bg-[var(--secondary)]/15 text-[var(--secondary)] hover:text-rose-300`}>
@@ -164,7 +168,7 @@ export default function ListeOperations({
       </button>
     );
     const leMontant = (
-      <span className={`shrink-0 text-right font-semibold tabular-nums ${mobile ? 'text-[14px]' : 'w-24 text-[15px]'} ${transfert ? 'text-[var(--secondary)]' : montant > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+      <span className={`shrink-0 whitespace-nowrap text-right font-semibold tabular-nums ${mobile ? 'text-[14px]' : 'min-w-24 text-[15px] leading-8'} ${transfert ? 'text-[var(--secondary)]' : montant > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
         {euros(montant)}
       </span>
     );
@@ -230,8 +234,9 @@ export default function ListeOperations({
     }
 
     return (
-      <div className={`group flex items-center gap-2 px-3 py-2 rounded-xl transition-colors ${fond}`}>
-        {caseACocher}
+      // Calée en haut : le nom du compte sous le libellé ne doit pas décaler le libellé par rapport aux sélecteurs (tous de 32 px).
+      <div className={`group flex items-start gap-2 px-3 py-2 rounded-xl transition-colors ${fond}`}>
+        <span className="h-8 flex items-center shrink-0">{caseACocher}</span>
         {barreNature}
         <div className="flex-1 min-w-[180px]">
           {libelle}
@@ -287,12 +292,7 @@ export default function ListeOperations({
               return (
                 <div key={e.type === 'jour' ? `j-${e.date}-${v.index}` : e.t.id} data-index={v.index} ref={virtualiseur.measureElement}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${v.start}px)` }}>
-                  {e.type === 'jour' ? (
-                    <div className="flex justify-between items-baseline px-3 pt-4 pb-1.5 text-[12px]">
-                      <span className="font-semibold text-[var(--text-main)]/80">{libelleJour(e.date)}</span>
-                      <span className="tabular-nums text-[var(--text-main)]/45">{euros(e.total)}</span>
-                    </div>
-                  ) : ligne(e.t)}
+                  {e.type === 'jour' ? <EnteteJour date={e.date} total={e.total} nombre={e.nombre} /> : ligne(e.t)}
                 </div>
               );
             })}

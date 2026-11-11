@@ -47,6 +47,12 @@ test('une opération se relie à une prévision du mois depuis sa pastille', asy
   await ligne(page, 'Boulangerie').getByRole('textbox', { name: 'Prévision reliée' }).click();
   await page.getByRole('listbox').getByText(/Pain/).click();
   await expect.poll(() => page.modifications.at(-1)).toMatchObject({ id: 2, prevision_id: 50 });
+  // Reliée : la pastille passe au vert et ne montre que le nom, sans le montant.
+  const pastille = ligne(page, 'Boulangerie').getByRole('textbox', { name: 'Prévision reliée' });
+  await expect(pastille).toHaveValue(/^Pain/);
+  await expect(pastille).not.toHaveValue(/€/);
+  await expect(pastille.locator('..')).toHaveClass(/!bg-emerald-500\/15/);
+  await ligne(page, 'Boulangerie').screenshot({ path: 'test-results/prevision-reliee.png' });
 });
 
 test('le filtre Revenus ne garde que les revenus', async ({ page }) => {

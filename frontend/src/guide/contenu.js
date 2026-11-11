@@ -554,7 +554,7 @@ export const CHAPITRES = [
         points: [
           { l: 'Détails Personnels', d: "Modifiez votre nom et votre adresse e-mail." },
           { l: "Mode d'importation Global", d: "Passez de « Automatique » à « Manuel »." },
-          { l: 'Mot de passe', d: "« Mettre à jour le mot de passe »." },
+          { l: 'Mot de passe', d: "« Mettre à jour le mot de passe » demande votre mot de passe actuel, puis déconnecte vos autres appareils. Celui que vous utilisez reste connecté." },
         ],
       },
       {
@@ -565,17 +565,23 @@ export const CHAPITRES = [
           { l: 'Tous les autres', d: "« Tout déconnecter » demande une confirmation, puis coupe tous vos autres appareils. Celui que vous utilisez reste connecté." },
           { l: 'Connexion plus ancienne', d: "Une connexion ouverte avant l'arrivée de cette carte n'y figure pas et ne peut pas être coupée à distance. Elle prend fin d'elle-même sous 7 jours." },
         ],
-        conseil: "Téléphone perdu ou doute sur un appareil ? Utilisez « Tout déconnecter », puis changez votre mot de passe : changer de mot de passe ne déconnecte pas à lui seul les autres appareils.",
+        conseil: "Téléphone perdu ou doute sur un appareil ? Changez votre mot de passe : vos autres appareils sont déconnectés du même coup. « Tout déconnecter » le fait sans changer de mot de passe.",
+      },
+      {
+        titre: 'Journal de sécurité',
+        texte: "La carte « Journal de sécurité » liste les connexions, les échecs, les changements de mot de passe, la double authentification et les partages de votre compte, avec la date, l'appareil et l'adresse IP. Ils sont gardés 90 jours.",
+        conseil: "Une ligne qui n'est pas de vous, comme une connexion depuis un appareil inconnu ? Changez votre mot de passe tout de suite.",
       },
       {
         titre: 'Double authentification',
-        texte: "Facultative : rien ne change tant que vous ne l'activez pas. Une fois activée, votre mot de passe seul ne suffit plus : chaque connexion demande aussi un code à 6 chiffres reçu par e-mail, valable 10 minutes.",
+        texte: "Facultative : rien ne change tant que vous ne l'activez pas. Une fois activée, votre mot de passe seul ne suffit plus : chaque connexion demande aussi un code à 6 chiffres, affiché par une application d'authentification ou reçu par e-mail.",
         points: [
-          { l: 'Activer', d: "Dans la carte « Double authentification », confirmez que c'est bien vous avec votre mot de passe actuel, puis saisissez le code reçu à l'adresse de votre compte. Cela vérifie que cette adresse reçoit bien vos codes." },
-          { l: 'À la connexion', d: "Après le mot de passe, saisissez le code reçu. Rien reçu ? Regardez vos indésirables, ou utilisez « Renvoyer un code »." },
+          { l: 'Avec une application', d: "Le plus sûr. Dans la carte « Double authentification », choisissez « Application d’authentification » et confirmez avec votre mot de passe actuel. Ajoutez ensuite Kleea dans Google Authenticator, Microsoft Authenticator ou 1Password : scannez le QR code, ou sur téléphone touchez « Ouvrir dans l’application d’authentification », ou recopiez la clé. Saisissez enfin le code affiché." },
+          { l: 'Par e-mail', d: "Choisissez « Par e-mail » : le code part à l'adresse de votre compte, valable 10 minutes. Saisir le premier code vérifie que cette adresse reçoit bien vos codes." },
+          { l: 'À la connexion', d: "Après le mot de passe, saisissez le code de votre application, ou celui reçu par e-mail. Rien reçu ? Regardez vos indésirables, ou utilisez « Renvoyer un code »." },
           { l: 'Désactiver', d: "Confirmez avec votre mot de passe actuel, depuis une session déjà ouverte. Ainsi, quelqu'un qui trouverait votre session ouverte ne peut pas couper cette protection." },
         ],
-        attention: "Cette protection vaut ce que vaut votre boîte mail : sécurisez-la bien, car elle reçoit aussi le lien « Mot de passe oublié ». Si vous perdez l'accès à cette boîte, vous ne pourrez plus vous connecter.",
+        attention: "Par e-mail, cette protection vaut ce que vaut votre boîte mail : sécurisez-la bien, car elle reçoit aussi le lien « Mot de passe oublié ». Avec une application, gardez-la sur un téléphone que vous ne perdrez pas : sans elle, vous ne pourrez plus vous connecter.",
       },
       {
         titre: 'Déconnecter vos banques',

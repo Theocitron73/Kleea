@@ -48,7 +48,7 @@ jobs:
     name: Frontend (tests et build)
     # Sur Ubuntu 26.04, le miroir Azure fait durer l'installation des dépendances de Chromium plus de 10 minutes (18 s ici).
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -62,7 +62,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-      - run: npx playwright install --with-deps chromium
+      # Les tests utilisent le Google Chrome déjà installé sur la machine (playwright.config.js) : rien à installer.
       - run: npm run test:e2e
 
   streamdeck:

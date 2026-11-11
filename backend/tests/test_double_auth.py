@@ -1,6 +1,8 @@
 """Double authentification par e-mail : facultative, impossible à contourner, sans risque de s'enfermer dehors."""
 import os
 import sys
+import base64
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -19,6 +21,7 @@ from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
 import aide  # noqa: E402
+import totp  # noqa: E402
 from aide import partout  # noqa: E402
 import main  # noqa: E402
 from routes import double_auth as da  # noqa: E402
@@ -61,7 +64,8 @@ class Base(unittest.TestCase):
                 conn.execute(text("""
                     CREATE TABLE double_auth (
                         utilisateur TEXT PRIMARY KEY, active BOOLEAN NOT NULL DEFAULT 0, created_at TIMESTAMP,
-                        code_empreinte TEXT, code_expire_le TIMESTAMP, essais INTEGER NOT NULL DEFAULT 0
+                        code_empreinte TEXT, code_expire_le TIMESTAMP, essais INTEGER NOT NULL DEFAULT 0,
+                        methode TEXT NOT NULL DEFAULT 'email', secret TEXT, derniere_etape INTEGER
                     )
                 """))
         patcher = partout("engine", self.moteur)
@@ -94,7 +98,7 @@ class Facultative(Base):
         self.assertIn("access_token", donnees)
         self.assertNotIn("double_auth_requise", donnees)
         self.assertEqual(self.envois, [])
-        self.assertEqual(self.client.get(ETAT, headers=self.entetes).json(), {"disponible": True, "active": False})
+        self.assertEqual(self.client.get(ETAT, headers=self.entetes).json(), {"disponible": True, "active": False, "methode": None})
 
     def test_preparer_sans_confirmer_n_active_rien(self):
         self.client.post(PREPARER, json={"password": MOT_DE_PASSE}, headers=self.entetes)
@@ -117,7 +121,7 @@ class Activation(Base):
 
     def test_le_code_part_a_l_adresse_du_compte_et_n_est_pas_renvoye(self):
         reponse = self.client.post(PREPARER, json={"password": MOT_DE_PASSE}, headers=self.entetes)
-        self.assertEqual(reponse.json(), {"email_masque": "t***@kleea.test"})
+        self.assertEqual(reponse.json(), {"methode": "email", "email_masque": "t***@kleea.test"})
         self.assertEqual(self.envois[0][0], "theo@kleea.test")
         self.assertRegex(self.envois[0][1], r"^\d{6}$")
 
@@ -264,6 +268,76 @@ class SansTable(Base):
         self.assertIn("access_token", self.premiere_etape())
         self.assertFalse(self.client.get(ETAT, headers=self.entetes).json()["disponible"])
         self.assertEqual(self.client.post(PREPARER, json={"password": MOT_DE_PASSE}, headers=self.entetes).status_code, 503)
+
+
+
+class Application(Base):
+    """Double authentification par application : aucun e-mail, un code qui change toutes les 30 secondes."""
+
+    def activer_application(self):
+        reponse = self.client.post(PREPARER, json={"password": MOT_DE_PASSE, "methode": "application"}, headers=self.entetes)
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        donnees = reponse.json()
+        self.assertTrue(donnees["adresse"].startswith("otpauth://totp/Kleea:theo?secret="))
+        self.assertEqual(self.client.post(ACTIVER, json={"code": "000000"}, headers=self.entetes).status_code, 400)
+        actuel = totp.code(donnees["secret"], int(time.time() // 30))
+        self.assertEqual(self.client.post(ACTIVER, json={"code": actuel}, headers=self.entetes).status_code, 200)
+        return donnees["secret"]
+
+    def test_activation_sans_e_mail_et_secret_chiffre(self):
+        secret = self.activer_application()
+        self.assertEqual(self.envois, [])
+        self.assertEqual(self.client.get(ETAT, headers=self.entetes).json(), {"disponible": True, "active": True, "methode": "application"})
+        with self.moteur.connect() as conn:
+            stocke = conn.execute(text("SELECT secret FROM double_auth WHERE utilisateur = 'theo'")).scalar()
+        self.assertEqual(aide.dechiffrer_jeton(stocke), secret)
+
+    def test_connexion_avec_le_code_de_l_application(self):
+        secret = self.activer_application()
+        etape = self.premiere_etape()
+        self.assertEqual((etape["methode"], etape["email_masque"]), ("application", None))
+        self.assertEqual(self.envois, [])
+        self.assertEqual(self.client.post(RENVOI, json={"jeton": etape["jeton_double_auth"]}).status_code, 400)
+        # Le code qui a servi à l'activation ne rouvre pas : il faut le suivant.
+        suivant = totp.code(secret, int(time.time() // 30) + 1)
+        reponse = self.client.post(SECOND, json={"jeton": etape["jeton_double_auth"], "code": suivant})
+        self.assertEqual(reponse.status_code, 200, reponse.text)
+        self.assertEqual(self.client.post(SECOND, json={"jeton": etape["jeton_double_auth"], "code": suivant}).status_code, 401)
+
+    def test_un_code_e_mail_ne_remplace_pas_l_application(self):
+        self.activer_application()
+        etape = self.premiere_etape()
+        self.assertEqual(self.client.post(SECOND, json={"jeton": etape["jeton_double_auth"], "code": "123456"}).status_code, 401)
+
+
+class RevisionManquante(Base):
+    def test_une_colonne_manquante_ne_coupe_pas_la_protection(self):
+        self.activer()
+        with self.moteur.begin() as conn:
+            conn.execute(text("ALTER TABLE double_auth DROP COLUMN methode"))
+        client = TestClient(main.app, raise_server_exceptions=False)
+        reponse = client.post("/login", json={"nom": "Theo", "password": MOT_DE_PASSE})
+        self.assertEqual(reponse.status_code, 500)
+        self.assertNotIn("access_token", reponse.text)
+
+
+class Totp(unittest.TestCase):
+    """Les vecteurs de la RFC 6238 (SHA-1), ramenés à 6 chiffres."""
+    SECRET = base64.b32encode(b"12345678901234567890").decode()
+
+    def test_vecteurs_de_la_rfc(self):
+        for instant, attendu in ((59, "287082"), (1111111109, "081804"), (1234567890, "005924"), (2000000000, "279037")):
+            self.assertEqual(totp.code(self.SECRET, instant // 30), attendu)
+
+    def test_tolerance_d_une_periode_et_pas_plus(self):
+        etape = 1234567890 // 30
+        self.assertEqual(totp.verifier(self.SECRET, totp.code(self.SECRET, etape - 1), None, maintenant=1234567890), etape - 1)
+        self.assertIsNone(totp.verifier(self.SECRET, totp.code(self.SECRET, etape - 2), None, maintenant=1234567890))
+        self.assertIsNone(totp.verifier(self.SECRET, "12345", None, maintenant=1234567890))
+
+    def test_un_code_deja_accepte_est_refuse(self):
+        etape = 1234567890 // 30
+        self.assertIsNone(totp.verifier(self.SECRET, totp.code(self.SECRET, etape), etape, maintenant=1234567890))
 
 
 if __name__ == "__main__":

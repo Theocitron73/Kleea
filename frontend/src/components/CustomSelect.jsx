@@ -53,7 +53,9 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
     (opt.l || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const currentLabel = options?.find(opt => opt.v === value)?.l || value;
+  // `court` : ce que montre le champ fermé, quand le libellé de la liste est plus long (« Carburant » plutôt que « Carburant (60 €) »).
+  const choix = options?.find(opt => opt.v === value);
+  const currentLabel = choix?.court ?? choix?.l ?? value;
   const isCategorySelect = isCategory || Icon === Tag;
 
   const groupedOptions = useMemo(() => {

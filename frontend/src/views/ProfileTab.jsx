@@ -4,6 +4,7 @@ import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
 import DoubleAuthCard from '../components/DoubleAuthCard';
 import SessionsActivesCard from '../components/SessionsActivesCard';
+import JournalSecuriteCard from '../components/JournalSecuriteCard';
 import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
 import SauvegardeCard from '../components/SauvegardeCard';
 import CompteCommunCard from '../components/CompteCommunCard';
@@ -33,6 +34,7 @@ export default function ProfileTab({
   const [editEmail, setEditEmail] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -107,16 +109,20 @@ export default function ProfileTab({
   // 2. Changement de mot de passe
   const handlePasswordChange = async (e) => {
     e.preventDefault();
-    if (!newPassword.trim()) return;
+    if (!newPassword.trim() || !currentPassword) return;
 
     try {
       setPasswordLoading(true);
-      await api.put(`/profile/${user}/password`, { new_password: newPassword });
-      toast.success("Mot de passe modifié avec succès ! 🔒");
+      const { data } = await api.put(`/profile/${user}/password`, { current_password: currentPassword, new_password: newPassword });
+      const coupees = data?.sessions_coupees || 0;
+      toast.success(coupees
+        ? `Mot de passe modifié. ${coupees > 1 ? `Vos ${coupees} autres appareils ont été déconnectés` : 'Votre autre appareil a été déconnecté'}.`
+        : 'Mot de passe modifié.');
+      setCurrentPassword('');
       setNewPassword('');
       setShowPasswordForm(false);
-    } catch  {
-      toast.error("Erreur lors de la modification du mot de passe.");
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Erreur lors de la modification du mot de passe.");
     } finally {
       setPasswordLoading(false);
     }
@@ -358,9 +364,23 @@ export default function ProfileTab({
           <h4 className="text-[13px] font-bold text-white/90 mb-2">Mettre à jour le mot de passe</h4>
           <form onSubmit={handlePasswordChange} className="space-y-3">
             <div>
-              <label className="text-[11px] font-medium text-white/55 block mb-1">Nouveau mot de passe</label>
+              <label htmlFor="mot-de-passe-actuel" className="text-[11px] font-medium text-white/55 block mb-1">Mot de passe actuel</label>
               <input
+                id="mot-de-passe-actuel"
                 type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition shadow-inner"
+              />
+            </div>
+            <div>
+              <label htmlFor="nouveau-mot-de-passe" className="text-[11px] font-medium text-white/55 block mb-1">Nouveau mot de passe</label>
+              <input
+                id="nouveau-mot-de-passe"
+                type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="••••••••••••"
@@ -368,7 +388,8 @@ export default function ProfileTab({
                 className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-1.5 text-xs font-semibold text-white focus:outline-none focus:border-[var(--primary)] transition shadow-inner"
               />
             </div>
-            <div className="flex items-center justify-end pt-1">
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <p className="text-[10px] font-semibold text-white/45">Vos autres appareils seront déconnectés.</p>
               <button
                 type="submit"
                 disabled={passwordLoading}
@@ -635,6 +656,7 @@ export default function ProfileTab({
       <Section titre="Sécurité">
         <DoubleAuthCard />
         <SessionsActivesCard />
+        <JournalSecuriteCard />
       </Section>
 
       <Section titre="Données et outils">

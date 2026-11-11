@@ -1,4 +1,4 @@
-import { useState, forwardRef } from 'react';
+import { useState } from 'react';
 import DatePicker from 'react-datepicker';
 import { createPortal } from 'react-dom';
 import { SketchPicker } from 'react-color';
@@ -19,44 +19,6 @@ import { Repeat } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../axios';
 import { depenseDuBudget } from '../utils/finance';
-
-// Badge date compact pour le tableau desktop
-const CustomBadgeDate = forwardRef(({ t }, ref) => {
-  let displayDay = '??';
-  let displayMonth = '??';
-  let displayYear = '202X';
-
-  if (t.date) {
-    const dateSeule = t.date.includes('T') ? t.date.split('T')[0] : t.date;
-    const parties = dateSeule.split(dateSeule.includes('-') ? '-' : '/');
-    displayDay = dateSeule.includes('-') ? parties[2] : parties[0];
-    displayMonth = parties[1];
-    displayYear = parties[0];
-  } else if (t.annee) {
-    displayYear = t.annee;
-  }
-
-  const moisNoms = { 
-    '01': 'JAN', '02': 'FEV', '03': 'MAR', '04': 'AVR', '05': 'MAI', '06': 'JUIN', 
-    '07': 'JUIL', '08': 'AOUT', '09': 'SEPT', '10': 'OCT', '11': 'NOV', '12': 'DEC' 
-  };
-
-  return (
-    <div className="flex items-center" ref={ref}>
-      <div className="relative w-[54px] h-[54px] flex flex-col items-center justify-center bg-[var(--glass-bg)] border border-white/10 rounded-xl transition-all duration-300 shadow-lg">
-        <span className="text-[7px] font-black text-[var(--text-main)]/20 uppercase tracking-[0.2em] mb-0.5">
-          {displayYear}
-        </span>
-        <span className="text-sm font-black text-[var(--text-main)] leading-none">
-          {displayDay}
-        </span>
-        <span className="text-[8px] font-bold text-[var(--secondary)]/60 uppercase tracking-widest mt-1">
-          {moisNoms[displayMonth] || displayMonth}
-        </span>
-      </div>
-    </div>
-  );
-});
 
 // Normalisation des mois sans accents
 

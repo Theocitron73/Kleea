@@ -4,6 +4,7 @@ import { Calendar, Check, ChevronRight, Eye, EyeOff, Pencil, Repeat, Tag, Wallet
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
 import CustomSelect from './CustomSelect';
 import FeuilleMobile, { Reglage } from './FeuilleMobile';
+import EnteteJour from './EnteteJour';
 import { estTransfertInterne } from '../utils/finance';
 
 const nomPropre = (p) => String(p.nom || '').replace(/^\[PRÉVI\]\s*/i, '');
@@ -16,13 +17,6 @@ const ajusterHauteur = (champ) => {
   champ.style.height = 'auto';
   champ.style.height = `${champ.scrollHeight}px`;
 };
-
-function libelleJour(date) {
-  const d = new Date(`${String(date).slice(0, 10)}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return 'Sans date';
-  const texte = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  return texte.charAt(0).toUpperCase() + texte.slice(1);
-}
 
 /** Les prévisions du mois, regroupées par jour, modifiables depuis la ligne comme les opérations de Gérer. */
 export default function ListePrevisions({
@@ -222,10 +216,7 @@ export default function ListePrevisions({
           const total = j.previsions.filter(estActive).reduce((s, p) => s + (parseFloat(p.montant) || 0), 0);
           return (
             <div key={j.date}>
-              <div className="flex justify-between items-baseline px-3 pt-4 pb-1.5 text-[12px]">
-                <span className="font-semibold text-[var(--text-main)]/80">{libelleJour(j.date)}</span>
-                <span className="tabular-nums text-[var(--text-main)]/45">{euros(total)}</span>
-              </div>
+              <EnteteJour date={j.date} total={total} nombre={j.previsions.length} libelle="prévision" />
               {j.previsions.map((p) => ligne(p))}
             </div>
           );

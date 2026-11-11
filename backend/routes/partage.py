@@ -15,10 +15,12 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import resend
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import bindparam, text
 
+from alertes_email import prevenir_invitation_acceptee, prevenir_invitation_envoyee
+from journal_securite import noter_evenement
 from base import SECRET_KEY, engine, get_current_user
 from journaux import logger
 
@@ -242,7 +244,7 @@ def _comptes_du_proprietaire(conn, proprietaire: str, comptes: List[str]) -> Lis
 
 
 @router.post("/api/partages")
-def inviter(invitation: Invitation, current_user: str = Depends(get_current_user)):
+def inviter(invitation: Invitation, request: Request, current_user: str = Depends(get_current_user)):
     email = invitation.email.strip().lower()
     if "@" not in email:
         raise HTTPException(status_code=400, detail="Adresse e-mail invalide.")
@@ -270,12 +272,14 @@ def inviter(invitation: Invitation, current_user: str = Depends(get_current_user
         envoyer_invitation(email, current_user, lien)
     except Exception as erreur:  # noqa: BLE001
         logger.error(f"Invitation de partage non envoyée : {erreur}")
+    noter_evenement(current_user, "partage_invitation", request, ", ".join(comptes) + " avec " + email)
+    prevenir_invitation_envoyee(current_user, email, comptes)
     # Même réponse que l'adresse ait un compte Kleea ou non : rien n'en est révélé.
     return {"status": "success", "id": ident}
 
 
 @router.post("/api/partages/accepter")
-def accepter(acceptation: Acceptation, current_user: str = Depends(get_current_user)):
+def accepter(acceptation: Acceptation, request: Request, current_user: str = Depends(get_current_user)):
     """Le lien reçu par e-mail prouve l'accès à la boîte ; la session prouve le compte. Il faut les deux."""
     refus = HTTPException(status_code=400, detail="Cette invitation n'est pas valable pour ce compte, ou elle a expiré.")
     with engine.begin() as conn:
@@ -297,6 +301,9 @@ def accepter(acceptation: Acceptation, current_user: str = Depends(get_current_u
             {"u": current_user, "t": maintenant(), "id": ligne["id"]},
         )
         noter(conn, ligne["id"], current_user, "acceptation", "Partage accepté")
+    noter_evenement(ligne["proprietaire"], "partage_accepte", None, "Par " + current_user)
+    noter_evenement(current_user, "partage_accepte", request, "Comptes de " + ligne["proprietaire"])
+    prevenir_invitation_acceptee(ligne["proprietaire"], current_user)
     return {"status": "success", "proprietaire": ligne["proprietaire"]}
 
 
@@ -400,13 +407,17 @@ def arreter_partage(conn, partage: dict, par: str) -> int:
 
 
 @router.delete("/api/partages/{ident}")
-def arreter(ident: int, current_user: str = Depends(get_current_user)):
+def arreter(ident: int, request: Request, current_user: str = Depends(get_current_user)):
     """L'une ou l'autre personne peut arrêter le partage. L'accès est coupé tout de suite."""
     with engine.begin() as conn:
         partage = _partage_de(conn, ident, current_user)
         if partage["etat"] == "arrete":
             return {"status": "success", "copiees": 0}
         copiees = arreter_partage(conn, partage, current_user)
+    autre = partage["invite"] if partage["proprietaire"].lower() == current_user else partage["proprietaire"]
+    noter_evenement(current_user, "partage_arrete", request, "Avec " + (autre or partage["invite_email"]))
+    if autre:
+        noter_evenement(autre, "partage_arrete", None, "Par " + current_user)
     return {"status": "success", "copiees": copiees}
 
 

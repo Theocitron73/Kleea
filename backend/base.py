@@ -154,6 +154,17 @@ def ouvrir_session(utilisateur: str, user_agent: Optional[str]) -> Optional[str]
     return identifiant
 
 
+def couper_sessions(utilisateur: str, sauf: Optional[str] = None) -> int:
+    """Révoque les sessions ouvertes du compte, sauf `sauf`. Renvoie leur nombre ; une panne de base remonte à l'appelant."""
+    condition = "utilisateur = :u AND revoquee_le IS NULL"
+    valeurs = {"t": datetime.now(timezone.utc), "u": utilisateur.lower().strip()}
+    if sauf:
+        condition += " AND id <> :sauf"
+        valeurs["sauf"] = sauf
+    with engine.begin() as conn:
+        return conn.execute(text(f"UPDATE sessions_connexion SET revoquee_le = :t WHERE {condition}"), valeurs).rowcount
+
+
 def jeton_de_session(data: dict, user_agent: Optional[str]) -> str:
     identifiant = ouvrir_session(data["sub"], user_agent)
     return create_access_token({**data, "sid": identifiant} if identifiant else data)

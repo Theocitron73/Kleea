@@ -47,6 +47,9 @@ async def periodic_cleanup_task():
                 conn.execute(text("DELETE FROM login_failed_attempts WHERE attempted_at < :old"), {"old": now - timedelta(hours=2)})
             # Hors de la transaction ci-dessus : l'absence de cette table ne doit pas annuler les autres purges.
             purger_sessions_expirees()
+            from journal_securite import purger_journal  # journal_securite importe ce module : import tardif
+
+            purger_journal()
             logger.info("🧹 [MAINTENANCE] Tables de sécurité nettoyées.")
         except asyncio.CancelledError:
             break

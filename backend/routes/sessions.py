@@ -1,11 +1,12 @@
 """Appareils connectés : lister ses sessions et les révoquer. Toutes les requêtes sont limitées au compte connecté."""
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from journaux import logger
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
-from base import ACCESS_TOKEN_EXPIRE_DAYS, effacer_cookie_session, en_utc, engine, get_current_user, jeton_recu, poser_cookie_session, session_actuelle
+from journal_securite import EVENEMENTS, noter_evenement
+from base import ACCESS_TOKEN_EXPIRE_DAYS, couper_sessions, effacer_cookie_session, en_utc, engine, get_current_user, jeton_recu, poser_cookie_session, session_actuelle
 
 
 router = APIRouter()
@@ -67,6 +68,26 @@ def se_deconnecter(response: Response, current_user: str = Depends(get_current_u
     return {"status": "success"}
 
 
+@router.get("/api/securite/journal")
+def lire_journal(current_user: str = Depends(get_current_user)):
+    """Les 100 derniers événements de sécurité du compte, du plus récent au plus ancien."""
+    try:
+        with engine.connect() as conn:
+            lignes = conn.execute(
+                text("""SELECT evenement, detail, appareil, ip, cree_le FROM journal_securite
+                        WHERE utilisateur = :u ORDER BY cree_le DESC, id DESC LIMIT 100"""),
+                {"u": current_user},
+            ).mappings().all()
+    except SQLAlchemyError as e:
+        logger.warning(f"⚠️ Journal de sécurité illisible : {type(e).__name__}")
+        return {"disponible": False, "evenements": []}
+    return {"disponible": True, "evenements": [
+        {**dict(l), "libelle": EVENEMENTS.get(l["evenement"], l["evenement"]), "cree_le": en_utc(l["cree_le"]).isoformat(),
+         "echec": l["evenement"] == "echec_connexion"}
+        for l in lignes
+    ]}
+
+
 @router.post("/api/sessions/cookie")
 def passer_au_cookie(response: Response, current_user: str = Depends(get_current_user), jeton: str = Depends(jeton_recu)):
     """Une session ouverte avant le cookie : son jeton passe dans le cookie HttpOnly, et le site l'efface de son stockage."""
@@ -75,25 +96,24 @@ def passer_au_cookie(response: Response, current_user: str = Depends(get_current
 
 
 @router.post("/api/sessions/revoquer-autres")
-def revoquer_les_autres(current_user: str = Depends(get_current_user), actuelle: Optional[str] = Depends(session_actuelle)):
-    condition = "utilisateur = :u AND revoquee_le IS NULL"
-    valeurs = {"t": datetime.now(timezone.utc), "u": current_user}
-    if actuelle:
-        condition += " AND id <> :actuelle"
-        valeurs["actuelle"] = actuelle
+def revoquer_les_autres(request: Request, current_user: str = Depends(get_current_user), actuelle: Optional[str] = Depends(session_actuelle)):
     try:
-        with engine.begin() as conn:
-            resultat = conn.execute(text(f"UPDATE sessions_connexion SET revoquee_le = :t WHERE {condition}"), valeurs)
+        revoquees = couper_sessions(current_user, actuelle)
     except SQLAlchemyError as e:
         logger.warning(f"⚠️ Révocation des sessions impossible : {type(e).__name__}")
         raise HTTPException(status_code=503, detail=INDISPONIBLE)
-    return {"status": "success", "revoquees": resultat.rowcount}
+    if revoquees:
+        noter_evenement(current_user, "session_deconnectee", request, f"Tous les autres appareils ({revoquees})")
+    return {"status": "success", "revoquees": revoquees}
 
 
 @router.delete("/api/sessions/{session_id}")
-def revoquer_session(session_id: str, current_user: str = Depends(get_current_user)):
+def revoquer_session(session_id: str, request: Request, current_user: str = Depends(get_current_user)):
     try:
         with engine.begin() as conn:
+            appareil = conn.execute(
+                text("SELECT appareil FROM sessions_connexion WHERE id = :id AND utilisateur = :u"), {"id": session_id, "u": current_user},
+            ).scalar()
             resultat = conn.execute(
                 text("UPDATE sessions_connexion SET revoquee_le = :t WHERE id = :id AND utilisateur = :u AND revoquee_le IS NULL"),
                 {"t": datetime.now(timezone.utc), "id": session_id, "u": current_user},
@@ -104,4 +124,5 @@ def revoquer_session(session_id: str, current_user: str = Depends(get_current_us
     # Même réponse pour la session d'un autre compte et pour une session inexistante : rien n'est révélé.
     if resultat.rowcount == 0:
         raise HTTPException(status_code=404, detail="Session introuvable")
+    noter_evenement(current_user, "session_deconnectee", request, appareil)
     return {"status": "success"}

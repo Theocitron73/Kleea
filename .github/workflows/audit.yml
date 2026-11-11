@@ -1,0 +1,45 @@
+# Failles connues dans les dépendances : à chaque envoi, et chaque lundi pour les failles publiées entre-temps.
+# Échoue sur une faille grave ou critique ; les exceptions justifiées sont dans .github/scripts/audit-npm.mjs.
+name: Audit des dépendances
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Backend (pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt --progress-spinner off
+
+  npm:
+    name: npm audit (${{ matrix.dossier }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        dossier: [frontend, streamdeck-plugin]
+    defaults:
+      run:
+        working-directory: ${{ matrix.dossier }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node ../.github/scripts/audit-npm.mjs
