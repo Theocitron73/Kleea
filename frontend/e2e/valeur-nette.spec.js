@@ -74,7 +74,7 @@ test('ajouter un bien et un crédit, puis suivre le crédit', async ({ page }) =
   await page.getByLabel('Nom du bien').fill('Appartement Nantes');
   await page.getByLabel('Valeur du bien').fill('245000');
   await page.getByRole('button', { name: 'Ajouter' }).click();
-  expect(page.serveur.envois[0]).toMatchObject({ methode: 'POST', chemin: '/api/biens', corps: { type: 'immobilier', nom: 'Appartement Nantes', valeur: 245000 } });
+  await expect.poll(() => page.serveur.envois[0]).toMatchObject({ methode: 'POST', chemin: '/api/biens', corps: { type: 'immobilier', nom: 'Appartement Nantes', valeur: 245000 } });
   await expect(page.getByRole('list', { name: 'Placements et biens' }).getByText('Appartement Nantes')).toBeVisible();
 
   await ongletComptes(page, 'Crédits');
@@ -84,7 +84,7 @@ test('ajouter un bien et un crédit, puis suivre le crédit', async ({ page }) =
   await page.getByLabel('Durée en années').fill('20');
   await page.getByLabel('Date de la première échéance').fill('2021-04-05');
   await page.locator('form').filter({ hasText: 'Ajouter un crédit' }).getByRole('button', { name: 'Ajouter' }).click();
-  expect(page.serveur.envois.at(-1)).toMatchObject({ chemin: '/api/dettes', corps: { nom: 'Crédit immo', montant: 200000, taux: 3.5, duree_mois: 240, debut: '2021-04-05' } });
+  await expect.poll(() => page.serveur.envois.at(-1)).toMatchObject({ chemin: '/api/dettes', corps: { nom: 'Crédit immo', montant: 200000, taux: 3.5, duree_mois: 240, debut: '2021-04-05' } });
   const carte = page.getByRole('list', { name: 'Crédits' }).getByRole('listitem').first();
   await expect(carte.getByText('156 703 €')).toBeVisible();
   await expect(carte.getByText('fin en mars 2041')).toBeVisible();
@@ -103,7 +103,7 @@ test('un remboursement anticipé détecté se confirme, se simule, et la mensual
   await expect(alerte).toContainText('10 000,00 €');
   await page.screenshot({ path: 'test-results/valeur-nette-anticipe.png' });
   await alerte.getByRole('button', { name: /raccourcit le crédit/ }).click();
-  expect(page.serveur.envois.at(-1)).toMatchObject({ methode: 'POST', chemin: '/api/dettes/1/anticipes', corps: { montant: 10000, date: '2026-06-20', effet: 'duree', operation_id: 42 } });
+  await expect.poll(() => page.serveur.envois.at(-1)).toMatchObject({ methode: 'POST', chemin: '/api/dettes/1/anticipes', corps: { montant: 10000, date: '2026-06-20', effet: 'duree', operation_id: 42 } });
   await expect(alerte).toHaveCount(0);
 
   await page.getByLabel('Montant à rembourser par anticipation').fill('10000');
@@ -136,7 +136,7 @@ test('modifier le taux et la durée d’un crédit', async ({ page }) => {
   await formulaire.getByLabel('Taux (%)').fill('2,9');
   await formulaire.getByLabel('Durée (ans)').fill('25');
   await formulaire.getByRole('button', { name: 'Enregistrer' }).click();
-  expect(page.serveur.envois.at(-1)).toMatchObject({ methode: 'PUT', chemin: '/api/dettes/1', corps: { montant: 200000, taux: 2.9, duree_mois: 300, debut: '2021-04-05' } });
+  await expect.poll(() => page.serveur.envois.at(-1)).toMatchObject({ methode: 'PUT', chemin: '/api/dettes/1', corps: { montant: 200000, taux: 2.9, duree_mois: 300, debut: '2021-04-05' } });
   await expect(formulaire).toHaveCount(0);
   expect(erreurs).toEqual([]);
 });
@@ -148,7 +148,7 @@ test('un crédit trouvé chez la banque s’ajoute en un clic', async ({ page })
   const banque = page.getByRole('region', { name: 'Crédits trouvés chez votre banque' });
   await expect(banque).toContainText('PRET AUTO');
   await banque.getByRole('button', { name: 'Ajouter' }).click();
-  expect(page.serveur.envois.at(-1)).toMatchObject({ chemin: '/api/dettes', corps: { nom: 'PRET AUTO', type: 'auto', montant: 15000, taux: 4.2, duree_mois: 60, powens_compte_id: '77' } });
+  await expect.poll(() => page.serveur.envois.at(-1)).toMatchObject({ chemin: '/api/dettes', corps: { nom: 'PRET AUTO', type: 'auto', montant: 15000, taux: 4.2, duree_mois: 60, powens_compte_id: '77' } });
   await expect(banque).toHaveCount(0);
   expect(erreurs).toEqual([]);
 });
@@ -163,7 +163,7 @@ test('une crypto s’ajoute par sa quantité', async ({ page }) => {
   await page.getByLabel('Nom du bien').fill('Bitcoin');
   await page.getByLabel('Quantité détenue').fill('0,05');
   await page.getByRole('button', { name: 'Ajouter' }).click();
-  expect(page.serveur.envois.at(-1)).toMatchObject({ chemin: '/api/biens', corps: { type: 'crypto', nom: 'Bitcoin', crypto_id: 'bitcoin', quantite: 0.05, valeur: null } });
+  await expect.poll(() => page.serveur.envois.at(-1)).toMatchObject({ chemin: '/api/biens', corps: { type: 'crypto', nom: 'Bitcoin', crypto_id: 'bitcoin', quantite: 0.05, valeur: null } });
   expect(erreurs).toEqual([]);
 });
 
