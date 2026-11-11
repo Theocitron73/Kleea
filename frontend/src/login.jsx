@@ -1514,7 +1514,7 @@ if (!user) {
 
 
 {/* =========================================================================
-    🎉 NOTES DE PATCH OFFICIELLES v4.4
+    🎉 NOTES DE PATCH OFFICIELLES v4.5
     ========================================================================= */}
 {showPatchModal && (
   <NotesDeVersion CURRENT_VERSION={CURRENT_VERSION} handleClosePatchModal={handleClosePatchModal} />

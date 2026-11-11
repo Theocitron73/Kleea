@@ -250,7 +250,7 @@ export default function LandingPage({ onOpenAuth }) {
 
       <footer className="border-t border-[var(--acc-t1)]/[0.08]">
         <div className={`max-w-7xl mx-auto px-4 sm:px-8 py-10 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm ${T3}`}>
-          <p>© {new Date().getFullYear()} Kleea · version 4.4</p>
+          <p>© {new Date().getFullYear()} Kleea · version 4.5</p>
           <div className="flex flex-wrap justify-center gap-6">
             <a href="#showcase" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>L’application</a>
             <a href="#features" className={`hover:text-[var(--acc-t1)] ${TRANSITION}`}>Fonctionnalités</a>
