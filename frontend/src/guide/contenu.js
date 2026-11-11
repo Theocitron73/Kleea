@@ -281,7 +281,7 @@ export const CHAPITRES = [
         titre: 'Diviser une opération',
         texte: "Un même paiement peut couvrir plusieurs catégories, par exemple des courses et un cadeau.",
         etapes: [
-          "Cliquez sur « Diviser cette transaction ».",
+          "Cliquez sur « Diviser cette opération ».",
           "Ajoutez une ligne par sous-catégorie. « Équilibrer » ajuste la dernière ligne pour que le total reste juste.",
           "Pour revenir en arrière, utilisez « Annuler la division » : l'opération d'origine est restaurée.",
         ],
@@ -696,7 +696,7 @@ export const CHAPITRES = [
       },
       {
         titre: 'Une dépense concerne plusieurs catégories',
-        texte: "Dans « Gérer », utilisez « Diviser cette transaction » pour la répartir. La division peut être annulée à tout moment.",
+        texte: "Dans « Gérer », utilisez « Diviser cette opération » pour la répartir. La division peut être annulée à tout moment.",
       },
       {
         titre: 'Mes données sont-elles en sécurité ?',
