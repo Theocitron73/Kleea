@@ -1008,21 +1008,14 @@ useEffect(() => {
 if (!user) {
     if (authViewMode) {
       return (
-        <div className="relative">
-          {/* Bouton retour vers la landing page */}
-          <button
-            onClick={() => setAuthViewMode(null)}
-            className="fixed top-6 left-6 z-50 px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-[10px] font-black uppercase tracking-wider backdrop-blur-[var(--glass-blur)] cursor-pointer transition-all"
-          >
-            ← Retour à l'accueil
-          </button>
-          
-          <AuthView 
-            onLoginSuccess={(loggedUser) => {
-              setUser(loggedUser);
-            }} 
-          />
-        </div>
+        <AuthView
+          key={authViewMode}
+          modeInitial={authViewMode}
+          onRetour={() => setAuthViewMode(null)}
+          onLoginSuccess={(loggedUser) => {
+            setUser(loggedUser);
+          }}
+        />
       );
     }
 
