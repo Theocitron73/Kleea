@@ -4,6 +4,7 @@ from schemas import CompteConfig
 from sqlalchemy import text
 from base import engine, get_current_user
 from chiffrement import decrypt_iban, encrypt_iban
+from routes.partage import comptes_visibles_partages
 
 
 router = APIRouter()
@@ -24,6 +25,8 @@ def get_config_comptes(username: str, current_user: str = Depends(get_current_us
         for c in comptes:
             if c.get("powens_name"):
                 c["powens_name"] = decrypt_iban(c["powens_name"])
+        # Comptes partagés avec moi : en lecture seule, sans IBAN ni liaison bancaire.
+        comptes += comptes_visibles_partages(conn, u_clean)
     return comptes
 
 
@@ -34,12 +37,12 @@ def add_compte(c: CompteConfig, current_user: str = Depends(get_current_user)):
     # 🔒 Sécurité JWT : on force l'insertion sous l'utilisateur authentifié
     encrypted_link = encrypt_iban(c.powens_name) if c.powens_name else None
     query = text("""
-        INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux, powens_name) 
+        INSERT INTO configuration (compte, groupe, solde, objectif, couleur, utilisateur, taux, powens_name)
         VALUES (:c, :g, :s, :o, :col, :u, :t, :p)
     """)
     with engine.connect() as conn:
         conn.execute(query, {
-            "c": c.compte, "g": c.groupe, "s": c.solde, 
+            "c": c.compte, "g": c.groupe, "s": c.solde,
             "o": c.objectif, "col": c.couleur, "u": current_user,
             "t": c.taux, "p": encrypted_link
         })
@@ -53,7 +56,7 @@ def update_compte(compte_name: str, c: CompteConfig, current_user: str = Depends
     name_clean = compte_name.strip()
     encrypted_link = encrypt_iban(c.powens_name) if c.powens_name else None
     query = text("""
-        UPDATE configuration 
+        UPDATE configuration
         SET groupe = :g, solde = :s, objectif = :o, couleur = :col, taux = :t, powens_name = :p
         WHERE compte = :c AND LOWER(utilisateur) = :u
     """)

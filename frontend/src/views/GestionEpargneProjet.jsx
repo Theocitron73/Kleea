@@ -17,6 +17,9 @@ import { toast } from 'sonner';
 import { toLocalDateString, getTodayLocalDateString } from "../utils/dateUtils";
 import {
   calculerVentilation,
+  effortPourTenir,
+  projeterProjets,
+  rythmeEpargne,
   depensesParEnveloppe,
   epargneParMois,
   estimerFinancement,
@@ -170,6 +173,20 @@ export default function GestionEpargneProjet({
     moisCible: moisCourantStr,
     disponible: soldeGlobalNet - sommeEnveloppesNette,
   }), [projetsListe, epargneMensuelle, moisCourantStr, soldeGlobalNet, sommeEnveloppesNette]);
+
+  // Objectifs : date d'atteinte de chaque projet au rythme d'épargne réel, et effort en plus simulé au curseur.
+  const [effortPlus, setEffortPlus] = useState(0);
+  const [simulationOuverte, setSimulationOuverte] = useState(false);
+  const rythme = useMemo(() => rythmeEpargne(epargneMensuelle, moisCourantStr), [epargneMensuelle, moisCourantStr]);
+  const rythmeSimule = Math.max(0, rythme?.moyenne || 0) + effortPlus;
+  const projection = useMemo(() => projeterProjets({
+    projets: projetsListe, cumuls: ventilationAutomatique.cumulProjets, rythme: rythmeSimule, moisCourant: moisCourantStr,
+  }), [projetsListe, ventilationAutomatique, rythmeSimule, moisCourantStr]);
+  const efforts = useMemo(() => Object.fromEntries(projetsListe
+    .filter((p) => projection[p.cle]?.ecart > 0 || (!projection[p.cle]?.deja && !projection[p.cle]?.moisAtteint && p.date))
+    .map((p) => [p.cle, effortPourTenir({ projets: projetsListe, cumuls: ventilationAutomatique.cumulProjets, rythme: rythmeSimule, moisCourant: moisCourantStr, cle: p.cle })])),
+  [projetsListe, projection, ventilationAutomatique, rythmeSimule, moisCourantStr]);
+  const nomMois = (cle) => new Date(Number(cle.slice(0, 4)), Number(cle.slice(5, 7)) - 1, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
 
   const sommeFinancementProjets = useMemo(
     () => Object.values(ventilationAutomatique.cumulProjets).reduce((acc, val) => acc + val, 0),
@@ -676,6 +693,41 @@ export default function GestionEpargneProjet({
             )}
           </div>
 
+          {projetsListe.length > 0 && (
+            <section aria-label="Rythme d'épargne" className="mb-1.5 shrink-0 px-1 space-y-1">
+              {rythme && rythme.moyenne > 0 ? (
+                <>
+                  <div className="flex items-center justify-between gap-2 text-[10px] text-[var(--text-main)]/55">
+                    <span title={`Moyenne des ${rythme.mois} derniers mois, hors virements internes`}>
+                      Rythme d’épargne <b className="text-[var(--text-main)]/85 tabular-nums">{Math.round(rythme.moyenne).toLocaleString('fr-FR')} € / mois</b>
+                      {effortPlus > 0 && <b className="text-[var(--secondary)] tabular-nums"> +{effortPlus.toLocaleString('fr-FR')} €</b>}
+                    </span>
+                    <button
+                      type="button"
+                      aria-expanded={simulationOuverte}
+                      onClick={() => { if (simulationOuverte) setEffortPlus(0); setSimulationOuverte((o) => !o); }}
+                      className="shrink-0 text-[9px] font-bold uppercase tracking-wider text-[var(--text-main)]/45 hover:text-[var(--text-main)] cursor-pointer"
+                    >
+                      {simulationOuverte ? 'Fermer' : 'Simuler un effort'}
+                    </button>
+                  </div>
+                  {simulationOuverte && (
+                    <input
+                      type="range" min="0" max="1000" step="10" value={effortPlus}
+                      onChange={(e) => setEffortPlus(Number(e.target.value))}
+                      aria-label="Effort d'épargne en plus chaque mois"
+                      className="w-full h-1 accent-[var(--primary)] cursor-pointer"
+                    />
+                  )}
+                </>
+              ) : (
+                <p className="text-[10px] text-[var(--text-main)]/45">
+                  {rythme ? 'Épargne des derniers mois nulle ou négative : pas de date d’atteinte estimée.' : 'Pas encore assez d’historique pour estimer vos dates d’atteinte.'}
+                </p>
+              )}
+            </section>
+          )}
+
           {projetsListe.length > 1 && (
             <p className="text-[8px] text-[var(--text-main)]/40 font-medium mb-1.5 shrink-0">
               Le premier projet de la liste est financé en priorité. Fais-les glisser pour changer l'ordre.
@@ -845,6 +897,28 @@ export default function GestionEpargneProjet({
                                       style={{ width: `${Math.min(100, pctAvancement)}%` }}
                                     />
                                   </div>
+                                  {(() => {
+                                    const prevu = projection[p.cle];
+                                    if (!prevu || prevu.deja || !(rythmeSimule > 0)) return null;
+                                    const effort = efforts[p.cle];
+                                    return (
+                                      <p role="status" aria-label={`Objectif ${p.nom}`} className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] text-[var(--text-main)]/70">
+                                        {prevu.moisAtteint ? (
+                                          <>
+                                            <span>{effortPlus > 0 ? 'Avec cet effort' : 'À votre rythme'} : atteint en <b className="text-[var(--text-main)]">{nomMois(prevu.moisAtteint)}</b></span>
+                                            {prevu.ecart !== null && (
+                                              <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold border ${prevu.ecart > 0 ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'}`}>
+                                                {prevu.ecart > 0 ? `${prevu.ecart} mois de retard` : prevu.ecart < 0 ? `${-prevu.ecart} mois d’avance` : 'à temps'}
+                                              </span>
+                                            )}
+                                          </>
+                                        ) : (
+                                          <span>Pas atteint dans les 50 prochaines années à ce rythme.</span>
+                                        )}
+                                        {effort > 0 && <span className="text-amber-200/90">+{effort.toLocaleString('fr-FR')} € par mois pour tenir l’échéance</span>}
+                                      </p>
+                                    );
+                                  })()}
                                 </div>
                               </div>
 

@@ -1,4 +1,4 @@
-import { appliquerMouvement, calculerSoldes, creerLecteurMouvements, estTransfertInterne, budgetSurTousLesComptes, depenseDuBudget, montantDepense, totauxRevenusDepenses, trouverCompteCible } from './finance.js';
+import { anneeTransaction, appliquerMouvement, calculerSoldes, creerLecteurMouvements, estTransfertInterne, budgetSurTousLesComptes, depenseDuBudget, montantDepense, totauxRevenusDepenses, trouverCompteCible } from './finance.js';
 
 export function calculerRecapAnnuel({ allPrevisionsAnnee, cleanMonth, comptes, filters, getTxYear, moisListe, toutesLesTransactions }) {
     const anneeFiltre = parseInt(filters.annee);
@@ -463,7 +463,8 @@ export function calculerDonneesFinancieres({ cleanMonth, comptesDuProfil, filter
     };
   }
 
-export function calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTransactions }) {
+// `jusqua` ({ mois, jour }) arrête l'année à une date : pour comparer avec l'an dernier à date égale.
+export function calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTransactions, jusqua = null }) {
   const recap = {};
   let totalAnnuel = 0;
 
@@ -475,7 +476,11 @@ export function calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTr
 
   // 2. FILTRER LES TRANSACTIONS PAR ANNÉE ET PAR COMPTES DU PROFIL
   const transAnnee = (toutesLesTransactions || []).filter(t => {
-    const matchAnnee =filters.annee.toString().trim();
+    const matchAnnee = parseInt(anneeTransaction(t), 10) === parseInt(filters.annee, 10);
+    if (matchAnnee && jusqua && t.date) {
+      const d = new Date(t.date);
+      if (d.getMonth() > jusqua.mois || (d.getMonth() === jusqua.mois && d.getDate() > jusqua.jour)) return false;
+    }
     // La transaction appartient au profil si son compte est dans la liste nomsComptesProfil
     const matchCompteProfil = nomsComptesProfil.includes(t.compte?.trim().toUpperCase());
     

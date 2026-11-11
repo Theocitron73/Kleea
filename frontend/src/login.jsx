@@ -30,6 +30,7 @@ import DashboardView from './views/DashboardView';
 import { toast } from 'sonner'
 import ExportModal from './components/ExportModal';
 import LandingPage from './views/LandingPage';
+import usePatrimoine from './hooks/usePatrimoine';
 import DelayedDashboardLoader from './components/DelayedDashboardLoader';
 import SortableAccountCard from './components/SortableAccountCard';
 import UnifiedWidgets from './components/UnifiedWidgets';
@@ -352,10 +353,7 @@ const typeOptions = [
   { v: "LIVRET A", l: "LIVRET A" },
   { v: "LEP", l: "LEP" },
   { v: "LDDS", l: "LDDS" },
-  { v: "PEL", l: "PEL" },
-  { v: "PEA", l: "PEA" },
-  { v: "ASSURANCE VIE", l: "ASSURANCE VIE" },
-  { v: "PRET", l: "PRET" }
+  { v: "PEL", l: "PEL" }
 ];
 
 const handleAddCompte = async (e) => {
@@ -697,6 +695,22 @@ const { versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotal
 
 // --- 1. Tes States (Assure-toi que l'ordre est respecté) ---
 const { allocations, fetchAllocations, setAllocations } = useEnveloppes({ filters, soldeGlobal });
+const { patrimoine, recharger: rechargerPatrimoine, actif: patrimoineActif, valeurNette } = usePatrimoine({ user, profil: filters.profil, annee: filters.annee, soldeComptes: soldeGlobal });
+const [ongletComptes, setOngletComptes] = useState('comptes');
+const ouvrirPatrimoine = () => { setOngletComptes('biens'); setActiveTab('comptes'); };
+
+// Lien d'invitation à un compte commun (?partage=…) : accepté dès que la personne est connectée.
+useEffect(() => {
+  const jeton = new URLSearchParams(window.location.search).get('partage');
+  if (!user || !jeton) return;
+  window.history.replaceState({}, '', window.location.pathname);
+  api.post('/api/partages/accepter', { jeton })
+    .then((res) => {
+      toast.success(`Partage accepté : les comptes de ${res.data.proprietaire} sont dans le profil « Commun · ${res.data.proprietaire} ».`);
+      setTimeout(() => window.location.reload(), 1500);
+    })
+    .catch((err) => toast.error(err.response?.data?.detail || 'Cette invitation n’est pas valable.'));
+}, [user]);
 
 
 const [deleteModal3, setDeleteModal3] = useState({ show: false, projetNom: null });
@@ -1062,6 +1076,10 @@ if (!user) {
       handleWheelRightTab={handleWheelRightTab}
       userTheme={userTheme}
       soldeGlobal={soldeGlobal}
+      valeurNette={valeurNette}
+      patrimoineActif={patrimoineActif}
+      ouvrirPatrimoine={ouvrirPatrimoine}
+      patrimoine={patrimoine}
       soldesTries={soldesTries}
       sensors={sensors}
       loadPrevisions={loadPrevisions}
@@ -1269,6 +1287,7 @@ if (!user) {
     isRefreshingPowens={isRefreshingPowens}
     isCheckingSync={isCheckingSync}
     handleForceRefreshPowens={handleForceRefreshPowens}
+    fetchTransactions={fetchTransactions}
     isSyncingPowens={isSyncingPowens}
     handleConnectNewBank={handleConnectNewBank}
     isManualSyncing={isManualSyncing}
@@ -1334,6 +1353,15 @@ if (!user) {
     creationPowensName={creationPowensName}
     setCreationPowensName={setCreationPowensName}
     handleConnectNewBank={handleConnectNewBank}
+    onglet={ongletComptes}
+    setOnglet={setOngletComptes}
+    patrimoine={patrimoine}
+    rechargerPatrimoine={rechargerPatrimoine}
+    profil={filters.profil}
+    valeurNette={valeurNette}
+    soldeComptes={soldeGlobal}
+    patrimoineActif={patrimoineActif}
+    soldesActuels={Object.fromEntries(soldesTries.map((c) => [c.compte, c.soldePeriode]))}
   />
 )}
 
@@ -1444,7 +1472,7 @@ if (!user) {
 
       {/* BARRE D'ACTION FLOTTANTE */}
         {selectedIds.length > 0 && (
-          <BarreActionsTransactions handleDeleteSelected={handleDeleteSelected} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+          <BarreActionsTransactions handleDeleteSelected={handleDeleteSelected} selectedIds={selectedIds} setSelectedIds={setSelectedIds} updateCell={updateCell} categoriesVisibles={categoriesVisibles} />
         )}
 
 

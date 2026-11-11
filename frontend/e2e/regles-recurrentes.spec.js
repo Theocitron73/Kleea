@@ -90,9 +90,9 @@ test('un budget fixé « chaque mois » devient une règle à partir du mois cho
   const champ = page.locator('input[type="number"][placeholder="0"]').locator('visible=true').first();
   await champ.fill('320');
   // La catégorie se choisit dans la liste personnalisée du formulaire.
-  const categorie = page.locator('div.col-span-8', { has: page.getByText('Catégorie', { exact: true }) }).getByPlaceholder('Sélectionner...').locator('visible=true').first();
-  await categorie.click();
-  await page.getByText('Courses', { exact: true }).locator('visible=true').last().click();
+  const formulaire = page.locator('div.col-span-8', { has: page.getByText('Catégorie', { exact: true }) });
+  await formulaire.getByPlaceholder('Sélectionner...').locator('visible=true').first().click();
+  await formulaire.getByText('Courses', { exact: true }).locator('visible=true').last().click();
   await page.screenshot({ path: 'test-results/regles-budget.png' });
   await page.getByRole('button', { name: /Fixer le budget/ }).locator('visible=true').first().click();
   await expect.poll(() => page.serveur.envois[0]).toMatchObject({ methode: 'POST', corps: { type: 'budget', nom: 'Courses', montant: 320, debut: '2026-11-01' } });

@@ -4,6 +4,9 @@ import {
   Sparkles, ShieldCheck, Lock, FileUp, Landmark, X 
 } from 'lucide-react';
 import { SketchPicker } from 'react-color';
+import Patrimoine from '../components/Patrimoine';
+import { toast } from 'sonner';
+import api from '../axios';
 
 export default function ComptesView({
   comptes = [], setComptes, handleAddCompte,
@@ -16,8 +19,50 @@ export default function ComptesView({
   CustomSelect,
   importMode, powensData, handleAssociateAccount,
   creationPowensName, setCreationPowensName,
-  handleConnectNewBank
+  handleConnectNewBank,
+  onglet = 'comptes', setOnglet = () => {},
+  patrimoine = { biens: [], dettes: [] }, rechargerPatrimoine = () => {},
+  profil, valeurNette = 0, soldeComptes = 0, patrimoineActif = false, soldesActuels = {},
 }) {
+  const [brouillonCredit, setBrouillonCredit] = useState(null);
+
+  // Un ancien compte PEA, assurance vie ou prêt passe dans Placements & crédits ; l'ancien compte se supprime ensuite, après confirmation.
+  const typeAConvertir = (nom) => {
+    const n = String(nom || '').trim().toUpperCase();
+    if (n.startsWith('PRET') || n.startsWith('PRÊT')) return 'credit';
+    if (n.startsWith('PEA') || n.startsWith('ASSURANCE VIE')) return 'placement';
+    return null;
+  };
+  const nomSansType = (nom) => String(nom).replace(/^(PEA|ASSURANCE VIE|PR[EÊ]T)\s*-\s*/i, '').trim() || String(nom);
+  const convertir = async (c) => {
+    const nom = nomSansType(c.compte);
+    if (typeAConvertir(c.compte) === 'credit') {
+      setBrouillonCredit({ nom, type: 'autre' });
+      setOnglet('dettes');
+      toast.info(`Complétez le montant, le taux et la durée de « ${nom} », puis supprimez l’ancien compte.`, {
+        action: { label: 'Supprimer l’ancien compte', onClick: () => openDeleteModal(c.compte) }, duration: 15000,
+      });
+      return;
+    }
+    const valeur = Math.max(0, Math.round((soldesActuels[c.compte] ?? c.solde ?? 0) * 100) / 100);
+    try {
+      await api.post('/api/biens', { type: 'placement', nom, valeur, profil: c.groupe || null });
+      await rechargerPatrimoine();
+      setOnglet('biens');
+      toast.success(`« ${nom} » est maintenant un placement (${valeur.toLocaleString('fr-FR')} €). Supprimez l’ancien compte pour ne pas le compter deux fois.`, {
+        action: { label: 'Supprimer l’ancien compte', onClick: () => openDeleteModal(c.compte) }, duration: 15000,
+      });
+    } catch {
+      toast.error('La conversion n’a pas pu être faite.');
+    }
+  };
+  const groupes = [...new Set(comptes.filter((c) => !c.partage).map((c) => c.groupe).filter(Boolean))];
+  const nombres = {
+    comptes: comptes.length,
+    // Comme les comptes bancaires, la page montre tout, quel que soit le profil choisi au tableau de bord.
+    biens: patrimoine.biens.length,
+    dettes: patrimoine.dettes.length,
+  };
   // État de la modale de création réservée au mobile
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -34,16 +79,38 @@ export default function ComptesView({
         </div>
 
         {/* Bouton d'ajout mobile uniquement */}
-        <button
+        {onglet === 'comptes' && <button
           type="button"
           onClick={() => setIsCreateModalOpen(true)}
           className="lg:hidden px-3.5 py-1.5 bg-[var(--primary)] hover:bg-indigo-600 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-[var(--primary)]/20 active:scale-95 transition-all cursor-pointer"
         >
           <Plus size={13} strokeWidth={3} />
           <span>Nouveau</span>
-        </button>
+        </button>}
       </div>
 
+      {/* VALEUR NETTE ET ONGLETS */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-2 shrink-0">
+        <div role="tablist" aria-label="Comptes, placements et crédits" className="inline-flex p-0.5 rounded-xl bg-black/25 border border-white/10 max-w-full overflow-x-auto">
+          {[['comptes', 'Comptes bancaires'], ['biens', 'Placements & biens'], ['dettes', 'Crédits']].map(([id, libelle]) => (
+            <button key={id} type="button" role="tab" aria-selected={onglet === id} onClick={() => setOnglet(id)}
+              className={`shrink-0 flex items-center gap-1.5 px-3 h-[30px] rounded-[10px] text-[9px] font-black uppercase tracking-wider cursor-pointer transition-colors ${onglet === id ? 'bg-white text-slate-900' : 'text-white/50 hover:text-white/80'}`}>
+              {libelle}
+              <span className={`text-[8px] ${onglet === id ? 'text-slate-500' : 'text-white/30'}`}>{nombres[id]}</span>
+            </button>
+          ))}
+        </div>
+        {patrimoineActif && (
+          <p className="text-[11px] text-white/60">
+            Total net{profil && profil !== 'Tous' ? ` (${profil})` : ''}{' '}
+            <span className="text-[15px] font-black text-white tabular-nums">{valeurNette.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €</span>
+            <span className="text-white/40"> · dont {soldeComptes.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} € sur les comptes</span>
+          </p>
+        )}
+      </div>
+
+      {onglet === 'comptes' ? (
+      <>
       {/* =========================================================================
           2. FORMULAIRE DESKTOP (BARRE HORIZONTALE SUR GRAND ÉCRAN : hidden lg:block)
           ========================================================================= */}
@@ -63,7 +130,7 @@ export default function ComptesView({
                 if (type) setCompteName("");
               }}
               icon={CreditCard}
-              className="h-[38px] p-2 px-3 rounded-xl text-[10px] font-bold uppercase tracking-wider cursor-pointer bg-black/30 border-white/10"
+              className="h-[38px] p-2 px-3 rounded-xl text-[10px] font-bold"
             />
           </div>
 
@@ -167,7 +234,7 @@ export default function ComptesView({
                       onChange={(val) => {
                         if (val) setCreationPowensName(val);
                       }}
-                      className="p-1 px-2 text-[8px] font-bold bg-white/5 border-white/5 cursor-pointer rounded-lg hover:bg-white/10"
+                      className="p-1 px-2 text-[8px] font-bold rounded-lg"
                     />
                   </div>
                 )}
@@ -251,7 +318,7 @@ export default function ComptesView({
                     if (type) setCompteName("");
                   }}
                   icon={CreditCard}
-                  className="p-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest cursor-pointer bg-black/40 border-white/10"
+                  className="p-2.5 rounded-xl text-[10px] font-bold"
                 />
               </div>
 
@@ -372,7 +439,7 @@ export default function ComptesView({
                         if (val) setCreationPowensName(val);
                       }}
                       icon={Building2}
-                      className="p-2 rounded-xl text-[9px] font-bold bg-black/40 border-white/10"
+                      className="p-2 rounded-xl text-[9px] font-bold"
                     />
                   )}
 
@@ -405,6 +472,16 @@ export default function ComptesView({
         {comptes.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {comptes.sort((a, b) => a.compte.localeCompare(b.compte)).map((c, i) => {
+              // Un compte partagé avec moi se règle chez son propriétaire : ici, il est en lecture seule.
+              if (c.partage) {
+                return (
+                  <div key={c.compte} className="p-4 rounded-[var(--radius)] border border-white/15 flex flex-col gap-2" style={{ backgroundColor: `${c.couleur || '#64748b'}40` }}>
+                    <h3 className="text-sm font-black text-[var(--text-main)] uppercase truncate tracking-tight">{c.compte}</h3>
+                    <p className="text-[11px] font-semibold text-[var(--text-main)]/70">Partagé par {c.partage} · profil « {c.groupe} »</p>
+                    <p className="text-[11px] text-[var(--text-main)]/55">Vous pouvez ajouter et modifier ses opérations. Ses réglages restent chez {c.partage}.</p>
+                  </div>
+                );
+              }
               const isCCP = (c.compte || "").toUpperCase().includes("CCP");
 
               return (
@@ -456,6 +533,17 @@ export default function ComptesView({
                       </button>
                     </div>
                   </div>
+
+                  {typeAConvertir(c.compte) && (
+                    <button
+                      type="button"
+                      onClick={() => convertir(c)}
+                      className="flex items-center justify-center gap-1.5 rounded-xl border border-white/20 bg-black/30 hover:bg-black/50 px-3 py-1.5 text-[9px] font-black uppercase tracking-wider text-[var(--text-main)] cursor-pointer"
+                      title="Ce type de compte se suit mieux dans Placements & crédits"
+                    >
+                      {typeAConvertir(c.compte) === 'credit' ? 'Transformer en crédit' : 'Transformer en placement'}
+                    </button>
+                  )}
 
                   {/* Ligne 2 : Métriques (Solde initial, Objectif, Intérêts) */}
                   <div className={`grid gap-2 ${isCCP ? "grid-cols-1" : "grid-cols-3"}`}>
@@ -635,7 +723,7 @@ export default function ComptesView({
                                   if (selectedValue) handleAssociateAccount(selectedValue, c.compte);
                                 }}
                                 icon={Building2}
-                                className="p-1.5 px-2.5 rounded-lg text-[8.5px] bg-black/40 border-white/5 cursor-pointer hover:border-[var(--primary)]/40 transition-colors"
+                                className="p-1.5 px-2.5 rounded-lg text-[8.5px] transition-colors"
                               />
                             )}
 
@@ -836,6 +924,11 @@ export default function ComptesView({
           )
         )}
       </div>
+      </>
+      ) : (
+        <Patrimoine onglet={onglet} patrimoine={patrimoine} recharger={rechargerPatrimoine} profil={null} groupes={groupes} CustomSelect={CustomSelect}
+          brouillonCredit={brouillonCredit} onBrouillonUtilise={() => setBrouillonCredit(null)} />
+      )}
 
     </div>
   );

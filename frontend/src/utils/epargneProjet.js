@@ -184,3 +184,75 @@ export function reserveNette(montants, depenses) {
   );
   return Math.max(0, total);
 }
+
+const ecartEnMois = (de, a) => {
+  const [a1, m1] = de.split('-').map(Number);
+  const [a2, m2] = a.split('-').map(Number);
+  return (a2 - a1) * 12 + (m2 - m1);
+};
+
+/**
+ * Rythme d'épargne réel : moyenne des mois écoulés avant le mois en cours (6 par défaut).
+ * Seuls les mois connus comptent. `null` sans aucun mois connu.
+ */
+export function rythmeEpargne(epargne, moisCourant, nombreDeMois = 6) {
+  const valeurs = [];
+  let mois = moisCourant;
+  for (let i = 0; i < nombreDeMois; i += 1) {
+    const [annee, numero] = mois.split('-').map(Number);
+    mois = numero === 1 ? cleMois(annee - 1, 11) : cleMois(annee, numero - 2);
+    if (epargne?.[mois] !== undefined) valeurs.push(nombre(epargne[mois]));
+  }
+  if (valeurs.length === 0) return null;
+  return { moyenne: valeurs.reduce((s, v) => s + v, 0) / valeurs.length, mois: valeurs.length };
+}
+
+/**
+ * Date d'atteinte de chaque projet si l'on épargne `rythme` par mois à partir du mois prochain.
+ * Comme pour le financement réel, l'ordre donne la priorité : un projet reçoit ce que les précédents laissent.
+ * Pour chaque projet : moisAtteint (AAAA-MM, null s'il ne l'est jamais), deja (déjà financé), ecart en mois
+ * par rapport à l'échéance (positif = en retard, null sans échéance).
+ */
+export function projeterProjets({ projets, cumuls = {}, rythme, moisCourant, horizon = 600 }) {
+  const suivis = (projets || []).map((p) => {
+    const cumul = Math.min(nombre(cumuls[p.cle] ?? p.apport), p.cout);
+    return { p, cumul, moisAtteint: null, deja: p.cout > 0 && cumul >= p.cout };
+  });
+  let mois = moisCourant;
+  if (rythme > 0) {
+    for (let n = 0; n < horizon && suivis.some((s) => !s.deja && !s.moisAtteint); n += 1) {
+      mois = moisSuivant(mois);
+      let restant = rythme;
+      for (const s of suivis) {
+        if (s.deja || s.moisAtteint || restant <= 0 || (s.p.moisDebut && s.p.moisDebut > mois)) continue;
+        const strict = s.p.utiliser_capa_stricte && s.p.capa > 0;
+        const pris = Math.min(s.p.cout - s.cumul, restant, strict ? s.p.capa : Infinity);
+        s.cumul += pris;
+        restant -= pris;
+        if (s.cumul >= s.p.cout - 0.005) s.moisAtteint = mois;
+      }
+    }
+  }
+  const resultat = {};
+  suivis.forEach(({ p, moisAtteint, deja }) => {
+    const echeance = p.date ? String(p.date).slice(0, 7) : null;
+    resultat[p.cle] = {
+      deja,
+      moisAtteint,
+      ecart: !deja && moisAtteint && echeance ? ecartEnMois(echeance, moisAtteint) : null,
+    };
+  });
+  return resultat;
+}
+
+/** Effort mensuel en plus (par pas de 10 €) pour qu'un projet tienne son échéance. 0 s'il la tient déjà, null si hors de portée. */
+export function effortPourTenir({ projets, cumuls, rythme, moisCourant, cle, maximum = 10000 }) {
+  const projet = (projets || []).find((p) => p.cle === cle);
+  if (!projet?.date) return null;
+  const echeance = String(projet.date).slice(0, 7);
+  for (let effort = 0; effort <= maximum; effort += 10) {
+    const r = projeterProjets({ projets, cumuls, rythme: Math.max(0, rythme) + effort, moisCourant })[cle];
+    if (r.deja || (r.moisAtteint && r.moisAtteint <= echeance)) return effort;
+  }
+  return null;
+}

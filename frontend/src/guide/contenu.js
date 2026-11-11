@@ -1,5 +1,5 @@
 import {
-  ChartCandlestick, FileUp, Gamepad2, HelpCircle, LayoutDashboard, PiggyBank, Settings2, UserCog, Users2, Wallet,
+  ChartCandlestick, FileUp, Gamepad2, HandHeart, HelpCircle, LayoutDashboard, PiggyBank, Settings2, UserCog, Users2, Wallet,
 } from 'lucide-react';
 
 // Contenu du guide. Chaque libellé entre guillemets correspond à un texte réellement affiché dans l'application.
@@ -133,6 +133,7 @@ export const CHAPITRES = [
           "Choisissez une teinte et, si besoin, liez le compte dans « -- Liste Powens -- » ou collez son IBAN.",
           "Cliquez sur « Créer ».",
         ],
+        conseil: "Un PEA, une assurance vie ou un prêt ne se créent plus comme des comptes : ajoutez-les dans les onglets « Placements & biens » et « Crédits » de la même page, qui suivent leur vraie valeur.",
       },
       {
         titre: 'Régler un compte existant',
@@ -142,6 +143,7 @@ export const CHAPITRES = [
           { l: 'Objectif', d: "Montant cible du compte, utilisé pour votre objectif d'épargne sur le Dashboard." },
           { l: 'Intérêt %', d: "Sert à estimer les intérêts gagnés, affichés sur la carte du compte au Dashboard." },
           { l: 'Couleur', d: "Représente le compte sur les cartes et les graphiques." },
+          { l: 'Ancien PEA, assurance vie ou prêt', d: "Ces comptes affichent « Transformer en placement » ou « Transformer en crédit ». Kleea crée l'élément correspondant, puis propose « Supprimer l’ancien compte » pour qu'il ne soit pas compté deux fois." },
         ],
       },
       {
@@ -151,6 +153,54 @@ export const CHAPITRES = [
           { l: 'IBAN manuel', d: "Pour un livret non connecté, collez son IBAN ou son numéro. Kleea reconnaît alors les virements vers ce compte. « Retirer » supprime l'IBAN." },
         ],
         conseil: "Les IBAN sont chiffrés avant d'être enregistrés.",
+      },
+    ],
+  },
+  {
+    id: 'placements',
+    titre: 'Placements & crédits',
+    sousTitre: 'Ce que vous possédez et ce que vous devez',
+    icone: Wallet,
+    page: 'comptes',
+    intro: "En plus de vos comptes, la page Comptes suit vos placements, vos biens et vos crédits. Le « Total net » du tableau de bord les réunit : comptes + placements − crédits.",
+    sections: [
+      {
+        titre: 'Ajouter un placement ou un bien',
+        etapes: [
+          "Dans la page Comptes, ouvrez l'onglet « Placements & biens ».",
+          "Dans « Ajouter un placement ou un bien », choisissez le type : placement (PEA, assurance vie), crypto, immobilier, véhicule ou autre.",
+          "Indiquez le nom et la valeur actuelle, puis cliquez sur « Ajouter ».",
+        ],
+        points: [
+          { l: 'Mettre à jour la valeur', d: "Cliquez sur le montant de la carte et saisissez la nouvelle valeur. La carte indique depuis quand elle date." },
+          { l: 'Virements reliés', d: "Pour un placement, indiquez le « Libellé des virements », par exemple VIR PEA. Chaque virement correspondant s'ajoute à la valeur, et compte comme un virement interne, pas comme une dépense : il reçoit une catégorie de virement vers ce placement, et les imports suivants aussi." },
+          { l: 'Crypto', d: "Choisissez la crypto et la « Quantité détenue » : la valeur suit le cours du jour. Si le cours n'est pas disponible, la dernière valeur connue est gardée." },
+          { l: 'Véhicule', d: "La « Perte de valeur par an » fait baisser sa valeur toute seule, 15 % par défaut." },
+          { l: 'Profil', d: "Rattachez l'élément à un profil, ou laissez « Tous les profils » pour qu'il compte partout." },
+        ],
+        attention: "La performance des marchés n'est pas suivie automatiquement : pensez à mettre à jour la valeur d'un PEA ou d'une assurance vie de temps en temps.",
+      },
+      {
+        titre: 'Ajouter un crédit',
+        etapes: [
+          "Ouvrez l'onglet « Crédits » de la page Comptes.",
+          "Dans « Ajouter un crédit », indiquez le montant emprunté, le taux, la durée en années et la date de la 1re échéance.",
+          "Cliquez sur « Ajouter » : Kleea calcule l'échéancier, le capital restant, la mensualité et la date de fin.",
+        ],
+        points: [
+          { l: 'Crédits trouvés chez votre banque', d: "Si votre banque connectée les communique, vos crédits apparaissent en haut de l'onglet : « Ajouter » les reprend en un clic, et leur capital restant suit celui de la banque." },
+          { l: 'Modifier', d: "Le crayon de la carte permet de corriger le montant, le taux, la durée ou la date : tout l'échéancier est recalculé." },
+          { l: 'Ajouter la mensualité au Prévisionnel', d: "Crée une prévision répétée chaque mois jusqu'à la fin du crédit." },
+        ],
+      },
+      {
+        titre: 'Suivre les prélèvements d’un crédit',
+        texte: "Reliez le crédit au libellé de son prélèvement (« Relier »). Kleea vérifie alors que chaque échéance des six derniers mois a bien été prélevée.",
+        points: [
+          { l: 'Remboursement anticipé', d: "Un prélèvement nettement plus gros qu'une échéance vous est proposé comme remboursement anticipé : « Oui, il raccourcit le crédit », « Oui, il baisse la mensualité » ou « Non ». L'échéancier est recalculé." },
+          { l: 'Simuler', d: "« Simuler un remboursement anticipé » indique les intérêts économisés, et la nouvelle date de fin ou la nouvelle mensualité." },
+        ],
+        conseil: "Rembourser un crédit ne vous appauvrit que des intérêts : la partie qui rembourse le capital baisse aussi ce que vous devez, et le total net n'en tient compte qu'une fois.",
       },
     ],
   },
@@ -252,15 +302,20 @@ export const CHAPITRES = [
       {
         titre: 'Virements entre vos comptes',
         texte: "Une opération est comptée comme un transfert, et non comme une dépense, si sa catégorie commence par « Virement : », par exemple « Virement : CCP vers Livret A ». C'est aussi le cas si son libellé ou sa catégorie contient « 🔄 », « TRANSFERT » ou « VERS ».",
+        conseil: "Les virements vers un placement relié par son libellé sont classés ainsi automatiquement.",
       },
       {
         titre: 'Budgets',
         etapes: [
           "Dans « Objectifs Budget », choisissez le compte, le mois et la catégorie.",
-          "Indiquez le montant limite et cliquez sur « Fixer le budget ».",
-          "Suivez votre consommation dans « Suivi Budgets » et sur le Dashboard.",
+          "Indiquez le montant limite, puis choisissez « Ce mois » ou « Chaque mois ».",
+          "Cliquez sur « Fixer le budget ». Suivez votre consommation dans « Suivi Budgets » et sur le Dashboard.",
         ],
-        conseil: "Chaque budget vaut pour un mois : vous pouvez ainsi l'adapter à vos imprévus.",
+        points: [
+          { l: 'Ce mois', d: "Le budget ne vaut que pour le mois choisi." },
+          { l: 'Chaque mois', d: "Le budget se reconduit tout seul les mois suivants. Pour un mois exceptionnel, modifiez le budget de ce mois-là : les autres ne changent pas." },
+        ],
+        conseil: "Les budgets répétés se retrouvent dans l'onglet « Récurrentes » du Prévisionnel, où vous pouvez les mettre en pause, changer leur montant ou les arrêter.",
       },
     ],
   },
@@ -274,7 +329,7 @@ export const CHAPITRES = [
     sections: [
       {
         titre: 'Vos comptes et votre patrimoine',
-        texte: "Les cartes affichent le solde de chaque compte pour la période choisie, et le solde prévu pour un mois à venir. Faites-les glisser pour changer leur ordre.",
+        texte: "Les cartes affichent le solde de chaque compte pour la période choisie, et le solde prévu pour un mois à venir. Faites-les glisser pour changer leur ordre. Dès que vous avez ajouté un placement ou un crédit, la première carte devient le « Total net » : comptes + placements − crédits. Un clic dessus ouvre vos placements.",
       },
       {
         titre: 'Flux mensuel',
@@ -313,6 +368,14 @@ export const CHAPITRES = [
         ],
       },
       {
+        titre: 'Placements & crédits',
+        texte: "Le troisième onglet de la colonne de droite récapitule le « Total net » du profil : son évolution depuis janvier, la répartition entre comptes, placements et crédits, la courbe de l'année, puis la liste de vos crédits et de vos biens.",
+        points: [
+          { l: 'Points à vérifier', d: "Une échéance de crédit sans prélèvement trouvé, ou un remboursement anticipé à confirmer, est signalé ici et mène à la page Comptes." },
+          { l: 'Gérer', d: "Ouvre la page Comptes sur vos placements." },
+        ],
+      },
+      {
         titre: 'Suivi des budgets',
         texte: "Les « Objectifs Budgétaires » montrent ce qui est consommé pour chaque limite fixée ce mois-ci.",
       },
@@ -336,10 +399,14 @@ export const CHAPITRES = [
       },
       {
         titre: 'Répéter vos prévisions',
+        texte: "Dans « Nouvelle Prévision », la « Répétition » propose « Une fois » ou « Chaque mois ». Avec « Chaque mois », la prévision revient le même jour de chaque mois, sans fin ou jusqu'au mois choisi. Kleea prépare toujours les douze mois à venir.",
         points: [
+          { l: 'Onglet Récurrentes', d: "À côté de « Ce mois-ci », l'onglet « Récurrentes » liste vos prévisions et budgets répétés : mettez-en un en pause, changez son montant ou arrêtez-le." },
+          { l: 'Le passé ne bouge pas', d: "Modifier ou arrêter une règle ne change que les mois à venir. Une prévision retouchée à la main pour un mois garde vos changements." },
           { l: 'Reconduire le mois', d: "Copie les prévisions du mois, ou seulement celles que vous avez cochées (« Reconduire la sélection »), vers le mois suivant." },
           { l: "Propager sur l'année", d: "Copie les prévisions cochées sur tous les mois restants de l'année." },
         ],
+        conseil: "Une petite icône de répétition marque, dans le tableau du mois, les prévisions créées par une règle.",
       },
       {
         titre: 'Simuler des scénarios',
@@ -422,6 +489,55 @@ export const CHAPITRES = [
           { l: 'Historique des modifications', d: "Dans la même fenêtre, retrouvez chaque ajout, modification ou suppression faite par le lien : quand, ancienne et nouvelle valeur, et le nom du participant s'il l'a saisi. Ni adresse IP ni lien n'y sont gardés, et vos propres changements n'y figurent pas." },
         ],
         attention: "Toute personne ayant un lien actif peut modifier les dépenses du groupe, et le nom saisi n'est pas vérifié. Ne le partagez qu'avec les personnes concernées.",
+      },
+    ],
+  },
+  {
+    id: 'compte-commun',
+    titre: 'Compte commun',
+    sousTitre: 'Partager un compte avec une autre personne',
+    icone: HandHeart,
+    page: 'profile',
+    intro: "Partagez un ou plusieurs comptes avec une personne qui a son propre compte Kleea. Chacun garde sa connexion et ses comptes privés : seuls les comptes choisis sont partagés.",
+    sections: [
+      {
+        titre: 'Inviter une personne',
+        etapes: [
+          "Dans votre profil, descendez jusqu'à la carte « Compte commun ».",
+          "Saisissez l'adresse e-mail de la personne et cochez les comptes à partager.",
+          "Cliquez sur « Inviter ». Elle reçoit un lien valable 48 heures, à ouvrir en étant connectée à son compte Kleea avec cette adresse.",
+        ],
+        points: [
+          { l: 'Modifier les comptes', d: "« Modifier les comptes » ajoute ou retire des comptes du partage à tout moment." },
+          { l: 'Historique', d: "« Historique » liste qui a ajouté, modifié ou supprimé quoi sur les comptes partagés." },
+        ],
+        conseil: "Le lien ne fonctionne qu'une fois, et seulement pour l'adresse invitée : le transférer à quelqu'un d'autre ne lui donne aucun accès.",
+      },
+      {
+        titre: 'Ce que voit la personne invitée',
+        texte: "Les comptes partagés apparaissent chez elle avec le nom du propriétaire, par exemple Compte Commun · theo, dans un profil à part. Leur carte, sur la page Comptes, est en lecture seule.",
+        points: [
+          { l: 'Opérations', d: "Elle les voit, les classe, les divise, en ajoute ou en supprime. Les opérations restent rangées chez le propriétaire : vous travaillez sur les mêmes lignes." },
+          { l: 'Prévisions', d: "Elle voit et modifie les prévisions des comptes partagés, et peut y relier les opérations dans Gérer." },
+          { l: 'Objectifs budgétaires', d: "Les objectifs des comptes partagés s'affichent dans « Suivi Budgets ». Elle peut en ajouter, les modifier ou les supprimer." },
+        ],
+        attention: "Un objectif répété chaque mois, créé par la personne invitée, reste pour l'instant chez elle et n'est pas partagé.",
+      },
+      {
+        titre: 'Synchroniser un compte partagé',
+        texte: "La banque reste connectée chez le propriétaire seulement : la personne invitée n'a rien à importer.",
+        points: [
+          { l: 'Demander une synchronisation', d: "Sur sa page Importer, « Demander une synchronisation » lance l'import bancaire du propriétaire, au plus une fois toutes les 15 minutes." },
+          { l: 'Fin de l’import', d: "Une notification « Import terminé » s'affiche quand les opérations sont à jour, et elles se rechargent toutes seules. Restez sur la page Importer pour la voir." },
+        ],
+      },
+      {
+        titre: 'Arrêter le partage',
+        texte: "Chacun peut cliquer sur « Arrêter le partage », puis confirmer. L'accès est coupé aussitôt.",
+        points: [
+          { l: 'Copie', d: "La personne invitée garde une copie indépendante des comptes partagés, à leur état du jour : opérations, prévisions et objectifs, dans le profil Commun (copie)." },
+          { l: 'Suppression de compte', d: "Supprimer son compte Kleea arrête aussi tous ses partages." },
+        ],
       },
     ],
   },

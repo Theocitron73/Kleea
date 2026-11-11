@@ -47,7 +47,7 @@ def charger_revision(nom: str):
 def instructions_de_schema() -> list:
     """Les instructions des révisions : les tests tournent sur la structure relevée en production."""
     depart = charger_revision("0001_point_de_depart")
-    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS
+    return depart.TABLES + depart.INDEX + [charger_revision("0002_abonnements_ignores").CREATION] + charger_revision("0003_alertes").CREATIONS + charger_revision("0004_tricount_liens").CREATIONS + charger_revision("0005_sessions_connexion").CREATIONS + [charger_revision("0006_double_auth").CREATION, charger_revision("0007_double_auth_email").MODIFICATION] + charger_revision("0008_regles_recurrentes").CREATIONS + charger_revision("0009_valeur_nette").CREATIONS + charger_revision("0010_valeur_nette_suite").MODIFICATIONS + charger_revision("0011_compte_commun").CREATIONS
 
 
 def verifier_base_de_test(url: str) -> None:
@@ -307,6 +307,45 @@ class RoutesSurPostgres(unittest.TestCase):
         with self.engine.connect() as conn:
             self.assertEqual(conn.execute(text("SELECT COUNT(*) FROM budgets WHERE regle_id IS NOT NULL")).scalar(), 12)
             self.assertEqual(conn.execute(text("SELECT COUNT(*) FROM previsions")).scalar(), 1)
+
+    def test_valeur_nette_sur_le_schema_alembic(self):
+        bien = self.client.post("/api/biens", json={"type": "placement", "nom": "PEA", "valeur": 18000, "date_valeur": "2026-01-01", "libelle_lien": "VIR PEA"}).json()["id"]
+        dette = self.client.post("/api/dettes", json={"type": "immobilier", "nom": "Crédit", "montant": 200000, "taux": 3.5, "duree_mois": 240, "debut": "2021-04-05", "libelle_lien": "PRLV CREDIT"}).json()["id"]
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO transactions (date, nom, montant, utilisateur) VALUES ('2026-02-05', 'VIR PEA BOURSO', -300, 'theo'), ('2025-06-20', 'PRLV CREDIT IMMO', -10000, 'theo')"))
+        patrimoine = self.client.get("/api/patrimoine").json()
+        self.assertEqual(patrimoine["biens"][0]["valeur"], 18300)
+        operation = patrimoine["dettes"][0]["anticipes_detectes"][0]["operation_id"]
+        self.assertEqual(self.client.post(f"/api/dettes/{dette}/anticipes", json={"montant": 10000, "date": "2025-06-20", "effet": "mensualite", "operation_id": operation}).status_code, 200)
+        self.assertEqual(self.client.post(f"/api/dettes/{dette}/ignorer/{operation}").status_code, 200)
+        self.assertEqual(self.client.get(f"/api/dettes/{dette}/simulation", params={"montant": 5000}).status_code, 200)
+        self.assertEqual(self.client.put(f"/api/biens/{bien}", json={"valeur": 19000}).status_code, 200)
+        self.assertEqual(self.client.put(f"/api/dettes/{dette}", json={"libelle_lien": ""}).status_code, 200)
+        self.assertEqual(self.client.get("/api/patrimoine").json()["dettes"][0]["anticipes_detectes"], [])
+        self.assertEqual(self.client.put(f"/api/dettes/{dette}", json={"taux": 2.9, "duree_mois": 300, "debut": "2021-05-05"}).status_code, 200)
+        self.assertEqual(len(self.client.get("/api/patrimoine", params={"annee": 2026}).json()["historique"]) > 0, True)
+
+    def test_compte_commun_sur_le_schema_alembic(self):
+        from routes import partage as module_partage
+        liens = []
+        with self.engine.begin() as conn:
+            conn.execute(text("INSERT INTO users (username, email) VALUES ('theo', 'theo@kleea.test'), ('aude', 'aude@kleea.test')"))
+            conn.execute(text("INSERT INTO configuration (compte, groupe, solde, utilisateur) VALUES ('Compte joint', 'Perso', 500, 'theo'), ('CCP', 'Perso', 100, 'theo')"))
+            conn.execute(text("INSERT INTO transactions (date, nom, montant, categorie, utilisateur, mois, annee, compte) VALUES ('2026-11-05', 'Courses', -10, 'Courses', 'theo', 'Novembre', 2026, 'Compte joint'), ('2026-11-05', 'Privé', -10, 'Courses', 'theo', 'Novembre', 2026, 'CCP')"))
+        with mock.patch.object(module_partage, "envoyer_invitation", side_effect=lambda e, p, lien: liens.append(lien)):
+            ident = self.client.post("/api/partages", json={"email": "aude@kleea.test", "comptes": ["Compte joint"]}).json()["id"]
+        main.app.dependency_overrides[aide.get_current_user] = lambda: "aude"
+        jeton = liens[0].split("partage=")[1]
+        self.assertEqual(self.client.post("/api/partages/accepter", json={"jeton": jeton}).status_code, 200)
+        noms = {o["nom"] for o in self.client.get("/transactions/aude").json()}
+        self.assertEqual(noms, {"Courses"})
+        self.assertEqual(self.client.post("/transactions", json={"date": "2026-11-06", "nom": "Gaz", "montant": -30, "categorie": "Énergie", "mois": "Novembre", "annee": 2026, "compte": "Compte joint · theo", "utilisateur": "aude"}).json()["status"], "success")
+        prive = self.client.get("/transactions/aude").json()
+        self.assertEqual(self.client.request("DELETE", "/transactions/batch", json=[o["id"] for o in prive]).json()["deleted_count"], 2)
+        self.assertEqual(self.client.delete(f"/api/partages/{ident}").json()["copiees"], 0)
+        with self.engine.connect() as conn:
+            self.assertEqual(conn.execute(text("SELECT nom FROM transactions WHERE utilisateur = 'theo'")).scalars().all(), ["Privé"])
+            self.assertEqual(conn.execute(text("SELECT COUNT(*) FROM partages_journal WHERE partage_id = :p"), {"p": ident}).scalar(), 5)
 
     def test_lignes_ignorees_sur_le_schema_alembic(self):
         url = "/api/abonnements/ignores"

@@ -188,6 +188,16 @@ TABLES = (
         (_requis("type", 20), _requis("nom"), _nombre("montant", True), _texte("categorie"), _texte("compte"), _entier("jour"), _jour("debut", True), _jour("fin"), _booleen("actif"), _jour("genere_jusqu_a")),
         ("type", "nom", "debut"), serie=True,
     ),
+    Table(
+        "biens", "Biens",
+        (_requis("type", 20), _requis("nom"), _nombre("valeur", True), _jour("date_valeur", True), _nombre("decote"), _texte("libelle_lien"), _texte("profil"), _instant("cree_le"), _nombre("quantite"), _texte("crypto_id")),
+        ("type", "nom"), serie=True,
+    ),
+    Table(
+        "dettes", "Dettes",
+        (_requis("type", 20), _requis("nom"), _nombre("montant", True), _nombre("taux", True), _entier("duree_mois"), _jour("debut", True), _texte("libelle_lien"), _texte("profil"), _texte("anticipes"), _texte("ignores"), _instant("cree_le"), _texte("powens_compte_id")),
+        ("nom", "debut"), serie=True,
+    ),
     Table("alertes_masquees", "Alertes masquées", (_requis("alerte_id", 200), _instant("created_at")), ("alerte_id",)),
 )
 
@@ -201,12 +211,17 @@ TABLES_ECARTEES = {
     "tricount_historique": "journal de sécurité des liens partagés, propre à ce compte et non restaurable",
     "sessions_connexion": "état de connexion des appareils, propre à ce serveur",
     "double_auth": "réglage de sécurité : se réactive après la restauration, pour vérifier l'adresse e-mail",
+    "partages": "partage entre deux comptes Kleea : il se recrée par une invitation",
+    "partages_comptes": "comptes d'un partage, liés à ce partage",
+    "partages_journal": "journal d'un partage, propre aux deux comptes",
     "banned_ips": "sécurité du site, sans lien avec un compte",
     "login_failed_attempts": "sécurité du site, sans lien avec un compte",
     "security_rate_limits": "sécurité du site, sans lien avec un compte",
 }
 COLONNES_ECARTEES = {
-    "previsions": {"regle_id": "lien vers une règle récurrente : une ligne restaurée devient indépendante"},
+    "dettes": {"capital_banque": "relevé de la banque, relu à la prochaine connexion", "capital_banque_le": "date de ce relevé"},
+    "previsions": {"regle_id": "lien vers une règle récurrente : une ligne restaurée devient indépendante", "auteur": "personne qui a saisi la ligne sur un compte partagé"},
+    "transactions": {"auteur": "personne qui a saisi la ligne sur un compte partagé"},
     "budgets": {"regle_id": "lien vers une règle récurrente : une ligne restaurée devient indépendante"},
     "tricount": {"token_partage": "secret : ce lien donne accès au groupe sans compte, il se recrée avec « Partager »"},
     "users": {

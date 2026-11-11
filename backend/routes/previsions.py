@@ -9,6 +9,7 @@ from sqlalchemy import bindparam, text
 from typing import Optional
 from base import engine, get_current_user
 from routes.regles import appliquer_sans_bloquer
+from routes.partage import budgets_partages, cible, ligne_accessible, noter, previsions_partagees, resume
 
 
 router = APIRouter()
@@ -24,13 +25,13 @@ def get_budgets(utilisateur: str, mois: Optional[str] = None, current_user: str 
 
     if mois:
         query = text("""
-            SELECT * FROM budgets 
+            SELECT * FROM budgets
             WHERE LOWER(utilisateur) = :u AND mois = :m AND "annee" = :a
         """)
         params = {"u": current_user, "m": mois, "a": date.today().year}
     else:
         query = text("""
-            SELECT * FROM budgets 
+            SELECT * FROM budgets
             WHERE LOWER(utilisateur) = :u
             ORDER BY "annee" DESC, mois DESC
         """)
@@ -38,7 +39,7 @@ def get_budgets(utilisateur: str, mois: Optional[str] = None, current_user: str 
 
     with engine.connect() as conn:
         res = conn.execute(query, params).mappings().all()
-        return [dict(r) for r in res]
+        return [dict(r) for r in res] + budgets_partages(conn, current_user, mois, params.get("a"))
 
 
 @router.post("/save-budget")
@@ -47,52 +48,63 @@ def save_budget(b: Budget, current_user: str = Depends(get_current_user)):
         INSERT INTO budgets (utilisateur, mois, annee, compte, type, nom, somme)
         VALUES (:u, :m, :a, :c, :t, :n, :s)
     """)
-    with engine.connect() as conn:
+    with engine.begin() as conn:
+        dest = cible(conn, current_user, b.compte)
         conn.execute(query, {
-            "u": current_user,
+            "u": dest["utilisateur"],
             "m": b.mois,
             "a": b.annee,
-            "c": b.compte,
+            "c": dest["compte"],
             "t": b.type,
             "n": b.nom,
             "s": b.somme
         })
-        conn.commit()
+        noter(conn, dest["partage_id"], current_user, "ajout", f"objectif {b.nom} · {b.somme} €")
     return {"status": "success"}
 
 
 @router.post("/update-budget")
 def update_budget(b: Budget, old_name: str, current_user: str = Depends(get_current_user)):
     query = text("""
-        UPDATE budgets 
+        UPDATE budgets
         SET nom = :new_n, somme = :s, compte = :c, regle_id = NULL
         WHERE nom = :old_n AND LOWER(utilisateur) = :u AND mois = :m AND annee = :a
     """)
     with engine.begin() as conn:
+        dest = cible(conn, current_user, b.compte)
+        if dest["partage_id"]:
+            # Objectif d'un compte partagé : il reste chez le propriétaire, sur ce compte-là.
+            query = text(str(query) + " AND compte = :c")
         conn.execute(query, {
-            "u": current_user.lower(),
+            "u": dest["utilisateur"],
             "m": b.mois,
             "a": b.annee,
             "new_n": b.nom,
             "old_n": old_name,
             "s": b.somme,
-            "c": b.compte
+            "c": dest["compte"]
         })
+        noter(conn, dest["partage_id"], current_user, "modification", f"objectif {b.nom} · {b.somme} €")
     return {"status": "success"}
 
 
 @router.delete("/delete-budget/{nom}/{utilisateur}/{mois}/{annee}")
-def delete_budget(nom: str, utilisateur: str, mois: str, annee: int, current_user: str = Depends(get_current_user)):
+def delete_budget(nom: str, utilisateur: str, mois: str, annee: int, compte: Optional[str] = None, current_user: str = Depends(get_current_user)):
     if utilisateur.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Accès non autorisé")
 
     query = text("""
-        DELETE FROM budgets 
+        DELETE FROM budgets
         WHERE nom = :n AND LOWER(utilisateur) = :u AND mois = :m AND annee = :a
     """)
-    with engine.connect() as conn:
-        conn.execute(query, {"n": nom, "u": current_user, "m": mois, "a": annee})
-        conn.commit()
+    with engine.begin() as conn:
+        dest = cible(conn, current_user, compte)
+        params = {"n": nom, "u": dest["utilisateur"], "m": mois, "a": annee}
+        if dest["partage_id"]:
+            query = text(str(query) + " AND compte = :c")
+            params["c"] = dest["compte"]
+        conn.execute(query, params)
+        noter(conn, dest["partage_id"], current_user, "suppression", f"objectif {nom}")
     return {"status": "deleted"}
 
 
@@ -130,7 +142,7 @@ def get_previsions_filtrees(utilisateur: str, mois: str, annee: int, current_use
                     "actif": est_actif,
                     "regle_id": r["regle_id"],
                 })
-            return previsions
+            return previsions + previsions_partagees(conn, current_user, annee, mois)
     except Exception as e:
         logger.error(f"Erreur SQL Previsions: {e}")
         return []
@@ -150,23 +162,25 @@ def add_prevision(p: PrevisionIn, current_user: str = Depends(get_current_user))
     nom_final = f"[PRÉVI] {nom_nettoye}"
 
     query = text("""
-        INSERT INTO previsions (date, nom, montant, categorie, compte, mois, annee, utilisateur, actif)
-        VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u, :actif)
+        INSERT INTO previsions (date, nom, montant, categorie, compte, mois, annee, utilisateur, actif, auteur)
+        VALUES (:d, :n, :m, :c, :compte, :mois, :annee, :u, :actif, :au)
     """)
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
+            dest = cible(conn, current_user, p.compte)
             conn.execute(query, {
-                "d": p.date, 
+                "d": p.date,
                 "n": nom_final,
-                "m": p.montant, 
-                "c": p.categorie, 
-                "compte": p.compte, 
+                "m": p.montant,
+                "c": p.categorie,
+                "compte": dest["compte"],
                 "mois": p.mois,
-                "annee": p.annee, 
-                "u": current_user,
-                "actif": p.actif
+                "annee": p.annee,
+                "u": dest["utilisateur"],
+                "actif": p.actif,
+                "au": current_user.lower() if dest["partage_id"] else None,
             })
-            conn.commit()
+            noter(conn, dest["partage_id"], current_user, "prevision", f"Ajout : {resume({'nom': nom_final, 'montant': p.montant})}")
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": detail_erreur(e)}
@@ -207,18 +221,28 @@ def update_prevision(prev_id: int, data: dict, current_user: str = Depends(get_c
 
         # Construction dynamique sécurisée
         set_clause = ", ".join([f"{k} = :{k}" for k in filtered_data.keys()])
-        
-        # 🟢 ANTI-IDOR : On vérifie que la prévision appartient bien à l'utilisateur connecté
+
+        # 🟢 ANTI-IDOR : la prévision est à l'utilisateur connecté, ou sur un compte partagé avec lui.
         # Une prévision vraiment retouchée à la main se détache de sa règle récurrente : la règle ne l'écrasera plus.
         # Les champs du tableau enregistrent aussi quand rien ne change : cela ne doit pas la détacher.
         change = " OR ".join(f"{k} IS DISTINCT FROM :{k}" for k in filtered_data.keys())
         query = text(f"UPDATE previsions SET {set_clause}, regle_id = CASE WHEN {change} THEN NULL ELSE regle_id END WHERE id = :id AND LOWER(utilisateur) = :u")
-        
+
         with engine.begin() as conn:
-            result = conn.execute(query, {**filtered_data, "id": prev_id, "u": current_user})
+            actuelle = ligne_accessible(conn, current_user, "previsions", prev_id)
+            if not actuelle:
+                raise HTTPException(status_code=404, detail="Prévision introuvable ou non autorisée.")
+            if "compte" in filtered_data:
+                dest = cible(conn, current_user, filtered_data["compte"])
+                if dest["utilisateur"] != actuelle["utilisateur"].lower():
+                    raise HTTPException(status_code=400, detail="Une prévision ne peut pas passer entre un compte partagé et vos propres comptes.")
+                filtered_data["compte"] = dest["compte"]
+                query = text(f"UPDATE previsions SET {', '.join(f'{k} = :{k}' for k in filtered_data)}, regle_id = CASE WHEN {change} THEN NULL ELSE regle_id END WHERE id = :id AND LOWER(utilisateur) = :u")
+            result = conn.execute(query, {**filtered_data, "id": prev_id, "u": actuelle["utilisateur"].lower()})
             if result.rowcount == 0:
                 raise HTTPException(status_code=404, detail="Prévision introuvable ou non autorisée.")
-            
+            noter(conn, actuelle["_partage_id"], current_user, "prevision", f"Modification : {resume(actuelle)}")
+
         return {"status": "success"}
     except HTTPException as he:
         raise he
@@ -229,12 +253,14 @@ def update_prevision(prev_id: int, data: dict, current_user: str = Depends(get_c
 
 @router.delete("/previsions/{prev_id}")
 def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)):
-    # 🔒 Sécurité : ne supprime que si la prévision appartient à l'utilisateur connecté
-    query = text("DELETE FROM previsions WHERE id = :id AND LOWER(utilisateur) = :u")
+    # 🔒 Sécurité : la prévision est à l'utilisateur connecté, ou sur un compte partagé avec lui.
+    query = text("DELETE FROM previsions WHERE id = :id")
     try:
-        with engine.connect() as conn:
-            conn.execute(query, {"id": prev_id, "u": current_user})
-            conn.commit()
+        with engine.begin() as conn:
+            actuelle = ligne_accessible(conn, current_user, "previsions", prev_id)
+            if actuelle:
+                conn.execute(query, {"id": prev_id})
+                noter(conn, actuelle["_partage_id"], current_user, "prevision", f"Suppression : {resume(actuelle)}")
         return {"status": "success"}
     except Exception as e:
         return {"status": "error", "message": detail_erreur(e)}
@@ -242,7 +268,7 @@ def delete_prevision(prev_id: int, current_user: str = Depends(get_current_user)
 
 @router.post("/api/previsions/propagate-year")
 def propagate_previsions_year(
-    req: PropagateYearRequest, 
+    req: PropagateYearRequest,
     current_user: str = Depends(get_current_user)
 ):
     # 1. Validation stricte des IDs
@@ -293,7 +319,7 @@ def propagate_previsions_year(
                     table_name = "previsionnel"
                 except Exception as e_table:
                     raise HTTPException(
-                        status_code=500, 
+                        status_code=500,
                         detail=detail_erreur(e_table, "Table de prévisions introuvable")
                     )
 
@@ -316,27 +342,27 @@ def propagate_previsions_year(
         # 4. Récupération des prévisions sources (Sécurisée via bindparam expanding)
         query_fetch = text(f"""
             SELECT id, date, {column_name} as nom, montant, categorie, compte, actif, utilisateur
-            FROM {table_name} 
+            FROM {table_name}
             WHERE id IN :ids AND LOWER(utilisateur) = :u
         """).bindparams(bindparam("ids", expanding=True))
-        
+
         with engine.connect() as conn:
             res = conn.execute(query_fetch, {
                 "ids": clean_ids,          # Liste Python propre (plus de tuple !)
                 "u": user_clean
             }).mappings().all()
             previsions_sources = [dict(r) for r in res]
-            
+
         if not previsions_sources:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail="Aucune prévision correspondante trouvée pour cet utilisateur."
             )
 
         # 5. Résolution du mois de départ
         mois_raw = str(req.mois_actuel).lower().strip()
         mois_normalise = mois_raw.replace('é', 'e').replace('û', 'u').replace('ô', 'o').replace('è', 'e')
-        
+
         if mois_normalise.isdigit():
             current_month_int = int(mois_normalise)
         else:
@@ -362,7 +388,7 @@ def propagate_previsions_year(
                 dt_orig = original_date
             else:
                 dt_orig = date.today()
-                
+
             orig_day = dt_orig.day
 
             for m_idx in range(current_month_int + 1, 13):
@@ -396,10 +422,10 @@ def propagate_previsions_year(
             VALUES (:d, :n, :m, :cat, :c, :a, :u, :mois, :annee)
             ON CONFLICT DO NOTHING
         """)
-        
+
         with engine.begin() as conn:
             conn.execute(query_insert, new_rows)
-                
+
         return {"status": "success", "inserted_count": len(new_rows)}
 
     except HTTPException as he:

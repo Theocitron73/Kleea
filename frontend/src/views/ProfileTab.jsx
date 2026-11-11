@@ -6,6 +6,7 @@ import DoubleAuthCard from '../components/DoubleAuthCard';
 import SessionsActivesCard from '../components/SessionsActivesCard';
 import StreamDeckTokenCard from '../components/StreamDeckTokenCard';
 import SauvegardeCard from '../components/SauvegardeCard';
+import CompteCommunCard from '../components/CompteCommunCard';
 import { toast } from 'sonner';
 
 function Section({ titre, children }) {
@@ -623,6 +624,10 @@ export default function ProfileTab({
           </div>
         )}
       </div>
+      </Section>
+
+      <Section titre="Compte commun">
+        <CompteCommunCard comptes={comptes} />
       </Section>
 
       <Section titre="Sécurité">
