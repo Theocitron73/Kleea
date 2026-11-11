@@ -1,4 +1,4 @@
-// Double authentification par e-mail : connexion en deux étapes et carte du profil, avec une API simulée.
+// Double authentification par e-mail ou par application : connexion en deux étapes et carte du profil, avec une API simulée.
 import { test, expect } from '@playwright/test';
 import { brancherApi, ouvrirSession, UTILISATEUR } from './api-simulee.js';
 
@@ -85,7 +85,7 @@ test('activer depuis le profil demande le mot de passe puis le code reçu', asyn
   await ouvrirProfil(page, {
     '/api/double-auth': () => [200, { disponible: true, active }],
     '/api/double-auth/preparer': (corps) => (corps.password === 'motdepasse1'
-      ? [200, { email_masque: 't***@kleea.test' }]
+      ? [200, { methode: corps.methode, email_masque: 't***@kleea.test' }]
       : [400, { detail: 'Mot de passe incorrect.' }]),
     '/api/double-auth/activer': () => {
       active = true;
@@ -96,12 +96,13 @@ test('activer depuis le profil demande le mot de passe puis le code reçu', asyn
   await expect(carte.getByText('Facultative.')).toBeVisible({ timeout: 30_000 });
 
   await carte.getByRole('button', { name: 'Activer' }).click();
+  await carte.getByLabel('Par e-mail').check();
   await carte.getByLabel('Votre mot de passe').fill('faux');
-  await carte.getByRole('button', { name: 'Recevoir un code' }).click();
+  await carte.getByRole('button', { name: 'Continuer' }).click();
   await expect(page.getByText('Mot de passe incorrect.')).toBeVisible();
 
   await carte.getByLabel('Votre mot de passe').fill('motdepasse1');
-  await carte.getByRole('button', { name: 'Recevoir un code' }).click();
+  await carte.getByRole('button', { name: 'Continuer' }).click();
   await expect(carte.getByText('t***@kleea.test')).toBeVisible();
   await carte.scrollIntoViewIfNeeded();
   await page.screenshot({ path: 'test-results/double-auth-code.png' });
@@ -110,6 +111,51 @@ test('activer depuis le profil demande le mot de passe puis le code reçu', asyn
 
   await expect(carte.getByText('Activée : un code vous est envoyé')).toBeVisible();
   await expect(carte.getByRole('button', { name: 'Désactiver' })).toBeVisible();
+});
+
+test('activer avec une application montre la clé et le lien, sans e-mail', async ({ page }) => {
+  let active = false;
+  const preparations = [];
+  await ouvrirProfil(page, {
+    '/api/double-auth': () => [200, { disponible: true, active, methode: active ? 'application' : null }],
+    '/api/double-auth/preparer': (corps) => {
+      preparations.push(corps.methode);
+      return [200, { methode: 'application', secret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP', adresse: 'otpauth://totp/Kleea:testeur?secret=JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP&issuer=Kleea' }];
+    },
+    '/api/double-auth/activer': () => {
+      active = true;
+      return [200, { status: 'success' }];
+    },
+  });
+  const carte = page.getByRole('region', { name: 'Double authentification' });
+  await carte.getByRole('button', { name: 'Activer' }).click({ timeout: 30_000 });
+  // L'application est proposée en premier.
+  await expect(carte.getByLabel('Application d’authentification')).toBeChecked();
+  await carte.getByLabel('Votre mot de passe').fill('motdepasse1');
+  await carte.getByRole('button', { name: 'Continuer' }).click();
+  await expect(carte.getByLabel('Clé de l’application d’authentification')).toHaveText('JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP');
+  await expect(carte.getByRole('img', { name: 'QR code à scanner avec votre application d’authentification' })).toHaveAttribute('src', /^data:image\/png;base64,/);
+  await expect(carte.getByRole('link', { name: 'Ouvrir dans l’application d’authentification' })).toHaveAttribute('href', /^otpauth:\/\/totp\/Kleea:testeur\?secret=/);
+  await carte.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/double-auth-application.png' });
+  await carte.getByLabel('Code de l’application').fill('123456');
+  await carte.getByRole('button', { name: "Confirmer l'activation" }).click();
+  await expect(carte.getByText('Activée : chaque connexion demande le code affiché par votre application')).toBeVisible();
+  expect(preparations).toEqual(['application']);
+});
+
+test('à la connexion, le code vient de l’application : aucun renvoi par e-mail', async ({ page }) => {
+  await brancherApi(page);
+  await simuler(page, {
+    '/login': () => [200, { status: 'double_auth', double_auth_requise: true, methode: 'application', jeton_double_auth: 'etape', email_masque: null }],
+    '/login/double-auth': (corps) => [200, { access_token: 'session', user: UTILISATEUR, role: 'user', ...corps }],
+  });
+  await saisirMotDePasse(page);
+  await expect(page.getByText('Saisissez le code à 6 chiffres affiché par votre application d’authentification.')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Renvoyer un code' })).toHaveCount(0);
+  await page.getByLabel('Code de vérification').fill('123456');
+  await page.getByRole('button', { name: 'Vérifier' }).click();
+  await expect(page.getByLabel('Code de vérification')).toBeHidden({ timeout: 30_000 });
 });
 
 test('désactiver demande le mot de passe', async ({ page }) => {

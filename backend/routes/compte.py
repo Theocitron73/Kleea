@@ -7,12 +7,16 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from journaux import detail_erreur, logger
 from schemas import ImportModeRequest, LoginRequest, NewPasswordRequest, RegisterRequest, ResetRequest, UpdatePasswordRequest, UpdateProfileRequest
 from sqlalchemy import text
-from base import engine, get_current_user, hash_password, jeton_de_session, poser_cookie_session, verify_password
+from typing import Optional
+from sqlalchemy.exc import SQLAlchemyError
+from base import couper_sessions, engine, get_current_user, hash_password, jeton_de_session, poser_cookie_session, session_actuelle, verify_password
 from routes.partage import arreter_tous_les_partages
-from routes.double_auth import double_auth_active, emettre_code, jeton_etape_connexion
+from routes.double_auth import emettre_code, jeton_etape_connexion, methode_double_auth
 from routes.powens import revoquer_acces_powens
 from securite import HONEYPOT_USERNAMES, ban_ip, check_and_record_failed_attempt, check_is_rate_limited, get_client_ip
 from suppression_compte import purger_compte
+from alertes_email import prevenir_mot_de_passe_change, prevenir_si_nouvel_appareil
+from journal_securite import noter_evenement
 
 
 router = APIRouter()
@@ -94,17 +98,25 @@ def login(req: LoginRequest, request: Request, response: Response):
 
         # Vérification mot de passe...
         if not verify_password(req.password, db_hashed_password):
+            noter_evenement(db_username, "echec_connexion", request, "Mot de passe incorrect")
             is_banned, remaining = check_and_record_failed_attempt(client_ip)
             if is_banned:
                 raise HTTPException(status_code=403, detail="Trop d'échecs consécutifs. Votre IP est suspendue pour 30 minutes.")
             pluriel = "s" if remaining > 1 else ""
             raise HTTPException(status_code=401, detail=f"Mot de passe incorrect. Il vous reste {remaining} tentative{pluriel} avant suspension.")
 
-    if double_auth_active(db_username):
-        return {"status": "double_auth", "double_auth_requise": True, "jeton_double_auth": jeton_etape_connexion(db_username), "email_masque": emettre_code(db_username)}
+    methode = methode_double_auth(db_username)
+    if methode:
+        return {
+            "status": "double_auth", "double_auth_requise": True, "methode": methode,
+            "jeton_double_auth": jeton_etape_connexion(db_username),
+            "email_masque": emettre_code(db_username) if methode == "email" else None,
+        }
 
     # Création du Token JWT en intégrant le rôle dans le payload
     role_final = db_role if db_role else "user"
+    prevenir_si_nouvel_appareil(db_username, request.headers.get("user-agent"))
+    noter_evenement(db_username, "connexion", request)
     token = jeton_de_session({"sub": db_username, "role": role_final}, request.headers.get("user-agent"))
     poser_cookie_session(response, token)
     # shortcut: le jeton reste aussi dans la réponse pour les applications déjà en cache sur les téléphones ; à retirer après quelques semaines.
@@ -170,7 +182,7 @@ def update_import_mode(username: str, req: ImportModeRequest, current_user: str 
 
 
 @router.post("/forgot-password")
-async def forgot_password(req: ResetRequest):
+async def forgot_password(req: ResetRequest, request: Request):
     email_clean = req.email.lower().strip()
 
     # 🟢 RATE LIMITING PERSISTANT : 1 demande toutes les 3 minutes max par e-mail
@@ -186,6 +198,7 @@ async def forgot_password(req: ResetRequest):
 
         if not user:
             return response_msg
+        noter_evenement(user[0], "reinitialisation_demandee", request)
 
         token = secrets.token_urlsafe(32)
         update_query = text("UPDATE users SET reset_token = :t WHERE LOWER(email) = LOWER(:e)")
@@ -228,8 +241,17 @@ async def forgot_password(req: ResetRequest):
     return response_msg
 
 
+def couper_les_sessions(utilisateur: str, sauf: Optional[str] = None) -> int:
+    """Après un changement de mot de passe. Le mot de passe est déjà changé : une panne ici ne doit pas faire échouer la requête."""
+    try:
+        return couper_sessions(utilisateur, sauf)
+    except SQLAlchemyError as e:
+        logger.warning(f"⚠️ Sessions non coupées après le changement de mot de passe : {type(e).__name__}")
+        return 0
+
+
 @router.post("/reset-password-confirm")
-async def reset_password_confirm(req: NewPasswordRequest):
+async def reset_password_confirm(req: NewPasswordRequest, request: Request):
     hashed_password = hash_password(req.new_password)
 
     # On utilise engine.begin() pour s'assurer que le UPDATE est bien commit et fermé
@@ -239,18 +261,24 @@ async def reset_password_confirm(req: NewPasswordRequest):
             UPDATE users
             SET password = :pwd, reset_token = NULL
             WHERE reset_token = :token
+            RETURNING username
         """)
-        result = conn.execute(query, {"pwd": hashed_password, "token": req.token})
+        compte = conn.execute(query, {"pwd": hashed_password, "token": req.token}).scalar()
 
-        if result.rowcount == 0:
+        if compte is None:
             raise HTTPException(status_code=400, detail="Lien invalide ou expiré")
+    # Mot de passe oublié : toutes les sessions tombent, celles d'un intrus comprises.
+    couper_les_sessions(compte)
+    noter_evenement(compte, "mot_de_passe_change", request, "Par le lien reçu par e-mail")
+    prevenir_mot_de_passe_change(compte)
 
     return {"status": "success", "message": "Mot de passe mis à jour !"}
 
 
 # --- ROUTE : CHANGER LE MOT DE PASSE ---
 @router.put("/profile/{username}/password")
-def update_password(username: str, req: UpdatePasswordRequest, current_user: str = Depends(get_current_user)):
+def update_password(username: str, req: UpdatePasswordRequest, request: Request, current_user: str = Depends(get_current_user),
+                    actuelle: Optional[str] = Depends(session_actuelle)):
     # 🔒 SÉCURITÉ JWT : Empêche quiconque de modifier le mot de passe d'un autre profil
     if username.lower() != current_user.lower():
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas modifier le mot de passe d'un autre utilisateur")
@@ -260,13 +288,21 @@ def update_password(username: str, req: UpdatePasswordRequest, current_user: str
 
     with engine.connect() as conn:
         # 2. On vérifie d'abord si l'utilisateur existe (insensible à la casse)
-        check_query = text("SELECT username FROM users WHERE LOWER(username) = LOWER(:username)")
+        check_query = text("SELECT username, password FROM users WHERE LOWER(username) = LOWER(:username)")
         user_exists = conn.execute(check_query, {"username": current_user}).fetchone()
 
         if not user_exists:
             raise HTTPException(status_code=404, detail="Utilisateur introuvable")
 
-        # 3. Mise à jour du mot de passe
+        # 3. Le mot de passe actuel est exigé : sans lui, une session volée suffirait à enfermer le titulaire dehors.
+        if not verify_password(req.current_password, user_exists[1]):
+            noter_evenement(current_user, "echec_connexion", request, "Mot de passe actuel incorrect lors d'un changement")
+            bloquee, _ = check_and_record_failed_attempt(get_client_ip(request))
+            if bloquee:
+                raise HTTPException(status_code=403, detail="Trop d'échecs consécutifs. Votre IP est suspendue pour 30 minutes.")
+            raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect.")
+
+        # 4. Mise à jour du mot de passe
         update_query = text("""
             UPDATE users
             SET password = :password
@@ -279,7 +315,11 @@ def update_password(username: str, req: UpdatePasswordRequest, current_user: str
         })
         conn.commit()
 
-    return {"status": "success", "message": "Mot de passe mis à jour avec succès"}
+    revoquees = couper_les_sessions(current_user, actuelle)
+    detail = f"Depuis le profil, {revoquees} autre{'s' if revoquees > 1 else ''} appareil{'s' if revoquees > 1 else ''} déconnecté{'s' if revoquees > 1 else ''}" if revoquees else "Depuis le profil"
+    noter_evenement(current_user, "mot_de_passe_change", request, detail)
+    prevenir_mot_de_passe_change(current_user)
+    return {"status": "success", "message": "Mot de passe mis à jour avec succès", "sessions_coupees": revoquees}
 
 
 def supprimer_le_compte(current_user: str) -> dict:

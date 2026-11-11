@@ -217,6 +217,7 @@ TABLES_ECARTEES = {
     "banned_ips": "sécurité du site, sans lien avec un compte",
     "login_failed_attempts": "sécurité du site, sans lien avec un compte",
     "security_rate_limits": "sécurité du site, sans lien avec un compte",
+    "journal_securite": "journal de sécurité du compte, gardé 90 jours et non restaurable",
 }
 COLONNES_ECARTEES = {
     "dettes": {"capital_banque": "relevé de la banque, relu à la prochaine connexion", "capital_banque_le": "date de ce relevé"},

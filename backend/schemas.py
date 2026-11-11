@@ -49,6 +49,8 @@ class NewPasswordRequest(BaseModel):
 
 
 class UpdatePasswordRequest(BaseModel):
+    # Une session volée ou laissée ouverte ne doit pas suffire : le mot de passe actuel est demandé.
+    current_password: str
     new_password: str
 
 

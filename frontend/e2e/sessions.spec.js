@@ -9,6 +9,9 @@ const SESSIONS = [
   { id: 'pc', appareil: 'Firefox sur Linux', cree_le: '2026-11-03T09:00:00Z', derniere_activite: '2026-11-05T08:00:00Z', actuelle: false },
 ];
 
+const JOURNAL = Array.from({ length: 10 }, (_, i) => ({ evenement: 'connexion', libelle: 'Connexion', detail: null, appareil: 'Chrome sur Windows', ip: '203.0.113.7', cree_le: `2026-11-0${(i % 6) + 1}T09:00:00Z`, echec: false }));
+JOURNAL.splice(1, 0, { evenement: 'echec_connexion', libelle: 'Échec de connexion', detail: 'Mot de passe incorrect', appareil: 'Firefox sur Linux', ip: '198.51.100.4', cree_le: '2026-11-06T08:00:00Z', echec: true });
+
 /** `serveur.revoquee = true` fait répondre 401 à toutes les requêtes suivantes, comme pour une session coupée ailleurs. */
 async function ouvrir(page, { disponible = true, suivie = true, sessionUneFois = false } = {}) {
   const serveur = { sessions: [...SESSIONS], appels: [], revoquee: false };
@@ -25,6 +28,11 @@ async function ouvrir(page, { disponible = true, suivie = true, sessionUneFois =
       return json({ status: 'success', revoquees: 2 });
     }
     if (url.pathname === '/api/sessions/deconnexion') return json({ status: 'success' });
+    if (url.pathname === '/api/securite/journal') return json({ disponible: true, evenements: JOURNAL });
+    if (requete.method() === 'PUT' && url.pathname.endsWith('/password')) {
+      serveur.motDePasse = requete.postDataJSON();
+      return serveur.motDePasse.current_password === 'actuel' ? json({ status: 'success', sessions_coupees: 2 }) : json({ detail: 'Mot de passe actuel incorrect.' }, 400);
+    }
     if (requete.method() === 'DELETE' && url.pathname.startsWith('/api/sessions/')) {
       serveur.sessions = serveur.sessions.filter((s) => !url.pathname.endsWith(`/${s.id}`));
       return json({ status: 'success' });
@@ -120,4 +128,28 @@ test('le bouton de déconnexion prévient le serveur', async ({ page }) => {
   const serveur = await ouvrir(page);
   await page.getByTitle('Déconnexion').click();
   await expect.poll(() => serveur.appels).toContain('POST /api/sessions/deconnexion');
+});
+
+test('le journal de sécurité montre les derniers événements, échecs en évidence', async ({ page }) => {
+  await ouvrir(page);
+  const journal = page.getByRole('region', { name: 'Journal de sécurité' });
+  await expect(journal.getByRole('listitem')).toHaveCount(8);
+  await expect(journal.getByRole('listitem').nth(1)).toContainText('Échec de connexion · Mot de passe incorrect');
+  await expect(journal.getByRole('listitem').nth(1)).toContainText('Firefox sur Linux · 198.51.100.4');
+  await journal.getByRole('button', { name: 'Tout afficher (11)' }).click();
+  await expect(journal.getByRole('listitem')).toHaveCount(11);
+  await journal.screenshot({ path: 'test-results/journal-securite.png' });
+});
+
+test('changer de mot de passe demande l’actuel et annonce les appareils déconnectés', async ({ page }) => {
+  const serveur = await ouvrir(page);
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.getByLabel('Mot de passe actuel').fill('faux');
+  await page.getByLabel('Nouveau mot de passe').fill('NouveauMotDePasse1!');
+  await page.getByRole('button', { name: 'Confirmer' }).click();
+  await expect(page.getByText('Mot de passe actuel incorrect.')).toBeVisible();
+  await page.getByLabel('Mot de passe actuel').fill('actuel');
+  await page.getByRole('button', { name: 'Confirmer' }).click();
+  await expect(page.getByText('Mot de passe modifié. Vos 2 autres appareils ont été déconnectés.')).toBeVisible();
+  expect(serveur.motDePasse).toEqual({ current_password: 'actuel', new_password: 'NouveauMotDePasse1!' });
 });

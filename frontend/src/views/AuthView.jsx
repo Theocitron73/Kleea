@@ -75,7 +75,7 @@ export default function AuthView({ onLoginSuccess }) {
 
       if (res.data.double_auth_requise) {
         setJetonDoubleAuth(res.data.jeton_double_auth);
-        setEmailDoubleAuth(res.data.email_masque);
+        setEmailDoubleAuth(res.data.methode === 'application' ? null : res.data.email_masque);
         setLoginPassword('');
         return;
       }
@@ -193,7 +193,9 @@ export default function AuthView({ onLoginSuccess }) {
         <form onSubmit={validerCode} className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] p-10 rounded-[calc(var(--radius)*2)] border border-white/20 shadow-2xl w-full max-w-md space-y-5">
           <h1 className="text-lg font-black text-[var(--text-main)]">Double authentification</h1>
           <p className="text-xs text-[var(--text-main)]/60 leading-relaxed">
-            Saisissez le code à 6 chiffres envoyé à {emailDoubleAuth}. Il est valable 10 minutes.
+            {emailDoubleAuth
+              ? `Saisissez le code à 6 chiffres envoyé à ${emailDoubleAuth}. Il est valable 10 minutes.`
+              : 'Saisissez le code à 6 chiffres affiché par votre application d’authentification.'}
           </p>
           <input
             aria-label="Code de vérification"
@@ -207,9 +209,11 @@ export default function AuthView({ onLoginSuccess }) {
           <button type="submit" className="w-full bg-white text-black p-5 rounded-2xl font-black uppercase text-xs tracking-[0.3em] cursor-pointer">
             Vérifier
           </button>
-          <button type="button" onClick={renvoyerCode} className="w-full text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
-            Renvoyer un code
-          </button>
+          {emailDoubleAuth && (
+            <button type="button" onClick={renvoyerCode} className="w-full text-[10px] font-black text-[var(--secondary)] uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
+              Renvoyer un code
+            </button>
+          )}
           <button type="button" onClick={() => { setJetonDoubleAuth(null); setCodeDoubleAuth(''); }} className="w-full text-[10px] font-black text-[var(--text-main)]/40 uppercase tracking-[0.2em] cursor-pointer bg-transparent border-none">
             Retour à la connexion
           </button>

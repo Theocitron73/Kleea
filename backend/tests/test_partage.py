@@ -105,6 +105,12 @@ class Invitation(Base):
         # Usage unique.
         self.appel("POST", "/api/partages/accepter", self.aude, attendu=400, json={"jeton": jeton})
 
+    def test_le_proprietaire_est_prevenu_de_l_envoi_puis_de_l_acceptation(self):
+        with mock.patch.object(partage, "prevenir_invitation_envoyee") as envoyee, mock.patch.object(partage, "prevenir_invitation_acceptee") as acceptee:
+            self.inviter_et_accepter()
+        envoyee.assert_called_once_with("theo", "aude@kleea.test", ["Compte joint"])
+        acceptee.assert_called_once_with("theo", "aude")
+
     def test_une_invitation_expiree_est_refusee(self):
         self.appel("POST", "/api/partages", self.theo, json={"email": "aude@kleea.test", "comptes": ["Compte joint"]})
         jeton = self.liens[-1][1].split("partage=")[1]
