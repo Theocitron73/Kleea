@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { UTILISATEUR, ouvrirSession } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const SESSIONS = [
   { id: 'ici', appareil: 'Chrome sur Windows', cree_le: '2026-11-05T09:00:00Z', derniere_activite: '2026-11-06T09:00:00Z', actuelle: true },
   { id: 'tel', appareil: 'Safari sur iPhone', cree_le: '2026-11-04T09:00:00Z', derniere_activite: '2026-11-06T08:45:00Z', actuelle: false },

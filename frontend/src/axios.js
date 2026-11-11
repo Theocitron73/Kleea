@@ -4,9 +4,11 @@ import { noterDeconnexion } from './utils/sessions';
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
   timeout: 20000, // Évite de bloquer l'interface indéfiniment si le serveur dort (Neon/Render)
+  // La session voyage dans un cookie HttpOnly posé par l'API : le site ne voit jamais le jeton.
+  withCredentials: true,
 });
 
-// 1. Intercepteur de REQUÊTE : Injecte le Token Bearer
+// 1. Intercepteur de REQUÊTE : l'ancien jeton, tant qu'il n'est pas passé dans le cookie
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -31,7 +33,7 @@ api.interceptors.response.use(
     const isPublicPage = currentPath.startsWith('/shared-tricount') || currentPath.startsWith('/reset-password') || currentPath.startsWith('/guide');
 
     if (status === 401 && !isLoginOrAuth) {
-      const hadToken = localStorage.getItem('token');
+      const hadToken = localStorage.getItem('user');
 
       // Purge STRICTE de toutes les données sensibles de session
       localStorage.removeItem('token');
@@ -57,5 +59,11 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Une session ouverte avant le cookie : son jeton passe dans le cookie, puis quitte le stockage du navigateur.
+// Après les intercepteurs : l'ancien jeton doit partir avec cette requête.
+if (localStorage.getItem('token')) {
+  api.post('/api/sessions/cookie').then(() => localStorage.removeItem('token')).catch(() => {});
+}
 
 export default api;

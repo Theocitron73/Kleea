@@ -7,12 +7,12 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import resend
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError, ProgrammingError, SQLAlchemyError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
-from base import ALGORITHM, SECRET_KEY, en_utc, engine, get_current_user, jeton_de_session, verify_password
+from base import ALGORITHM, SECRET_KEY, en_utc, engine, get_current_user, jeton_de_session, poser_cookie_session, verify_password
 from journaux import logger
 from securite import check_and_record_failed_attempt, check_is_rate_limited, get_client_ip
 
@@ -135,14 +135,6 @@ def emettre_code(utilisateur: str) -> str:
     return masquer_email(email)
 
 
-def supprimer_double_auth(utilisateur: str) -> None:
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("DELETE FROM double_auth WHERE utilisateur = :u"), {"u": utilisateur.lower().strip()})
-    except SQLAlchemyError as e:
-        logger.warning(f"⚠️ Double authentification non supprimée : {type(e).__name__}")
-
-
 def limiter(utilisateur: str) -> None:
     if check_is_rate_limited(key=utilisateur, action="double_auth", max_attempts=10, window_minutes=5):
         raise HTTPException(status_code=429, detail="Trop d'essais. Patientez quelques minutes.")
@@ -178,7 +170,7 @@ def mot_de_passe_valide(utilisateur: str, password: str) -> bool:
 
 
 @router.post("/login/double-auth")
-def connexion_double_auth(corps: Connexion, request: Request):
+def connexion_double_auth(corps: Connexion, request: Request, response: Response):
     cle = utilisateur_du_jeton(corps.jeton)
     limiter(cle)
     with engine.begin() as conn:
@@ -191,9 +183,12 @@ def connexion_double_auth(corps: Connexion, request: Request):
         refuser(request, 401, "Code incorrect ou expiré.")
 
     role = compte[1] or "user"
+    jeton = jeton_de_session({"sub": compte[0], "role": role}, request.headers.get("user-agent"))
+    poser_cookie_session(response, jeton)
+    # shortcut: le jeton reste aussi dans la réponse pour les applications déjà en cache sur les téléphones ; à retirer après quelques semaines.
     return {
         "status": "success",
-        "access_token": jeton_de_session({"sub": compte[0], "role": role}, request.headers.get("user-agent")),
+        "access_token": jeton,
         "token_type": "bearer",
         "user": compte[0],
         "role": role,

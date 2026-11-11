@@ -1,11 +1,11 @@
 """Appareils connectés : lister ses sessions et les révoquer. Toutes les requêtes sont limitées au compte connecté."""
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from journaux import logger
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from typing import Optional
-from base import ACCESS_TOKEN_EXPIRE_DAYS, en_utc, engine, get_current_user, session_actuelle
+from base import ACCESS_TOKEN_EXPIRE_DAYS, effacer_cookie_session, en_utc, engine, get_current_user, jeton_recu, poser_cookie_session, session_actuelle
 
 
 router = APIRouter()
@@ -52,8 +52,9 @@ def lister_sessions(current_user: str = Depends(get_current_user), actuelle: Opt
 
 
 @router.post("/api/sessions/deconnexion")
-def se_deconnecter(current_user: str = Depends(get_current_user), actuelle: Optional[str] = Depends(session_actuelle)):
+def se_deconnecter(response: Response, current_user: str = Depends(get_current_user), actuelle: Optional[str] = Depends(session_actuelle)):
     """Le bouton de déconnexion : sans cela, l'appareil resterait listé jusqu'à l'expiration du jeton."""
+    effacer_cookie_session(response)
     if actuelle:
         try:
             with engine.begin() as conn:
@@ -63,6 +64,13 @@ def se_deconnecter(current_user: str = Depends(get_current_user), actuelle: Opti
                 )
         except SQLAlchemyError as e:
             logger.warning(f"⚠️ Déconnexion non enregistrée : {type(e).__name__}")
+    return {"status": "success"}
+
+
+@router.post("/api/sessions/cookie")
+def passer_au_cookie(response: Response, current_user: str = Depends(get_current_user), jeton: str = Depends(jeton_recu)):
+    """Une session ouverte avant le cookie : son jeton passe dans le cookie HttpOnly, et le site l'efface de son stockage."""
+    poser_cookie_session(response, jeton)
     return {"status": "success"}
 
 

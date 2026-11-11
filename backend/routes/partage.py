@@ -441,13 +441,15 @@ DELAI_SYNCHRO = timedelta(minutes=15)
 def lancer_synchro_du_proprietaire(proprietaire: str, partage_id: Optional[int] = None) -> None:
     """Synchronisation bancaire du propriétaire, avec sa propre connexion : le jeton ne quitte jamais son compte.
 
-    La fin est notée au journal du partage, pour prévenir la personne invitée. Sans nombre d'opérations :
-    il compterait aussi les comptes privés du propriétaire.
+    Seuls les comptes du partage sont importés : les comptes privés du propriétaire ne bougent pas.
+    La fin est notée au journal du partage, pour prévenir la personne invitée.
     """
     from routes.powens import synchroniser_et_noter
 
     try:
-        synchroniser_et_noter(proprietaire)
+        with engine.connect() as conn:
+            comptes = {r[0] for r in conn.execute(text("SELECT compte FROM partages_comptes WHERE partage_id = :p"), {"p": partage_id})}
+        synchroniser_et_noter(proprietaire, comptes)
         action, detail = "synchro_fin", "Synchronisation bancaire terminée"
     except Exception as erreur:  # noqa: BLE001
         logger.error(f"Synchronisation demandée par un partage échouée : {erreur}")

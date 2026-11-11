@@ -139,6 +139,40 @@ class Liste(Base):
             self.assertEqual([r[0] for r in conn.execute(text("SELECT appareil FROM sessions_connexion"))], ["Chrome sur Windows"])
 
 
+class CookieHttpOnly(Base):
+    """Le site garde la session dans un cookie que JavaScript ne peut pas lire."""
+
+    def setUp(self):
+        super().setUp()
+        self.client = TestClient(main.app, base_url="https://testserver")  # Le cookie est Secure : il ne part qu'en HTTPS.
+
+    def test_la_connexion_pose_un_cookie_httponly_qui_suffit_aux_requetes(self):
+        reponse = self.client.post("/login", json={"nom": "Theo", "password": MOT_DE_PASSE}, headers={"User-Agent": CHROME})
+        cookie = reponse.headers["set-cookie"].lower()
+        for attribut in ("kleea_session=", "httponly", "secure", "samesite=lax", "path=/"):
+            self.assertIn(attribut, cookie)
+        self.assertEqual(self.client.get(SONDE).status_code, 200)
+
+    def test_la_deconnexion_efface_le_cookie_et_coupe_la_session(self):
+        self.client.post("/login", json={"nom": "Theo", "password": MOT_DE_PASSE}, headers={"User-Agent": CHROME})
+        jeton = self.client.cookies.get("kleea_session")
+        self.assertEqual(self.client.post(DECONNEXION).status_code, 200)
+        self.assertIsNone(self.client.cookies.get("kleea_session"))
+        # Même recopié ailleurs, l'ancien jeton ne sert plus.
+        self.assertEqual(self.client.get(SONDE, cookies={"kleea_session": jeton}).status_code, 401)
+
+    def test_une_session_d_avant_le_cookie_y_passe(self):
+        ancien = self.connexion()
+        self.client.cookies.clear()
+        self.assertEqual(self.client.get(SONDE).status_code, 401)
+        self.assertEqual(self.client.post("/api/sessions/cookie", headers=ancien).status_code, 200)
+        self.assertEqual(self.client.get(SONDE).status_code, 200)
+
+    def test_sans_cookie_ni_en_tete_la_requete_est_refusee(self):
+        self.assertEqual(self.client.get(SONDE).status_code, 401)
+        self.assertEqual(self.client.get(SONDE, cookies={"kleea_session": "faux"}).status_code, 401)
+
+
 class Revocation(Base):
     def test_une_session_revoquee_est_refusee_des_la_requete_suivante(self):
         ici = self.connexion()

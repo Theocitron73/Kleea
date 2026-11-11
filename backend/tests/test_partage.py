@@ -25,7 +25,7 @@ from routes import partage  # noqa: E402
 SCHEMA = [
     "CREATE TABLE banned_ips (ip TEXT, banned_until TIMESTAMP)",
     "CREATE TABLE streamdeck_tokens (utilisateur TEXT PRIMARY KEY, token_hash TEXT, created_at TEXT)",
-    "CREATE TABLE users (username TEXT PRIMARY KEY, email TEXT, password TEXT, role TEXT, name TEXT)",
+    "CREATE TABLE users (username TEXT PRIMARY KEY, email TEXT, password TEXT, role TEXT, name TEXT, powens_token TEXT)",
     "CREATE TABLE configuration (compte TEXT, groupe TEXT, objectif REAL, solde REAL, utilisateur TEXT, couleur TEXT, taux REAL, powens_name TEXT, PRIMARY KEY (compte, utilisateur))",
     """CREATE TABLE transactions (id INTEGER PRIMARY KEY, date TEXT, nom TEXT, montant REAL, categorie TEXT, utilisateur TEXT, mois TEXT, annee INTEGER,
        compte TEXT, enveloppe TEXT, prevision_id INTEGER, split_id TEXT, auteur TEXT, UNIQUE (date, nom, montant, utilisateur))""",
@@ -238,6 +238,23 @@ class Synchronisation(Base):
         journal = self.appel("GET", f"/api/partages/{self.partage_id}/journal", self.aude)
         self.assertEqual([l["action"] for l in journal[:2]], ["synchro_echec", "synchro_fin"])
 
+    def test_seuls_les_comptes_partages_sont_importes(self):
+        with self.moteur.begin() as conn:
+            aide.creer_tables_manquantes(conn)
+            conn.execute(text("UPDATE users SET powens_token = :j WHERE username = 'theo'"), {"j": aide.chiffrer_jeton("jeton-theo")})
+        hier = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        banque = [
+            {"id_account": 1, "date": hier, "value": -12, "wording": "Courses du joint"},
+            {"id_account": 2, "date": hier, "value": -30, "wording": "Achat perso"},
+        ]
+        comptes = mock.Mock(status_code=200, json=lambda: {"accounts": []})
+        with partout("get_powens_transactions", return_value=banque),                 partout("build_powens_account_id_to_kleea_map", return_value={"1": "Compte joint", "2": "CCP"}),                 partout("get_mots_cles_rules", return_value=[]), partout("fetch_memoire_data", return_value=[]),                 partout("noter_synchro") as noter, mock.patch.object(aide.requests, "get", return_value=comptes):
+            self.vraie_synchro("theo", self.partage_id)
+        importees = self.lignes("SELECT nom, compte FROM transactions WHERE utilisateur = 'theo' AND nom IN ('Courses du joint', 'Achat perso')")
+        self.assertEqual(importees, [{"nom": "Courses du joint", "compte": "Compte joint"}])
+        # Les comptes privés n'ont pas été actualisés : la synchro du propriétaire n'est pas notée comme faite.
+        noter.assert_not_called()
+
     def test_seule_la_personne_invitee_peut_la_demander(self):
         with mock.patch("routes.powens.jeton_powens_du_compte", return_value="jeton"):
             self.appel("POST", f"/api/partages/{self.partage_id}/synchroniser", self.theo, attendu=403)
@@ -309,9 +326,12 @@ class Arret(Base):
         self.appel("DELETE", f"/api/partages/{self.partage_id}", self.theo)
         self.verifier_copie_et_fin_d_acces()
 
-    def test_la_suppression_du_compte_de_theo_arrete_le_partage(self):
+    def test_la_suppression_du_compte_de_theo_arrete_puis_efface_le_partage(self):
+        with self.moteur.begin() as conn:
+            aide.creer_tables_manquantes(conn)  # La purge passe par toutes les tables du compte.
         self.appel("DELETE", "/profile/theo", self.theo)
-        self.assertEqual(self.lignes("SELECT etat FROM partages"), [{"etat": "arrete"}])
+        self.assertEqual(self.lignes("SELECT id FROM partages"), [])
+        self.assertEqual(self.lignes("SELECT partage_id FROM partages_journal"), [])
         self.assertEqual(len(self.lignes("SELECT compte FROM configuration WHERE utilisateur = 'aude' AND compte LIKE '%copie%'")), 1)
 
     def test_une_invitation_non_acceptee_arretee_ne_copie_rien(self):

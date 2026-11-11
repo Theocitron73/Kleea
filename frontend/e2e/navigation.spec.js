@@ -78,7 +78,7 @@ test('les notes de version s’ouvrent et se ferment', async ({ page }) => {
   const erreurs = surveiller(page);
   await demarrer(page);
   await page.evaluate(() => localStorage.clear());
-  await page.evaluate((u) => { localStorage.setItem('user', u); localStorage.setItem('token', 'jeton-de-test'); }, UTILISATEUR);
+  await page.evaluate((u) => { localStorage.setItem('user', u); }, UTILISATEUR);
   await page.addInitScript(() => localStorage.removeItem(`patch_view_count_v4.5_testeur`));
   await page.reload();
   await expect(page.locator('.fixed.inset-0.z-\\[10000\\]').first()).toBeVisible({ timeout: 15_000 });

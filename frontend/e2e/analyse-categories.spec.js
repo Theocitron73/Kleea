@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { brancherApi, ouvrirSession, UTILISATEUR } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 
 test('les dépenses du mois forment un graphique en barres, avec l’objectif budgétaire sur la barre', async ({ page }) => {
   const erreurs = [];

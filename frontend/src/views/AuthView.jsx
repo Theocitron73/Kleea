@@ -30,15 +30,14 @@ export default function AuthView({ onLoginSuccess }) {
   }, []);
 
   const terminerConnexion = (data) => {
-    const token = data.access_token;
     const username = data.user.toLowerCase();
     const role = (data.role || 'user').toLowerCase(); // 👈 Récupération du rôle
 
-    localStorage.setItem('token', token);
+    // Le jeton reste dans le cookie HttpOnly posé par l'API : il n'est pas rangé ici.
     localStorage.setItem('user', username);
     localStorage.setItem('role', role); // 👈 Sauvegarde locale
 
-    onLoginSuccess(token, username, role);
+    onLoginSuccess(username, role);
   };
 
   // Deuxième étape, seulement pour les comptes qui ont activé la double authentification.
@@ -137,14 +136,10 @@ export default function AuthView({ onLoginSuccess }) {
         last_name: lastName
       });
 
-      if (res.data?.access_token) {
-        localStorage.setItem('token', res.data.access_token);
-      }
-      
       const usernameClean = (res.data?.user || loginName).toLowerCase();
       localStorage.setItem('user', usernameClean);
       toast.success("Compte créé ! Bienvenue chez Kleea.");
-      onLoginSuccess(res.data?.access_token, usernameClean);
+      onLoginSuccess(usernameClean);
     } catch (err) {
       toast.error(err.response?.data?.detail || "Erreur lors de l'inscription.");
     }

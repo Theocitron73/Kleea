@@ -111,17 +111,22 @@ class RoutesStreamDeck(unittest.TestCase):
     def setUp(self):
         moteur = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
         with moteur.begin() as conn:
-            conn.execute(text("CREATE TABLE users (username TEXT PRIMARY KEY, powens_token TEXT)"))
+            conn.execute(text("CREATE TABLE users (username TEXT PRIMARY KEY, powens_token TEXT, email TEXT)"))
             conn.execute(text("CREATE TABLE streamdeck_tokens (utilisateur TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL)"))
             conn.execute(text("CREATE TABLE configuration (compte TEXT, groupe TEXT, solde REAL, couleur TEXT, utilisateur TEXT, powens_name TEXT)"))
             conn.execute(text("CREATE TABLE transactions (date TEXT, nom TEXT, montant REAL, categorie TEXT, mois TEXT, annee INT, compte TEXT, utilisateur TEXT)"))
-            conn.execute(text("INSERT INTO users VALUES ('theo', 'powens-secret'), ('aude', NULL)"))
+            conn.execute(text("INSERT INTO users (username, powens_token) VALUES ('theo', 'powens-secret'), ('aude', NULL)"))
             conn.execute(text("INSERT INTO configuration VALUES ('CCP T', 'Theo', 100, '#111111', 'theo', 'IBAN-SECRET')"))
             conn.execute(text("INSERT INTO configuration VALUES ('CCP A', 'Aude', 900, '#222222', 'aude', NULL)"))
             conn.execute(text("INSERT INTO transactions VALUES ('2026-01-05', 'Achat', -30, 'Courses', 'Janvier', 2026, 'CCP T', 'theo')"))
+            aide.creer_tables_manquantes(conn)
         patcher = partout("engine", moteur)
         patcher.start()
         self.addCleanup(patcher.stop)
+        # La suppression du compte révoque l'accès Powens : aucun appel réel depuis les tests.
+        powens = mock.patch.object(aide.requests, "delete", return_value=mock.Mock(ok=True, status_code=204))
+        powens.start()
+        self.addCleanup(powens.stop)
         self.client = TestClient(main.app)
 
     def entetes(self, utilisateur="theo"):

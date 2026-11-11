@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { brancherApi, ouvrirSession, UTILISATEUR } from './api-simulee.js';
 
-const ENTETES = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
+const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 
 async function simuler(page, reponses) {
   await page.route(/http:\/\/api\.kleea\.test\/(login|api\/double-auth)/, (route) => {
@@ -58,7 +58,8 @@ test('un compte qui l’a activée passe par le code reçu avant d’être conne
   await champ.fill('123456');
   await page.getByRole('button', { name: 'Vérifier' }).click();
   await expect(champ).toBeHidden({ timeout: 30_000 });
-  expect(await page.evaluate(() => localStorage.getItem('token'))).toBe('session');
+  // Connecté, sans que le jeton soit rangé dans le navigateur : il reste dans le cookie HttpOnly de l'API.
+  expect(await page.evaluate(() => [localStorage.getItem('user'), localStorage.getItem('token')])).toEqual([UTILISATEUR, null]);
   expect(recus[1]).toEqual({ jeton: 'etape', code: '123456' });
 });
 
@@ -66,7 +67,8 @@ test('un compte sans double authentification se connecte comme avant', async ({ 
   await brancherApi(page);
   await simuler(page, { '/login': () => [200, { access_token: 'session', user: UTILISATEUR, role: 'user' }] });
   await saisirMotDePasse(page);
-  await expect.poll(() => page.evaluate(() => localStorage.getItem('token')), { timeout: 30_000 }).toBe('session');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('user')), { timeout: 30_000 }).toBe(UTILISATEUR);
+  expect(await page.evaluate(() => localStorage.getItem('token'))).toBeNull();
   await expect(page.getByLabel('Code de vérification')).toHaveCount(0);
 });
 
