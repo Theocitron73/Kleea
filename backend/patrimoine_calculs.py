@@ -139,6 +139,28 @@ def versements_lies(bien: dict, operations: list) -> float:
     return round(total, 2)
 
 
+def suivi_placement(bien: dict, operations: list, aujourdhui: date) -> dict:
+    """Courbe d'un placement : chaque valeur saisie puis la valeur du jour, à côté de ce qui y a été versé.
+
+    La performance est la valeur du jour moins la première valeur et les versements reliés depuis : un virement n'est pas un gain.
+    """
+    saisies = sorted(bien.get("valeurs") or [{"date": bien["date_valeur"], "valeur": bien["valeur"]}], key=lambda s: s["date"])
+    debut, depart = saisies[0]["date"], float(saisies[0]["valeur"])
+    verses = [
+        (o["date"], abs(float(o["montant"])))
+        for o in operations
+        if correspond(bien.get("libelle_lien"), o["nom"]) and float(o["montant"]) < 0 and o["date"] > debut
+    ]
+    investi = lambda jour: round(depart + sum(m for d, m in verses if d <= jour), 2)  # noqa: E731
+    points = [{"date": s["date"], "valeur": round(float(s["valeur"]), 2), "investi": investi(s["date"])} for s in saisies]
+    actuelle = valeur_bien(bien, aujourdhui, versements_lies(bien, operations))
+    if aujourdhui > saisies[-1]["date"]:
+        points.append({"date": aujourdhui, "valeur": actuelle, "investi": investi(aujourdhui)})
+    total = investi(aujourdhui)
+    gain = round(actuelle - total, 2)
+    return {"points": points, "investi": total, "gain": gain, "performance": round(gain / total * 100, 2) if total else None}
+
+
 def capital_a_la_date(dette: dict, jour: date) -> float:
     """Capital restant dû à une date, d'après l'échéancier : le montant emprunté tant que la première échéance n'est pas passée."""
     lignes = [l for l in tableau(dette["montant"], dette["taux"], dette["duree_mois"], dette["debut"], dette.get("anticipes")) if l["date"] <= jour]

@@ -190,7 +190,7 @@ TABLES = (
     ),
     Table(
         "biens", "Biens",
-        (_requis("type", 20), _requis("nom"), _nombre("valeur", True), _jour("date_valeur", True), _nombre("decote"), _texte("libelle_lien"), _texte("profil"), _instant("cree_le"), _nombre("quantite"), _texte("crypto_id")),
+        (_requis("type", 20), _requis("nom"), _nombre("valeur", True), _jour("date_valeur", True), _nombre("decote"), _texte("libelle_lien"), _texte("profil"), _instant("cree_le"), _nombre("quantite"), _texte("crypto_id"), _texte("valeurs")),
         ("type", "nom"), serie=True,
     ),
     Table(

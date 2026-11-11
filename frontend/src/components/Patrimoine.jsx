@@ -1,6 +1,7 @@
 import { createElement, useEffect, useState } from 'react';
 import { Home, LineChart, Bitcoin, Car, Package, Landmark, Trash2, Plus, Link2, Check, X, Calculator, Repeat, AlertTriangle, Pencil, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ResponsiveContainer, LineChart as Courbe, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import api from '../axios';
 import { duProfil } from '../hooks/usePatrimoine';
 
@@ -33,6 +34,40 @@ function depuis(iso) {
   const mois = Math.round((Date.now() - new Date(`${iso}T12:00:00`).getTime()) / (30.44 * 86400000));
   if (mois <= 0) return 'mise à jour ce mois-ci';
   return mois === 1 ? 'mise à jour il y a 1 mois' : `mise à jour il y a ${mois} mois`;
+}
+
+const pourcent = (n) => `${n > 0 ? '+' : ''}${n.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} %`;
+const moisCourt = (t) => new Date(t).toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' });
+
+// La valeur d'un PEA ou d'une assurance vie à chaque mise à jour, à côté de ce qui y a été versé : l'écart est la performance.
+function SuiviPlacement({ nom, suivi }) {
+  const points = suivi.points.map((p) => ({ ...p, t: new Date(`${p.date}T12:00:00`).getTime() }));
+  const gagne = suivi.gain >= 0;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] text-white/55">
+        <span className={`font-black tabular-nums ${gagne ? 'text-emerald-400' : 'text-rose-400'}`}>
+          {gagne ? '+' : '−'}{euros(Math.abs(suivi.gain))}{suivi.performance != null && ` (${pourcent(suivi.performance)})`}
+        </span>{' '}
+        depuis l’ouverture, hors versements · {euros(suivi.investi)} versés
+      </p>
+      {points.length > 1 && (
+        <div className="h-28 -ml-2" role="img" aria-label={`Valeur de ${nom} : de ${euros(points[0].valeur)} le ${jourMois(points[0].date)} à ${euros(points[points.length - 1].valeur)} aujourd’hui, pour ${euros(suivi.investi)} versés`}>
+          <ResponsiveContainer width="100%" height="100%">
+            <Courbe data={points} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+              <XAxis dataKey="t" type="number" scale="time" domain={['dataMin', 'dataMax']} tickFormatter={moisCourt} minTickGap={24} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.45)' }} axisLine={false} tickLine={false} />
+              <YAxis width={40} tick={{ fontSize: 10, fill: 'rgba(255,255,255,0.45)' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${Math.round(v / 1000)}k`} domain={['auto', 'auto']} />
+              <Tooltip labelFormatter={(t) => jourMois(new Date(t).toISOString().slice(0, 10))} formatter={(v, cle) => [euros(v), cle === 'valeur' ? 'Valeur' : 'Versé']}
+                contentStyle={{ background: 'var(--surface)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 11 }} />
+              <Line type="stepAfter" dataKey="investi" stroke="rgba(255,255,255,0.4)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="valeur" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3, strokeWidth: 0, fill: 'var(--primary)' }} isAnimationActive={false} />
+            </Courbe>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
 }
 
 async function envoyer(requete, message, recharger) {
@@ -201,6 +236,7 @@ function Biens({ biens, recharger, groupes, CustomSelect, cryptos = {} }) {
                     : depuis(b.date_valeur)}
                   {b.versements > 0 && <span className="text-emerald-400"> · +{euros(b.versements)} de virements reliés</span>}
                 </p>}
+                {b.suivi && <SuiviPlacement nom={b.nom} suivi={b.suivi} />}
                 {b.libelle_lien && <p className="flex items-center gap-1 text-[10px] text-white/40"><Link2 size={11} aria-hidden="true" /> virements « {b.libelle_lien} »</p>}
               </li>
             );
