@@ -7,6 +7,13 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeWidget, setActiveWidget] = useState(null); // null | 'notepad' | 'prorata' | 'theme'
 
+  // Sur téléphone, les widgets s'ouvrent depuis le panneau « Plus » de la barre du bas.
+  useEffect(() => {
+    const ouvrir = (e) => { setIsMenuOpen(true); setActiveWidget(e.detail); };
+    window.addEventListener('kleea:widget', ouvrir);
+    return () => window.removeEventListener('kleea:widget', ouvrir);
+  }, []);
+
   // --- ÉTATS & LOGIQUE BLOC-NOTES ---
   const [note, setNote] = useState("");
   useEffect(() => {
@@ -63,6 +70,9 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
 
   return (
         <div className="fixed bottom-24 lg:bottom-6 right-6 z-[1001] flex flex-col items-end gap-3 select-none">
+      {activeWidget && (
+        <button type="button" aria-label="Fermer le widget" onClick={() => { setActiveWidget(null); setIsMenuOpen(false); setActiveThemeKey(null); }} className="md:hidden fixed inset-0 bg-black/50 cursor-default" />
+      )}
       
       {/* =========================================================================
           LES FENÊTRES ACTIVES DES WIDGETS (S'OUVRENT À GAUCHE DU BARREAU DE BOUTONS)
@@ -70,7 +80,7 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
       
       {/* 📝 FENÊTRE 1 : BLOC-NOTES */}
       {activeWidget === 'notepad' && (
-        <div className="absolute right-20 bottom-16 w-72 md:w-80 bg-white/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/20 p-4 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+        <div className="fenetre-widget max-md:fixed max-md:inset-x-3 max-md:w-auto max-md:max-h-[70vh] max-md:overflow-y-auto md:absolute md:right-20 md:bottom-16 md:w-80 bg-white/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/20 p-4 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
           <div className="flex justify-between items-center mb-3">
             <h4 className="font-black text-xs uppercase tracking-widest text-slate-400">Bloc-notes</h4>
             <span className="text-[10px] text-emerald-500 font-bold">Auto-save activé</span>
@@ -87,7 +97,7 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
 
       {/* 🧮 FENÊTRE 2 : PRORATA SIMULATEUR */}
       {activeWidget === 'prorata' && (
-        <div className="absolute right-20 bottom-16 w-80 bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] text-[var(--text-main)] rounded-3xl border border-white/10 shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+        <div className="fenetre-widget max-md:fixed max-md:inset-x-3 max-md:w-auto max-md:max-h-[70vh] max-md:overflow-y-auto md:absolute md:right-20 md:bottom-16 md:w-80 bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] text-[var(--text-main)] rounded-3xl border border-white/10 shadow-2xl p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
           <h4 className="font-black text-xs uppercase tracking-widest text-slate-400 mb-4">Simulateur Prorata</h4>
           
           <div className="space-y-4">
@@ -140,7 +150,7 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
 
       {/* 🎨 FENÊTRE 3 : PERSONNALISATEUR DE DESIGN */}
       {activeWidget === 'theme' && (
-        <div className="absolute right-20 bottom-16 w-72 bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/10 p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
+        <div className="fenetre-widget max-md:fixed max-md:inset-x-3 max-md:w-auto max-md:max-h-[70vh] max-md:overflow-y-auto md:absolute md:right-20 md:bottom-16 md:w-72 bg-[var(--surface)]/95 backdrop-blur-[var(--glass-blur)] rounded-3xl shadow-2xl border border-white/10 p-5 animate-in fade-in slide-in-from-right-4 duration-300 pointer-events-auto">
           <div className="flex justify-between items-center mb-4">
             <h4 className="font-black text-[9px] uppercase tracking-[0.2em] text-white/40">Couleurs Graphiques</h4>
             <Palette size={12} className="text-white/20" />
@@ -183,7 +193,7 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
       
       {/* SOUS-BOUTONS DE SELECTION */}
       {isMenuOpen && (
-        <div className="flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+        <div className="hidden md:flex flex-col gap-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
           
           {/* BOUTON 1 : NOTE BLOC (Notepad) */}
           <button
@@ -230,7 +240,7 @@ function UnifiedWidgets({ user, userTheme, setUserTheme }) {
       {/* BOUTON MAÎTRE : DÉCLENCHEUR DU CARROUSEL */}
       <button
         onClick={handleToggleMenu}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl border transition-all duration-300 pointer-events-auto ${
+        className={`hidden md:flex w-14 h-14 rounded-full items-center justify-center shadow-2xl border transition-all duration-300 pointer-events-auto ${
           isMenuOpen 
             ? 'bg-slate-900 text-white border-white/10 rotate-90 scale-95' 
             : 'bg-[var(--primary)] text-white border-transparent hover:scale-110'

@@ -115,7 +115,7 @@ export default function CustomSelect({ label, value, options = [], onChange, ico
         onClick={() => setIsOpen(true)}
       >
         {isCategorySelect ? (
-          <CategoryIcon name={currentLabel} size={14} showBg={false} className="shrink-0" />
+          <CategoryIcon name={currentLabel} size={12} className="shrink-0" />
         ) : (
           Icon && <Icon size={13} className="shrink-0 opacity-70" />
         )}

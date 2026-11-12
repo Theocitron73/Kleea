@@ -483,7 +483,7 @@ export default function TricountManager({ userId }) {
         <div className="space-y-4 lg:space-y-6">
 
           {/* SÉLECTEUR D'ONGLETS MOBILE (UNIQUEMENT VISIBLE SUR SMARTPHONE : lg:hidden) */}
-          <div className="flex lg:hidden border-b border-white/5 mb-3 select-none shrink-0">
+          <div className="onglets-mobile flex lg:hidden border-b border-white/5 mb-3 select-none shrink-0">
             <button 
               type="button"
               onClick={() => setMobileSection('bilan')}
@@ -493,7 +493,7 @@ export default function TricountManager({ userId }) {
                   : 'border-transparent text-white/40'
               }`}
             >
-              Remboursements & Journal
+              Bilan
             </button>
             <button 
               type="button"
@@ -504,7 +504,7 @@ export default function TricountManager({ userId }) {
                   : 'border-transparent text-white/40'
               }`}
             >
-              Ajouter Dépense
+              Ajouter
             </button>
             <button 
               type="button"

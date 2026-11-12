@@ -345,10 +345,54 @@ export default function GestionEpargneProjet({
   // 4. RENDU VISUEL
   // ==========================================
   return (
-    <div className="w-full h-full flex flex-col min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-4 shadow-xl backdrop-blur-[var(--glass-blur)]">
+    <div className="w-full h-full flex flex-col min-h-0 bg-[var(--glass-bg)] rounded-[var(--radius)] border border-white/10 p-3 md:p-4 shadow-xl backdrop-blur-[var(--glass-blur)]">
+
+      {/* TÉLÉPHONE : le total, sa répartition, puis les deux onglets sur toute la largeur. */}
+      <div className="md:hidden mb-4 space-y-3">
+        <div>
+          <p className="text-[12px] font-semibold text-[var(--text-main)]/50">Épargne totale</p>
+          <p className="text-[26px] font-black text-[var(--text-main)] tabular-nums leading-tight">
+            {soldeGlobalNet.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+          </p>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { libelle: 'Réservé', valeur: sommeEnveloppesNette, icone: Lock, couleur: 'text-emerald-400' },
+            { libelle: 'Projets', valeur: sommeFinancementProjets, icone: Target, couleur: 'text-amber-400' },
+            { libelle: 'Libre', valeur: epargneDisponible, icone: Unlock, couleur: 'text-sky-400' },
+          ].map(({ libelle, valeur, icone, couleur }) => { const IconeStat = icone; return (
+            <div key={libelle} className="rounded-xl bg-black/25 border border-white/5 px-2.5 py-2 min-w-0">
+              <p className="flex items-center gap-1 text-[12px] font-semibold text-[var(--text-main)]/50">
+                <IconeStat size={12} className={couleur} aria-hidden="true" />{libelle}
+              </p>
+              <p className={`text-[15px] font-black tabular-nums truncate ${couleur}`}>
+                {valeur.toLocaleString('fr-FR', { maximumFractionDigits: 0 })} €
+              </p>
+            </div>
+          ); })}
+        </div>
+        <div className="h-1.5 w-full bg-black/40 rounded-full overflow-hidden flex gap-0.5">
+          {pctEnveloppes > 0 && <div style={{ width: `${pctEnveloppes}%` }} className="h-full bg-emerald-500 rounded-full" />}
+          {pctProjets > 0 && <div style={{ width: `${pctProjets}%` }} className="h-full bg-amber-500 rounded-full" />}
+          {pctDisponible > 0 && <div style={{ width: `${pctDisponible}%` }} className="h-full bg-sky-500 rounded-full" />}
+        </div>
+        <div role="group" aria-label="Enveloppes ou projets" className="grid grid-cols-2 gap-1 p-1 bg-black/30 rounded-xl border border-white/5">
+          {[
+            { id: 'envelopes', libelle: 'Enveloppes', nombre: listeAffichage.length, icone: Mail },
+            { id: 'projets', libelle: 'Projets', nombre: (projets || []).length, icone: Rocket },
+          ].map(({ id, libelle, nombre, icone }) => { const IconeOnglet = icone; return (
+            <button key={id} type="button" aria-pressed={activeTab === id} onClick={() => setActiveTab(id)}
+              className={`h-10 flex items-center justify-center gap-2 rounded-lg text-[14px] font-bold cursor-pointer transition-colors ${activeTab === id ? 'bg-white text-slate-900' : 'text-[var(--text-main)]/60 active:bg-white/10'}`}>
+              <IconeOnglet size={15} aria-hidden="true" />
+              {libelle}
+              <span className={`text-[12px] px-1.5 rounded-md ${activeTab === id ? 'bg-slate-900/10' : 'bg-white/10'}`}>{nombre}</span>
+            </button>
+          ); })}
+        </div>
+      </div>
 
       {/* HEADER & ONGLETS COMBINÉS */}
-      <div className="p-2.5 px-3.5 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent rounded-[var(--radius)] border border-white/10 shadow-sm backdrop-blur-[var(--glass-blur)] shrink-0 mb-4">
+      <div className="hidden md:block p-2.5 px-3.5 bg-gradient-to-r from-emerald-500/10 via-sky-500/10 to-transparent rounded-[var(--radius)] border border-white/10 shadow-sm backdrop-blur-[var(--glass-blur)] shrink-0 mb-4">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           
           <div className="flex items-center gap-3 shrink-0">

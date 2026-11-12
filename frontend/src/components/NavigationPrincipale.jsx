@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { LogOut, ChevronRight, Search } from 'lucide-react';
+import BarresMobile from './BarresMobile';
 import CentreAlertes from './CentreAlertes';
 import RechercheGlobale from './RechercheGlobale';
 
@@ -9,10 +10,20 @@ function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handle
 
   return (
     <nav>
-      <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} variante="mobile" />
-      <button type="button" aria-label="Rechercher" title="Rechercher (Ctrl + K)" onClick={() => setRechercheOuverte(true)} className="md:hidden fixed top-3 right-[3.75rem] z-[60] w-10 h-10 flex items-center justify-center rounded-xl bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 text-[var(--text-main)]/70 cursor-pointer">
-        <Search size={18} aria-hidden="true" />
-      </button>
+      {/* Barre du haut sur téléphone : rien ne flotte plus par-dessus les en-têtes des pages. */}
+      <div className="barre-haut-mobile md:hidden fixed top-0 inset-x-0 z-[90] flex items-center justify-between gap-2 px-4 bg-slate-950/85 backdrop-blur-[var(--glass-blur)] border-b border-white/5">
+        <button type="button" onClick={() => setActiveTab('dashboard')} className="flex items-center gap-2 min-w-0 cursor-pointer" aria-label="Kleea, retour au dashboard">
+          <img src="/Kleea_2.png" alt="" className="w-7 h-7 rounded-lg shrink-0" />
+          <span className="text-base font-black tracking-tight text-[var(--text-main)]">Kleea</span>
+        </button>
+        <div className="flex items-center gap-1">
+          <button type="button" aria-label="Rechercher" title="Rechercher (Ctrl + K)" onClick={() => setRechercheOuverte(true)} className="w-11 h-11 flex items-center justify-center rounded-xl text-[var(--text-main)]/75 active:bg-white/10 cursor-pointer">
+            <Search size={20} aria-hidden="true" />
+          </button>
+          <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} variante="mobile" />
+        </div>
+      </div>
+      <div className="barre-haut-mobile-place md:hidden" aria-hidden="true" />
       <RechercheGlobale ouverte={rechercheOuverte} setOuverte={setRechercheOuverte} {...recherche} />
 
       {/* --- VERSION DESKTOP (Haut) --- */}
@@ -106,72 +117,8 @@ function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handle
         </button>
       </div>
 
-     {/* --- VERSION MOBILE (Tab Bar en bas avec bouton Profil) --- */}
-      {/* 💡 px-3 au lieu de px-6 pour libérer de l'espace de chaque côté de l'écran */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-[100] px-3 pb-6 pt-4 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent pointer-events-none">
-        
-        {/* 💡 max-w-lg et p-1.5 pour aérer la répartition horizontale des icônes */}
-        <div className="max-w-lg mx-auto flex items-center justify-around p-1.5 bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-[calc(var(--radius)*1.167)] shadow-2xl pointer-events-auto">
-          {visibleMenuItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              /* 💡 w-11 h-11 au lieu de w-12 h-12 pour éliminer l'effet compressé sur les petits écrans */
-              <button
-                key={item.id}
-                aria-label={item.label}
-                onClick={() => setActiveTab(item.id)}
-                className="relative flex flex-col items-center justify-center w-11 h-11 transition-all"
-              >
-                {/* Indicateur actif (la petite bulle) */}
-                {isActive && (
-                  <div className="absolute inset-0 bg-white rounded-2xl animate-in zoom-in duration-300" />
-                )}
-                
-                <div className={`relative z-10 transition-transform duration-300 ${isActive ? 'text-slate-900 scale-105' : 'text-[var(--text-main)]/40'}`}>
-                  {/* 💡 Taille d'icône légèrement ajustée à 21px pour garder un ratio élégant */}
-                  <Icon size={21} />
-                </div>
-
-                {/* Point indicateur sous l'icône non-active */}
-                {!isActive && (
-                  <div className="absolute -bottom-1 w-1 h-1 rounded-full bg-[var(--glass-bg)]" />
-                )}
-              </button>
-            );
-          })}
-
-          {/* Bouton Profil Tactile */}
-          <button 
-            onClick={() => setActiveTab('profile')}
-            className="relative flex flex-col items-center justify-center w-11 h-11 transition-all cursor-pointer"
-          >
-            {activeTab === 'profile' && (
-              <div className="absolute inset-0 bg-white rounded-2xl animate-in zoom-in duration-300" />
-            )}
-            
-            <div className={`relative z-10 transition-transform duration-300 ${activeTab === 'profile' ? 'scale-105' : ''}`}>
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-black transition-all ${
-                activeTab === 'profile'
-                  ? 'bg-slate-950 text-white shadow-none'
-                  : 'bg-[var(--primary)] text-white shadow-[0_0_8px_color-mix(in_srgb,var(--primary)_20%,transparent)]'
-              }`}>
-                {user?.charAt(0).toUpperCase()}
-              </div>
-            </div>
-          </button>
-
-          {/* Bouton logout mini pour mobile */}
-          <button 
-            onClick={handleLogout}
-            className="w-11 h-11 flex items-center justify-center text-rose-500/50 hover:text-rose-500 active:scale-95 transition-all"
-          >
-            <LogOut size={20} />
-          </button>
-        </div>
-      </div>
-
-      
+      {/* --- VERSION MOBILE : barre du haut, onglets en bas, panneau « Plus » pour le reste --- */}
+      <BarresMobile activeTab={activeTab} handleLogout={handleLogout} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
     </nav>
   );
 }

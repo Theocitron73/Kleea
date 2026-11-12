@@ -1,10 +1,12 @@
+import OngletsPuces from '../components/OngletsPuces';
+import SelecteurPeriodeMobile from '../components/SelecteurPeriodeMobile';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
   BarChart, Bar, Cell, LabelList, PieChart, Pie
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2, BarChart3, PiggyBank, Landmark } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
@@ -1120,7 +1122,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
             {stats.topCategories.map((cat, index) => (
               <div key={index} className="space-y-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <CategoryIcon name={cat.nom} size={12} showBg={false} />
+                  <CategoryIcon name={cat.nom} size={12} />
                   <span className="flex-1 min-w-0 text-xs font-bold text-white/90 truncate">{getCleanCategoryName(cat.nom)}</span>
                   <span className="shrink-0 text-xs font-bold tabular-nums text-white/60">{euros(cat.montant)}</span>
                 </div>
@@ -2748,89 +2750,30 @@ export default function DashboardView(props) {
       {/* =========================================================================
           2. AFFICHAGE MOBILE (100% IDENTIQUE AU DESIGN D'ORIGINE)
           ========================================================================= */}
-      <div className="flex lg:hidden flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-3 pt-1">
+      <div className="flex lg:hidden flex-col min-h-screen text-[var(--text-main)] pb-4 px-0.5 pt-1">
 
         {/* EN-TÊTE MOBILE */}
         <div className="flex items-center justify-between mb-2 mt-1 px-1">
           <div>
-            <h1 className="text-lg font-black tracking-tight leading-none">Dashboard</h1>
-            <p className="text-[var(--text-main)]/40 text-[8px] font-bold uppercase tracking-wider mt-0.5">Récaps, prévisions & graphiques</p>
+            <h1 className="text-2xl font-black tracking-tight leading-none">Dashboard</h1>
+            <p className="text-[var(--text-main)]/45 text-[13px] font-medium mt-1">Récaps, prévisions & graphiques</p>
           </div>
         </div>
         
         {/* FILTRES D'AFFICHAGE */}
-        <div className="bg-[var(--glass-bg)] border border-white/10 p-2.5 rounded-xl mb-3 space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            {/* Profils scrollables */}
-            <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-1 bg-black/30 p-0.5 rounded-lg min-w-0">
-              {(() => {
-                const groupes = [...new Set((comptes || []).map(c => c.groupe).filter(Boolean))].sort();
-                const liste = groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
-
-                return liste.map(p => {
-                  const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setFilters({...filters, profil: p})}
-                      className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                        isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:text-white/70'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  );
-                });
-              })()}
-            </div>
-
-            {/* Années */}
-            <div className="flex bg-black/30 p-0.5 rounded-lg shrink-0">
-              {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
-                .sort((a, b) => parseInt(a) - parseInt(b))
-                .map(year => (
-                  <button
-                    key={year}
-                    type="button"
-                    onClick={() => setFilters({...filters, annee: year.toString()})}
-                    className={`px-2 py-0.5 rounded-sm text-[8px] font-black transition-all ${
-                      filters.annee?.toString() === year.toString() ? 'bg-emerald-500 text-white' : 'text-white/40'
-                    }`}
-                  >
-                    {year}
-                  </button>
-                ))}
-            </div>
-          </div>
-
-          {/* Mois */}
-          <div className="flex gap-1 overflow-x-auto no-scrollbar pb-0.5 select-none">
-            {moisListe.map(m => {
-              const hasData = availablePeriods.some(p => 
-                p.mois === m.v && p.annee.toString() === filters.annee?.toString()
-              );
-              if (!hasData) return null;
-              return (
-                <button
-                  key={m.v}
-                  type="button"
-                  onClick={() => setFilters({...filters, mois: m.v})}
-                  className={`px-2.5 py-1 rounded-md text-[8px] font-black shrink-0 transition-all border ${
-                    filters.mois === m.v 
-                      ? 'bg-[var(--primary)] border-[var(--primary)] text-white' 
-                      : 'bg-black/10 border-transparent text-white/30'
-                  }`}
-                >
-                  {m.l.substring(0, 3).toUpperCase()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <SelecteurPeriodeMobile
+          profils={(() => {
+            const groupes = [...new Set((comptes || []).map(c => c.groupe).filter(Boolean))].sort();
+            return groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
+          })()}
+          annees={[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])].sort((x, y) => parseInt(x) - parseInt(y))}
+          mois={moisListe.filter(m => availablePeriods.some(p => p.mois === m.v && p.annee.toString() === filters.annee?.toString()))}
+          filters={filters}
+          setFilters={setFilters}
+        />
 
         {/* BARRE D'ONGLETS MOBILE */}
-        <div className="flex border-b border-white/5 mb-3 select-none shrink-0">
+        <div className="onglets-mobile flex border-b border-white/5 mb-3 select-none shrink-0">
           <button 
             type="button"
             onClick={() => setMobileHub('flux')}
@@ -2840,7 +2783,7 @@ export default function DashboardView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Flux & Comptes
+            Flux & comptes
           </button>
           <button 
             type="button"
@@ -2851,7 +2794,7 @@ export default function DashboardView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Bilan Annuel
+            Bilan annuel
           </button>
           <button 
             type="button"
@@ -2862,7 +2805,7 @@ export default function DashboardView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Graphes & Épargne
+            Graphes
           </button>
         </div>
 
@@ -2923,9 +2866,9 @@ export default function DashboardView(props) {
                   </SortableContext>
                 </DndContext>
               ) : (
-                <div className="flex gap-2 pb-1.5 overflow-x-auto no-scrollbar select-none">
+                <div className="flex gap-2 pb-1.5 overflow-x-auto no-scrollbar select-none snap-x snap-mandatory">
                   {soldesTries.map(c => (
-                    <div key={c.compte} className="min-w-[140px] shrink-0">
+                    <div key={c.compte} className="w-[72%] max-w-[280px] shrink-0 snap-start">
                       <SortableAccountCard c={c} isSorting={false} />
                     </div>
                   ))}
@@ -2935,34 +2878,14 @@ export default function DashboardView(props) {
 
             {/* JOURNAL DES FLUX */}
             <div className="bg-[var(--glass-bg)] border border-white/10 rounded-xl p-3 flex flex-col gap-2.5">
-              <div className="flex items-center justify-between pb-1.5 border-b border-white/5">
-                <span className="text-[9px] font-black uppercase tracking-wider text-white/70">Flux mensuel</span>
-                
-                <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5 gap-0.5">
-                  {Object.keys(TAB_CONFIG).map((tab) => {
-                    const config = TAB_CONFIG[tab];
-                    const IconComponent = config.icon;
-                    const isActive = tabActive === tab;
-
-                    return (
-                      <button
-                        key={tab}
-                        type="button"
-                        onClick={() => {
-                          setTabActive(tab);
-                          setSearchTerm('');
-                        }}
-                        title={config.label}
-                        aria-label={config.label}
-                        className={`p-1 rounded-sm transition-all cursor-pointer ${
-                          isActive ? 'bg-[var(--glass-bg)] text-white border border-white/5' : 'text-white/30'
-                        }`}
-                      >
-                        <IconComponent size={11} />
-                      </button>
-                    );
-                  })}
-                </div>
+              <div className="flex flex-col gap-2.5">
+                <span className="text-[13px] font-bold text-white/80">Flux mensuel</span>
+                <OngletsPuces
+                  libelle="Vue du flux mensuel"
+                  onglets={Object.entries(TAB_CONFIG).map(([id, config]) => ({ id, label: config.label, icon: config.icon }))}
+                  actif={tabActive}
+                  choisir={(tab) => { setTabActive(tab); setSearchTerm(''); }}
+                />
               </div>
 
               {/* RECHERCHE */}
@@ -3136,8 +3059,8 @@ export default function DashboardView(props) {
               <div className="flex items-center justify-between pb-2 border-b border-white/5">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-[8px] font-black text-white/40 uppercase tracking-widest">Bilan de l'année</span>
-                    <span className="text-[10px] font-black text-emerald-400">{filters.annee}</span>
+                    <span className="text-[13px] font-bold text-white/80">Bilan de l'année</span>
+                    <span className="text-[13px] font-black text-emerald-400">{filters.annee}</span>
                   </div>
                   {soldePremierJanvier !== undefined && (
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -3149,38 +3072,18 @@ export default function DashboardView(props) {
                   )}
                 </div>
 
-                <div className="flex bg-black/40 p-0.5 rounded-lg border border-white/5">
-                  <button 
-                    type="button"
-                    onClick={() => setAnnualTab('list')}
-                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'list' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
-                  >
-                    <List size={11} />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setAnnualTab('chart')}
-                    title="Répartition des dépenses"
-                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'chart' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
-                  >
-                    <PieChartIcon size={11} />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setAnnualTab('calendar')}
-                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
-                  >
-                    <CalendarDays size={11} />
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setAnnualTab('wrapped')}
-                    className={`p-1 rounded-sm cursor-pointer ${annualTab === 'wrapped' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30'}`}
-                  >
-                    <Sparkles size={11} />
-                  </button>
-                </div>
               </div>
+              <OngletsPuces
+                libelle="Vue du bilan annuel"
+                onglets={[
+                  { id: 'list', label: 'Mois par mois', icon: List },
+                  { id: 'chart', label: 'Répartition', icon: PieChartIcon, title: 'Répartition des dépenses' },
+                  { id: 'calendar', label: 'Calendrier', icon: CalendarDays, title: 'Activité des dépenses' },
+                  { id: 'wrapped', label: 'Wrapped', icon: Sparkles, title: 'Rétrospective annuelle (Wrapped)' },
+                ]}
+                actif={annualTab}
+                choisir={setAnnualTab}
+              />
 
               <div className="space-y-1.5">
                 {annualTab === 'list' && (
@@ -3430,35 +3333,16 @@ export default function DashboardView(props) {
         {/* SECTION MOBILE 3 : GRAPHES & ÉPARGNE */}
         {mobileHub === 'graphs' && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex bg-slate-900/50 p-1 rounded-xl border border-white/5 w-fit mx-auto select-none">
-              <button 
-                type="button"
-                onClick={() => setActiveRightTab('graphs')}
-                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
-                  activeRightTab === 'graphs' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
-                }`}
-              >
-                Analytique
-              </button>
-              <button 
-                type="button"
-                onClick={() => setActiveRightTab('epargneProjets')}
-                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
-                  activeRightTab === 'epargneProjets' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
-                }`}
-              >
-                Épargne & Projets
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveRightTab('valeurNette')}
-                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
-                  activeRightTab === 'valeurNette' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
-                }`}
-              >
-                Placements & crédits
-              </button>
-            </div>
+            <OngletsPuces
+              libelle="Vue des graphes"
+              onglets={[
+                { id: 'graphs', label: 'Analytique', icon: BarChart3 },
+                { id: 'epargneProjets', label: 'Épargne & Projets', icon: PiggyBank },
+                { id: 'valeurNette', label: 'Placements & crédits', icon: Landmark },
+              ]}
+              actif={activeRightTab}
+              choisir={setActiveRightTab}
+            />
 
             {activeRightTab === 'valeurNette' ? (
               <ValeurNetteResume patrimoine={patrimoine} profil={filters.profil} recapAnnuelStats={recapAnnuelStats} soldeGlobal={soldeGlobal}
@@ -4071,7 +3955,7 @@ export default function DashboardView(props) {
 
               </div>
             ) : (
-              <div className="bg-[var(--glass-bg)] border border-white/10 rounded-xl p-2">
+              <div>
                 <GestionEpargneProjet
                   soldeGlobal={soldeGlobal}
                   allocations={allocations}

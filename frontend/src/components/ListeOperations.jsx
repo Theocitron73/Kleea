@@ -211,7 +211,7 @@ export default function ListeOperations({
     if (mobile) {
       const details = [getCleanCategoryName(t.categorie || 'Autre'), prevision && nomPrevision(prevision), t.enveloppe, moisDecale && `compté en ${t.mois === 'Aout' ? 'Août' : t.mois}`].filter(Boolean);
       return (
-        <div className={`flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors ${choisie ? 'bg-[var(--primary)]/15' : 'active:bg-white/[0.06]'}`}>
+        <div className={`relative after:content-[''] after:absolute after:left-[3.9rem] after:right-3 after:bottom-0 after:h-px after:bg-white/[0.08] flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors ${choisie ? 'bg-[var(--primary)]/15' : 'active:bg-white/[0.06]'}`}>
           <button type="button" role="checkbox" aria-checked={choisie} aria-label={`Sélectionner ${t.nom}`} onClick={() => toggleSelect(t.id)} className="relative shrink-0 cursor-pointer">
             {choisie ? (
               <span className="w-10 h-10 rounded-[28%] flex items-center justify-center bg-[var(--primary)] text-white"><Check size={18} /></span>
@@ -258,7 +258,7 @@ export default function ListeOperations({
       <div className={`flex items-center shrink-0 ${mobile ? 'flex-wrap gap-x-3 gap-y-2 px-1 pt-1 pb-1' : 'gap-4 px-5 pt-3 pb-1'}`}>
         <input type="checkbox" aria-label="Tout sélectionner" checked={transactions.length > 0 && selectedIds.length === transactions.length} onChange={toggleAll}
           className="w-4 h-4 rounded-[5px] accent-[var(--primary)] cursor-pointer" />
-        <div role="group" aria-label="Trier les opérations" className={`flex items-center gap-0.5 text-[12px] ${mobile ? 'min-w-0 overflow-x-auto' : ''}`}>
+        <div role="group" aria-label="Trier les opérations" className={`flex items-center gap-0.5 text-[12px] ${mobile ? 'flex-1 basis-0 min-w-0 overflow-x-auto no-scrollbar whitespace-nowrap' : ''}`}>
           <span className="mr-1.5 text-[var(--text-main)]/45">Trier par</span>
           {TRIS.map(([cle, texte]) => {
             const actif = sortConfig.key === cle || (cle === 'date' && triParDate);
@@ -281,7 +281,7 @@ export default function ListeOperations({
         </div>
       </div>
 
-      <div ref={conteneur} className={`flex-1 overflow-auto custom-scrollbar ${mobile ? 'px-0 pb-28' : 'px-2 pb-24'}`}>
+      <div ref={conteneur} className={`flex-1 overflow-auto custom-scrollbar ${mobile ? 'px-0 pb-4' : 'px-2 pb-24'}`}>
         {elements.length === 0 ? (
           <div className="py-16 text-center">
             <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">Aucune transaction trouvée</h3>

@@ -546,8 +546,8 @@ export default function ComptesView({
                   )}
 
                   {/* Ligne 2 : Métriques (Solde initial, Objectif, Intérêts) */}
-                  <div className={`grid gap-2 ${isCCP ? "grid-cols-1" : "grid-cols-3"}`}>
-                    <div className="bg-black/40 backdrop-blur-[var(--glass-blur)] p-2.5 rounded-xl border border-white/5 shadow-inner relative flex flex-col justify-between">
+                  <div className={`grid gap-2 ${isCCP ? "grid-cols-1" : "grid-cols-2 sm:grid-cols-3"}`}>
+                    <div className="max-sm:col-span-2 bg-black/40 backdrop-blur-[var(--glass-blur)] p-2.5 rounded-xl border border-white/5 shadow-inner relative flex flex-col justify-between">
                       <div className="flex justify-between items-center mb-1 gap-1">
                         <p className="text-[7.5px] sm:text-[8px] font-black text-[var(--text-main)]/40 uppercase tracking-tighter truncate">Solde initial</p>
                         <button 

@@ -12,7 +12,8 @@ const DOSSIER = path.join(import.meta.dirname, '..', 'public', 'apercu');
 const ENTETES = { 'access-control-allow-origin': 'http://127.0.0.1:5199', 'access-control-allow-credentials': 'true', 'access-control-allow-headers': 'content-type, authorization', 'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS' };
 const MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
 
-// Douze mois d'opérations, de décembre 2025 au 18 novembre 2026.
+// Douze mois d'opérations, de décembre 2025 au 18 novembre 2026, pour un budget ordinaire :
+// un salaire de 2 100 €, un loyer de 650 €, un prêt auto, 350 € mis de côté chaque mois.
 const TRANSACTIONS = [];
 let id = 1;
 const op = (a, m, j, nom, montant, categorie, compte = 'Compte courant') => {
@@ -24,13 +25,15 @@ for (let k = 0; k < 12; k += 1) {
   const m = (11 + k) % 12;
   const enCours = a === 2026 && m === 10;
   const v = (k * 7) % 5; // petites variations d'un mois à l'autre
-  op(a, m, 1, 'VIR SALAIRE ACME SAS', 2850, 'Salaire');
-  op(a, m, 3, 'PRLV LOYER FONCIA', -850, 'Logement');
+  op(a, m, 1, 'VIR SALAIRE ACME SAS', 2100, 'Salaire');
+  op(a, m, 3, 'PRLV LOYER FONCIA', -650, 'Logement');
+  op(a, m, 7, 'PRLV PRET AUTO', -210, 'Crédits');
+  op(a, m, 9, 'PRLV ASSURANCE HABITATION', -18, 'Logement');
   // Catégories « Virement : … vers … », comme celles que pose l'application : ce ne sont ni des dépenses ni des revenus.
-  op(a, m, 4, 'VIR LIVRET A', -300, 'Virement : Compte courant vers Livret A');
-  op(a, m, 4, 'VIR LIVRET A', 300, 'Virement : Compte courant vers Livret A', 'Livret A');
-  op(a, m, 2, 'VIR LDDS', -1000, 'Virement : Compte courant vers LDDS');
-  op(a, m, 2, 'VIR LDDS', 1000, 'Virement : Compte courant vers LDDS', 'LDDS');
+  op(a, m, 4, 'VIR LIVRET A', -250, 'Virement : Compte courant vers Livret A');
+  op(a, m, 4, 'VIR LIVRET A', 250, 'Virement : Compte courant vers Livret A', 'Livret A');
+  op(a, m, 2, 'VIR LDDS', -100, 'Virement : Compte courant vers LDDS');
+  op(a, m, 2, 'VIR LDDS', 100, 'Virement : Compte courant vers LDDS', 'LDDS');
   op(a, m, 5, 'NETFLIX.COM', -13.49, 'Abonnements');
   op(a, m, 8, 'SPOTIFY', -11.12, 'Abonnements');
   op(a, m, 10, 'FREE MOBILE', -19.99, 'Téléphone & Internet');
@@ -51,28 +54,28 @@ op(2026, 10, 16, 'LA CANTINE', -46.8, 'Sorties');
 op(2026, 10, 17, 'DECATHLON', -64.99, 'Loisirs');
 
 const COMPTE = (compte, solde, couleur, taux = 0, objectif = 0) => ({ compte, groupe: 'Personnel', solde, objectif, couleur, taux, powens_name: compte === 'Compte courant' ? 'FR76 3000 4000 0500 0012 3456 789' : null, Compte: compte, Groupe: 'Personnel', Solde: solde, Couleur: couleur, Taux: taux, Objectif: objectif, Type: taux ? 'Livret' : 'CCP' });
-const COMPTES = [COMPTE('Compte courant', 620, '#4f46e5'), COMPTE('Livret A', 4800, '#10b981', 2.4, 12000), COMPTE('LDDS', 1500, '#f59e0b', 2.4)];
-const CATEGORIES = ['Salaire', 'Logement', 'Courses', 'Transport', 'Sorties', 'Abonnements', 'Énergie', 'Téléphone & Internet', 'Santé', 'Loisirs', 'Vacances', 'Cadeaux', 'Virement interne']
+const COMPTES = [COMPTE('Compte courant', 420, '#4f46e5'), COMPTE('Livret A', 1900, '#10b981', 2.4, 6000), COMPTE('LDDS', 600, '#f59e0b', 2.4)];
+const CATEGORIES = ['Salaire', 'Logement', 'Crédits', 'Courses', 'Transport', 'Sorties', 'Abonnements', 'Énergie', 'Téléphone & Internet', 'Santé', 'Loisirs', 'Vacances', 'Cadeaux', 'Virement interne']
   .map((nom) => ({ nom, utilisateur: U, icone: 'tag', couleur: '#818cf8', groupe: 'Général' }));
 const BUDGETS = [['Courses', 320], ['Sorties', 120], ['Transport', 150]].map(([nom, somme], i) => ({ id: i + 1, nom, somme, mois: 'Novembre', annee: 2026, compte: 'tous', utilisateur: U, type: 'Categorie' }));
 const PREVI = (i, date, nom, montant, categorie) => ({ id: 100 + i, date, nom: `[PRÉVI] ${nom}`, montant, compte: 'Compte courant', categorie, mois: MOIS[Number(date.slice(5, 7)) - 1], annee: Number(date.slice(0, 4)), actif: true, utilisateur: U });
 const PREVISIONS = [
   PREVI(1, '2026-11-25', 'Assurance auto', -48, 'Transport'),
-  PREVI(2, '2026-11-28', 'Prime de fin d’année', 900, 'Salaire'),
+  PREVI(2, '2026-11-28', 'Prime de fin d’année', 400, 'Salaire'),
   PREVI(8, '2026-11-20', 'Courses de la semaine', -95, 'Courses'),
   PREVI(9, '2026-11-22', 'Anniversaire de Léa', -60, 'Cadeaux'),
   PREVI(10, '2026-11-26', 'Révision vélo', -85, 'Transport'),
   PREVI(11, '2026-11-30', 'Remboursement mutuelle', 42, 'Santé'),
-  PREVI(3, '2026-12-01', 'Salaire', 2850, 'Salaire'),
-  PREVI(4, '2026-12-03', 'Loyer', -850, 'Logement'),
-  PREVI(5, '2026-12-15', 'Cadeaux de Noël', -350, 'Cadeaux'),
-  PREVI(6, '2027-01-01', 'Salaire', 2850, 'Salaire'),
-  PREVI(7, '2027-01-03', 'Loyer', -850, 'Logement'),
+  PREVI(3, '2026-12-01', 'Salaire', 2100, 'Salaire'),
+  PREVI(4, '2026-12-03', 'Loyer', -650, 'Logement'),
+  PREVI(5, '2026-12-15', 'Cadeaux de Noël', -250, 'Cadeaux'),
+  PREVI(6, '2027-01-01', 'Salaire', 2100, 'Salaire'),
+  PREVI(7, '2027-01-03', 'Loyer', -650, 'Logement'),
 ];
 const PROJETS = [
-  { id: 1, cle: 1, nom: 'Voyage au Japon', cout: 4500, date: '2027-09-01', capa: 250, apport_epargne: 1800, date_debut: '2026-03-01', utiliser_capa_stricte: false, ordre: 1, profil: 'Personnel', utilisateur: U },
-  { id: 2, nom: 'Apport appartement', cout: 25000, date: '2029-06-01', capa: 400, apport_epargne: 6200, date_debut: '2025-09-01', utiliser_capa_stricte: false, ordre: 2, profil: 'Personnel', utilisateur: U },
-  { id: 3, nom: 'Vélo électrique', cout: 1600, date: '2027-03-01', capa: 120, apport_epargne: 900, date_debut: '2026-06-01', utiliser_capa_stricte: false, ordre: 3, profil: 'Personnel', utilisateur: U },
+  { id: 1, cle: 1, nom: 'Vacances en Italie', cout: 1800, date: '2027-07-01', capa: 100, apport_epargne: 700, date_debut: '2026-03-01', utiliser_capa_stricte: false, ordre: 1, profil: 'Personnel', utilisateur: U },
+  { id: 2, nom: 'Apport appartement', cout: 10000, date: '2030-06-01', capa: 150, apport_epargne: 1800, date_debut: '2025-09-01', utiliser_capa_stricte: false, ordre: 2, profil: 'Personnel', utilisateur: U },
+  { id: 3, nom: 'Vélo électrique', cout: 1200, date: '2027-05-01', capa: 60, apport_epargne: 450, date_debut: '2026-06-01', utiliser_capa_stricte: false, ordre: 3, profil: 'Personnel', utilisateur: U },
 ];
 const DEPENSES_TRICOUNT = [
   { id: 1, date: '2026-08-02T00:00:00', libelle: 'Location voiture', paye_par: 'Alice', pour_qui: 'Alice:160,Théo:160,Thomas:160', montant: 480, emoji: null },
@@ -81,23 +84,22 @@ const DEPENSES_TRICOUNT = [
   { id: 4, date: '2026-08-05T00:00:00', libelle: 'Restaurant à Vík', paye_par: 'Alice', pour_qui: 'Alice:42,Théo:42,Thomas:42', montant: 126, emoji: null },
 ];
 
-// Placements & crédits : un PEA suivi, un appartement et son crédit, pour l'onglet du tableau de bord.
+// Placements & crédits : un petit PEA alimenté chaque mois, et le prêt de la voiture.
 const CREDIT = {
-  id: 1, type: 'immobilier', nom: 'Crédit appartement', montant: 180000, taux: 3.2, duree_mois: 240, debut: '2022-05-05', libelle_lien: null, profil: null,
-  anticipes: [], capital_restant: 152340, mensualite: 1016.4, fin: '2042-04-05', interets_restants: 38120, rembourse_pct: 15.4, echeances_payees: 54,
-  echeances: [{ date: '2026-09-05', vue: true }, { date: '2026-10-05', vue: true }, { date: '2026-11-05', vue: true }], anticipes_detectes: [],
+  id: 1, type: 'auto', nom: 'Prêt voiture', montant: 11000, taux: 4.1, duree_mois: 60, debut: '2024-09-07', libelle_lien: 'PRLV PRET AUTO', profil: null,
+  anticipes: [], capital_restant: 6420, mensualite: 210, fin: '2029-08-07', interets_restants: 690, rembourse_pct: 41.6, echeances_payees: 26,
+  echeances: [{ date: '2026-09-07', vue: true }, { date: '2026-10-07', vue: true }, { date: '2026-11-07', vue: true }], anticipes_detectes: [],
 };
 const PATRIMOINE = {
   biens: [
-    { id: 1, type: 'immobilier', nom: 'Appartement', valeur: 215000, valeur_saisie: 215000, date_valeur: '2026-01-10', decote: null, libelle_lien: null, profil: null, versements: 0 },
-    { id: 2, type: 'placement', nom: 'PEA', valeur: 18400, valeur_saisie: 17900, date_valeur: '2026-09-01', decote: null, libelle_lien: 'VIR PEA', profil: null, versements: 500,
-      suivi: { points: [{ date: '2026-01-02', valeur: 12000, investi: 12000 }, { date: '2026-05-01', valeur: 15100, investi: 14000 }, { date: '2026-09-01', valeur: 17900, investi: 16000 }, { date: '2026-11-18', valeur: 18400, investi: 16500 }], investi: 16500, gain: 1900, performance: 11.52 } },
+    { id: 2, type: 'placement', nom: 'PEA', valeur: 3150, valeur_saisie: 3050, date_valeur: '2026-10-01', decote: null, libelle_lien: 'VIR PEA', profil: null, versements: 100,
+      suivi: { points: [{ date: '2026-01-05', valeur: 1500, investi: 1500 }, { date: '2026-05-01', valeur: 2080, investi: 1900 }, { date: '2026-10-01', valeur: 3050, investi: 2900 }, { date: '2026-11-18', valeur: 3150, investi: 3000 }], investi: 3000, gain: 150, performance: 5 } },
   ],
   dettes: [CREDIT],
-  total_biens: 233400,
-  total_dettes: 152340,
+  total_biens: 3150,
+  total_dettes: 6420,
   cryptos: {},
-  historique: Array.from({ length: 11 }, (_, i) => ({ mois: `2026-${String(i + 1).padStart(2, '0')}`, biens: 226000 + i * 700, dettes: 160500 - i * 750 })),
+  historique: Array.from({ length: 11 }, (_, i) => ({ mois: `2026-${String(i + 1).padStart(2, '0')}`, biens: 1500 + i * 165, dettes: 8550 - i * 195 })),
 };
 
 const REPONSES = [
@@ -185,7 +187,15 @@ for (const [format, taille] of [['ordinateur', { width: 1680, height: 1050 }], [
     await page.keyboard.press('Escape');
 
     for (const [nom, fichier] of [['Prévisionnel', 'previsionnel'], ['Gérer', 'gerer'], ['Importer', 'importer'], ['Comptes', 'comptes'], ['Tricount', 'tricount']]) {
-      await page.getByRole('button', { name: nom, exact: true }).locator('visible=true').first().click();
+      // Sur téléphone, les pages hors des quatre onglets du bas s'ouvrent depuis « Plus ».
+      const bouton = page.getByRole('button', { name: nom, exact: true }).locator('visible=true').first();
+      if (format === 'mobile' && !(await bouton.isVisible().catch(() => false))) {
+        await page.locator('.barre-onglets-mobile').getByRole('button', { name: 'Plus' }).click();
+        await page.getByRole('dialog', { name: 'Plus' }).getByRole('button', { name: nom, exact: true }).click();
+      } else {
+        await bouton.click();
+      }
+      await page.evaluate(() => window.scrollTo(0, 0));
       await p(fichier);
     }
   });

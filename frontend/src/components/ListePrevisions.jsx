@@ -139,7 +139,7 @@ export default function ListePrevisions({
     // Sur téléphone, une ligne compacte comme dans une appli bancaire : l'icône sélectionne, le reste ouvre les réglages.
     if (mobile) {
       return (
-        <div key={p.id} className={`flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors ${choisie ? 'bg-[var(--primary)]/15' : 'active:bg-white/[0.06]'} ${active ? '' : 'opacity-45'}`}>
+        <div key={p.id} className={`relative after:content-[''] after:absolute after:left-[3.9rem] after:right-3 after:bottom-0 after:h-px after:bg-white/[0.08] flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors ${choisie ? 'bg-[var(--primary)]/15' : 'active:bg-white/[0.06]'} ${active ? '' : 'opacity-45'}`}>
           <button type="button" role="checkbox" aria-checked={choisie} aria-label={`Sélectionner ${nomPropre(p)}`} onClick={() => toggleSelect(p.id)} className="shrink-0 cursor-pointer">
             {choisie ? (
               <span className="w-10 h-10 rounded-[28%] flex items-center justify-center bg-[var(--primary)] text-white"><Check size={18} /></span>

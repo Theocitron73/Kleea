@@ -166,9 +166,9 @@ test('la cloche fonctionne sur mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   const erreurs = await ouvrir(page);
   await expect(cloche(page)).toHaveAccessibleName(/en cours/, { timeout: 30_000 });
-  // Elle flotte en haut à droite, sans prendre de place dans la page.
-  const position = await cloche(page).evaluate((el) => ({ css: getComputedStyle(el).position, droite: el.getBoundingClientRect().right }));
-  expect(position.css).toBe('fixed');
+  // Elle est en haut à droite, dans la barre fixe du haut : elle ne recouvre plus l'en-tête des pages.
+  const position = await cloche(page).evaluate((el) => ({ barre: getComputedStyle(el.closest('.barre-haut-mobile')).position, droite: el.getBoundingClientRect().right }));
+  expect(position.barre).toBe('fixed');
   expect(position.droite).toBeGreaterThan(370);
   await cloche(page).click();
   await expect(panneau(page).getByText('Découvert prévu sur CCP')).toBeVisible();

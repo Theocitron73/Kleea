@@ -705,13 +705,13 @@ export default function GererView(props) {
       {/* =========================================================================
           2. AFFICHAGE MOBILE (SOUS-ONGLETS, CARTES & TIROIR DE FILTRES)
           ========================================================================= */}
-      <div className="flex lg:hidden flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-3 pt-2">
+      <div className="flex lg:hidden flex-col min-h-screen text-[var(--text-main)] pb-4 px-0.5 pt-2">
         
         {/* Header mobile avec bouton filtres */}
         <div className="flex items-center justify-between mb-3 px-1">
           <div>
-            <h1 className="text-xl font-black tracking-tight">Historique</h1>
-            <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">
+            <h1 className="text-2xl font-black tracking-tight leading-none">Historique</h1>
+            <p className="text-[var(--text-main)]/45 text-[13px] font-medium mt-1">
               {filters?.profil || 'Tous'} • {filters?.mois} {filters?.annee}
             </p>
           </div>
@@ -726,7 +726,7 @@ export default function GererView(props) {
             }`}
           >
             <Filter size={14} />
-            <span className="text-[10px] font-bold uppercase">
+            <span className="text-[13px] font-bold max-w-[9rem] truncate">
               {selectedCompte && selectedCompte !== 'tous' ? selectedCompte : 'Filtres'}
             </span>
           </button>
@@ -735,16 +735,16 @@ export default function GererView(props) {
         {/* Résumé mensuel express mobile */}
         <div className="grid grid-cols-3 gap-2 mb-3 bg-[var(--glass-bg)] border border-white/10 p-2.5 rounded-2xl">
           <div className="text-center">
-            <p className="text-[7.5px] font-bold text-white/30 uppercase">Entrées</p>
-            <p className="text-xs font-mono font-black text-emerald-400 mt-0.5">+{statsFiltrées.revenus.toFixed(0)}€</p>
+            <p className="text-[12px] font-semibold text-white/45">Entrées</p>
+            <p className="text-[15px] font-mono font-black text-emerald-400 mt-0.5">+{statsFiltrées.revenus.toFixed(0)}€</p>
           </div>
           <div className="text-center border-x border-white/5">
-            <p className="text-[7.5px] font-bold text-white/30 uppercase">Sorties</p>
-            <p className="text-xs font-mono font-black text-rose-400 mt-0.5">-{statsFiltrées.depenses.toFixed(0)}€</p>
+            <p className="text-[12px] font-semibold text-white/45">Sorties</p>
+            <p className="text-[15px] font-mono font-black text-rose-400 mt-0.5">-{statsFiltrées.depenses.toFixed(0)}€</p>
           </div>
           <div className="text-center">
-            <p className="text-[7.5px] font-bold text-white/30 uppercase">Solde</p>
-            <p className={`text-xs font-mono font-black mt-0.5 ${statsFiltrées.solde >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <p className="text-[12px] font-semibold text-white/45">Solde</p>
+            <p className={`text-[15px] font-mono font-black mt-0.5 ${statsFiltrées.solde >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {statsFiltrées.solde.toFixed(0)}€
             </p>
           </div>
@@ -814,7 +814,7 @@ export default function GererView(props) {
         )}
 
         {/* 3 sous-onglets mobile */}
-        <div className="flex border-b border-white/5 mb-3.5 select-none shrink-0">
+        <div className="onglets-mobile flex border-b border-white/5 mb-3.5 select-none shrink-0">
           <button 
             type="button"
             onClick={() => setActiveSection('transactions')}
@@ -835,7 +835,7 @@ export default function GererView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Catégories / Saisie
+            Catégories
           </button>
           <button 
             type="button"
@@ -859,8 +859,8 @@ export default function GererView(props) {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm && setSearchTerm(e.target.value)}
-                placeholder="RECHERCHER DANS L'HISTORIQUE..."
-                className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-xl py-2 pl-9 pr-8 text-xs font-medium text-white outline-none placeholder:text-white/20 tracking-wider"
+                placeholder="Rechercher dans l'historique…"
+                className="w-full bg-[var(--glass-bg)] border border-white/10 rounded-xl py-2.5 pl-9 pr-8 text-[15px] font-medium text-white outline-none placeholder:text-white/30"
               />
               {searchTerm && (
                 <button type="button" onClick={() => setSearchTerm && setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40">
@@ -870,7 +870,8 @@ export default function GererView(props) {
             </div>
 
             {/* Les mêmes lignes que sur ordinateur, en deux étages ; « Modifier » ouvre la fenêtre d'édition complète. */}
-            <div className="mt-1 h-[65vh] min-h-[380px] flex flex-col">
+            {/* Toute la hauteur entre les deux barres : une fois la page descendue, la liste occupe l'écran. */}
+            <div className="mt-1 h-[calc(100dvh-var(--barre-haut,3.5rem)-var(--barre-bas,3.5rem)-1.5rem)] min-h-[380px] flex flex-col">
               <ListeOperations
                 mobile
                 transactions={transactionsFiltrees}

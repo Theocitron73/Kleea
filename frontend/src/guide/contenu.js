@@ -629,7 +629,7 @@ export const CHAPITRES = [
       },
       {
         titre: 'Widgets',
-        texte: "Le bouton rond en bas à droite ouvre le menu des widgets.",
+        texte: "Sur ordinateur, le bouton rond en bas à droite ouvre le menu des widgets. Sur téléphone, ils sont dans « Plus », en bas de l'écran.",
         points: [
           { l: 'Bloc-notes', d: "Un pense-bête enregistré automatiquement." },
           { l: 'Simulateur Prorata', d: "Partage des dépenses communes selon les salaires de chacun." },
@@ -639,6 +639,7 @@ export const CHAPITRES = [
       {
         titre: 'Navigation',
         texte: "Sur ordinateur, la molette de la souris fait défiler les pages du menu, les onglets et les filtres de période quand vous la survolez.",
+        conseil: "Sur téléphone, la barre du bas mène au Dashboard, au Prévisionnel, à Gérer et aux Comptes. « Plus » ouvre les autres pages, votre profil, les widgets et la déconnexion.",
       },
     ],
   },

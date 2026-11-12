@@ -1054,94 +1054,109 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
 }
 
 /* =========================================================================
-   MODE MOBILE ÉPURÉ & COMPACT (SMARTPHONES < 768px)
-   Affine l'échelle globale pour un rendu léger, net et moderne sur mobile
+   TÉLÉPHONE (< 768px)
+   Taille de texte normale, libellés lisibles, barres du haut et du bas fixes
+   qui laissent la place au contenu et aux zones sûres de l'écran.
    ========================================================================= */
 @media (max-width: 767px) {
-
-  /* 1. ÉCHELLE RACINE : Réduit l'ensemble de l'application de ~15% */
   :root {
-    font-size: 13.5px !important;
     --radius: 1rem;
+    --barre-haut: calc(3.5rem + env(safe-area-inset-top));
+    --barre-bas: calc(3.5rem + env(safe-area-inset-bottom));
   }
 
-  /* 2. PADDINGS ET MARGES EXTERNES */
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    padding: 0.5rem 0.5rem 5.5rem 0.5rem !important; /* Laisse l'espace pour la barre en bas */
+    padding: 0 !important;
+    overflow-x: hidden;
   }
 
-  .p-4.md\:p-8,
-  .px-4.md\:px-8 {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
-    padding-top: 0.35rem !important;
-    padding-bottom: 0.35rem !important;
+  /* Conteneur de l'application : marges latérales régulières, et place pour la barre du bas. */
+  .app-conteneur {
+    padding: 0.75rem max(0.75rem, env(safe-area-inset-right)) calc(var(--barre-bas) + 1.25rem) max(0.75rem, env(safe-area-inset-left)) !important;
+    max-width: 100vw;
+    overflow-x: clip;
   }
 
-  /* Paddings internes des blocs */
-  .p-6 { padding: 0.85rem !important; }
-  .p-5 { padding: 0.75rem !important; }
-  .p-4 { padding: 0.65rem !important; }
-
-  /* 4. CARTES DE COMPTES BANCAIRES */
-  .h-28,
-  [class*="h-28"] {
-    height: 6rem !important;
-    min-height: 6rem !important;
+  /* La page défile en entier : une hauteur fixée à l'écran laissait la marge du bas au milieu du contenu. */
+  .app-conteneur.h-screen {
+    height: auto !important;
+    min-height: 100dvh;
   }
 
-  .h-28 h3,
-  [class*="h-28"] h3 {
-    font-size: 1.15rem !important;
+  .barre-haut-mobile {
+    height: var(--barre-haut);
+    padding-top: env(safe-area-inset-top);
+  }
+  .barre-haut-mobile-place {
+    height: calc(var(--barre-haut) - 0.25rem);
+  }
+  .barre-onglets-mobile {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .panneau-plus-mobile {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+  .fenetre-widget {
+    bottom: calc(var(--barre-bas) + 0.75rem);
   }
 
-  /* 5. BARRE DE NAVIGATION EN BAS (TAB BAR) */
-  .md\:hidden.fixed.bottom-0 {
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
-    padding-top: 0.35rem !important;
-    padding-bottom: max(0.5rem, env(safe-area-inset-bottom)) !important;
+  /* Libellés : aucun texte sous 10 px sur un écran tenu à la main. */
+  .text-\[6px\], .text-\[6\.5px\], .text-\[7px\], .text-\[7\.5px\], .text-\[8px\], .text-\[8\.5px\] { font-size: 10px !important; }
+  .text-\[9px\], .text-\[9\.5px\] { font-size: 10.5px !important; }
+  .text-\[10px\], .text-\[10\.5px\] { font-size: 11.5px !important; }
+
+  /* Les petites capitales très espacées débordent vite : espacement resserré. */
+  [class*="tracking-[0.1"], [class*="tracking-[0.2"], [class*="tracking-[0.3"], .tracking-widest, .tracking-\[0\.25em\] {
+    letter-spacing: 0.06em !important;
   }
 
-  .md\:hidden.fixed.bottom-0 .max-w-lg {
-    padding: 0.25rem 0.4rem !important;
-    border-radius: var(--radius) !important;
+  /* Titres de cartes : en casse normale, comme dans une application de téléphone.
+     Les capitales espacées restent pour les très petits repères (mois, statuts). */
+  .app-conteneur :is(h3, h4).uppercase {
+    text-transform: none !important;
+    letter-spacing: -0.005em !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+  }
+  .app-conteneur :is(h3, h4).uppercase + p.uppercase {
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
   }
 
-  .md\:hidden.fixed.bottom-0 button {
-    width: 2.4rem !important;
-    height: 2.4rem !important;
+  /* Onglets des pages : une ligne, en casse normale, assez grands pour le pouce. */
+  .onglets-mobile > button {
+    white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 13.5px !important;
+    font-weight: 700 !important;
+    padding: 0.8rem 0.35rem !important;
   }
 
-  .md\:hidden.fixed.bottom-0 svg {
-    width: 1.25rem !important;
-    height: 1.25rem !important;
-  }
-
-  /* 6. CHAMPS DE FORMULAIRE, BOUTONS ET SÉLECTEURS */
-  input[type="text"],
-  input[type="number"],
-  input[type="password"],
-  input[type="email"],
-  select,
-  button {
-    font-size: 0.88rem !important;
-  }
-
-  /* 7. MODALES ET FENÊTRES POPUP */
+  /* Fenêtres : jamais plus larges que l'écran. */
   .fixed.inset-0 .max-w-md,
-  .fixed.inset-0 .max-w-sm {
-    max-width: 92vw !important;
-    padding: 1.25rem !important;
+  .fixed.inset-0 .max-w-sm,
+  .fixed.inset-0 .max-w-lg,
+  .fixed.inset-0 .max-w-xl,
+  .fixed.inset-0 .max-w-2xl {
+    max-width: calc(100vw - 1.5rem) !important;
     border-radius: var(--radius) !important;
   }
 
-  /* 8. TABLEAUX ET LISTES */
   table th {
     padding: 0.4rem 0.3rem !important;
-    font-size: 7.5px !important;
+    font-size: 10px !important;
   }
-
   table td {
     padding: 0.35rem 0.3rem !important;
   }
