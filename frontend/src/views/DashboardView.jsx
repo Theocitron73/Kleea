@@ -6,7 +6,7 @@ import {
   BarChart, Bar, Cell, LabelList, PieChart, Pie
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2, BarChart3, PiggyBank, Landmark } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
@@ -3333,35 +3333,16 @@ export default function DashboardView(props) {
         {/* SECTION MOBILE 3 : GRAPHES & ÉPARGNE */}
         {mobileHub === 'graphs' && (
           <div className="space-y-3 animate-in fade-in duration-200">
-            <div className="flex bg-slate-900/50 p-1 rounded-xl border border-white/5 w-fit mx-auto select-none">
-              <button 
-                type="button"
-                onClick={() => setActiveRightTab('graphs')}
-                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
-                  activeRightTab === 'graphs' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
-                }`}
-              >
-                Analytique
-              </button>
-              <button 
-                type="button"
-                onClick={() => setActiveRightTab('epargneProjets')}
-                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
-                  activeRightTab === 'epargneProjets' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
-                }`}
-              >
-                Épargne & Projets
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveRightTab('valeurNette')}
-                className={`px-3 py-1 rounded-lg text-[8.5px] font-black uppercase transition-all cursor-pointer ${
-                  activeRightTab === 'valeurNette' ? 'bg-white text-slate-900 shadow-md' : 'text-white/40'
-                }`}
-              >
-                Placements & crédits
-              </button>
-            </div>
+            <OngletsPuces
+              libelle="Vue des graphes"
+              onglets={[
+                { id: 'graphs', label: 'Analytique', icon: BarChart3 },
+                { id: 'epargneProjets', label: 'Épargne & Projets', icon: PiggyBank },
+                { id: 'valeurNette', label: 'Placements & crédits', icon: Landmark },
+              ]}
+              actif={activeRightTab}
+              choisir={setActiveRightTab}
+            />
 
             {activeRightTab === 'valeurNette' ? (
               <ValeurNetteResume patrimoine={patrimoine} profil={filters.profil} recapAnnuelStats={recapAnnuelStats} soldeGlobal={soldeGlobal}
@@ -3974,7 +3955,7 @@ export default function DashboardView(props) {
 
               </div>
             ) : (
-              <div className="bg-[var(--glass-bg)] border border-white/10 rounded-xl p-2">
+              <div>
                 <GestionEpargneProjet
                   soldeGlobal={soldeGlobal}
                   allocations={allocations}
