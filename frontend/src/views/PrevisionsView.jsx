@@ -734,7 +734,7 @@ const moisCritiques = useMemo(() => {
       {/* =========================================================================
           2. AFFICHAGE MOBILE (100% IDENTIQUE AU DESIGN D'ORIGINE)
           ========================================================================= */}
-      <div className="flex lg:hidden flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-24 px-4 pt-2">
+      <div className="flex lg:hidden flex-col min-h-screen text-[var(--text-main)] pb-4 px-0.5 pt-2">
         
         {/* EN-TÊTE MOBILE COMPACT */}
         <div className="flex items-center justify-between mb-3 mt-2 shrink-0">

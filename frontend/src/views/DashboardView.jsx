@@ -2750,7 +2750,7 @@ export default function DashboardView(props) {
       {/* =========================================================================
           2. AFFICHAGE MOBILE (100% IDENTIQUE AU DESIGN D'ORIGINE)
           ========================================================================= */}
-      <div className="flex lg:hidden flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-3 pt-1">
+      <div className="flex lg:hidden flex-col min-h-screen text-[var(--text-main)] pb-4 px-0.5 pt-1">
 
         {/* EN-TÊTE MOBILE */}
         <div className="flex items-center justify-between mb-2 mt-1 px-1">

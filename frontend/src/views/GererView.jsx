@@ -705,7 +705,7 @@ export default function GererView(props) {
       {/* =========================================================================
           2. AFFICHAGE MOBILE (SOUS-ONGLETS, CARTES & TIROIR DE FILTRES)
           ========================================================================= */}
-      <div className="flex lg:hidden flex-col min-h-screen bg-[var(--bg-site)] text-[var(--text-main)] pb-28 px-3 pt-2">
+      <div className="flex lg:hidden flex-col min-h-screen text-[var(--text-main)] pb-4 px-0.5 pt-2">
         
         {/* Header mobile avec bouton filtres */}
         <div className="flex items-center justify-between mb-3 px-1">

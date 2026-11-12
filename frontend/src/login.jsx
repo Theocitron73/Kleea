@@ -1035,11 +1035,10 @@ if (!user) {
             ? 'min-h-screen overflow-y-auto' 
             : 'h-screen lg:overflow-hidden'
         }`}
-      style={{
-        background: themeBackground(userTheme),
-        backgroundAttachment: 'fixed'
-      }}
     >
+      {/* Le dégradé est un calque fixé à l'écran : « background-attachment: fixed » est ignoré sur iPhone,
+          où le dégradé s'étirait alors sur toute la hauteur de la page. */}
+      <div aria-hidden="true" className="fond-application fixed inset-0 -z-10 pointer-events-none" style={{ background: themeBackground(userTheme) }} />
       {/* max-w-full permet d'occuper 100% de la largeur disponible, peu importe l'écran */}
       <div className="max-w-full mx-auto">
       
