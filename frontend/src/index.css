@@ -1109,6 +1109,21 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
     letter-spacing: 0.06em !important;
   }
 
+  /* Titres de cartes : en casse normale, comme dans une application de téléphone.
+     Les capitales espacées restent pour les très petits repères (mois, statuts). */
+  .app-conteneur :is(h3, h4).uppercase {
+    text-transform: none !important;
+    letter-spacing: -0.005em !important;
+    font-size: 14px !important;
+    font-weight: 800 !important;
+  }
+  .app-conteneur :is(h3, h4).uppercase + p.uppercase {
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+  }
+
   /* Onglets des pages : une ligne, en casse normale, assez grands pour le pouce. */
   .onglets-mobile > button {
     white-space: nowrap;

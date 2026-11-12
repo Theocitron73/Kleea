@@ -1,3 +1,4 @@
+import SelecteurPeriodeMobile from '../components/SelecteurPeriodeMobile';
 import ListePrevisions from '../components/ListePrevisions';
 import AnalyseCategories from '../components/AnalyseCategories';
 import { useState, useMemo } from 'react';
@@ -738,80 +739,30 @@ const moisCritiques = useMemo(() => {
         {/* EN-TÊTE MOBILE COMPACT */}
         <div className="flex items-center justify-between mb-3 mt-2 shrink-0">
           <div>
-            <h1 className="text-xl font-black tracking-tight">Prévisions</h1>
-            <p className="text-[var(--text-main)]/40 text-[9px] font-bold uppercase tracking-wider">Anticipation budgétaire</p>
+            <h1 className="text-2xl font-black tracking-tight leading-none">Prévisions</h1>
+            <p className="text-[var(--text-main)]/45 text-[13px] font-medium mt-1">Anticipation budgétaire</p>
           </div>
 
           <div 
             className="px-3 py-1.5 rounded-xl text-right text-white shadow-md shrink-0"
             style={{ backgroundColor: userTheme.color_patrimoine || '#37b58f' }}
           >
-            <p className="text-[7px] opacity-70 uppercase font-black leading-none mb-0.5">Solde Estimé</p>
-            <p className="text-xs font-mono font-black">{soldeGlobalProjete.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} €</p>
+            <p className="text-[11px] opacity-80 font-semibold leading-none mb-1">Solde estimé</p>
+            <p className="text-[15px] font-mono font-black leading-none">{soldeGlobalProjete.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} €</p>
           </div>
         </div>
 
-        {/* FILTRES DE PÉRIODE (PROFILS & ANNÉES SANS DÉBORDEMENT) */}
-        <div className="bg-[var(--glass-bg)] border border-white/10 p-2.5 rounded-xl mb-3 space-y-1.5 shrink-0">
-          <div className="flex items-center justify-between gap-1.5 min-w-0">
-            <div className="flex-1 overflow-x-auto no-scrollbar flex items-center gap-1 bg-black/30 p-0.5 rounded-lg min-w-0">
-              {(() => {
-                const groupes = [...new Set((comptes || []).map(c => c.groupe).filter(Boolean))].sort();
-                const liste = groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
-
-                return liste.map(p => {
-                  const isSelected = filters.profil?.toLowerCase() === p?.toLowerCase();
-                  return (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setFilters({...filters, profil: p})}
-                      className={`px-2 py-0.5 rounded-sm text-[8px] font-black uppercase tracking-wider transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                        isSelected ? 'bg-white text-slate-900 shadow-sm' : 'text-white/40 hover:text-white/70'
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  );
-                });
-              })()}
-            </div>
-
-            <div className="flex items-center gap-0.5 bg-black/30 p-0.5 rounded-lg shrink-0 overflow-x-auto no-scrollbar max-w-[45%]">
-              {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
-                .sort((a, b) => parseInt(a) - parseInt(b))
-                .map(year => (
-                  <button
-                    key={year}
-                    type="button"
-                    onClick={() => setFilters({...filters, annee: year.toString()})}
-                    className={`px-1.5 py-0.5 rounded-sm text-[8px] font-black transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                      filters.annee?.toString() === year.toString() ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/40'
-                    }`}
-                  >
-                    {year}
-                  </button>
-                ))}
-            </div>
-          </div>
-
-          <div className="flex gap-1 overflow-x-auto no-scrollbar pb-0.5 select-none">
-            {moisListe.map(m => (
-              <button
-                key={m.v}
-                type="button"
-                onClick={() => setFilters({...filters, mois: m.v})}
-                className={`px-2.5 py-1 rounded-md text-[8px] font-black shrink-0 transition-all border cursor-pointer ${
-                  filters.mois === m.v 
-                    ? 'bg-[var(--primary)] border-[var(--primary)] text-white' 
-                    : 'bg-black/10 border-transparent text-white/30'
-                }`}
-              >
-                {m.l.substring(0, 3).toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* FILTRES DE PÉRIODE : tous les mois, puisqu'on prévoit aussi ceux qui n'ont pas encore d'opérations. */}
+        <SelecteurPeriodeMobile
+          profils={(() => {
+            const groupes = [...new Set((comptes || []).map(c => c.groupe).filter(Boolean))].sort();
+            return groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
+          })()}
+          annees={[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])].sort((x, y) => parseInt(x) - parseInt(y))}
+          mois={moisListe}
+          filters={filters}
+          setFilters={setFilters}
+        />
 
         {/* BANDEAU D'ALERTE QUAND DES MOIS SONT EN NÉGATIF */}
           {moisCritiques.decouverts.length > 0 ? (

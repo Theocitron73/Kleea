@@ -258,7 +258,7 @@ export default function ListeOperations({
       <div className={`flex items-center shrink-0 ${mobile ? 'flex-wrap gap-x-3 gap-y-2 px-1 pt-1 pb-1' : 'gap-4 px-5 pt-3 pb-1'}`}>
         <input type="checkbox" aria-label="Tout sélectionner" checked={transactions.length > 0 && selectedIds.length === transactions.length} onChange={toggleAll}
           className="w-4 h-4 rounded-[5px] accent-[var(--primary)] cursor-pointer" />
-        <div role="group" aria-label="Trier les opérations" className={`flex items-center gap-0.5 text-[12px] ${mobile ? 'min-w-0 overflow-x-auto' : ''}`}>
+        <div role="group" aria-label="Trier les opérations" className={`flex items-center gap-0.5 text-[12px] ${mobile ? 'flex-1 basis-0 min-w-0 overflow-x-auto no-scrollbar whitespace-nowrap' : ''}`}>
           <span className="mr-1.5 text-[var(--text-main)]/45">Trier par</span>
           {TRIS.map(([cle, texte]) => {
             const actif = sortConfig.key === cle || (cle === 'date' && triParDate);
