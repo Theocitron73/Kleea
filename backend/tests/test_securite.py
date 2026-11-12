@@ -131,5 +131,40 @@ class AnalyseEconomies(Base):
         self.assertNotIn("secret-interne", reponse.text)
 
 
+class CorsParefeu(Base):
+    """La réponse 403 du pare-feu ne renvoie d'en-tête CORS qu'à une origine autorisée, jamais à l'Origin reçu."""
+
+    IP = "203.0.113.7"
+
+    def setUp(self):
+        super().setUp()
+        import securite
+        import time as _t
+        from datetime import datetime, timedelta, timezone
+        futur = datetime.now(timezone.utc) + timedelta(minutes=30)
+        patcher = partout("origins", ["https://kleea.test"])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for nom, valeur in (("BANNED_IPS_CACHE", {self.IP: futur}), ("LAST_BANNED_SYNC", _t.time())):
+            ancien = getattr(securite, nom)
+            setattr(securite, nom, valeur)
+            self.addCleanup(setattr, securite, nom, ancien)
+
+    def reponse(self, origin):
+        return self.client.get("/transactions", headers={"X-Forwarded-For": self.IP, "Origin": origin})
+
+    def test_ip_bannie_bloquee(self):
+        self.assertEqual(self.reponse("https://kleea.test").status_code, 403)
+
+    def test_origine_autorisee_recoit_les_entetes_cors(self):
+        entetes = self.reponse("https://kleea.test").headers
+        self.assertEqual(entetes.get("Access-Control-Allow-Origin"), "https://kleea.test")
+        self.assertEqual(entetes.get("Access-Control-Allow-Credentials"), "true")
+
+    def test_origine_etrangere_n_est_jamais_reflechie(self):
+        entetes = self.reponse("https://evil.example.com").headers
+        self.assertNotIn("Access-Control-Allow-Origin", entetes)
+
+
 if __name__ == "__main__":
     unittest.main()
