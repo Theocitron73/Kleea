@@ -1082,6 +1082,12 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
     overflow-x: clip;
   }
 
+  /* La page défile en entier : une hauteur fixée à l'écran laissait la marge du bas au milieu du contenu. */
+  .app-conteneur.h-screen {
+    height: auto !important;
+    min-height: 100dvh;
+  }
+
   .barre-haut-mobile {
     height: var(--barre-haut);
     padding-top: env(safe-area-inset-top);

@@ -46,7 +46,7 @@ function frequence(regle) {
 }
 
 /** Les prévisions et budgets qui se répètent seuls, avec de quoi les mettre en pause, changer le montant ou les arrêter. */
-export default function ReglesRecurrentes({ version = 0, onChange, onCount }) {
+export default function ReglesRecurrentes({ version = 0, onChange, onCount, compact = false }) {
   const [regles, setRegles] = useState(null);
   const [montants, setMontants] = useState({});
 
@@ -77,6 +77,10 @@ export default function ReglesRecurrentes({ version = 0, onChange, onCount }) {
   };
 
   if (regles === null) return null;
+
+  if (regles.length === 0 && compact) {
+    return <p className="px-4 pb-3 text-[13px] text-white/55">Choisissez « Chaque mois » en ajoutant une prévision ou un budget : il se répétera seul, sans reconduire le mois.</p>;
+  }
 
   if (regles.length === 0) {
     return (

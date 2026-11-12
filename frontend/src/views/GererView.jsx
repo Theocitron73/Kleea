@@ -870,7 +870,8 @@ export default function GererView(props) {
             </div>
 
             {/* Les mêmes lignes que sur ordinateur, en deux étages ; « Modifier » ouvre la fenêtre d'édition complète. */}
-            <div className="mt-1 h-[65vh] min-h-[380px] flex flex-col">
+            {/* Toute la hauteur entre les deux barres : une fois la page descendue, la liste occupe l'écran. */}
+            <div className="mt-1 h-[calc(100dvh-var(--barre-haut,3.5rem)-var(--barre-bas,3.5rem)-1.5rem)] min-h-[380px] flex flex-col">
               <ListeOperations
                 mobile
                 transactions={transactionsFiltrees}

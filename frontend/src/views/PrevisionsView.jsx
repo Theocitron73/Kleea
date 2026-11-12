@@ -2,7 +2,7 @@ import SelecteurPeriodeMobile from '../components/SelecteurPeriodeMobile';
 import ListePrevisions from '../components/ListePrevisions';
 import AnalyseCategories from '../components/AnalyseCategories';
 import { useState, useMemo } from 'react';
-import { Plus, Calendar, Tag, Wallet, Eye, EyeOff, Repeat, PieChart as PieChartIcon, TrendingUp, X, Copy, AlertTriangle } from 'lucide-react';
+import { Plus, Calendar, Tag, Wallet, Eye, EyeOff, Repeat, PieChart as PieChartIcon, TrendingUp, X, Copy, AlertTriangle, ChevronDown } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import DatePicker from 'react-datepicker';
@@ -63,6 +63,8 @@ export default function PrevisionsView(props) {
 
   // États spécifiques au mode mobile
   const [mobileSubTab, setMobileSubTab] = useState('flux'); // 'flux' | 'projections'
+  const [recurrentesOuvertes, setRecurrentesOuvertes] = useState(false);
+  const [nbRecurrentesMobile, setNbRecurrentesMobile] = useState(0);
   const [showAddForm, setShowAddForm] = useState(false);
   const [vueTableau, setVueTableau] = useState('mois'); // 'mois' | 'recurrentes'
   const [nbRegles, setNbRegles] = useState(0);
@@ -961,13 +963,6 @@ const moisCritiques = useMemo(() => {
               )}
             </div>
 
-            <div className="bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl">
-              <h3 className="flex items-center gap-2 px-4 pt-3 text-[10px] font-black uppercase tracking-wider text-white/80">
-                <Repeat size={12} aria-hidden="true" /> Récurrentes
-              </h3>
-              <ReglesRecurrentes version={versionRegles} onChange={loadPrevisions} />
-            </div>
-
             {/* LISTE DES CARTES PRÉVISIONS */}
             <div className="space-y-2">
               {previsionsFiltrees.length > 0 ? (
@@ -992,16 +987,28 @@ const moisCritiques = useMemo(() => {
               )}
             </div>
 
+            {/* Récurrentes : repliées sous la liste, elles ne passent plus avant les prévisions du mois. */}
+            <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl">
+              <button type="button" aria-expanded={recurrentesOuvertes} onClick={() => setRecurrentesOuvertes((o) => !o)}
+                className="w-full flex items-center gap-2 px-4 h-12 text-left text-[14px] font-bold text-white/85 cursor-pointer">
+                <Repeat size={15} className="text-white/50" aria-hidden="true" />
+                <span className="flex-1">Récurrentes</span>
+                {nbRecurrentesMobile > 0 && <span className="text-[12px] px-2 rounded-md bg-white/10 text-white/70">{nbRecurrentesMobile}</span>}
+                <ChevronDown size={16} className={`text-white/40 transition-transform ${recurrentesOuvertes ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
+              {recurrentesOuvertes && <ReglesRecurrentes version={versionRegles} onChange={loadPrevisions} onCount={setNbRecurrentesMobile} compact />}
+            </div>
+
             {chartDataPrevisions && chartDataPrevisions.length > 0 && (
               <div className="bg-[var(--glass-bg)] border border-white/10 rounded-2xl p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <PieChartIcon size={14} className="text-white/40" />
-                  <h3 className="text-[10px] font-black text-white/40 uppercase tracking-widest">
-                    Analyse Mensuelle Prévue
+                  <h3 className="text-[14px] font-bold text-white/80">
+                    Analyse mensuelle prévue
                   </h3>
                 </div>
 
-                <div className="min-h-[420px] w-full">
+                <div className="w-full" style={{ height: `${Math.max(140, chartDataPrevisions.length * 52 + 24)}px` }}>
                   <AnalyseCategories statsCategories={chartDataPrevisions} libelle="Dépenses prévues par catégorie" />
                 </div>
               </div>

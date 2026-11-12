@@ -211,7 +211,7 @@ export default function ListeOperations({
     if (mobile) {
       const details = [getCleanCategoryName(t.categorie || 'Autre'), prevision && nomPrevision(prevision), t.enveloppe, moisDecale && `compté en ${t.mois === 'Aout' ? 'Août' : t.mois}`].filter(Boolean);
       return (
-        <div className={`flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors ${choisie ? 'bg-[var(--primary)]/15' : 'active:bg-white/[0.06]'}`}>
+        <div className={`relative after:content-[''] after:absolute after:left-[3.9rem] after:right-3 after:bottom-0 after:h-px after:bg-white/[0.08] flex items-center gap-3 px-3 py-2 rounded-2xl transition-colors ${choisie ? 'bg-[var(--primary)]/15' : 'active:bg-white/[0.06]'}`}>
           <button type="button" role="checkbox" aria-checked={choisie} aria-label={`Sélectionner ${t.nom}`} onClick={() => toggleSelect(t.id)} className="relative shrink-0 cursor-pointer">
             {choisie ? (
               <span className="w-10 h-10 rounded-[28%] flex items-center justify-center bg-[var(--primary)] text-white"><Check size={18} /></span>
@@ -281,7 +281,7 @@ export default function ListeOperations({
         </div>
       </div>
 
-      <div ref={conteneur} className={`flex-1 overflow-auto custom-scrollbar ${mobile ? 'px-0 pb-28' : 'px-2 pb-24'}`}>
+      <div ref={conteneur} className={`flex-1 overflow-auto custom-scrollbar ${mobile ? 'px-0 pb-4' : 'px-2 pb-24'}`}>
         {elements.length === 0 ? (
           <div className="py-16 text-center">
             <h3 className="text-[var(--text-main)] font-black text-xs uppercase tracking-[0.2em] opacity-40">Aucune transaction trouvée</h3>
