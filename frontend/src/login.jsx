@@ -1030,7 +1030,7 @@ if (!user) {
 
   return (
     <div 
-      className={`p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500 ${
+      className={`app-conteneur p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500 ${
           isPageScrollable 
             ? 'min-h-screen overflow-y-auto' 
             : 'h-screen lg:overflow-hidden'

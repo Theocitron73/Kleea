@@ -814,7 +814,7 @@ export default function GererView(props) {
         )}
 
         {/* 3 sous-onglets mobile */}
-        <div className="flex border-b border-white/5 mb-3.5 select-none shrink-0">
+        <div className="onglets-mobile flex border-b border-white/5 mb-3.5 select-none shrink-0">
           <button 
             type="button"
             onClick={() => setActiveSection('transactions')}
@@ -835,7 +835,7 @@ export default function GererView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Catégories / Saisie
+            Catégories
           </button>
           <button 
             type="button"

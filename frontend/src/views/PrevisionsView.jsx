@@ -848,9 +848,9 @@ const moisCritiques = useMemo(() => {
           ) : null}
 
         {/* LISTE HORIZONTALE DES COMPTES */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 shrink-0 select-none">
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-4 shrink-0 select-none snap-x snap-mandatory">
           {soldesPrevisionnels && soldesPrevisionnels.map(c => (
-            <div key={c.compte} className="min-w-[160px] shrink-0">
+            <div key={c.compte} className="w-[72%] max-w-[280px] shrink-0 snap-start">
               {SortableAccountCard ? (
                 <SortableAccountCard c={c} isSorting={false} />
               ) : (
@@ -864,7 +864,7 @@ const moisCritiques = useMemo(() => {
         </div>
 
         {/* ONGLETS MOBILES */}
-        <div className="flex border-b border-white/5 mb-4 select-none shrink-0">
+        <div className="onglets-mobile flex border-b border-white/5 mb-4 select-none shrink-0">
           <button 
             type="button"
             onClick={() => setMobileSubTab('flux')}
@@ -874,7 +874,7 @@ const moisCritiques = useMemo(() => {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Flux Prévus ({previsionsFiltrees.length})
+            Prévisions ({previsionsFiltrees.length})
           </button>
           <button 
             type="button"
@@ -885,7 +885,7 @@ const moisCritiques = useMemo(() => {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Recap Projections
+            Projections
           </button>
         </div>
 

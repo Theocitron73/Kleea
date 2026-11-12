@@ -2830,7 +2830,7 @@ export default function DashboardView(props) {
         </div>
 
         {/* BARRE D'ONGLETS MOBILE */}
-        <div className="flex border-b border-white/5 mb-3 select-none shrink-0">
+        <div className="onglets-mobile flex border-b border-white/5 mb-3 select-none shrink-0">
           <button 
             type="button"
             onClick={() => setMobileHub('flux')}
@@ -2840,7 +2840,7 @@ export default function DashboardView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Flux & Comptes
+            Flux & comptes
           </button>
           <button 
             type="button"
@@ -2851,7 +2851,7 @@ export default function DashboardView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Bilan Annuel
+            Bilan annuel
           </button>
           <button 
             type="button"
@@ -2862,7 +2862,7 @@ export default function DashboardView(props) {
                 : 'border-transparent text-white/40'
             }`}
           >
-            Graphes & Épargne
+            Graphes
           </button>
         </div>
 
@@ -2923,9 +2923,9 @@ export default function DashboardView(props) {
                   </SortableContext>
                 </DndContext>
               ) : (
-                <div className="flex gap-2 pb-1.5 overflow-x-auto no-scrollbar select-none">
+                <div className="flex gap-2 pb-1.5 overflow-x-auto no-scrollbar select-none snap-x snap-mandatory">
                   {soldesTries.map(c => (
-                    <div key={c.compte} className="min-w-[140px] shrink-0">
+                    <div key={c.compte} className="w-[72%] max-w-[280px] shrink-0 snap-start">
                       <SortableAccountCard c={c} isSorting={false} />
                     </div>
                   ))}

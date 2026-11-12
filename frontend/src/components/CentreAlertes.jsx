@@ -31,7 +31,7 @@ export default function CentreAlertes({ alertes = [], nombreMasquees = 0, masque
 
   const libelle = alertes.length ? `Alertes : ${alertes.length} en cours` : 'Alertes : rien à signaler';
   const styleBouton = variante === 'mobile'
-    ? 'md:hidden fixed top-3 right-3 z-[60] w-10 h-10 rounded-xl bg-slate-900/80 backdrop-blur-[var(--glass-blur)] border border-white/10'
+    ? 'relative w-11 h-11 rounded-xl active:bg-white/10'
     : 'relative w-9 h-9 rounded-xl hover:bg-white/10';
 
   return (

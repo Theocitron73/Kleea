@@ -164,7 +164,7 @@ export default function ImportView({
     <div className="flex flex-col animate-in fade-in duration-500 min-h-screen lg:min-h-0 lg:h-[calc(100vh-120px)] px-4 pb-24 lg:pb-0 select-none">
       
       {/* 1. ONGLETS MOBILE (hidden sur grand écran) */}
-      <div className="flex lg:hidden border-b border-white/5 mb-4 shrink-0">
+      <div className="onglets-mobile flex lg:hidden border-b border-white/5 mb-4 shrink-0">
         <button 
           type="button"
           onClick={() => setMobileSubTab('sources')}
@@ -174,7 +174,7 @@ export default function ImportView({
               : 'border-transparent text-white/40'
           }`}
         >
-          Sources & Synchro
+          Sources
         </button>
         <button 
           type="button"
@@ -254,7 +254,7 @@ export default function ImportView({
                   <button
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
-                    className="flex-1 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none cursor-pointer"
+                    className="flex-1 min-w-0 flex items-center justify-between bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl p-3 text-[10px] uppercase font-bold text-[var(--text-main)]/50 hover:text-[var(--text-main)] transition-all select-none cursor-pointer"
                   >
                     <span className="flex items-center gap-2 truncate pr-2">
                       <Building2 size={12} className="text-[var(--secondary)] shrink-0" />
