@@ -187,7 +187,15 @@ for (const [format, taille] of [['ordinateur', { width: 1680, height: 1050 }], [
     await page.keyboard.press('Escape');
 
     for (const [nom, fichier] of [['Prévisionnel', 'previsionnel'], ['Gérer', 'gerer'], ['Importer', 'importer'], ['Comptes', 'comptes'], ['Tricount', 'tricount']]) {
-      await page.getByRole('button', { name: nom, exact: true }).locator('visible=true').first().click();
+      // Sur téléphone, les pages hors des quatre onglets du bas s'ouvrent depuis « Plus ».
+      const bouton = page.getByRole('button', { name: nom, exact: true }).locator('visible=true').first();
+      if (format === 'mobile' && !(await bouton.isVisible().catch(() => false))) {
+        await page.locator('.barre-onglets-mobile').getByRole('button', { name: 'Plus' }).click();
+        await page.getByRole('dialog', { name: 'Plus' }).getByRole('button', { name: nom, exact: true }).click();
+      } else {
+        await bouton.click();
+      }
+      await page.evaluate(() => window.scrollTo(0, 0));
       await p(fichier);
     }
   });
