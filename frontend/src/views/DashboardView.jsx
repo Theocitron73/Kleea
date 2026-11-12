@@ -1122,7 +1122,7 @@ export const WrappedSection = React.memo(({ toutesLesTransactions, comptesDuProf
             {stats.topCategories.map((cat, index) => (
               <div key={index} className="space-y-1">
                 <div className="flex items-center gap-2 min-w-0">
-                  <CategoryIcon name={cat.nom} size={12} showBg={false} />
+                  <CategoryIcon name={cat.nom} size={12} />
                   <span className="flex-1 min-w-0 text-xs font-bold text-white/90 truncate">{getCleanCategoryName(cat.nom)}</span>
                   <span className="shrink-0 text-xs font-bold tabular-nums text-white/60">{euros(cat.montant)}</span>
                 </div>

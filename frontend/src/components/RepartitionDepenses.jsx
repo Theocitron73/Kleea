@@ -124,7 +124,7 @@ export default function RepartitionDepenses({ data = [], currentYear, comptes = 
                   className={`w-full text-left px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${enAvant ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'} ${masquee ? 'opacity-35' : ''}`}>
                   <span className="flex items-center gap-2 min-w-0">
                     <span className="w-2 h-2 rounded-full shrink-0" style={{ background: membresAutres.has(d.name) ? GRIS_AUTRES : couleurs[d.name] }} />
-                    <CategoryIcon name={d.name} size={12} showBg={false} />
+                    <CategoryIcon name={d.name} size={12} />
                     <span className={`flex-1 min-w-0 truncate text-[12px] font-semibold text-white/90 ${masquee ? 'line-through' : ''}`}>{getCleanCategoryName(d.name)}</span>
                     {masquee && <EyeOff size={12} className="shrink-0 text-white/50" aria-label="Masquée" />}
                     {!masquee && evolution !== null && (

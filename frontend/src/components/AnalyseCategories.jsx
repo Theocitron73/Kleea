@@ -62,7 +62,7 @@ export default function AnalyseCategories({ statsCategories = [], hiddenCategori
   const nom = ({ x, y, payload }) => (
     <foreignObject x={x - LARGEUR_NOMS + 12} y={y - 10} width={LARGEUR_NOMS - 16} height={20}>
       <div className="h-full flex items-center gap-1.5 min-w-0" title={getCleanCategoryName(payload.value)}>
-        <CategoryIcon name={payload.value} size={12} showBg={false} />
+        <CategoryIcon name={payload.value} size={11} />
         <span className="truncate text-[11.5px] font-semibold text-white/85">{getCleanCategoryName(payload.value)}</span>
       </div>
     </foreignObject>
@@ -108,7 +108,7 @@ export default function AnalyseCategories({ statsCategories = [], hiddenCategori
     const c = payload[0].payload;
     return (
       <div className="bg-[var(--surface)]/95 border border-white/10 px-3 py-2 rounded-xl shadow-2xl text-[11px] text-white/80 space-y-0.5">
-        <p className="flex items-center gap-1.5 font-bold text-white"><CategoryIcon name={c.name} size={12} showBg={false} />{getCleanCategoryName(c.name)}</p>
+        <p className="flex items-center gap-1.5 font-bold text-white"><CategoryIcon name={c.name} size={12} />{getCleanCategoryName(c.name)}</p>
         <p>{euros(c.value)} · {Math.round(c.part)} % du total</p>
         {c.objectif > 0 && <p>Objectif : {euros(c.objectif)} ({Math.round((c.value / c.objectif) * 100)} %)</p>}
         {c.evolution !== null && c.evolution !== undefined && <p>{c.evolution > 0 ? '+' : ''}{c.evolution} % par rapport au mois précédent</p>}

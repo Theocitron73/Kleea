@@ -29,25 +29,25 @@ function BadgeDate({ mois, jour }) {
 
 // Solde total mois par mois : réel jusqu'en octobre, prévu ensuite.
 const SOLDES = [
-  ['Janv.', 36200], ['Févr.', 37400], ['Mars', 38100], ['Avr.', 39900], ['Mai', 41200], ['Juin', 42050],
-  ['Juil.', 43600], ['Août', 45130], ['Sept.', 46680], ['Oct.', 48590], ['Nov.', 50200], ['Déc.', 52400], ['Janv.', 53850],
+  ['Janv.', 3120], ['Févr.', 3380], ['Mars', 3540], ['Avr.', 3910], ['Mai', 4160], ['Juin', 4290],
+  ['Juil.', 4050], ['Août', 3980], ['Sept.', 4420], ['Oct.', 4760], ['Nov.', 5030], ['Déc.', 4880], ['Janv.', 5310],
 ];
 const AUJOURDHUI = 9;
 
 function CourbeSolde() {
-  const L = 520, H = 200, BAS = 34000, HAUT = 56000;
+  const L = 520, H = 200, BAS = 2800, HAUT = 5600;
   const points = SOLDES.map(([, v], i) => [16 + (i * (L - 32)) / (SOLDES.length - 1), H - 24 - ((v - BAS) / (HAUT - BAS)) * (H - 40)]);
   const trace = (pts) => pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   const [xA, yA] = points[AUJOURDHUI];
   const [xF, yF] = points[points.length - 1];
   return (
-    <svg viewBox={`0 0 ${L} ${H}`} className="w-full h-auto" role="img" aria-label="Solde total : 36 200 € en janvier, 48 590 € aujourd'hui, 53 850 € prévus en janvier 2027">
-      {[40000, 45000, 50000, 55000].map((v) => {
+    <svg viewBox={`0 0 ${L} ${H}`} className="w-full h-auto" role="img" aria-label="Solde total : 3 120 € en janvier, 4 760 € aujourd'hui, 5 310 € prévus en janvier 2027">
+      {[3000, 4000, 5000].map((v) => {
         const y = H - 24 - ((v - BAS) / (HAUT - BAS)) * (H - 40);
         return (
           <g key={v}>
             <line x1="16" x2={L - 16} y1={y} y2={y} stroke="var(--acc-t1)" strokeOpacity="0.06" />
-            <text x={L - 16} y={y - 4} textAnchor="end" fontSize="11" fill="var(--acc-t3)" fontFamily="ui-monospace, monospace">{v / 1000} k€</text>
+            <text x={L - 16} y={y - 4} textAnchor="end" fontSize="11" fill="var(--acc-t3)" fontFamily="ui-monospace, monospace">{(v / 1000).toLocaleString('fr-FR')} k€</text>
           </g>
         );
       })}
@@ -71,19 +71,19 @@ function ApercuHero({ compact = false }) {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className={`text-sm ${T2}`}>Solde total</p>
-          <p className={`text-3xl font-medium ${T1} ${CHIFFRE} mt-1`}>48 590 €</p>
-          <p className={`text-xs ${T3} mt-1`}><span className={POS}>+12 390 €</span> depuis janvier</p>
+          <p className={`text-3xl font-medium ${T1} ${CHIFFRE} mt-1`}>4 760 €</p>
+          <p className={`text-xs ${T3} mt-1`}><span className={POS}>+1 640 €</span> depuis janvier</p>
         </div>
         <div className="text-right">
           <p className={`text-sm ${T2}`}>Prévu en janvier 2027</p>
-          <p className={`text-xl font-medium text-[color-mix(in_srgb,var(--primary)_55%,var(--acc-t1))] ${CHIFFRE} mt-1`}>53 850 €</p>
+          <p className={`text-xl font-medium text-[color-mix(in_srgb,var(--primary)_55%,var(--acc-t1))] ${CHIFFRE} mt-1`}>5 310 €</p>
         </div>
       </div>
       <CourbeSolde />
       {!compact && <div className="space-y-2">
         {[
-          { mois: 'NOV', jour: '05', nom: 'Loyer', detail: 'Prévu, chaque mois', montant: '−850,00 €' },
-          { mois: 'NOV', jour: '28', nom: 'Salaire', detail: 'Prévu, chaque mois', montant: '+3 200,00 €', positif: true },
+          { mois: 'NOV', jour: '05', nom: 'Loyer', detail: 'Prévu, chaque mois', montant: '−650,00 €' },
+          { mois: 'NOV', jour: '28', nom: 'Salaire', detail: 'Prévu, chaque mois', montant: '+2 100,00 €', positif: true },
         ].map((l) => (
           <div key={l.nom} className={`flex items-center gap-3 rounded-[10px] ${LIGNE} px-3 py-2`}>
             <BadgeDate mois={l.mois} jour={l.jour} />
