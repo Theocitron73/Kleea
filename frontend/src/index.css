@@ -1131,7 +1131,7 @@ input[name="creationPowensInput"] ~ .shrink-0 [class*="absolute"] {
   }
 
   /* Onglets des pages : une ligne, en casse normale, assez grands pour le pouce. */
-  .onglets-mobile > button {
+  .onglets-mobile > :is(button, span) {
     white-space: nowrap;
     min-width: 0;
     overflow: hidden;
