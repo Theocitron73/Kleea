@@ -1,8 +1,10 @@
 """Simulations, notes et annonces de déménagement."""
 import html
 import httpx
+import ipaddress
 import json
 import re
+import socket
 from fastapi import APIRouter, Depends, HTTPException
 from google.genai import types
 from imports_bancaires import clean_val_to_float
@@ -10,11 +12,71 @@ from journaux import detail_erreur, logger
 from schemas import AnnonceModel, DuplicateScenarioRequest, NoteUpdate, ParseTextRequest, ScrapeUrlRequest, SimulationLineCreate
 from sqlalchemy import text
 from typing import List
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 from base import client, engine, get_current_user
 
 
 router = APIRouter()
+
+
+# Récupération d'une annonce : seuls les sites d'annonces connus sont joignables, et jamais une adresse
+# interne. Sans cela, l'endpoint laisserait un compte forcer le serveur à requêter n'importe quelle URL
+# (127.0.0.1, 169.254.169.254, services internes) — une faille SSRF.
+DOMAINES_ANNONCES = (
+    "leboncoin.fr", "seloger.com", "pap.fr", "bienici.com",
+    "jinka.fr", "jinka.com", "ouestfrance-immo.com", "logic-immo.com",
+)
+MAX_REDIRECTIONS = 4
+
+
+def _hote_autorise(hote: str) -> bool:
+    hote = (hote or "").lower().rstrip(".")
+    return any(hote == d or hote.endswith("." + d) for d in DOMAINES_ANNONCES)
+
+
+def _ips_toutes_publiques(hote: str) -> bool:
+    """Vrai si l'hôte résout, et seulement vers des adresses publiques (bloque loopback, privé, link-local…)."""
+    try:
+        infos = socket.getaddrinfo(hote, None)
+    except (OSError, UnicodeError):
+        return False
+    adresses = {info[4][0] for info in infos}
+    if not adresses:
+        return False
+    for brute in adresses:
+        try:
+            ip = ipaddress.ip_address(brute.split("%")[0])
+        except ValueError:
+            return False
+        if not ip.is_global or ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            return False
+    return True
+
+
+def url_annonce_sure(url: str) -> bool:
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    return _hote_autorise(parsed.hostname) and _ips_toutes_publiques(parsed.hostname)
+
+
+def _exiger_url_sure(url: str) -> None:
+    if not url_annonce_sure(url):
+        raise HTTPException(status_code=400, detail="Seules les adresses des sites d'annonces reconnus sont acceptées.")
+
+
+async def recuperer_annonce(url: str, headers: dict) -> httpx.Response:
+    """Récupère l'annonce en revalidant chaque URL, y compris après redirection (jamais vers une IP interne)."""
+    _exiger_url_sure(url)  # refus immédiat : aucune connexion n'est ouverte vers une URL non autorisée.
+    async with httpx.AsyncClient(timeout=8.0, follow_redirects=False, headers=headers) as c:
+        for _ in range(MAX_REDIRECTIONS + 1):
+            resp = await c.get(url)
+            if resp.is_redirect and resp.headers.get("location"):
+                url = urljoin(url, resp.headers["location"])
+                _exiger_url_sure(url)  # une redirection ne peut pas mener vers une adresse interne.
+                continue
+            return resp
+    raise HTTPException(status_code=400, detail="Trop de redirections pour cette annonce.")
 
 
 @router.post("/api/simulation-demenagement")
@@ -461,12 +523,13 @@ async def scrape_listing(req: ScrapeUrlRequest, current_user: str = Depends(get_
     is_blocked = False
 
     try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True, headers=headers) as c:
-            resp = await c.get(url)
-            if resp.status_code in (403, 429) or "datadome" in resp.text.lower():
-                is_blocked = True
-            else:
-                html_text = resp.text
+        resp = await recuperer_annonce(url, headers)
+        if resp.status_code in (403, 429) or "datadome" in resp.text.lower():
+            is_blocked = True
+        else:
+            html_text = resp.text
+    except HTTPException:
+        raise  # URL hors des sites reconnus ou pointant vers une adresse interne : on refuse clairement.
     except Exception:
         is_blocked = True
 
