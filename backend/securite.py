@@ -1,5 +1,6 @@
 """Pare-feu, bannissement d'IP, limitation de débit et routes d'administration de la sécurité."""
 import asyncio
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Request
@@ -10,6 +11,21 @@ from base import engine, get_current_admin, purger_sessions_expirees
 
 
 router = APIRouter()
+
+
+# Origines autorisées (les frontends légitimes). Source unique : main.py configure le CORS avec cette liste,
+# et le pare-feu ne renvoie d'en-tête CORS qu'à ces origines, jamais à l'Origin reçu tel quel.
+origins = [
+    orig for orig in [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8000",
+        os.getenv("DOMAINE_DEFAULT"),
+        os.getenv("SOUS_DOMAINE_URL"),
+    ] if orig
+]
 
 
 # 4. Cache & Tâche de fond Sécurité
@@ -101,8 +117,9 @@ async def security_firewall_middleware(request: Request, call_next):
                     "detail": f"🚫 Accès bloqué : trop de tentatives échouées. Votre adresse IP est suspendue pour encore {minutes_restantes} minute(s)."
                 }
             )
-            # 🟢 INDISPENSABLE : En-têtes CORS pour que le frontend puisse lire le message 403
-            if origin:
+            # En-têtes CORS pour que le frontend puisse lire le message 403, mais seulement pour une origine
+            # autorisée : on ne reflète jamais l'Origin reçu tel quel (sinon n'importe quel site lirait la réponse).
+            if origin in origins:
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Credentials"] = "true"
             return response

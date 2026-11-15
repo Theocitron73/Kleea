@@ -1,9 +1,23 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Layers, Calculator, User, Wallet, Landmark, Tag, Plus, Calendar, Trash2, FileText, Copy, X, Scale, CheckCircle2, AlertTriangle, Sparkles, Award, ArrowRight, Home, ExternalLink, Camera, Star, MapPin, ChevronLeft, ChevronRight, ClipboardPaste, AlignLeft, Edit2, LayoutGrid, List, Globe } from 'lucide-react';
 import { toast } from 'sonner';
+import DOMPurify from 'dompurify';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
+
+// Le bloc-notes garde son HTML (mise en forme, cases à cocher) et le réinjecte via innerHTML.
+// On l'assainit donc à chaque rendu : aucune balise <script>, aucun gestionnaire inline (onclick…),
+// aucune URL javascript: ne peut subsister, même si le contenu stocké a été altéré.
+const BALISES_NOTES = ['div', 'span', 'p', 'br', 'b', 'i', 'u', 'strong', 'em', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'a', 'input', 'button'];
+const ATTRS_NOTES = ['class', 'style', 'id', 'title', 'href', 'type', 'checked', 'placeholder', 'contenteditable', 'data-action', 'data-checked'];
+
+// La protection d'URI par défaut de DOMPurify neutralise déjà les href « javascript: » ; on ne la
+// redéfinit pas, car un ALLOWED_URI_REGEXP personnalisé ferait aussi tomber le type="checkbox" des tâches.
+const nettoyerNotes = (html) => DOMPurify.sanitize(html || '', {
+  ALLOWED_TAGS: BALISES_NOTES,
+  ALLOWED_ATTR: ATTRS_NOTES,
+});
 
 export default function DemenagementPage({ user, toutesLesCategories = [] }) {
   const [viewMode, setViewMode] = useState('simulator');
@@ -155,7 +169,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [] }) {
     // 1. Charge d'abord depuis localStorage en 0 ms
     const cached = localStorage.getItem(storageKey);
     if (cached && editorRef.current) {
-      editorRef.current.innerHTML = cached;
+      editorRef.current.innerHTML = nettoyerNotes(cached);
       setNotesHtml(cached);
       syncCheckboxesVisuals();
     }
@@ -170,7 +184,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [] }) {
           setNotesHtml(contenu);
           localStorage.setItem(storageKey, contenu);
           if (editorRef.current) {
-            editorRef.current.innerHTML = contenu;
+            editorRef.current.innerHTML = nettoyerNotes(contenu);
             syncCheckboxesVisuals();
             setTimeout(syncCheckboxesVisuals, 60);
           }
@@ -253,6 +267,21 @@ export default function DemenagementPage({ user, toutesLesCategories = [] }) {
     return () => window.removeEventListener('editor-update', handleCustomUpdate);
   }, []);
 
+  // Suppression d'une tâche par délégation : le bouton ✕ porte data-action, plus de gestionnaire inline
+  // (les attributs onclick sont bannis par la CSP et retirés par l'assainissement ci-dessus).
+  useEffect(() => {
+    const editeur = editorRef.current;
+    if (!editeur) return undefined;
+    const surClic = (e) => {
+      const bouton = e.target.closest('[data-action="supprimer-tache"]');
+      if (!bouton || !editeur.contains(bouton)) return;
+      bouton.closest('[id^="group-"]')?.remove();
+      saveNotesImmediately();
+    };
+    editeur.addEventListener('click', surClic);
+    return () => editeur.removeEventListener('click', surClic);
+  }, []);
+
   // 🟢 Clic sur n'importe quelle case à cocher
   const handleEditorClick = (e) => {
     const target = e.target;
@@ -305,7 +334,7 @@ export default function DemenagementPage({ user, toutesLesCategories = [] }) {
     taskContainer.innerHTML = `
       <input type="checkbox" class="accent-indigo-500 cursor-pointer mt-0.5" />
       <span class="text-xs text-white/80 outline-none flex-1 font-medium" contenteditable="true" placeholder="Nouvelle tâche..."></span>
-      <button type="button" class="text-white/20 hover:text-rose-400 opacity-0 group-hover/cb:opacity-100 transition-opacity px-1 text-[10px] font-bold cursor-pointer select-none" onclick="document.getElementById('${id}').remove(); window.dispatchEvent(new Event('editor-update'));" title="Supprimer la tâche">✕</button>
+      <button type="button" data-action="supprimer-tache" class="text-white/20 hover:text-rose-400 opacity-0 group-hover/cb:opacity-100 transition-opacity px-1 text-[10px] font-bold cursor-pointer select-none" title="Supprimer la tâche">✕</button>
     `;
 
     const sel = window.getSelection();

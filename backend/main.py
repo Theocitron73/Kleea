@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # --- MODULES DU BACKEND ---
 import base  # noqa: F401  (charge l'environnement avant tout le reste)
-from securite import periodic_cleanup_task, refresh_banned_ips_cache, security_firewall_middleware
+from securite import origins, periodic_cleanup_task, refresh_banned_ips_cache, security_firewall_middleware
 import securite
 from routes import abonnements, alertes, regles, patrimoine, partage, compte, double_auth, sessions, transactions, comptes_bancaires, theme, projets, previsions, categories, imports, tricount, statistiques, demenagement, powens, conges, streamdeck, sauvegarde
 from journaux import chemin_journalisable, logger
@@ -30,18 +30,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 # 7. MIDDLEWARE CORS (DOIT ÊTRE PLACÉ IMMÉDIATEMENT APRÈS app = FastAPI)
-origins = [
-    orig for orig in [
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://localhost:8000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8000",
-        os.getenv("DOMAINE_DEFAULT"),
-        os.getenv("SOUS_DOMAINE_URL"),
-    ] if orig
-]
-
+# La liste des origines autorisées vient de securite.py : une seule source pour le CORS et le pare-feu.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
