@@ -62,6 +62,30 @@ test('une part modifiée est enregistrée avec le nouveau total', async ({ page 
   expect(erreurs).toEqual([]);
 });
 
+test('la page s’affiche tout de suite grâce au préchargement, même si l’API est lente', async ({ page }) => {
+  let lent = false;
+  await page.route('http://api.kleea.test/**', async (route) => {
+    const requete = route.request();
+    const chemin = new URL(requete.url()).pathname;
+    if (requete.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: ENTETES });
+    if (lent && /^\/get-(groups|tricount)\//.test(chemin)) await new Promise((r) => setTimeout(r, 3000));
+    const corps = /^\/get-groups\//.test(chemin) ? [{ nom: 'Vacances' }]
+      : /^\/get-tricount\//.test(chemin) ? { transactions: DEPENSES, transferts: [] }
+      : /^\/transactions\/stats\/count\//.test(chemin) ? { count: 1 }
+      : /^\/transactions\//.test(chemin) ? [{ id: 1, date: '2026-11-02', nom: 'Achat', montant: -5, categorie: 'Courses', compte: 'Compte', mois: 'Novembre', annee: 2026 }]
+      : /^\/profile\//.test(chemin) ? { username: UTILISATEUR, import_mode: 'manual', role: 'admin' }
+      : [];
+    return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify(corps) });
+  });
+  await ouvrirSession(page);
+  const prechargement = page.waitForResponse((r) => r.url().includes('/get-tricount/'));
+  await page.goto('/');
+  await prechargement;
+  lent = true;
+  await page.locator('nav').getByRole('button', { name: /^Tricount$/i }).first().click({ timeout: 30_000 });
+  await expect(page.getByTitle('Modifier la dépense').first()).toBeVisible({ timeout: 1000 });
+});
+
 test('un montant différent de la somme des parts n’est pas enregistré', async ({ page }) => {
   const { envois, fenetre } = await ouvrir(page);
   await fenetre.locator('input[type="number"]').first().fill('50');

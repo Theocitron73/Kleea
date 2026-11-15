@@ -7,15 +7,20 @@ import api from '../axios';
 import { toLocalDateString, getTodayLocalDateString } from "../utils/dateUtils";
 import { appliquerMontantIndividuel, preparerEdition, repartirEquitablement, totalDesPartsCentimes } from '../utils/tricountPartage';
 import FenetrePartageTricount from '../components/FenetrePartageTricount';
+import { chargerDetails, chargerGroupes, lireDetailsEnCache, lireGroupesEnCache } from '../utils/cacheTricount';
 
 // 🟢 Helper de conversion en centimes entiers (anti-erreur d'arrondi 0.1 + 0.2)
 const toCents = (val) => Math.round((parseFloat(val) || 0) * 100);
 
 export default function TricountManager({ userId }) {
-  const [groupes, setGroupes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Démarrage depuis le cache préchargé : affichage immédiat, rafraîchi ensuite.
+  const groupesEnCache = lireGroupesEnCache(userId);
+  const [groupes, setGroupes] = useState(groupesEnCache || []);
+  const [loading, setLoading] = useState(!groupesEnCache);
   const [activeTab, setActiveTab] = useState(0);
-  const [groupData, setGroupData] = useState({ transactions: [], transferts: [] });
+  const [groupData, setGroupData] = useState(
+    () => (groupesEnCache?.[0] && lireDetailsEnCache(userId, groupesEnCache[0].nom)) || { transactions: [], transferts: [] }
+  );
 
   // Navigation interne spécifique au mode mobile
   const [mobileSection, setMobileSection] = useState('bilan'); // 'bilan' | 'ajouter' | 'membres'
@@ -53,8 +58,7 @@ export default function TricountManager({ userId }) {
 
   const fetchGroupes = async () => {
     try {
-      const res = await api.get(`/get-groups/${userId}`);
-      setGroupes(res.data || []);
+      setGroupes(await chargerGroupes(userId));
     } catch (err) {
       console.error("Erreur récupération groupes:", err);
     } finally {
@@ -65,9 +69,10 @@ export default function TricountManager({ userId }) {
   const fetchDetailsGroupe = async () => {
     if (groupes.length > 0 && groupes[activeTab]) {
       const groupName = groupes[activeTab].nom;
+      const enCache = lireDetailsEnCache(userId, groupName);
+      if (enCache) setGroupData(enCache);
       try {
-        const res = await api.get(`/get-tricount/${userId}/${encodeURIComponent(groupName)}`);
-        setGroupData(res.data || { transactions: [], transferts: [] });
+        setGroupData(await chargerDetails(userId, groupName));
       } catch (err) {
         console.error("Erreur détails groupe:", err);
       }

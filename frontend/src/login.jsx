@@ -20,6 +20,7 @@ import DemenagementPage from './views/DemenagementPage';
 import CongesPage from './views/Congespage';
 import AuthView from './views/AuthView';
 import { deconnexionEnAttente } from './utils/sessions';
+import { prechargerTricount, viderCacheTricount } from './utils/cacheTricount';
 import ComptesView from './views/ComptesView';
 import ThemeStudioDesktop from './views/ThemeStudioDesktop';
 import { themeBackground } from './utils/gradient';
@@ -477,6 +478,7 @@ const handleLogout = () => {
   localStorage.removeItem('user');
   localStorage.removeItem('powens_connecte'); // 👈 Évite de transmettre le jeton au prochain utilisateur
   localStorage.removeItem('token');
+  viderCacheTricount();
 
   // 2. Réinitialisation des états pour la session suivante
   setUser(null);
@@ -981,7 +983,8 @@ useEffect(() => {
     fetchPowensConnections();
     fetchHiddenPages(user);
     api.get(`/note/${user}`).then(res => setNote(res.data.texte));
-    
+    prechargerTricount(user); // page Tricount instantanée à l'ouverture
+
     // 🟢 Récupération officielle du profil (mode d'import + rôle)
     api.get(`/profile/${user}`).then(res => {
       // 1. Mise à jour du rôle utilisateur (admin / user)
