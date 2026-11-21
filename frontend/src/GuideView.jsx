@@ -263,7 +263,7 @@ export default function GuideView({ ouvrirPage, pagesDisponibles }) {
       </nav>
 
       {/* LECTURE */}
-      <main ref={zoneLecture} className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar max-h-[calc(100vh-290px)] lg:max-h-[calc(100vh-170px)] pb-12">
+      <main ref={zoneLecture} className="flex-1 min-w-0 overflow-y-auto pr-1 custom-scrollbar max-h-[calc(100vh-290px)] lg:max-h-[calc(100vh-170px)] menu-gauche:lg:max-h-[calc(100vh-86px)]! pb-12">
         {recherche.trim() ? (
           <div className="space-y-3">
             <h2 className="text-lg font-black text-[var(--text-main)]" aria-live="polite">

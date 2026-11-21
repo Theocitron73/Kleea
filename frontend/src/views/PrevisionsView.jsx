@@ -106,7 +106,7 @@ const moisCritiques = useMemo(() => {
       {/* =========================================================================
           1. AFFICHAGE DESKTOP (100% IDENTIQUE AU DESIGN D'ORIGINE)
           ========================================================================= */}
-      <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(98vh-100px)] lg:overflow-hidden">
+      <div className="hidden lg:flex flex-col animate-in fade-in duration-500 px-4 md:px-8 h-auto overflow-visible lg:h-[calc(98vh-100px)] menu-gauche:lg:h-[calc(100vh-4rem)]! lg:overflow-hidden">
         
         {/* BARRE DE FILTRES GLOBALE */}
         <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10 select-none">

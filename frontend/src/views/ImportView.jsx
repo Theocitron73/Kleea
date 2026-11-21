@@ -161,7 +161,7 @@ export default function ImportView({
   };
 
   return (
-    <div className="flex flex-col animate-in fade-in duration-500 min-h-screen lg:min-h-0 lg:h-[calc(100vh-120px)] px-4 pb-24 lg:pb-0 select-none">
+    <div className="flex flex-col animate-in fade-in duration-500 min-h-screen lg:min-h-0 lg:h-[calc(100vh-120px)] menu-gauche:lg:h-[calc(100vh-4rem)]! px-4 pb-24 lg:pb-0 select-none">
       
       {/* 1. ONGLETS MOBILE (hidden sur grand écran) */}
       <div className="onglets-mobile flex lg:hidden border-b border-white/5 mb-4 shrink-0">

@@ -135,7 +135,7 @@ export default function GererView(props) {
       {/* =========================================================================
           1. AFFICHAGE DESKTOP (100% IDENTIQUE AU DESIGN D'ORIGINE)
           ========================================================================= */}
-      <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] px-4">
+      <div className="hidden lg:flex flex-col animate-in fade-in duration-500 h-[calc(100vh-120px)] menu-gauche:h-[calc(100vh-4rem)]! px-4">
         
         {/* HEADER DESKTOP */}
         <div className="mb-6 px-2 shrink-0">

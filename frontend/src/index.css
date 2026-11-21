@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Menu placé à gauche (préférence du profil) : `menu-gauche:` cible les éléments sous le conteneur .menu-gauche. */
+@custom-variant menu-gauche (&:where(.menu-gauche, .menu-gauche *));
+
 /* =========================================================================
    THÈME : les classes Tailwind sont branchées sur les réglages du Studio.
    Tout text-white, bg-indigo-500, rounded-xl... suit donc le thème en direct.
@@ -81,6 +84,8 @@ input[type=number] {
 }
 
 :root {
+  /* Largeur de la barre latérale du menu sur ordinateur (≥ lg). */
+  --largeur-menu: 14.5rem;
   --bg-site: #152c48;
   --primary: #4f46e5;
   --text-main: #ffffff;
@@ -361,6 +366,16 @@ select {
     padding-right: 0.75rem !important;
     padding-top: 0.25rem !important;
     padding-bottom: 0.25rem !important;
+  }
+
+  /* Place pour la barre latérale du menu (fixée à gauche). */
+  .app-conteneur.menu-gauche {
+    padding-left: calc(var(--largeur-menu) + 1.5rem) !important;
+  }
+  nav .menu-lateral {
+    top: 0.5rem;
+    bottom: 0.5rem;
+    left: 0.5rem;
   }
 
   /* 3. BARRE DE NAVIGATION (Gain : ~35px) */
@@ -1190,4 +1205,37 @@ body:has(.page-accueil) {
   --acc-t1: color-mix(in srgb, var(--text-main) 94%, var(--bg-site));
   --acc-t2: color-mix(in srgb, var(--text-main) 70%, var(--bg-site));
   --acc-t3: color-mix(in srgb, var(--text-main) 56%, var(--bg-site));
+}
+
+/* Barre latérale du menu : sous 1800 px, elle se réduit à une colonne d'icônes (libellés en infobulle)
+   pour laisser aux pages la largeur dont elles ont besoin. */
+@media (min-width: 1024px) and (max-width: 1799px) {
+  :root {
+    --largeur-menu: 4.25rem;
+  }
+  .menu-lateral {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .menu-lateral .menu-texte {
+    display: none;
+  }
+  .menu-lateral .menu-item {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .menu-lateral .menu-item.group {
+    flex: none;
+    border: 0;
+    background: transparent;
+  }
+  .menu-lateral .menu-pied {
+    flex-direction: column;
+  }
+  .menu-lateral > button:first-child {
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
 }

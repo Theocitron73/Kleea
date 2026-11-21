@@ -67,7 +67,7 @@ export default function ComptesView({
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   return (
-    <div className="flex flex-col gap-4 animate-in fade-in duration-500 select-none pb-24 lg:pb-4 lg:h-[calc(100vh-140px)] lg:overflow-hidden">
+    <div className="flex flex-col gap-4 animate-in fade-in duration-500 select-none pb-24 lg:pb-4 lg:h-[calc(100vh-140px)] menu-gauche:lg:h-[calc(100vh-4rem)]! lg:overflow-hidden">
       
       {/* 1. EN-TÊTE & COMPTEUR (COMMUN) */}
       <div className="flex items-center justify-between px-2 shrink-0">

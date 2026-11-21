@@ -78,7 +78,7 @@ function Legende({ items }) {
 
 function Bureau({ profil, mois, annee, couleurPatrimoine }) {
   return (
-    <div className="hidden lg:flex flex-col px-4 md:px-8 h-[calc(99vh-100px)] overflow-hidden">
+    <div className="hidden lg:flex flex-col px-4 md:px-8 h-[calc(99vh-100px)] menu-gauche:h-[calc(100vh-4rem)]! overflow-hidden">
 
       {/* BARRE DE FILTRES */}
       <div className="shrink-0 flex flex-wrap items-center gap-4 mb-4 p-3 bg-[var(--glass-bg)] backdrop-blur-[var(--glass-blur)] rounded-[var(--radius)] border border-white/10">

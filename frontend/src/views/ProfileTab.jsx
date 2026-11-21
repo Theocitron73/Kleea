@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp } from 'lucide-react';
+import { Building2, AlertTriangle, ArrowRight, Plus, Zap, FileUp, PanelTop, PanelLeft } from 'lucide-react';
 import api from '../axios';
 import CustomSelect from '../components/CustomSelect';
 import DoubleAuthCard from '../components/DoubleAuthCard';
@@ -22,7 +22,7 @@ function Section({ titre, children }) {
 
 export default function ProfileTab({ 
   user, powensData, comptes, syncCountByAccount = {}, 
-  handleAssociateAccount, setActiveTab, importMode, setImportMode, 
+  handleAssociateAccount, setActiveTab, importMode, setImportMode, positionMenu = 'haut', changerPositionMenu, 
   onAutoSync, fetchPowensConnections, fetchComptes 
 }) {
   const [profileData, setProfileData] = useState(null);
@@ -403,6 +403,38 @@ export default function ProfileTab({
         </div>
       )}
       </Section>
+
+      {/* Réglage propre à l'ordinateur : sur téléphone, la navigation reste en bas de l'écran. */}
+      {changerPositionMenu && (
+      <div className="hidden lg:block">
+      <Section titre="Affichage">
+        <div className="bg-white/5 backdrop-blur-[var(--glass-blur)] p-4 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-0.5">
+            <h4 className="text-[13px] font-bold text-white/90">Position du menu</h4>
+            <p className="text-[11px] text-white/65 leading-relaxed">Sur ordinateur, affichez le menu en barre au-dessus des pages ou en colonne à gauche.</p>
+          </div>
+
+          <div role="radiogroup" aria-label="Position du menu" className="flex items-center gap-1 p-1 bg-black/40 rounded-xl border border-white/5 w-fit shrink-0 select-none">
+            {[['haut', 'En haut', <PanelTop key="i" size={12} aria-hidden="true" />], ['gauche', 'À gauche', <PanelLeft key="i" size={12} aria-hidden="true" />]].map(([valeur, libelle, icone]) => (
+              <button
+                key={valeur}
+                type="button"
+                role="radio"
+                aria-checked={positionMenu === valeur}
+                onClick={() => changerPositionMenu(valeur)}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                  positionMenu === valeur ? 'bg-[var(--primary)] text-white shadow-md' : 'text-white/40 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                {icone}
+                <span>{libelle}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </Section>
+      </div>
+      )}
 
       <Section titre="Banques et import">
         {/* Mode d'import Global */}
