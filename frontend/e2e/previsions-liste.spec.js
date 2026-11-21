@@ -10,7 +10,7 @@ const PREVISIONS = [
   PREVI(53, '2026-11-28', 'Prime de fin d’année', 900, 'Salaire', { regle_id: 4 }),
 ];
 
-async function ouvrir(page, previsions = PREVISIONS) {
+async function ouvrir(page, previsions = PREVISIONS, periodes = []) {
   const erreurs = [];
   page.on('pageerror', (e) => erreurs.push(e.message));
   const modifications = page.modifications = [];
@@ -23,7 +23,7 @@ async function ouvrir(page, previsions = PREVISIONS) {
       modifications.push({ id: Number(requete.url().split('/').pop()), ...requete.postDataJSON() });
       return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify({ status: 'success' }) });
     }
-    return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify(/\/ALL\//.test(requete.url()) ? previsions : []) });
+    return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify(/\/ALL\//.test(requete.url()) ? previsions : periodes) });
   });
   await ouvrirSession(page);
   await page.goto('/');
@@ -103,4 +103,13 @@ test('le graphique des dépenses prévues est en barres, et une catégorie se ma
   await expect(barres).toHaveCount(1);
   await page.getByLabel('Catégories masquées').locator('visible=true').getByRole('button', { name: /Loisirs/ }).click();
   await expect(barres).toHaveCount(2);
+});
+
+test('une prévision reconduite en janvier de l’année suivante rend cette année accessible', async ({ page }) => {
+  const erreurs = await ouvrir(page, PREVISIONS, [{ mois: 'Décembre', annee: 2026 }, { mois: 'Janvier', annee: 2027 }]);
+  const annee2027 = page.getByRole('button', { name: '2027', exact: true }).locator('visible=true');
+  await expect(annee2027).toBeVisible();
+  await annee2027.click();
+  await expect(annee2027).toHaveClass(/bg-emerald-500/);
+  expect(erreurs).toEqual([]);
 });
