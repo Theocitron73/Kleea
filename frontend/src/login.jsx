@@ -285,8 +285,19 @@ const [userTheme, setUserTheme] = useState({
   color_depenses: "#f43f5e",
   color_epargne: "#ffffff",
   color_jauge: "#f1c40f",
-  color_patrimoine: "#37b58f"
+  color_patrimoine: "#37b58f",
+  // Position du menu sur ordinateur ('haut' ou 'gauche') : enregistrée avec les couleurs du compte,
+  // gardée en cache local pour s'afficher tout de suite au rechargement.
+  position_menu: (() => { try { return localStorage.getItem('kleea-position-menu') || 'haut'; } catch { return 'haut'; } })()
 });
+
+const positionMenu = userTheme.position_menu === 'gauche' ? 'gauche' : 'haut';
+const changerPositionMenu = (position) => {
+  setUserTheme(prev => ({ ...prev, position_menu: position }));
+  try { localStorage.setItem('kleea-position-menu', position); } catch { /* stockage indisponible */ }
+  api.post('/save-user-theme', { user, element: 'position_menu', couleur: position })
+    .catch(() => toast.error("La position du menu n'a pas pu être enregistrée."));
+};
 
 
   
@@ -1033,7 +1044,7 @@ if (!user) {
 
   return (
     <div 
-      className={`app-conteneur p-4 md:p-8 text-[var(--text-main)] transition-colors duration-500 ${
+      className={`app-conteneur p-4 md:p-8 ${positionMenu === 'gauche' ? 'menu-gauche lg:pl-[calc(var(--largeur-menu)+3rem)]' : ''} text-[var(--text-main)] transition-colors duration-500 ${
           isPageScrollable 
             ? 'min-h-screen overflow-y-auto' 
             : 'h-screen lg:overflow-hidden'
@@ -1046,7 +1057,7 @@ if (!user) {
       <div className="max-w-full mx-auto">
       
       {/* NAVIGATION GLOBALE */}
-          <NavigationPrincipale centreAlertes={centreAlertes} recherche={{ transactions: toutesLesTransactions, comptes, ouvrirResultat: ouvrirResultatRecherche }} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
+          <NavigationPrincipale positionMenu={positionMenu} centreAlertes={centreAlertes} recherche={{ transactions: toutesLesTransactions, comptes, ouvrirResultat: ouvrirResultatRecherche }} CURRENT_VERSION={CURRENT_VERSION} activeTab={activeTab} handleLogout={handleLogout} handleWheelNavTabs={handleWheelNavTabs} setActiveTab={setActiveTab} user={user} visibleMenuItems={visibleMenuItems} />
 
 
         <main>
@@ -1406,6 +1417,8 @@ if (!user) {
     // 🟢 AJOUT DES PROPS DE SYNCHRONISATION :
     importMode={importMode}
     setImportMode={setImportMode}
+    positionMenu={positionMenu}
+    changerPositionMenu={changerPositionMenu}
     onAutoSync={performBackgroundSyncIfNeeded}
 
     fetchPowensConnections={fetchPowensConnections}

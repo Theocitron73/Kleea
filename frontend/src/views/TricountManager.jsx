@@ -802,7 +802,7 @@ export default function TricountManager({ userId }) {
             </div>
             
             {/* --- COLONNE 3 : BILAN DES REMBOURSEMENTS --- */}
-            <div className={`${mobileSection === 'bilan' ? 'flex' : 'hidden'} lg:flex lg:col-span-2 flex-col lg:h-[calc(90vh-180px)] space-y-4 sm:space-y-6`}>
+            <div className={`${mobileSection === 'bilan' ? 'flex' : 'hidden'} lg:flex lg:col-span-2 flex-col lg:h-[calc(90vh-180px)] menu-gauche:lg:h-[calc(90vh-96px)]! space-y-4 sm:space-y-6`}>
               <div className="flex items-center gap-2 px-1 shrink-0">
                 <div className="h-2 w-2 bg-[var(--primary)] rounded-full animate-pulse" />
                 <h4 className="text-[10px] font-black text-[var(--text-main)]/60 uppercase tracking-[0.25em]">
@@ -891,7 +891,7 @@ export default function TricountManager({ userId }) {
             </div>
 
             {/* --- COLONNE 4 : HISTORIQUE DES DÉPENSES --- */}
-            <div className={`${mobileSection === 'bilan' ? 'flex' : 'hidden'} lg:flex flex-col lg:h-[calc(90vh-180px)] space-y-4 sm:space-y-6`}>
+            <div className={`${mobileSection === 'bilan' ? 'flex' : 'hidden'} lg:flex flex-col lg:h-[calc(90vh-180px)] menu-gauche:lg:h-[calc(90vh-96px)]! space-y-4 sm:space-y-6`}>
               <div className="flex items-center justify-between px-1 shrink-0">
                 <h4 className="text-[10px] font-black text-[var(--text-main)]/60 uppercase tracking-[0.25em]">Historique</h4>
                 <div className="flex gap-1.5">

@@ -5,7 +5,7 @@ import CentreAlertes from './CentreAlertes';
 import RechercheGlobale from './RechercheGlobale';
 
 // Navigation entre les pages, sur ordinateur et sur mobile.
-function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handleWheelNavTabs, setActiveTab, user, visibleMenuItems, centreAlertes, recherche }) {
+function NavigationPrincipale({ positionMenu = 'haut', CURRENT_VERSION, activeTab, handleLogout, handleWheelNavTabs, setActiveTab, user, visibleMenuItems, centreAlertes, recherche }) {
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
 
   return (
@@ -26,10 +26,89 @@ function NavigationPrincipale({ CURRENT_VERSION, activeTab, handleLogout, handle
       <div className="barre-haut-mobile-place md:hidden" aria-hidden="true" />
       <RechercheGlobale ouverte={rechercheOuverte} setOuverte={setRechercheOuverte} {...recherche} />
 
-      {/* --- VERSION DESKTOP (Haut) --- */}
+      {/* --- VERSION BUREAU (≥ lg), si le profil la demande : barre latérale fixée à gauche --- */}
+      {positionMenu === 'gauche' && (
+      <aside
+        onWheel={handleWheelNavTabs}
+        aria-label="Menu principal"
+        className="menu-lateral hidden lg:flex fixed top-4 bottom-4 left-4 z-50 w-[var(--largeur-menu)] flex-col gap-3 p-3 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl select-none"
+      >
+        {/* Logo et version */}
+        <button type="button" onClick={() => setActiveTab('dashboard')} className="flex items-center gap-2.5 px-2 py-1.5 rounded-xl hover:bg-white/5 transition-colors cursor-pointer" aria-label="Kleea, page d’accueil">
+          <img src="/Kleea_2.png" alt="" className="w-8 h-8 rounded-lg shrink-0" />
+          <span className="menu-texte flex flex-col items-start leading-none">
+            <span className="text-sm font-black tracking-tight text-[var(--text-main)]">Kleea</span>
+            <span className="text-[9px] font-black text-[var(--secondary)] uppercase tracking-[0.15em] mt-1">v.{CURRENT_VERSION}</span>
+          </span>
+        </button>
+
+        {/* Recherche globale */}
+        <button type="button" aria-label="Rechercher" title="Rechercher (Ctrl + K)" onClick={() => setRechercheOuverte(true)} className="menu-item flex items-center gap-2.5 px-3 h-9 rounded-xl bg-[var(--glass-bg)] border border-white/5 text-[var(--text-main)]/55 hover:text-[var(--text-main)] hover:bg-white/10 transition-colors cursor-pointer">
+          <Search size={15} aria-hidden="true" />
+          <span className="menu-texte text-xs font-bold">Rechercher</span>
+          <kbd className="menu-texte ml-auto text-[9px] font-black text-[var(--text-main)]/35 border border-white/10 rounded px-1 py-0.5">Ctrl K</kbd>
+        </button>
+
+        {/* Pages */}
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar -mx-1 px-1 flex flex-col gap-1" title="Molette de la souris : changer de page">
+          {visibleMenuItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                aria-label={item.label}
+                title={item.label}
+                className={`menu-item shrink-0 flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-300 cursor-pointer ${
+                  isActive
+                  ? 'bg-white text-slate-900 shadow-lg'
+                  : 'text-[var(--text-main)]/55 hover:text-[var(--text-main)] hover:bg-[var(--glass-bg)]'
+                }`}
+              >
+                <Icon size={18} weight={isActive ? "fill" : "bold"} />
+                <span className="menu-texte text-xs font-black uppercase tracking-wider truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Alertes, profil, déconnexion */}
+        <div className="menu-pied flex items-center gap-1 pt-3 border-t border-white/5">
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            aria-current={activeTab === 'profile' ? 'page' : undefined}
+            aria-label={`Mon profil (${user})`}
+            className={`menu-item group flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 border rounded-xl transition-all duration-300 cursor-pointer ${
+              activeTab === 'profile'
+              ? 'bg-white/15 border-[var(--primary)]'
+              : 'bg-[var(--glass-bg)] border-white/5 hover:bg-white/10 hover:border-white/15'
+            }`}
+            title="Accéder à mon profil et aux réglages"
+          >
+            <span className="w-7 h-7 rounded-lg bg-[var(--primary)] flex items-center justify-center text-[11px] font-black text-white shrink-0">
+              {user.substring(0, 1).toUpperCase()}
+            </span>
+            <span className="menu-texte flex flex-col items-start leading-none min-w-0">
+              <span className="text-[10px] font-black text-[var(--text-main)] uppercase tracking-[0.08em] truncate max-w-full">{user}</span>
+              <span className="text-[8px] font-black text-[var(--secondary)]/70 group-hover:text-[var(--secondary)] uppercase tracking-[0.15em] mt-1 transition-colors">Mon profil</span>
+            </span>
+          </button>
+          <CentreAlertes {...centreAlertes} ouvrirPage={setActiveTab} variante="laterale" />
+          <button type="button" onClick={handleLogout} className="shrink-0 w-9 h-9 flex items-center justify-center text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer" title="Déconnexion" aria-label="Déconnexion">
+            <LogOut size={17} />
+          </button>
+        </div>
+      </aside>
+      )}
+
+      {/* --- Barre horizontale en haut : sur tablette, et sur ordinateur si le menu n'est pas à gauche --- */}
       <div 
         onWheel={handleWheelNavTabs}
-        className="hidden md:flex sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl mb-8 cursor-ns-resize select-none"
+        className={`hidden md:flex ${positionMenu === 'gauche' ? 'lg:hidden' : ''} sticky top-4 z-50 max-w-fit mx-auto items-center gap-2 p-1.5 bg-slate-900/50 backdrop-blur-[var(--glass-blur)] border border-white/10 rounded-2xl mb-8 cursor-ns-resize select-none`}
         title="Molette de la souris : changer de page"
       >
         

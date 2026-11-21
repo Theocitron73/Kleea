@@ -15,8 +15,13 @@ export default function CentreAlertes({ alertes = [], nombreMasquees = 0, masque
   const placer = useCallback(() => {
     const cadre = bouton.current?.getBoundingClientRect();
     if (!cadre) return;
+    // Dans la barre latérale (en bas à gauche), le panneau s'ouvre à droite de la cloche, aligné sur son bas.
+    if (variante === 'laterale') {
+      setAncre({ bottom: Math.max(12, window.innerHeight - cadre.bottom), left: cadre.right + 12 });
+      return;
+    }
     setAncre({ top: cadre.bottom + 8, right: Math.max(12, document.documentElement.clientWidth - cadre.right) });
-  }, []);
+  }, [variante]);
 
   useEffect(() => {
     if (!ouvert) return undefined;
@@ -51,7 +56,9 @@ export default function CentreAlertes({ alertes = [], nombreMasquees = 0, masque
             role="dialog"
             aria-label="Alertes"
             onClick={(e) => e.stopPropagation()}
-            style={{ top: ancre.top, right: ancre.right, maxHeight: `calc(100dvh - ${ancre.top + 12}px)` }}
+            style={ancre.bottom !== undefined
+              ? { bottom: ancre.bottom, left: ancre.left, maxHeight: `calc(100dvh - ${ancre.bottom + 12}px)` }
+              : { top: ancre.top, right: ancre.right, maxHeight: `calc(100dvh - ${ancre.top + 12}px)` }}
             className="absolute w-[calc(100vw-1.5rem)] max-w-sm flex flex-col bg-[var(--surface)] border border-white/10 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-150"
           >
             <header className="flex items-center justify-between px-4 py-3 border-b border-white/5">
