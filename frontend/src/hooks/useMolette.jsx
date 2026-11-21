@@ -1,7 +1,8 @@
 import { useRef } from 'react';
+import { anneesPrevisions } from '../utils/anneesPrevisions';
 
 // Navigation à la molette.
-export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems }) {
+export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, periodesPrevisions = [], filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems }) {
   const lastWheelTime = useRef(0);
 
   // Anti-rebond (160ms) pour garantir un défilement précis de 1 par 1
@@ -43,7 +44,7 @@ export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annu
     if (!canWheelTrigger()) return;
 
     const rawYears = isPrevi
-      ? [...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
+      ? anneesPrevisions(availablePeriods, periodesPrevisions)
       : [...new Set(availablePeriods.map(p => p.annee.toString()))];
 
     const sortedYears = rawYears.sort((a, b) => parseInt(a) - parseInt(b));

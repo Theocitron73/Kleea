@@ -1,4 +1,5 @@
 import SelecteurPeriodeMobile from '../components/SelecteurPeriodeMobile';
+import { anneesPrevisions } from '../utils/anneesPrevisions';
 import ListePrevisions from '../components/ListePrevisions';
 import AnalyseCategories from '../components/AnalyseCategories';
 import { useState, useMemo } from 'react';
@@ -27,6 +28,7 @@ export default function PrevisionsView(props) {
     handleWheelAnnee,
     moisListe = [],
     availablePeriods = [],
+    periodesPrevisions = [],
     soldeGlobalProjete = 0,
     soldesPrevisionnels = [],
     userTheme = {},
@@ -164,8 +166,7 @@ const moisCritiques = useMemo(() => {
             className="flex items-center gap-1 cursor-ns-resize"
             title="Molette de la souris : changer d'année"
           >
-            {[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])]
-              .sort((a, b) => parseInt(a) - parseInt(b))
+            {anneesPrevisions(availablePeriods, periodesPrevisions)
               .map(year => (
                 <button
                   key={year}
@@ -760,7 +761,7 @@ const moisCritiques = useMemo(() => {
             const groupes = [...new Set((comptes || []).map(c => c.groupe).filter(Boolean))].sort();
             return groupes.length > 0 ? groupes : [user ? user.charAt(0).toUpperCase() + user.slice(1) : 'Personnel'];
           })()}
-          annees={[...new Set([...availablePeriods.map(p => p.annee.toString()), new Date().getFullYear().toString()])].sort((x, y) => parseInt(x) - parseInt(y))}
+          annees={anneesPrevisions(availablePeriods, periodesPrevisions)}
           mois={moisListe}
           filters={filters}
           setFilters={setFilters}

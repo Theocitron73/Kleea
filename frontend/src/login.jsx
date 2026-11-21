@@ -689,7 +689,7 @@ const { checkNewTransactions, confirmBatchImport, fetchPowensConnections, handle
 
 
 
-const { versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision } = usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user });
+const { periodesPrevisions, versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision } = usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user });
 
 
 // --- 1. Tes States (Assure-toi que l'ordre est respecté) ---
@@ -958,7 +958,7 @@ const { handleForceRefreshPowens, isRefreshingPowens } = useActualisationPowens(
 // =========================================================================
 const centreAlertes = useAlertes({ user, activeTab, comptes, transactions: toutesLesTransactions, connexions: powensData?.connections, aImporter: syncCountByAccount, importMode, budgetsAffiches: budgets, previsionsAffichees: allPrevisionsAnnee });
 
-const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
+const { handleWheelAnnee, handleWheelAnnualTab, handleWheelMois, handleWheelNavTabs, handleWheelProfil, handleWheelRightTab, handleWheelTabActive } = useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, periodesPrevisions, filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems });
 
 
 // 🟢 Récupération des pages masquées depuis PostgreSQL
@@ -1153,6 +1153,7 @@ if (!user) {
     handleWheelAnnee={handleWheelAnnee}
     moisListe={moisListe}
     availablePeriods={availablePeriods}
+    periodesPrevisions={periodesPrevisions}
     soldeGlobalProjete={soldeGlobalProjete}
     soldesPrevisionnels={soldesPrevisionnels}
     userTheme={userTheme}

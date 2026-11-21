@@ -9,6 +9,21 @@ import { calculerSoldesPrevisionnels } from '../utils/calculsPrevisions';
 
 // Prévisions et épargne projetée.
 export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user }) {
+  // Périodes (mois, année) qui ont des prévisions en base : elles alimentent le choix de l'année,
+  // pour qu'une année sans opération (ex. janvier suivant après reconduction) reste accessible.
+  const [periodesPrevisions, setPeriodesPrevisions] = useState([]);
+
+  const loadAvailablePreviPeriods = async () => {
+    if (!user) return; // 👈 Sécurité anti-déconnexion
+    try {
+      const nomUtilisateur = (typeof user === 'object' && user !== null) ? user.nom : user;
+      const res = await api.get(`/previsions/${nomUtilisateur}`);
+      setPeriodesPrevisions(res.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const loadPrevisions = async () => {
     if (!user) return;
     try {
@@ -25,6 +40,8 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
         //console.log("Données reçues :", res.data.length, "lignes");
         setallPrevisionsAnnee(res.data);
       }
+      // Rechargé après chaque ajout ou reconduction : une nouvelle année peut être apparue.
+      loadAvailablePreviPeriods();
     } catch (err) {
       console.error("Erreur lors du chargement des prévisions :", err);
     }
@@ -241,19 +258,6 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   const chartDataPrevisions = useMemo(() => calculerGraphiquePrevisions({ previsionsFiltrees }), [previsionsFiltrees]);
 
 
-  const [, setMoisAvecPrevisions] = useState([]);
-
-  // On charge une fois la liste des périodes existantes en base prévisions
-  const loadAvailablePreviPeriods = async () => {
-    if (!user) return; // 👈 Sécurité anti-déconnexion
-    try {
-      const nomUtilisateur = (typeof user === 'object' && user !== null) ? user.nom : user;
-      const res = await api.get(`/previsions/${nomUtilisateur}`);
-      setMoisAvecPrevisions(res.data || []);
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
 
   const [duplicateModal, setDuplicateModal] = useState({
@@ -395,9 +399,5 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   }, [recapAnnuelStats, objectifAnnuelGlobal]);
 
 
-  useEffect(() => {
-    loadAvailablePreviPeriods();
-  }, [user]);
-
-  return { versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision };
+  return { periodesPrevisions, versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision };
 }
