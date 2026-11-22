@@ -12,6 +12,7 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   // Périodes (mois, année) qui ont des prévisions en base : elles alimentent le choix de l'année,
   // pour qu'une année sans opération (ex. janvier suivant après reconduction) reste accessible.
   const [periodesPrevisions, setPeriodesPrevisions] = useState([]);
+  const [previsionsAnneesPrecedentes, setPrevisionsAnneesPrecedentes] = useState([]);
 
   const loadAvailablePreviPeriods = async () => {
     if (!user) return; // 👈 Sécurité anti-déconnexion
@@ -40,6 +41,12 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
         //console.log("Données reçues :", res.data.length, "lignes");
         setallPrevisionsAnnee(res.data);
       }
+      // Années entre l'année en cours et l'année affichée : leurs prévisions comptent dans le solde prévu.
+      const anneeAffichee = parseInt(filters.annee, 10);
+      const anneesEntre = [];
+      for (let a = new Date().getFullYear(); a < anneeAffichee; a++) anneesEntre.push(a);
+      const precedentes = await Promise.all(anneesEntre.map(a => api.get(`/previsions/${user}/ALL/${a}`).then(r => r.data || [])));
+      setPrevisionsAnneesPrecedentes(precedentes.flat());
       // Rechargé après chaque ajout ou reconduction : une nouvelle année peut être apparue.
       loadAvailablePreviPeriods();
     } catch (err) {
@@ -94,7 +101,7 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   // On crée une version "Année" sans le filtre du mois sélectionné
 
 
-  const soldesPrevisionnels = useMemo(() => calculerSoldesPrevisionnels({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, soldesTries, toutesLesTransactions }), [soldesTries, allPrevisionsAnnee, comptes, toutesLesTransactions, filters.annee, filters.mois]);
+  const soldesPrevisionnels = useMemo(() => calculerSoldesPrevisionnels({ allPrevisionsAnnee: [...previsionsAnneesPrecedentes, ...(allPrevisionsAnnee || [])], cleanMonth, comptes, filters, moisListe, soldesTries, toutesLesTransactions }), [soldesTries, allPrevisionsAnnee, previsionsAnneesPrecedentes, comptes, toutesLesTransactions, filters.annee, filters.mois]);
 
   const soldeGlobalProjete = useMemo(() => 
     soldesPrevisionnels.reduce((acc, c) => acc + c.soldeFinalEstime, 0)
