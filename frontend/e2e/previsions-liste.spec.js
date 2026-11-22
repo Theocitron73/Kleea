@@ -149,5 +149,7 @@ test('une prévision reconduite en janvier de l’année suivante rend cette ann
   await expect(annee2027).toBeVisible();
   await annee2027.click();
   await expect(annee2027).toHaveClass(/bg-emerald-500/);
+  // Le mois suit : janvier, le dernier mois de 2027 avec des prévisions (et non plus novembre, le mois d'avant)
+  await expect(page.getByRole('button', { name: 'JAN', exact: true }).locator('visible=true')).toHaveClass(/bg-\[var\(--primary\)\]/);
   expect(erreurs).toEqual([]);
 });

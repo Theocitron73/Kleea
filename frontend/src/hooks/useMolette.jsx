@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { anneesPrevisions } from '../utils/anneesPrevisions';
+import { anneesPrevisions, moisPourAnnee } from '../utils/anneesPrevisions';
 
 // Navigation à la molette.
 export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annualTab, availablePeriods, periodesPrevisions = [], filters, groupesDisponibles, moisListe, setActiveRightTab, setActiveTab, setAnnualTab, setFilters, setSearchTerm, setTabActive, tabActive, visibleMenuItems }) {
@@ -53,11 +53,12 @@ export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annu
     const currentIndex = sortedYears.findIndex(y => y === filters.annee?.toString());
     if (currentIndex === -1) return;
 
-    if (e.deltaY > 0 && currentIndex < sortedYears.length - 1) {
-      setFilters({ annee: sortedYears[currentIndex + 1] });
-    } else if (e.deltaY < 0 && currentIndex > 0) {
-      setFilters({ annee: sortedYears[currentIndex - 1] });
-    }
+    let annee = null;
+    if (e.deltaY > 0 && currentIndex < sortedYears.length - 1) annee = sortedYears[currentIndex + 1];
+    else if (e.deltaY < 0 && currentIndex > 0) annee = sortedYears[currentIndex - 1];
+    if (annee === null) return;
+    // Au Prévisionnel, le mois suit l'année : mois en cours ou dernier mois avec des données.
+    setFilters(isPrevi ? { annee, mois: moisPourAnnee(annee, moisListe, availablePeriods, periodesPrevisions) } : { annee });
   };
 
   // 3. Défilement des Profils

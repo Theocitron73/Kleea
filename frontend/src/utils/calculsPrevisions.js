@@ -1,5 +1,5 @@
-import { trouverCompteCible } from './finance';
-import { estTransfertInterne } from './finance';
+import { trouverCompteCible } from './finance.js';
+import { estTransfertInterne } from './finance.js';
 
 export function calculerRecapPrevisions({ allPrevisionsAnnee, cleanMonth, comptes, excludedMonths, filters, moisListe, recapAnnuelStats, toutesLesTransactions }) {
     const maintenant = new Date();
@@ -171,9 +171,10 @@ export function calculerSuiviPrevisions({ allPrevisionsAnnee, toutesLesTransacti
   return map;
 }
 
-export function calculerSoldesPrevisionnels({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, soldesTries, toutesLesTransactions }) {
-    const anneeFiltre = parseInt(filters.annee) || new Date().getFullYear();
-    const maintenant = new Date();
+// `allPrevisionsAnnee` doit aussi contenir les prévisions des années entre aujourd'hui et l'année affichée :
+// en janvier de l'année suivante, celles de décembre comptent toujours dans le solde prévu.
+export function calculerSoldesPrevisionnels({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, soldesTries, toutesLesTransactions, maintenant = new Date() }) {
+    const anneeFiltre = parseInt(filters.annee) || maintenant.getFullYear();
     const moisActuelIdx = maintenant.getMonth();
     const anneeActuelle = maintenant.getFullYear();
     const indexMoisSelectionne = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(filters.mois));
@@ -199,15 +200,16 @@ export function calculerSoldesPrevisionnels({ allPrevisionsAnnee, cleanMonth, co
         pMonthIdx = moisListe.findIndex(m => cleanMonth(m.v) === cleanMonth(p.mois));
       }
 
-      if (pYear !== anneeFiltre) return;
+      // 🟢 Condition de cumul chronologique, d'une année à l'autre (mois comptés depuis l'an 0) :
+      // - Si on regarde un mois futur (ex: Janvier suivant), on prend le reste du mois en cours + tous les mois jusqu'à lui
+      // - On ignore les mois au-delà du mois sélectionné
+      const rangPrevision = pYear * 12 + pMonthIdx;
+      const rangActuel = anneeActuelle * 12 + moisActuelIdx;
+      const rangSelectionne = anneeFiltre * 12 + indexMoisSelectionne;
+      const isMoisEnCours = rangPrevision === rangActuel;
+      const isMoisDansLaPlage = rangPrevision >= rangActuel && rangPrevision <= rangSelectionne;
 
-      // 🟢 Condition de cumul chronologique :
-      // - Si on regarde un mois futur (ex: Octobre), on prend le reste de Septembre + tout Octobre
-      // - On ignore les mois au-delà du mois sélectionné (Novembre, Décembre)
-      const isMoisEnCours = (anneeFiltre === anneeActuelle && pMonthIdx === moisActuelIdx);
-      const isMoisDansLaPlage = (pMonthIdx >= moisActuelIdx && pMonthIdx <= indexMoisSelectionne);
-
-      if (!isMoisDansLaPlage && !(anneeFiltre < anneeActuelle && pMonthIdx === indexMoisSelectionne)) {
+      if (!isMoisDansLaPlage && !(anneeFiltre < anneeActuelle && rangPrevision === rangSelectionne)) {
         return;
       }
 
