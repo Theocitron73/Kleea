@@ -1,7 +1,20 @@
-import { X } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, CalendarRange, X } from 'lucide-react';
+import CustomSelect from './CustomSelect';
 
-// Reconduction mensuelle ou annuelle.
+const NOMS_MOIS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+const sansAccent = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+// Reconduction mensuelle (vers le mois ou l'année choisis) ou annuelle.
 function FenetreReconduction({ confirmPropagateToYear, duplicateType, filters, handleConfirmDuplicate, selectedIds2, setDuplicateModal }) {
+  const anneeSource = Number(filters.annee);
+  const moisSource = NOMS_MOIS.findIndex(m => sansAccent(m) === sansAccent(filters.mois));
+  // Par défaut : le mois suivant
+  const [moisCible, setMoisCible] = useState(moisSource === 11 ? 0 : moisSource + 1);
+  const [anneeCible, setAnneeCible] = useState(moisSource === 11 ? anneeSource + 1 : anneeSource);
+  const annees = [anneeSource - 1, anneeSource, anneeSource + 1, anneeSource + 2];
+  const memeMois = moisCible !== 'tous' && Number(moisCible) === moisSource && Number(anneeCible) === anneeSource;
+  const libelleCible = moisCible === 'tous' ? `tous les mois de ${anneeCible}` : `${NOMS_MOIS[moisCible]} ${anneeCible}`;
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-[var(--glass-blur)] animate-in fade-in duration-200">
       {/* Calque de fond cliquable pour fermer */}
@@ -16,7 +29,7 @@ function FenetreReconduction({ confirmPropagateToYear, duplicateType, filters, h
               {duplicateType === 'year' ? 'Propagation Annuelle' : 'Reconduire le mois'}
             </h4>
             <p className="text-[9px] text-white/30 uppercase font-bold mt-1">
-              {duplicateType === 'year' ? 'Duplication sur les mois restants' : 'Duplication vers le mois suivant'}
+              {duplicateType === 'year' ? 'Duplication sur les mois restants' : 'Duplication vers le mois ou l’année choisis'}
             </p>
           </div>
           <button 
@@ -34,9 +47,18 @@ function FenetreReconduction({ confirmPropagateToYear, duplicateType, filters, h
               Voulez-vous propager ces <strong className="text-white">{selectedIds2.length} prévisions sélectionnées</strong> sur l'intégralité des mois restants de l'année <strong className="text-emerald-400">{filters.annee}</strong> (jusqu'à Décembre) ?
             </p>
           ) : (
-            <p>
-              Voulez-vous reconduire {selectedIds2.length > 0 ? `les ${selectedIds2.length} prévisions sélectionnées` : "l'intégralité des prévisions de ce mois"} vers le mois suivant ?
-            </p>
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <CustomSelect label="Vers le mois" ariaLabel="Mois cible" icon={Calendar} value={moisCible} onChange={setMoisCible}
+                  options={[...NOMS_MOIS.map((m, i) => ({ v: i, l: m })), { v: 'tous', l: 'Toute l’année' }]} />
+                <CustomSelect label="Année" ariaLabel="Année cible" icon={CalendarRange} value={anneeCible} onChange={setAnneeCible}
+                  options={annees.map(a => ({ v: a, l: String(a) }))} />
+              </div>
+              <p>
+                Voulez-vous reconduire {selectedIds2.length > 0 ? `les ${selectedIds2.length} prévisions sélectionnées` : "l'intégralité des prévisions de ce mois"} vers <strong className="text-white">{libelleCible}</strong> ?
+              </p>
+              {memeMois && <p className="text-amber-400">Choisissez un autre mois que celui affiché.</p>}
+            </>
           )}
           <p className="text-[10px] text-white/30 italic">
             Cette action va cloner et adapter automatiquement les dates d'échéance des mouvements correspondants.
@@ -51,16 +73,17 @@ function FenetreReconduction({ confirmPropagateToYear, duplicateType, filters, h
           >
             Annuler
           </button>
-          <button 
+          <button
+            disabled={duplicateType !== 'year' && memeMois}
             onClick={() => {
               if (duplicateType === 'year') {
                 confirmPropagateToYear(); // ⚡ Appelle la propagation sur le reste de l'année
               } else {
-                handleConfirmDuplicate(); // 💡 Appelle votre vraie fonction d'origine
+                handleConfirmDuplicate({ mois: moisCible, annee: anneeCible });
               }
               setDuplicateModal({ show: false, count: 0, isSelection: false });
-            }} 
-            className="py-2.5 rounded-xl bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[var(--primary)]/15 cursor-pointer"
+            }}
+            className="py-2.5 rounded-xl bg-[var(--primary)] text-[10px] font-black uppercase tracking-widest text-white shadow-lg shadow-[var(--primary)]/15 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Confirmer
           </button>

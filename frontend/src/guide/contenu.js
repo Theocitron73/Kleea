@@ -403,7 +403,7 @@ export const CHAPITRES = [
         points: [
           { l: 'Onglet Récurrentes', d: "À côté de « Ce mois-ci », l'onglet « Récurrentes » liste vos prévisions et budgets répétés : mettez-en un en pause, changez son montant ou arrêtez-le." },
           { l: 'Le passé ne bouge pas', d: "Modifier ou arrêter une règle ne change que les mois à venir. Une prévision retouchée à la main pour un mois garde vos changements." },
-          { l: 'Reconduire le mois', d: "Copie les prévisions du mois, ou seulement celles que vous avez cochées (« Reconduire la sélection »), vers le mois suivant." },
+          { l: 'Reconduire le mois', d: "Copie les prévisions du mois, ou seulement celles que vous avez cochées (« Reconduire la sélection »), vers le mois et l'année de votre choix (le mois suivant par défaut), ou sur toute une année." },
           { l: "Propager sur l'année", d: "Copie les prévisions cochées sur tous les mois restants de l'année." },
         ],
         conseil: "Une petite icône de répétition marque, dans le tableau du mois, les prévisions créées par une règle.",

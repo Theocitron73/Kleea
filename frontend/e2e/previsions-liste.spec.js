@@ -14,6 +14,7 @@ async function ouvrir(page, previsions = PREVISIONS, periodes = []) {
   const erreurs = [];
   page.on('pageerror', (e) => erreurs.push(e.message));
   const modifications = page.modifications = [];
+  const ajouts = page.ajouts = [];
   await brancherApi(page);
   await page.route(/api\.kleea\.test\/api\/categories\//, (route) => route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify({ all: ['Salaire', 'Courses', 'Logement', 'Sorties', 'Loisirs'] }) }));
   await page.route(/api\.kleea\.test\/previsions\//, (route) => {
@@ -24,6 +25,12 @@ async function ouvrir(page, previsions = PREVISIONS, periodes = []) {
       return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify({ status: 'success' }) });
     }
     return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify(/\/ALL\//.test(requete.url()) ? previsions : periodes) });
+  });
+  await page.route(/api\.kleea\.test\/previsions$/, (route) => {
+    const requete = route.request();
+    if (requete.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: ENTETES });
+    ajouts.push(requete.postDataJSON());
+    return route.fulfill({ status: 200, headers: ENTETES, contentType: 'application/json', body: JSON.stringify({ status: 'success' }) });
   });
   await ouvrirSession(page);
   await page.goto('/');
@@ -103,6 +110,37 @@ test('le graphique des dépenses prévues est en barres, et une catégorie se ma
   await expect(barres).toHaveCount(1);
   await page.getByLabel('Catégories masquées').locator('visible=true').getByRole('button', { name: /Loisirs/ }).click();
   await expect(barres).toHaveCount(2);
+});
+
+async function choisir(page, champ, valeur) {
+  await page.getByLabel(champ).click();
+  await page.getByRole('listbox').getByRole('option', { name: valeur, exact: true }).click();
+}
+
+test('reconduire le mois vers un mois et une année au choix, ou sur toute une année', async ({ page }) => {
+  const erreurs = await ouvrir(page);
+  await page.getByRole('button', { name: /^Reconduire le mois/ }).locator('visible=true').first().click();
+  // Par défaut : le mois suivant
+  await expect(page.getByLabel('Mois cible')).toHaveValue('Décembre');
+  await expect(page.getByLabel('Année cible')).toHaveValue('2026');
+  await page.getByLabel('Mois cible').click();
+  await page.screenshot({ path: 'test-results/reconduction-choix-mois.png' });
+  await page.keyboard.press('Escape');
+  await choisir(page, 'Mois cible', 'Mars');
+  await choisir(page, 'Année cible', '2027');
+  await page.getByRole('button', { name: 'Confirmer' }).click();
+  await expect.poll(() => page.ajouts.length).toBe(3);
+  expect(page.ajouts.every(a => a.date === '2027-03-01' && a.mois === 'Mars' && a.annee === 2027)).toBe(true);
+
+  page.ajouts.length = 0;
+  await page.getByRole('button', { name: /^Reconduire le mois/ }).locator('visible=true').first().click();
+  await choisir(page, 'Mois cible', 'Toute l’année');
+  await choisir(page, 'Année cible', '2026');
+  await page.getByRole('button', { name: 'Confirmer' }).click();
+  // 3 prévisions × 11 mois (novembre, le mois d'origine, est exclu)
+  await expect.poll(() => page.ajouts.length).toBe(33);
+  expect(page.ajouts.some(a => a.date === '2026-11-01')).toBe(false);
+  expect(erreurs).toEqual([]);
 });
 
 test('une prévision reconduite en janvier de l’année suivante rend cette année accessible', async ({ page }) => {
