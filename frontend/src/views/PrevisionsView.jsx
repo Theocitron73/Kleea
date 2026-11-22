@@ -1,5 +1,5 @@
 import SelecteurPeriodeMobile from '../components/SelecteurPeriodeMobile';
-import { anneesPrevisions } from '../utils/anneesPrevisions';
+import { anneesPrevisions, moisPourAnnee } from '../utils/anneesPrevisions';
 import ListePrevisions from '../components/ListePrevisions';
 import AnalyseCategories from '../components/AnalyseCategories';
 import { useState, useMemo } from 'react';
@@ -62,6 +62,9 @@ export default function PrevisionsView(props) {
     CustomSelect,
     isCompact
   } = props;
+
+  // Changer d'année place aussi le mois : mois en cours pour l'année en cours, sinon dernier mois avec des données.
+  const choisirAnnee = (annee) => setFilters({ ...filters, annee, mois: moisPourAnnee(annee, moisListe, availablePeriods, periodesPrevisions) });
 
   // États spécifiques au mode mobile
   const [mobileSubTab, setMobileSubTab] = useState('flux'); // 'flux' | 'projections'
@@ -171,7 +174,7 @@ const moisCritiques = useMemo(() => {
                 <button
                   key={year}
                   type="button"
-                  onClick={() => setFilters({ ...filters, annee: year.toString() })}
+                  onClick={() => choisirAnnee(year.toString())}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-all cursor-pointer ${
                     filters.annee?.toString() === year.toString() 
                       ? 'bg-emerald-500 text-[var(--text-main)] shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
@@ -765,6 +768,7 @@ const moisCritiques = useMemo(() => {
           mois={moisListe}
           filters={filters}
           setFilters={setFilters}
+          onAnnee={choisirAnnee}
         />
 
         {/* BANDEAU D'ALERTE QUAND DES MOIS SONT EN NÉGATIF */}

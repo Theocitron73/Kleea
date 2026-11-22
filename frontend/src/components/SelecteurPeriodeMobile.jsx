@@ -8,7 +8,8 @@ import { centrerDansRangee } from '../utils/defilerVers';
 // Juin et Juillet ne se distinguent pas sur trois lettres.
 const abreger = (mois) => (/^jui/i.test(mois) ? mois.substring(0, 4) : mois.substring(0, 3));
 
-export default function SelecteurPeriodeMobile({ profils, filters, setFilters, annees, mois }) {
+// `onAnnee` : remplace le simple changement d'année (ex. le Prévisionnel qui place aussi le mois).
+export default function SelecteurPeriodeMobile({ profils, filters, setFilters, annees, mois, onAnnee }) {
   const rangeeMois = useRef(null);
   const rangeeProfils = useRef(null);
 
@@ -40,7 +41,7 @@ export default function SelecteurPeriodeMobile({ profils, filters, setFilters, a
           {annees.map((annee) => {
             const choisie = filters.annee?.toString() === annee;
             return (
-              <button key={annee} type="button" aria-pressed={choisie} onClick={() => setFilters({ ...filters, annee })} className={`h-9 rounded-lg px-2.5 text-[13px] font-bold cursor-pointer ${choisie ? 'bg-emerald-500 text-white' : 'text-white/55 active:bg-white/10'}`}>
+              <button key={annee} type="button" aria-pressed={choisie} onClick={() => (onAnnee ? onAnnee(annee) : setFilters({ ...filters, annee }))} className={`h-9 rounded-lg px-2.5 text-[13px] font-bold cursor-pointer ${choisie ? 'bg-emerald-500 text-white' : 'text-white/55 active:bg-white/10'}`}>
                 {annee}
               </button>
             );
