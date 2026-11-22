@@ -99,10 +99,15 @@ const SortableAccountCard = ({ c, isSorting }) => {
             <span className="text-[8.5px] md:text-[10px] font-black uppercase tracking-wider text-white/40 leading-none mb-1">
               {isEstimated ? 'Solde prévu' : 'Solde'}
             </span>
-            <h3 className="text-base md:text-xl font-black text-white tracking-tighter leading-none truncate w-full">
-              {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
-              <span className="text-[10px] ml-0.5 font-bold text-white/60">€</span>
-            </h3>
+            {c.enAttente ? (
+              // Données encore en chargement : un repère au lieu d'un solde partiel qui changerait ensuite
+              <span role="status" aria-label="Solde en cours de calcul" className="block h-4 md:h-5 w-20 rounded-md bg-white/20 animate-pulse" />
+            ) : (
+              <h3 className="text-base md:text-xl font-black text-white tracking-tighter leading-none truncate w-full">
+                {montantFinal.toLocaleString('fr-FR', { minimumFractionDigits: 2 })}
+                <span className="text-[10px] ml-0.5 font-bold text-white/60">€</span>
+              </h3>
+            )}
           </div>
 
           {/* 🌟 DROITE : AFFICHAGE DES INTÉRÊTS RESTAURÉ */}

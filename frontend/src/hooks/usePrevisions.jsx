@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../axios';
 import { suppressionAnnulable } from '../utils/annulation';
 import { toast } from 'sonner';
@@ -8,11 +8,14 @@ import { calculerGraphiquePrevisions } from '../utils/calculsPrevisions';
 import { calculerSoldesPrevisionnels } from '../utils/calculsPrevisions';
 
 // Prévisions et épargne projetée.
-export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user }) {
+export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, transactionsChargees = true, user }) {
   // Périodes (mois, année) qui ont des prévisions en base : elles alimentent le choix de l'année,
   // pour qu'une année sans opération (ex. janvier suivant après reconduction) reste accessible.
   const [periodesPrevisions, setPeriodesPrevisions] = useState([]);
   const [previsionsAnneesPrecedentes, setPrevisionsAnneesPrecedentes] = useState([]);
+  // Année dont les prévisions sont chargées : tant qu'elle diffère de l'année affichée, les soldes prévus attendent.
+  const [anneePrevisionsChargee, setAnneePrevisionsChargee] = useState(null);
+  const anneeDemandee = useRef(null);
 
   const loadAvailablePreviPeriods = async () => {
     if (!user) return; // 👈 Sécurité anti-déconnexion
@@ -31,26 +34,25 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
       // 1. On utilise la route 'previsions' (pas get-budgets)
       // 2. On passe 'ALL' pour avoir toute l'année d'un coup
       // 3. On passe l'année dynamiquement
-      const url = `/previsions/${user}/ALL/${filters.annee}`;
-      
-      //console.log("Tentative de récupération :", url);
-      
-      const res = await api.get(url);
-      
-      if (res.data) {
-        //console.log("Données reçues :", res.data.length, "lignes");
-        setallPrevisionsAnnee(res.data);
-      }
+      const annee = String(filters.annee);
+      anneeDemandee.current = annee;
       // Années entre l'année en cours et l'année affichée : leurs prévisions comptent dans le solde prévu.
-      const anneeAffichee = parseInt(filters.annee, 10);
       const anneesEntre = [];
-      for (let a = new Date().getFullYear(); a < anneeAffichee; a++) anneesEntre.push(a);
-      const precedentes = await Promise.all(anneesEntre.map(a => api.get(`/previsions/${user}/ALL/${a}`).then(r => r.data || [])));
-      setPrevisionsAnneesPrecedentes(precedentes.flat());
+      for (let a = new Date().getFullYear(); a < parseInt(annee, 10); a++) anneesEntre.push(a);
+
+      // Tout est chargé d'un coup puis appliqué ensemble : les soldes ne passent pas par des valeurs intermédiaires.
+      const [res, ...precedentes] = await Promise.all(
+        [annee, ...anneesEntre].map(a => api.get(`/previsions/${user}/ALL/${a}`))
+      );
+      if (anneeDemandee.current !== annee) return; // Une autre année a été choisie entre-temps
+      if (res.data) setallPrevisionsAnnee(res.data);
+      setPrevisionsAnneesPrecedentes(precedentes.flatMap(r => r.data || []));
+      setAnneePrevisionsChargee(annee);
       // Rechargé après chaque ajout ou reconduction : une nouvelle année peut être apparue.
       loadAvailablePreviPeriods();
     } catch (err) {
       console.error("Erreur lors du chargement des prévisions :", err);
+      setAnneePrevisionsChargee(String(filters.annee)); // Les cartes n'attendent pas indéfiniment
     }
   };
 
@@ -101,7 +103,13 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
   // On crée une version "Année" sans le filtre du mois sélectionné
 
 
-  const soldesPrevisionnels = useMemo(() => calculerSoldesPrevisionnels({ allPrevisionsAnnee: [...previsionsAnneesPrecedentes, ...(allPrevisionsAnnee || [])], cleanMonth, comptes, filters, moisListe, soldesTries, toutesLesTransactions }), [soldesTries, allPrevisionsAnnee, previsionsAnneesPrecedentes, comptes, toutesLesTransactions, filters.annee, filters.mois]);
+  // Prêt quand les opérations et les prévisions de l'année affichée sont là : avant, les cartes attendent
+  // au lieu d'afficher des soldes partiels qui changent à chaque chargement.
+  const donneesPretes = transactionsChargees && anneePrevisionsChargee === String(filters.annee);
+  const soldesPrevisionnels = useMemo(() => donneesPretes
+    ? calculerSoldesPrevisionnels({ allPrevisionsAnnee: [...previsionsAnneesPrecedentes, ...(allPrevisionsAnnee || [])], cleanMonth, comptes, filters, moisListe, soldesTries, toutesLesTransactions })
+    : soldesTries.map(c => ({ ...c, enAttente: true })),
+  [donneesPretes, soldesTries, allPrevisionsAnnee, previsionsAnneesPrecedentes, comptes, toutesLesTransactions, filters.annee, filters.mois]);
 
   const soldeGlobalProjete = useMemo(() => 
     soldesPrevisionnels.reduce((acc, c) => acc + c.soldeFinalEstime, 0)
@@ -247,7 +255,7 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
 
 
 
-  const recapPrevisionsStats = useMemo(() => calculerRecapPrevisions({ allPrevisionsAnnee, cleanMonth, comptes, excludedMonths, filters, moisListe, recapAnnuelStats, toutesLesTransactions }), [recapAnnuelStats, allPrevisionsAnnee, filters.annee, filters.profil, moisListe, excludedMonths, toutesLesTransactions, comptes]);
+  const recapPrevisionsStats = useMemo(() => calculerRecapPrevisions({ allPrevisionsAnnee, previsionsAnneesPrecedentes, cleanMonth, comptes, excludedMonths, filters, moisListe, recapAnnuelStats, toutesLesTransactions }), [recapAnnuelStats, allPrevisionsAnnee, previsionsAnneesPrecedentes, filters.annee, filters.profil, moisListe, excludedMonths, toutesLesTransactions, comptes]);
 
 
 

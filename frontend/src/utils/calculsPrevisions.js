@@ -1,13 +1,42 @@
 import { trouverCompteCible } from './finance.js';
 import { estTransfertInterne } from './finance.js';
 
-export function calculerRecapPrevisions({ allPrevisionsAnnee, cleanMonth, comptes, excludedMonths, filters, moisListe, recapAnnuelStats, toutesLesTransactions }) {
-    const maintenant = new Date();
+// Le cumul (« soldeTotal ») est le solde total prévu en fin de mois : réel pour les mois passés, puis
+// solde réel du jour + reste à venir du mois en cours + prévisions des mois suivants, même d'une année à l'autre.
+// `previsionsAnneesPrecedentes` : prévisions des années entre aujourd'hui et l'année affichée.
+export function calculerRecapPrevisions({ allPrevisionsAnnee, previsionsAnneesPrecedentes = [], cleanMonth, comptes, excludedMonths, filters, moisListe, recapAnnuelStats, toutesLesTransactions, maintenant = new Date() }) {
     const moisActuelIdx = maintenant.getMonth();
     const anneeActuelle = maintenant.getFullYear();
     const anneeFiltre = parseInt(filters.annee);
+    const soldeReelDe = (stats) => (stats?.soldeTotalReel !== undefined ? stats.soldeTotalReel : stats?.soldeTotal) ?? 0;
 
+    const dansLeProfil = (p) => {
+      if (filters.profil === 'Tous') return true;
+      const compteAssocie = (comptes || []).find(c => c.compte?.trim().toUpperCase() === p.compte?.trim().toUpperCase());
+      return compteAssocie?.groupe?.toLowerCase().trim() === filters.profil.toLowerCase().trim();
+    };
+    const resteAVenirDe = (p) => {
+      const consomme = (toutesLesTransactions || []).filter(t => t.prevision_id === p.id)
+        .reduce((acc, t) => acc + Math.abs(parseFloat(t.montant) || 0), 0);
+      return Math.max(0, Math.abs(parseFloat(p.montant) || 0) - consomme);
+    };
+
+    // Année future : le cumul part du solde réel du jour, plus ce qui est prévu d'ici au 1er janvier de l'année affichée.
     let cumulMobile = 0;
+    if (anneeFiltre > anneeActuelle) {
+      cumulMobile = soldeReelDe(recapAnnuelStats[0]);
+      (previsionsAnneesPrecedentes || []).forEach(p => {
+        if (p.actif === false || p.actif === 0 || p.actif === "0" || !p.date) return;
+        if (estTransfertInterne(p.nom || "", p.categorie || "") || !dansLeProfil(p)) return;
+        const [pYear, pMois] = String(p.date).split('T')[0].split('-').map(Number);
+        const rang = pYear * 12 + pMois - 1;
+        if (rang < anneeActuelle * 12 + moisActuelIdx || pYear >= anneeFiltre) return;
+        if (excludedMonths.includes(`${moisListe[pMois - 1]?.l} ${pYear}`)) return;
+        const montant = parseFloat(p.montant) || 0;
+        const impact = rang === anneeActuelle * 12 + moisActuelIdx ? resteAVenirDe(p) : Math.abs(montant);
+        cumulMobile += montant >= 0 ? impact : -impact;
+      });
+    }
 
     return moisListe.map((moisObj, indexMois) => {
       const estFutur = (anneeFiltre > anneeActuelle) || (anneeFiltre === anneeActuelle && indexMois > moisActuelIdx);
@@ -50,12 +79,7 @@ export function calculerRecapPrevisions({ allPrevisionsAnnee, cleanMonth, compte
         }
 
         if (pMonthIdx !== indexMois || pYear !== anneeFiltre) return false;
-
-        if (filters.profil !== 'Tous') {
-          const compteAssocie = (comptes || []).find(c => c.compte?.trim().toUpperCase() === p.compte?.trim().toUpperCase());
-          if (compteAssocie?.groupe?.toLowerCase().trim() !== filters.profil.toLowerCase().trim()) return false;
-        }
-        return true;
+        return dansLeProfil(p);
       });
 
       let revReste = 0;
@@ -93,7 +117,9 @@ export function calculerRecapPrevisions({ allPrevisionsAnnee, cleanMonth, compte
         : (estFutur ? (previsionsDuMois.length > 0 ? depReste + totalConsommeDepensesLiees : 0) : depReel);
 
       const balanceMois = totalRev - totalDep;
-      cumulMobile += balanceMois;
+      // Mois en cours : solde réel du jour + ce qui reste à venir (et non le solde du mois d'avant + tout le mois,
+      // qui ignore les mouvements réels hors revenus/dépenses). Mois futurs : on ajoute le solde prévu du mois.
+      cumulMobile = estMoisEnCours ? soldeReelDe(statsReelles) + revReste - depReste : cumulMobile + balanceMois;
 
       return {
         nom: moisObj.l,

@@ -234,6 +234,8 @@ const { filters, filtersByPage, getDefaultPeriod, getPageKey, setFilters, setFil
 
   const [deleteModal, setDeleteModal] = useState({ show: false, accountName: null });
   const [toutesLesTransactions, setToutesLesTransactions] = useState([]);
+  // Vrai après le premier chargement des opérations : les soldes prévus attendent jusque-là.
+  const [transactionsChargees, setTransactionsChargees] = useState(false);
  // Stocke le nom ou l'ID du projet en cours d'édition*
   const [availablePeriods, setAvailablePeriods] = useState([]);
   const [ordreComptes, setOrdreComptes] = useState(() => {
@@ -466,6 +468,8 @@ const fetchTransactions = async () => {
     }
   } catch (err) {
     console.error("Erreur fetch:", err);
+  } finally {
+    setTransactionsChargees(true);
   }
 };
 
@@ -700,7 +704,7 @@ const { checkNewTransactions, confirmBatchImport, fetchPowensConnections, handle
 
 
 
-const { periodesPrevisions, versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision } = usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, user });
+const { periodesPrevisions, versionRegles, chartDataPrevisions, duplicateModal, epargneProjeteeTotale, epargneReelleCumulee, excludedMonths, handleAddPrevision, handleConfirmDuplicate, handleDeleteSelected2, handleTryDuplicate, loadPrevisions, moisDisponibles, newPrevi, optionsComptes, pctProjete, pctReel, previsionsFiltrees, recapPrevisionsStats, selectedIds2, setDuplicateModal, setExcludedMonths, setNewPrevi, setSelectedIds2, soldeGlobalProjete, soldesPrevisionnels, statsEpargnePrevisionnelle, toggleAll2, toggleSelect2, updatePrevision } = usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes, filters, moisListe, objectifAnnuelGlobal, recapAnnuelStats, setDuplicateType, setallPrevisionsAnnee, soldesTries, toutesLesTransactions, transactionsChargees, user });
 
 
 // --- 1. Tes States (Assure-toi que l'ordre est respecté) ---
