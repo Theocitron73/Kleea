@@ -151,5 +151,8 @@ test('une prévision reconduite en janvier de l’année suivante rend cette ann
   await expect(annee2027).toHaveClass(/bg-emerald-500/);
   // Le mois suit : janvier, le dernier mois de 2027 avec des prévisions (et non plus novembre, le mois d'avant)
   await expect(page.getByRole('button', { name: 'JAN', exact: true }).locator('visible=true')).toHaveClass(/bg-\[var\(--primary\)\]/);
+  // Une fois tout chargé, les cartes de compte affichent leur solde prévu (plus d'attente)
+  await expect(page.getByText('Solde prévu').locator('visible=true').first()).toBeVisible();
+  await expect(page.getByRole('status', { name: 'Solde en cours de calcul' })).toHaveCount(0);
   expect(erreurs).toEqual([]);
 });
