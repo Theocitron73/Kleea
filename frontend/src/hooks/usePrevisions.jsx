@@ -276,24 +276,27 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
     });
   };
 
-  const handleConfirmDuplicate = async () => {
-    const aCopier = selectedIds2.length > 0 
+  // cible : { mois: 0-11 ou 'tous', annee } choisie dans la fenêtre. Sans cible : mois suivant.
+  const handleConfirmDuplicate = async (cible) => {
+    const aCopier = selectedIds2.length > 0
       ? previsionsFiltrees.filter(p => selectedIds2.includes(p.id))
       : previsionsFiltrees;
 
     try {
-      const requetes = aCopier.map(prev => {
-        // 1. On découpe la chaîne "YYYY-MM-DD" originale (ex: "2026-06-15")
-        const [anneeBrute, moisBrut] = prev.date.split('-').map(Number);
-        
-        // 2. On calcule l'année et le mois suivants (Rappel : en JS, Janvier = 0, Décembre = 11)
-        let anneeCible = anneeBrute;
-        let moisCibleJS = (moisBrut - 1) + 1; // On passe au mois d'après
-
-        if (moisCibleJS > 11) {
-          moisCibleJS = 0;   // Reset à Janvier
-          anneeCible += 1;   // Année suivante
+      const requetes = aCopier.flatMap(prev => {
+        // Mois source (Janvier = 0) lu dans la date "YYYY-MM-DD"
+        const [anneeSource, moisSource] = prev.date.split('-').map(Number);
+        let destinations;
+        if (!cible) {
+          destinations = [moisSource === 12 ? [anneeSource + 1, 0] : [anneeSource, moisSource]];
+        } else if (cible.mois === 'tous') {
+          // Toute l'année cible, sauf le mois d'origine lui-même
+          destinations = Array.from({ length: 12 }, (_, m) => [Number(cible.annee), m])
+            .filter(([a, m]) => !(a === anneeSource && m === moisSource - 1));
+        } else {
+          destinations = [[Number(cible.annee), Number(cible.mois)]];
         }
+        return destinations.map(([anneeCible, moisCibleJS]) => {
 
         // 3. On crée un objet Date calé au 1er du mois à midi pour le formatage du nom du mois
         const nouvelleDate = new Date(anneeCible, moisCibleJS, 1, 12, 0, 0);
@@ -326,16 +329,17 @@ export default function usePrevisions({ allPrevisionsAnnee, cleanMonth, comptes,
           annee: anneeStrict,     // L'année en nombre entier
           utilisateur: user
         });
+        });
       });
 
       await Promise.all(requetes);
-      
+
       // Nettoyage et rafraîchissement
       setSelectedIds2([]);
       setDuplicateModal({ show: false, count: 0, isSelection: false });
       loadPrevisions();
-      
-      toast.success(`${aCopier.length} prévisions dupliquées avec succès !`);
+
+      toast.success(`${requetes.length} prévisions dupliquées avec succès !`);
       
 
     } catch (err) {
