@@ -6,7 +6,7 @@ import {
   BarChart, Bar, Cell, LabelList, PieChart, Pie
 } from 'recharts';
 import ReactMarkdown from 'react-markdown';
-import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2, BarChart3, PiggyBank, Landmark } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, List, PieChart as PieChartIcon, CalendarDays, LayoutList, Sparkles, Trophy, RefreshCw, Search, X, Flame, Terminal, Lightbulb, ShoppingCart, ArrowUpRight, ArrowDownRight, Minus, CheckCircle, TrendingDown, Ticket, HeartPulse, Cpu, Plane, Gift, AlertTriangle, Eye, EyeOff, Calendar, Wallet, Trash2, BarChart3, PiggyBank, Landmark } from 'lucide-react';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CategoryIcon, getCleanCategoryName } from '../categoryIcons';
@@ -16,6 +16,7 @@ import GestionEpargneProjet from './GestionEpargneProjet';
 import ValeurNetteResume from '../components/ValeurNetteResume';
 import RecapAnnees from '../components/RecapAnnees';
 import RepartitionDepenses from '../components/RepartitionDepenses';
+import DepensesMensuelles from '../components/DepensesMensuelles';
 import AnalyseCategories from '../components/AnalyseCategories';
 import VueAbonnements from '../components/VueAbonnements';
 import { depenseDuBudget, estTransfertInterne, indexMois } from '../utils/finance';
@@ -1977,6 +1978,15 @@ export default function DashboardView(props) {
                   </button>
                   <button 
                     type="button"
+                    onClick={() => setAnnualTab('mensuel')}
+                    title="Dépenses par mois et par catégorie"
+                    aria-label="Dépenses par mois et par catégorie"
+                    className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'mensuel' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
+                  >
+                    <LayoutList size={14} />
+                  </button>
+                  <button 
+                    type="button"
                     onClick={() => setAnnualTab('calendar')}
                     className={`px-3 lg:px-1 xl:px-3 py-1.5 rounded-lg transition-all duration-300 cursor-pointer ${annualTab === 'calendar' ? 'bg-[var(--glass-bg)] text-white' : 'text-white/30 hover:text-white/60'}`}
                     title="Activité des dépenses"
@@ -2186,6 +2196,10 @@ export default function DashboardView(props) {
                       })}
                     </div>
                   </div>
+                )}
+
+                {annualTab === 'mensuel' && (
+                  <DepensesMensuelles comptes={comptes} filters={filters} toutesLesTransactions={toutesLesTransactions} couleurDepenses={userTheme.color_depenses || '#f43f5e'} />
                 )}
 
                 {annualTab === 'chart' && (
@@ -3078,6 +3092,7 @@ export default function DashboardView(props) {
                 onglets={[
                   { id: 'list', label: 'Mois par mois', icon: List },
                   { id: 'chart', label: 'Répartition', icon: PieChartIcon, title: 'Répartition des dépenses' },
+                  { id: 'mensuel', label: 'Par mois', icon: LayoutList, title: 'Dépenses par mois et par catégorie' },
                   { id: 'calendar', label: 'Calendrier', icon: CalendarDays, title: 'Activité des dépenses' },
                   { id: 'wrapped', label: 'Wrapped', icon: Sparkles, title: 'Rétrospective annuelle (Wrapped)' },
                 ]}
@@ -3196,6 +3211,12 @@ export default function DashboardView(props) {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+
+                {annualTab === 'mensuel' && (
+                  <div className="max-h-[420px] flex flex-col">
+                    <DepensesMensuelles comptes={comptes} filters={filters} toutesLesTransactions={toutesLesTransactions} couleurDepenses={userTheme.color_depenses || '#f43f5e'} />
                   </div>
                 )}
 

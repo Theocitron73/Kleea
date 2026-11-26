@@ -121,7 +121,7 @@ export default function useMolette({ TAB_CONFIG, activeRightTab, activeTab, annu
     if (!canWheelTrigger()) return;
     e.preventDefault();
 
-    const tabs = ['list', 'chart', 'calendar', 'wrapped'];
+    const tabs = ['list', 'chart', 'mensuel', 'calendar', 'wrapped'];
     const currentIndex = tabs.indexOf(annualTab);
     if (currentIndex === -1) return;
 

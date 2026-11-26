@@ -1,4 +1,4 @@
-import { anneeTransaction, appliquerMouvement, calculerSoldes, creerLecteurMouvements, estTransfertInterne, budgetSurTousLesComptes, depenseDuBudget, montantDepense, totauxRevenusDepenses, trouverCompteCible } from './finance.js';
+import { anneeTransaction, appliquerMouvement, calculerSoldes, creerLecteurMouvements, estTransfertInterne, budgetSurTousLesComptes, depenseDuBudget, indexMois, montantDepense, totauxRevenusDepenses, trouverCompteCible } from './finance.js';
 
 export function calculerRecapAnnuel({ allPrevisionsAnnee, cleanMonth, comptes, filters, getTxYear, moisListe, toutesLesTransactions }) {
     const anneeFiltre = parseInt(filters.annee);
@@ -510,4 +510,34 @@ export function calculerStatsAnnuellesCategories({ comptes, filters, toutesLesTr
     }))
     .sort((a, b) => b.value - a.value);
 
+}
+
+/**
+ * Les dépenses de l'année, mois par mois et par catégorie.
+ * Renvoie 12 entrées (janvier → décembre) : { mois, total, categories: [{ name, value }] triées du plus gros au plus petit }.
+ * Le mois d'une opération est sa colonne `mois`, sinon celui de sa date.
+ */
+export function calculerDepensesMensuellesParCategorie({ comptes, filters, toutesLesTransactions }) {
+  const profil = String(filters.profil || '').toLowerCase().trim();
+  const nomsComptes = new Set((comptes || [])
+    .filter(c => filters.profil === 'Tous' || c.groupe?.toLowerCase().trim() === profil)
+    .map(c => c.compte?.trim().toUpperCase()));
+  const annee = parseInt(filters.annee, 10);
+  const parMois = Array.from({ length: 12 }, () => ({}));
+
+  (toutesLesTransactions || []).forEach(t => {
+    if (parseInt(anneeTransaction(t), 10) !== annee || !nomsComptes.has(t.compte?.trim().toUpperCase())) return;
+    const montant = montantDepense(t);
+    if (!montant) return;
+    let mois = indexMois(t.mois);
+    if (mois < 0 && t.date) mois = new Date(t.date).getMonth();
+    if (!(mois >= 0 && mois < 12)) return;
+    const cat = t.categorie || 'Autre';
+    parMois[mois][cat] = (parMois[mois][cat] || 0) + montant;
+  });
+
+  return parMois.map((recap, mois) => {
+    const categories = Object.entries(recap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    return { mois, total: categories.reduce((s, c) => s + c.value, 0), categories };
+  });
 }
